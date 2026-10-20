@@ -21,28 +21,16 @@ const moduleStructureRef = "the maintainer skill's module-structure reference"
 
 // newVariable reports whether a head variable is new: it has no variable of
 // the same name at base. Without a base tree every block counts as new.
-func newVariable(a *Area, name string) bool {
-	if a.Base == nil {
-		return true
-	}
-	for _, v := range a.Base.Variables {
-		if v.Name == name {
-			return false
-		}
-	}
-	return true
-}
+func newVariable(a *Area, name string) bool { return a.Base == nil || !a.Base.varNames[name] }
 
-func newOutput(a *Area, name string) bool {
-	if a.Base == nil {
-		return true
+func newOutput(a *Area, name string) bool { return a.Base == nil || !a.Base.outNames[name] }
+
+// short caps a block name before it goes into a finding's text.
+func short(name string) string {
+	if len(name) > maxEvidenceText {
+		return name[:maxEvidenceText]
 	}
-	for _, o := range a.Base.Outputs {
-		if o.Name == name {
-			return false
-		}
-	}
-	return true
+	return name
 }
 
 func finding(rule, area, file string, line int, summary, fix string) Finding {
@@ -74,7 +62,8 @@ func checkVariableUntyped(a *Area) Result {
 			}
 			return s
 		}
-		ev := VariableEvidence{Variable: v.Name, Comments: []string{}}
+		name := capText(v.Name)
+		ev := VariableEvidence{Variable: name, Comments: []string{}}
 		if v.HasType {
 			t := capText(v.TypeText)
 			ev.Type = &t
@@ -89,7 +78,7 @@ func checkVariableUntyped(a *Area) Result {
 		line := v.Line
 		res.Candidates = append(res.Candidates, Candidate{
 			RuleID: "structure.variable-untyped", File: areaFile(a.Path, v.File), Line: &line,
-			Subject: fmt.Sprintf("variable %q", v.Name), Evidence: ev, EvidenceComplete: complete,
+			Subject: fmt.Sprintf("variable %q", name), Evidence: ev, EvidenceComplete: complete,
 		})
 	}
 	return res
@@ -102,16 +91,16 @@ func checkMissingDescription(a *Area) Result {
 	for _, v := range a.Head.Variables {
 		if newVariable(a, v.Name) && !v.HasDescription {
 			out = append(out, finding(id, a.Path, v.File, v.Line,
-				fmt.Sprintf("Variable %q has no description, so its documentation row says nothing about what it controls.", v.Name),
+				fmt.Sprintf("Variable %q has no description, so its documentation row says nothing about what it controls.", short(v.Name)),
 				fmt.Sprintf("Add a `description` to `variable %q` in `%s` stating what the input controls, per Variable Descriptions in %s.",
-					v.Name, areaFile(a.Path, v.File), moduleStructureRef)))
+					short(v.Name), areaFile(a.Path, v.File), moduleStructureRef)))
 		}
 	}
 	for _, o := range a.Head.Outputs {
 		if newOutput(a, o.Name) && !o.HasDescription {
 			out = append(out, finding(id, a.Path, o.File, o.Line,
-				fmt.Sprintf("Output %q has no description, so its documentation row says nothing about what it returns.", o.Name),
-				fmt.Sprintf("Add a `description` to `output %q` in `%s` stating what the value is.", o.Name, areaFile(a.Path, o.File))))
+				fmt.Sprintf("Output %q has no description, so its documentation row says nothing about what it returns.", short(o.Name)),
+				fmt.Sprintf("Add a `description` to `output %q` in `%s` stating what the value is.", short(o.Name), areaFile(a.Path, o.File))))
 		}
 	}
 	return Result{Findings: out}

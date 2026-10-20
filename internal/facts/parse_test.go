@@ -70,7 +70,7 @@ output "id" {
 `
 
 func TestParseDir(t *testing.T) {
-	m := ParseDir(mustTree(t, writeTree(t, map[string]string{"main.tf": parseSrc})), ".", DefaultLimits)
+	m, _ := ParseDir(mustTree(t, writeTree(t, map[string]string{"main.tf": parseSrc})), ".", DefaultLimits)
 	if len(m.Unsupported) > 0 {
 		t.Fatal(m.Unsupported)
 	}
@@ -122,7 +122,7 @@ func TestParseDirUnsupported(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			m := ParseDir(mustTree(t, writeTree(t, tc.files)), ".", DefaultLimits)
+			m, _ := ParseDir(mustTree(t, writeTree(t, tc.files)), ".", DefaultLimits)
 			if got := strings.Join(m.Unsupported, "; "); got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}

@@ -133,8 +133,6 @@ func lineOr0(l *int) int {
 // It returns StatusNotApplicable as the reason for a rule that does not apply.
 func gate(r Rule, a *Area) string {
 	switch {
-	case a.Kind == AreaUnknown:
-		return "the area kind is unknown"
 	case !contains(r.Kinds, a.Kind):
 		return StatusNotApplicable
 	case a.Issue != "":
@@ -192,4 +190,30 @@ func sortStrings(ss ...[]string) {
 	for _, s := range ss {
 		sort.Strings(s)
 	}
+}
+
+// CheckManifest is the integrity check: exactly one entry per (rule, area)
+// for every tool and candidate rule, and no other entry.
+func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
+	want := map[[2]string]bool{}
+	for _, r := range rules {
+		if r.Tier != "tool" && r.Tier != "candidate" {
+			continue
+		}
+		for _, a := range areas {
+			want[[2]string{r.ID, a.Path}] = true
+		}
+	}
+	seen := map[[2]string]bool{}
+	for _, e := range m {
+		k := [2]string{e.RuleID, e.Area}
+		if !want[k] || seen[k] {
+			return fmt.Errorf("integrity: unexpected or duplicate manifest entry %s in %s", e.RuleID, e.Area)
+		}
+		seen[k] = true
+	}
+	if len(seen) != len(want) {
+		return fmt.Errorf("integrity: %d manifest entries, want %d", len(seen), len(want))
+	}
+	return nil
 }

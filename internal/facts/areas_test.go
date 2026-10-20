@@ -14,8 +14,8 @@ func TestClassify(t *testing.T) {
 		"modules/child/main.tf":        "modules/child submodule",
 		"modules/child/sub/x.tf":       "modules/child submodule",
 		"examples/complete/main.tf":    "examples/complete example",
-		"examples/README.md":           "examples unknown",
-		"modules/x.tf":                 "modules unknown",
+		"examples/README.md":           "none",
+		"modules/x.tf":                 "none",
 		"wrappers/main.tf":             "none",
 		"tests/basic.tftest.hcl":       "none",
 		"basic.tftest.hcl":             "none",
@@ -36,7 +36,10 @@ func TestClassify(t *testing.T) {
 	}
 }
 
-func areaList(as []*Area) string {
+func areaList(as []*Area, err error) string {
+	if err != nil {
+		return "error: " + err.Error()
+	}
 	var out []string
 	for _, a := range as {
 		out = append(out, fmt.Sprintf("%s:%s:%v:%v:%q", a.Path, a.Kind, a.HeadExists, a.BaseExists, a.Issue))

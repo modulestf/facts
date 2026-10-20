@@ -98,7 +98,14 @@ func Run(o Options) (*Report, error) {
 		bi := treeInput(base)
 		env.Inputs.Base = &bi
 	}
-	manifest, findings, candidates := Evaluate(FindAreas(head, base, o.Limits), Rules)
+	areas, err := FindAreas(head, base, o.Limits)
+	if err != nil {
+		return nil, err
+	}
+	manifest, findings, candidates := Evaluate(areas, Rules)
+	if err := CheckManifest(manifest, Rules, areas); err != nil {
+		return nil, err
+	}
 	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates}, nil
 }
 
@@ -113,6 +120,9 @@ func optionalSHA(name, s string) (*string, error) {
 }
 
 func hashRegistry(p string) (string, error) {
+	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
+		return "", fmt.Errorf("registry: %s is not a regular file", p)
+	}
 	f, err := os.Open(p)
 	if err != nil {
 		return "", fmt.Errorf("registry: %w", err)

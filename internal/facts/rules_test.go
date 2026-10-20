@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -65,15 +66,36 @@ func TestDeepNestingStaysInItsArea(t *testing.T) {
 	}
 }
 
+// Every rule has a positive golden case that yields its finding or candidate
+// and a negative case that yields neither.
 func TestEveryRuleHasGoldenCases(t *testing.T) {
 	for _, r := range Rules {
 		if r.Tier != "tool" && r.Tier != "candidate" {
 			t.Errorf("%s: tier %q", r.ID, r.Tier)
 		}
 		slug := r.ID[strings.Index(r.ID, ".")+1:]
-		for _, kind := range []string{"positive", "negative"} {
-			if _, err := os.Stat(filepath.Join("../../testdata", slug+"-"+kind, "expected.json")); err != nil {
+		for kind, want := range map[string]bool{"positive": true, "negative": false} {
+			data, err := os.ReadFile(filepath.Join("../../testdata", slug+"-"+kind, "expected.json"))
+			if err != nil {
 				t.Errorf("%s: no %s golden case", r.ID, kind)
+				continue
+			}
+			var g struct {
+				Findings   []Finding   `json:"findings"`
+				Candidates []Candidate `json:"candidates"`
+			}
+			if err := json.Unmarshal(data, &g); err != nil {
+				t.Fatal(err)
+			}
+			got := false
+			for _, f := range g.Findings {
+				got = got || f.RuleID == r.ID
+			}
+			for _, c := range g.Candidates {
+				got = got || c.RuleID == r.ID
+			}
+			if got != want {
+				t.Errorf("%s: %s case yields the rule: %v", r.ID, kind, got)
 			}
 		}
 	}

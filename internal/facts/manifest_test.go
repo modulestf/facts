@@ -24,18 +24,15 @@ func TestEvaluateStatuses(t *testing.T) {
 	areas := []*Area{
 		{Path: ".", Kind: AreaRoot, Head: &Module{}},
 		{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{Unsupported: []string{"main.tf: parse error"}}},
-		{Path: "examples", Kind: AreaUnknown, Head: &Module{}},
 		{Path: "modules/old", Kind: AreaSubmodule, Head: &Module{}, Base: &Module{Unsupported: []string{"x.tf.json is a JSON configuration file"}}},
 	}
 	m, fs, cs := Evaluate(areas, []Rule{finding, path})
 	want := []ManifestEntry{
 		{RuleID: "test.finding", Area: ".", Status: StatusFinding},
 		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error"},
-		{RuleID: "test.finding", Area: "examples", Status: StatusNotEvaluated, Reason: "the area kind is unknown"},
 		{RuleID: "test.finding", Area: "modules/old", Status: StatusNotEvaluated, Reason: "at base: x.tf.json is a JSON configuration file"},
 		{RuleID: "test.path", Area: ".", Status: StatusNotApplicable},
 		{RuleID: "test.path", Area: "modules/bad", Status: StatusClean},
-		{RuleID: "test.path", Area: "examples", Status: StatusNotEvaluated, Reason: "the area kind is unknown"},
 		{RuleID: "test.path", Area: "modules/old", Status: StatusCandidate},
 	}
 	if !reflect.DeepEqual(m, want) {

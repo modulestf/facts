@@ -3,6 +3,7 @@ package facts
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -25,6 +26,9 @@ type Module struct {
 	Moved             []Moved
 	Removed           []Removed
 	ModuleCalls       []ModuleCall
+
+	varNames map[string]bool
+	outNames map[string]bool
 }
 
 type Variable struct {
@@ -103,11 +107,24 @@ func unsupportedName(name string) string {
 	return ""
 }
 
+// ignoredName reports a file Terraform itself skips: hidden files and
+// editor backup and lock files.
+func ignoredName(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.HasSuffix(name, "~") ||
+		(strings.HasPrefix(name, "#") && strings.HasSuffix(name, "#"))
+}
+
 // ParseDir parses the *.tf files directly in dir.
-func ParseDir(t *Tree, dir string, lim Limits) *Module {
-	m := &Module{Dir: dir}
+func ParseDir(t *Tree, dir string, lim Limits) (*Module, error) {
+	m := &Module{Dir: dir, varNames: map[string]bool{}, outNames: map[string]bool{}}
 	for _, e := range t.DirEntries(dir) {
+		if err := lim.expired(); err != nil {
+			return nil, err
+		}
 		name := path.Base(e.Path)
+		if ignoredName(name) {
+			continue
+		}
 		if r := unsupportedName(name); r != "" {
 			m.Unsupported = append(m.Unsupported, r)
 			continue
@@ -123,7 +140,7 @@ func ParseDir(t *Tree, dir string, lim Limits) *Module {
 			m.Unsupported = append(m.Unsupported, fmt.Sprintf("%s: %v", name, err))
 		}
 	}
-	return m
+	return m, nil
 }
 
 func kindText(k string) string {
@@ -150,8 +167,16 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 	if diags.HasErrors() {
 		return fmt.Errorf("parse error")
 	}
+	// The parser recurses on nesting and on unary operators, and a stack
+	// overflow is fatal, so both are bounded before it runs.
+	if len(tokens) > lim.MaxTokens {
+		return fmt.Errorf("%d tokens over the limit %d", len(tokens), lim.MaxTokens)
+	}
 	if d := nestingDepth(tokens); d > lim.MaxDepth {
 		return fmt.Errorf("nesting depth %d over the limit %d", d, lim.MaxDepth)
+	}
+	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
+		return fmt.Errorf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps)
 	}
 	f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
 	if diags.HasErrors() {
@@ -179,7 +204,25 @@ func nestingDepth(tokens hclsyntax.Tokens) int {
 			}
 		case hclsyntax.TokenCBrace, hclsyntax.TokenCBrack, hclsyntax.TokenCParen,
 			hclsyntax.TokenTemplateSeqEnd, hclsyntax.TokenCQuote, hclsyntax.TokenCHeredoc:
-			depth--
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+	return max
+}
+
+// prefixRun returns the longest run of consecutive `!` or `-` tokens.
+func prefixRun(tokens hclsyntax.Tokens) int {
+	run, max := 0, 0
+	for _, tk := range tokens {
+		if tk.Type == hclsyntax.TokenBang || tk.Type == hclsyntax.TokenMinus {
+			run++
+			if run > max {
+				max = run
+			}
+		} else {
+			run = 0
 		}
 	}
 	return max
@@ -197,15 +240,17 @@ func collect(m *Module, file string, src []byte, body *hclsyntax.Body, comments 
 				v.TypeUsesAny = usesAny(a.Expr)
 			}
 			v.HasDescription = hasText(b.Body.Attributes["description"])
-			for _, c := range comments {
-				if l := c.Range.Start.Line; l >= line-1 && l <= b.Body.SrcRange.End.Line {
-					v.Comments = append(v.Comments, strings.TrimRight(string(c.Bytes), "\r\n"))
-				}
+			// comments are in source order, so search for the first one in range.
+			i := sort.Search(len(comments), func(i int) bool { return comments[i].Range.Start.Line >= line-1 })
+			for ; i < len(comments) && comments[i].Range.Start.Line <= b.Body.SrcRange.End.Line; i++ {
+				v.Comments = append(v.Comments, strings.TrimRight(string(comments[i].Bytes), "\r\n"))
 			}
 			m.Variables = append(m.Variables, v)
+			m.varNames[v.Name] = true
 		case b.Type == "output" && len(b.Labels) == 1:
 			m.Outputs = append(m.Outputs, Output{Name: b.Labels[0], File: file, Line: line,
 				HasDescription: hasText(b.Body.Attributes["description"])})
+			m.outNames[b.Labels[0]] = true
 		case b.Type == "provider" && len(b.Labels) == 1:
 			p := Provider{Name: b.Labels[0], File: file, Line: line}
 			if a, ok := b.Body.Attributes["alias"]; ok {
@@ -267,9 +312,7 @@ func moduleCall(b *hclsyntax.Block, file string) ModuleCall {
 		}
 		if name == "source" {
 			c.SourceRange = a.Expr.Range()
-			if v, diags := a.Expr.Value(nil); !diags.HasErrors() && v.Type() == cty.String && v.IsKnown() && !v.IsNull() {
-				c.Source = v.AsString()
-			}
+			c.Source, _ = literalString(a.Expr)
 		}
 	}
 	sortStrings(c.Meta, c.Attributes)
@@ -288,22 +331,42 @@ func usesAny(e hclsyntax.Expression) bool {
 	return found
 }
 
-// hasText reports whether an attribute is present and not an empty or
-// blank string literal. A non-literal expression counts as text.
+// hasText reports whether an attribute is present and not null, an empty
+// string or a blank string. Expressions are read, never evaluated: a deep
+// expression would overflow the evaluator's stack. Anything other than a
+// literal counts as text.
 func hasText(a *hclsyntax.Attribute) bool {
 	if a == nil {
 		return false
 	}
-	v, diags := a.Expr.Value(nil)
-	switch {
-	case diags.HasErrors() || !v.IsKnown():
-		return true // an expression with references
-	case v.IsNull():
+	if lit, ok := a.Expr.(*hclsyntax.LiteralValueExpr); ok && lit.Val.IsNull() {
 		return false
-	case v.Type() != cty.String:
-		return true
 	}
-	return strings.TrimSpace(v.AsString()) != ""
+	if s, ok := literalString(a.Expr); ok {
+		return strings.TrimSpace(s) != ""
+	}
+	return true
+}
+
+// literalString returns the text of a string with no interpolation.
+func literalString(e hclsyntax.Expression) (string, bool) {
+	switch x := e.(type) {
+	case *hclsyntax.LiteralValueExpr:
+		if x.Val.Type() == cty.String && x.Val.IsKnown() && !x.Val.IsNull() {
+			return x.Val.AsString(), true
+		}
+	case *hclsyntax.TemplateExpr:
+		var b strings.Builder
+		for _, p := range x.Parts {
+			lit, ok := p.(*hclsyntax.LiteralValueExpr)
+			if !ok || lit.Val.Type() != cty.String || lit.Val.IsNull() {
+				return "", false
+			}
+			b.WriteString(lit.Val.AsString())
+		}
+		return b.String(), true
+	}
+	return "", false
 }
 
 func attrText(src []byte, body *hclsyntax.Body, name string) string {
