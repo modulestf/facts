@@ -192,9 +192,7 @@ func (w *treeReader) list(dir string) (ents []fs.DirEntry, readErr, err error) {
 }
 
 // openDir opens dir for listing. It fails, without blocking, when dir is or
-// was swapped for a link, a fifo or any other non-directory. os.Root follows
-// a link inside the root even with O_NOFOLLOW, so the opened directory must
-// also be the same file Lstat saw before the open.
+// was swapped for a link, a fifo or any other non-directory.
 func openDir(r *os.Root, dir string) (*os.File, error) {
 	before, err := r.Lstat(dir)
 	if err != nil {
@@ -203,16 +201,25 @@ func openDir(r *os.Root, dir string) (*os.File, error) {
 	if !before.IsDir() {
 		return nil, fmt.Errorf("%s: not a directory", dir)
 	}
-	f, err := r.OpenFile(dir, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	f, _, err := openUnchanged(r, dir, before, syscall.O_DIRECTORY)
+	return f, err
+}
+
+// openUnchanged opens name read-only and checks it is still the file before,
+// which the caller took with Lstat. os.Root follows a link inside the root
+// even with O_NOFOLLOW, so this check is what refuses a path swapped for a
+// link before the open. O_NONBLOCK keeps a swapped-in fifo from blocking.
+func openUnchanged(r *os.Root, name string, before fs.FileInfo, flag int) (*os.File, fs.FileInfo, error) {
+	f, err := r.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|flag, 0)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	after, err := f.Stat()
 	if err != nil || !os.SameFile(before, after) {
 		_ = f.Close() // read-only; the open is being refused
-		return nil, fmt.Errorf("%s: changed while it was opened", dir)
+		return nil, nil, fmt.Errorf("%s: changed while it was opened", name)
 	}
-	return f, nil
+	return f, after, nil
 }
 
 // addEntry records one non-directory entry by kind, reading regular files.
@@ -245,24 +252,27 @@ func (t *Tree) add(e *Entry) {
 	t.Paths = append(t.Paths, e.Path)
 }
 
-// readFile opens p without following a final symlink and without blocking on
-// a fifo swapped in after the directory read, then checks it is regular.
+// readFile reads a regular file listed by the walk. A path that is now a link
+// is recorded as unreadable and a fifo or other special file as special, both
+// without being read; a path swapped between the Lstat and the open is
+// refused by openUnchanged and recorded as unreadable.
 func readFile(r *os.Root, e *Entry, limit int64) {
-	f, err := r.OpenFile(e.Path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	before, err := r.Lstat(e.Path)
+	switch {
+	case err != nil, before.Mode()&fs.ModeSymlink != 0:
+		e.Kind = KindUnreadable // gone, or swapped for a link after the listing
+		return
+	case !before.Mode().IsRegular():
+		e.Kind = KindSpecial
+		return
+	}
+	f, st, err := openUnchanged(r, e.Path, before, 0)
 	if err != nil {
 		e.Kind = KindUnreadable
 		return
 	}
 	defer f.Close()
-	st, err := f.Stat()
-	switch {
-	case err != nil:
-		e.Kind = KindUnreadable
-		return
-	case !st.Mode().IsRegular():
-		e.Kind = KindSpecial
-		return
-	case st.Size() > limit:
+	if st.Size() > limit {
 		e.Kind = KindOversize
 		return
 	}

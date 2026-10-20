@@ -203,3 +203,34 @@ func TestOpenDirRefusesNonDirectories(t *testing.T) {
 	}
 	_ = f.Close()
 }
+
+func TestReadFileRefusesLinksAndFifos(t *testing.T) {
+	root := writeTree(t, map[string]string{"real.tf": "secret", "link.tf": "->real.tf"})
+	if err := syscall.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for p, want := range map[string]string{"link.tf": KindUnreadable, "pipe.tf": KindSpecial, "real.tf": KindFile} {
+		e := &Entry{Path: p}
+		done := make(chan struct{})
+		go func() {
+			readFile(r, e, DefaultLimits.MaxFileBytes)
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s: read blocked", p)
+		}
+		if e.Kind != want {
+			t.Errorf("%s: kind %s, want %s", p, e.Kind, want)
+		}
+		if want != KindFile && (e.Data != nil || e.SHA256 != "") {
+			t.Errorf("%s: target was read", p)
+		}
+	}
+}
