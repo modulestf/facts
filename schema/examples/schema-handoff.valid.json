@@ -22,7 +22,8 @@
          "attributes": {
            "name": {"required": true},
            "arn": {"computed": true},
-           "legacy_flag": {"optional": true, "deprecated": true}
+           "legacy_flag": {"optional": true, "deprecated": true},
+           "rules": {"optional": true, "nested_type": {"nesting_mode": "list", "max_items": 10, "attributes": {"port": {"required": true}, "note": {"optional": true}}}}
          },
          "block_types": {
            "setting": {"nesting_mode": "list", "max_items": 1, "block": {"attributes": {"value": {"optional": true}}}}

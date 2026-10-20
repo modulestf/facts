@@ -3,7 +3,9 @@
 #
 # Every schema/<name>.schema.json except finding.schema.json (shared, referenced
 # by the others) must have schema/examples/<name>.valid.json, which must pass,
-# and at least one schema/examples/<name>.invalid*.json, each of which must fail.
+# and at least one schema/examples/<name>.invalid.<keyword>[.<slug>].json, each
+# of which must fail with an error whose keyword is <keyword> (for example
+# additionalProperties, oneOf, required) in ajv's --all-errors JSON output.
 #
 # Validator: ajv-cli 5.0.0 through npx, draft 2020-12 (--spec=draft2020), strict
 # mode. Needs Node.js and network access to the npm registry on first run.
@@ -26,12 +28,13 @@ for schema in "$schemas"/*.schema.json; do
   for other in "$schemas"/*.schema.json; do
     [ "$other" = "$schema" ] || refs+=(-r "$other")
   done
-  run=("${ajv[@]}" test --spec=draft2020 --strict=true -s "$schema" "${refs[@]}")
+  opts=(--spec=draft2020 --strict=true -s "$schema" "${refs[@]}")
+  run=("${ajv[@]}" test "${opts[@]}")
 
   valid="$examples/$name.valid.json"
-  invalid=("$examples/$name".invalid*.json)
+  invalid=("$examples/$name".invalid.*.json)
   if [ ! -f "$valid" ] || [ ! -f "${invalid[0]}" ]; then
-    echo "FAIL $name: needs $name.valid.json and at least one $name.invalid*.json"
+    echo "FAIL $name: needs $name.valid.json and at least one $name.invalid.<keyword>.json"
     fail=1
     continue
   fi
@@ -43,12 +46,18 @@ for schema in "$schemas"/*.schema.json; do
     "${run[@]}" -d "$valid" --valid 2>&1 | sed 's/^/     /' || true
     fail=1
   fi
-  # One call per file: ajv test with several -d fails as a whole, which would hide which one.
+  # One call per file, so a failure names the file and its expected keyword.
   for f in "${invalid[@]}"; do
-    if "${run[@]}" -d "$f" --invalid >/dev/null 2>&1; then
-      echo "ok   $(basename "$f") fails"
+    base=$(basename "$f" .json)
+    keyword=$(printf '%s' "$base" | cut -d. -f3)
+    if out=$("${ajv[@]}" validate "${opts[@]}" -d "$f" --all-errors --errors=json 2>&1); then
+      echo "FAIL $base.json passes but must fail"
+      fail=1
+    elif printf '%s' "$out" | grep -Eq "\"keyword\": ?\"$keyword\""; then
+      echo "ok   $base.json fails on $keyword"
     else
-      echo "FAIL $(basename "$f") does not fail validation (or the schema does not compile)"
+      echo "FAIL $base.json fails, but not on $keyword:"
+      printf '%s\n' "$out" | sed 's/^/     /'
       fail=1
     fi
   done

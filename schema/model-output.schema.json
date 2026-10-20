@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/modulestf/facts/schema/model-output.schema.json",
   "title": "Model output envelope",
-  "description": "The lead model's reply. Shape only: the host also checks that every candidate id is answered exactly once, that a severity_needed id is answered with confirm, that severities are within the rule's list, and that findings use only llm rule ids or rules injected as not_evaluated for that area. source and confirmed_by are host-owned and never accepted here.",
+  "description": "The lead model's reply. Shape only: the host also checks that every candidate id is answered exactly once, that a severity_needed id is answered with confirm, that severities are within the rule's list, that a confirm for a candidate not in severity_needed carries summary and suggested_fix (otherwise the reply is invalid and the repair turn applies), and that findings use only llm rule ids or rules injected as not_evaluated for that area. source and confirmed_by are host-owned and never accepted here.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -27,7 +27,7 @@
   },
   "$defs": {
     "candidate_decision": {
-      "description": "confirm carries a severity and optional text; reject carries none. An id from severity_needed takes confirm only, which the host checks.",
+      "description": "confirm carries a severity, and summary and suggested_fix, which the host requires except for an id from severity_needed; reject carries none of them. An id from severity_needed takes confirm only, which the host checks.",
       "oneOf": [
         {
           "type": "object",

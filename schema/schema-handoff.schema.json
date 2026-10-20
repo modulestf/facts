@@ -5,28 +5,55 @@
   "description": "Written by the trusted schema job, read by mtf-facts. Per directory and provider, the resolved versions or the reason they are unresolved; per provider version, a provider schema filtered to block schemas; and the commits and .tf inputs it was derived from.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["head_sha", "merge_base_sha", "inputs", "caps", "directories", "provider_schemas"],
+  "required": [
+    "head_sha",
+    "merge_base_sha",
+    "inputs",
+    "caps",
+    "directories",
+    "provider_schemas"
+  ],
   "properties": {
-    "head_sha": {"$ref": "#/$defs/commit_sha"},
-    "merge_base_sha": {"$ref": "#/$defs/commit_sha"},
+    "head_sha": {
+      "$ref": "#/$defs/commit_sha"
+    },
+    "merge_base_sha": {
+      "$ref": "#/$defs/commit_sha"
+    },
     "inputs": {
       "description": "The .tf inputs the handoff was derived from, per revision.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["head", "merge_base"],
+      "required": [
+        "head",
+        "merge_base"
+      ],
       "properties": {
-        "head": {"$ref": "#/$defs/tree_inputs"},
-        "merge_base": {"$ref": "#/$defs/tree_inputs"}
+        "head": {
+          "$ref": "#/$defs/tree_inputs"
+        },
+        "merge_base": {
+          "$ref": "#/$defs/tree_inputs"
+        }
       }
     },
     "caps": {
       "description": "Size caps the handoff was written under.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["compressed_bytes", "uncompressed_bytes"],
+      "required": [
+        "compressed_bytes",
+        "uncompressed_bytes"
+      ],
       "properties": {
-        "compressed_bytes": {"type": "integer", "minimum": 1},
-        "uncompressed_bytes": {"type": "integer", "minimum": 1}
+        "compressed_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "uncompressed_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "directories": {
@@ -34,12 +61,19 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["path", "providers"],
+        "required": [
+          "path",
+          "providers"
+        ],
         "properties": {
-          "path": {"$ref": "#/$defs/dir_path"},
+          "path": {
+            "$ref": "#/$defs/dir_path"
+          },
           "providers": {
             "type": "array",
-            "items": {"$ref": "#/$defs/directory_provider"}
+            "items": {
+              "$ref": "#/$defs/directory_provider"
+            }
           }
         }
       }
@@ -49,20 +83,42 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["source", "version", "resource_schemas", "data_source_schemas"],
+        "required": [
+          "source",
+          "version",
+          "resource_schemas",
+          "data_source_schemas"
+        ],
         "properties": {
-          "source": {"$ref": "#/$defs/provider_source"},
-          "version": {"$ref": "#/$defs/version"},
-          "resource_schemas": {"$ref": "#/$defs/type_schemas"},
-          "data_source_schemas": {"$ref": "#/$defs/type_schemas"}
+          "source": {
+            "$ref": "#/$defs/provider_source"
+          },
+          "version": {
+            "$ref": "#/$defs/version"
+          },
+          "resource_schemas": {
+            "$ref": "#/$defs/type_schemas"
+          },
+          "data_source_schemas": {
+            "$ref": "#/$defs/type_schemas"
+          }
         }
       }
     }
   },
   "$defs": {
-    "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
-    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"},
+    "commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+    },
     "provider_source": {
       "description": "Fully qualified provider source address, as terraform providers schema -json keys it.",
       "type": "string",
@@ -73,14 +129,20 @@
       "type": "string",
       "pattern": "^(\\.|(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))(?!.*/$).+)$"
     },
-    "reason": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+    "reason": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
     "tree_inputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tree_hash", "files"],
+      "required": [
+        "tree_hash",
+        "files"
+      ],
       "properties": {
         "tree_hash": {
-          "description": "SHA-256 over the sorted path and sha256 pairs in files.",
+          "description": "SHA-256, lowercase hex, of this preimage: one line per entry of files, written as <sha256><two spaces><path><LF>, the lines sorted by the bytes of path, with no other bytes. The same layout as sha256sum output.",
           "$ref": "#/$defs/sha256"
         },
         "files": {
@@ -88,38 +150,73 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["path", "sha256"],
+            "required": [
+              "path",
+              "sha256"
+            ],
             "properties": {
-              "path": {"type": "string", "pattern": "^(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$)).*\\.tf$"},
-              "sha256": {"$ref": "#/$defs/sha256"}
+              "path": {
+                "type": "string",
+                "pattern": "^(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$)).*\\.tf$"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
             }
-          }
+          },
+          "description": "Every .tf input of this revision. path is relative to the repository root and appears once; the host checks uniqueness by path, which uniqueItems alone does not.",
+          "uniqueItems": true
         }
       }
     },
     "directory_provider": {
       "type": "object",
-      "required": ["local_name", "source"],
+      "required": [
+        "local_name",
+        "source"
+      ],
       "properties": {
-        "local_name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-        "source": {"$ref": "#/$defs/provider_source"}
+        "local_name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "source": {
+          "$ref": "#/$defs/provider_source"
+        }
       },
       "oneOf": [
         {
-          "required": ["versions"],
+          "required": [
+            "versions"
+          ],
           "properties": {
             "local_name": true,
             "source": true,
             "versions": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["latest", "declared_minimum", "old_floor"],
+              "required": [
+                "latest",
+                "declared_minimum",
+                "old_floor"
+              ],
               "properties": {
-                "latest": {"$ref": "#/$defs/version"},
-                "declared_minimum": {"$ref": "#/$defs/version"},
+                "latest": {
+                  "$ref": "#/$defs/version"
+                },
+                "declared_minimum": {
+                  "$ref": "#/$defs/version"
+                },
                 "old_floor": {
                   "description": "The floor at the merge base, null when the directory or provider is absent there.",
-                  "oneOf": [{"$ref": "#/$defs/version"}, {"type": "null"}]
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/version"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               }
             }
@@ -127,11 +224,15 @@
           "additionalProperties": false
         },
         {
-          "required": ["unresolved_reason"],
+          "required": [
+            "unresolved_reason"
+          ],
           "properties": {
             "local_name": true,
             "source": true,
-            "unresolved_reason": {"$ref": "#/$defs/reason"}
+            "unresolved_reason": {
+              "$ref": "#/$defs/reason"
+            }
           },
           "additionalProperties": false
         }
@@ -140,13 +241,19 @@
     "type_schemas": {
       "description": "Resource or data source type name to its filtered schema.",
       "type": "object",
-      "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["block"],
+        "required": [
+          "block"
+        ],
         "properties": {
-          "block": {"$ref": "#/$defs/block"}
+          "block": {
+            "$ref": "#/$defs/block"
+          }
         }
       }
     },
@@ -157,14 +264,7 @@
         "attributes": {
           "type": "object",
           "additionalProperties": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "required": {"type": "boolean"},
-              "optional": {"type": "boolean"},
-              "computed": {"type": "boolean"},
-              "deprecated": {"type": "boolean"}
-            }
+            "$ref": "#/$defs/attribute"
           }
         },
         "block_types": {
@@ -172,16 +272,91 @@
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["nesting_mode", "block"],
+            "required": [
+              "nesting_mode",
+              "block"
+            ],
             "properties": {
-              "nesting_mode": {"enum": ["single", "group", "list", "set", "map"]},
-              "min_items": {"type": "integer", "minimum": 0},
-              "max_items": {"type": "integer", "minimum": 0},
-              "block": {"$ref": "#/$defs/block"}
+              "nesting_mode": {
+                "enum": [
+                  "single",
+                  "group",
+                  "list",
+                  "set",
+                  "map"
+                ]
+              },
+              "min_items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "max_items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "block": {
+                "$ref": "#/$defs/block"
+              }
             }
           }
         },
-        "deprecated": {"type": "boolean"}
+        "deprecated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "optional": {
+          "type": "boolean"
+        },
+        "computed": {
+          "type": "boolean"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "nested_type": {
+          "$ref": "#/$defs/nested_type"
+        }
+      }
+    },
+    "nested_type": {
+      "description": "A protocol 6 nested attribute type, filtered like a block.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attributes",
+        "nesting_mode"
+      ],
+      "properties": {
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/attribute"
+          }
+        },
+        "nesting_mode": {
+          "enum": [
+            "single",
+            "list",
+            "set",
+            "map"
+          ]
+        },
+        "min_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_items": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     }
   }

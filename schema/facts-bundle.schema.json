@@ -414,7 +414,8 @@
           "description": "False when a cap cut a pull request string in the evidence. Such a candidate escalates without a confirmer call.",
           "type": "boolean"
         }
-      }
+      },
+      "description": "A candidate the model or the confirmer answers. The bundle does not carry confirm_class: the host reads it from the pinned rule registry by rule_id."
     }
   }
 }

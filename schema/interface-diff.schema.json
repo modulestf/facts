@@ -25,6 +25,7 @@
         "required": [
           "path",
           "kind",
+          "required_version",
           "variables",
           "outputs",
           "providers",
@@ -41,6 +42,40 @@
               "root",
               "submodule",
               "example"
+            ]
+          },
+          "required_version": {
+            "description": "The Terraform core required_version constraint, null when it did not change. base or head is null when absent there; not both.",
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "base",
+                  "head"
+                ],
+                "properties": {
+                  "base": {
+                    "$ref": "#/$defs/expr"
+                  },
+                  "head": {
+                    "$ref": "#/$defs/expr"
+                  }
+                },
+                "not": {
+                  "properties": {
+                    "base": {
+                      "type": "null"
+                    },
+                    "head": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
             ]
           },
           "variables": {
@@ -153,7 +188,9 @@
         "type",
         "default",
         "nullable",
-        "sensitive"
+        "sensitive",
+        "description",
+        "validation"
       ],
       "properties": {
         "type": {
@@ -168,6 +205,29 @@
         },
         "sensitive": {
           "type": "boolean"
+        },
+        "description": {
+          "$ref": "#/$defs/expr"
+        },
+        "validation": {
+          "description": "The variable's validation blocks in source order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "condition",
+              "error_message"
+            ],
+            "properties": {
+              "condition": {
+                "type": "string"
+              },
+              "error_message": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
@@ -224,7 +284,8 @@
       "additionalProperties": false,
       "required": [
         "value",
-        "sensitive"
+        "sensitive",
+        "description"
       ],
       "properties": {
         "value": {
@@ -232,6 +293,9 @@
         },
         "sensitive": {
           "type": "boolean"
+        },
+        "description": {
+          "$ref": "#/$defs/expr"
         }
       }
     },

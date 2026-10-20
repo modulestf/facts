@@ -35,8 +35,8 @@
   "interface_diff": {
     "head_sha": "1111111111111111111111111111111111111111",
     "merge_base_sha": "2222222222222222222222222222222222222222",
-    "areas": [{"path": ".", "kind": "root",
-      "variables": [{"name": "retention_days", "change": "removed", "base": {"type": "number", "default": "30", "nullable": true, "sensitive": false}, "head": null}],
+    "areas": [{"path": ".", "kind": "root", "required_version": null,
+      "variables": [{"name": "retention_days", "change": "removed", "base": {"type": "number", "default": "30", "nullable": true, "sensitive": false, "description": null, "validation": []}, "head": null}],
       "outputs": [], "providers": [], "resources": [], "moved": [], "module_calls": []}]
   },
   "schema_coverage": [
