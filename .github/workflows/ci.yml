@@ -2,10 +2,15 @@ name: ci
 
 on:
   push:
+    branches: [master]
   pull_request:
 
 permissions:
   contents: read
+
+env:
+  GOTOOLCHAIN: local
+  GOFLAGS: -mod=vendor
 
 jobs:
   test:
@@ -20,10 +25,16 @@ jobs:
           go-version-file: .go-version
           cache: false
       - name: Check vendor
-        run: go mod verify && go mod vendor && git diff --exit-code -- vendor go.mod go.sum
+        env:
+          GOFLAGS: -mod=mod
+        run: |
+          go mod verify
+          go mod vendor
+          git diff --exit-code -- vendor go.mod go.sum
+          test -z "$(git status --porcelain --untracked-files=all -- vendor go.mod go.sum)"
       - name: Vet
-        run: go vet -mod=vendor ./...
+        run: go vet ./...
       - name: Test
-        run: go test -mod=vendor ./...
+        run: go test -race -count=1 ./...
       - name: Build
-        run: go build -trimpath -mod=vendor -o bin/mtf-facts ./cmd/mtf-facts
+        run: go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
