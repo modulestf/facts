@@ -158,6 +158,7 @@ func TestLintTimeoutStopsStuckEngine(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
+	//nolint:gosec // G204: re-runs this test binary as a helper process
 	cmd := exec.CommandContext(ctx, exe, "lint", "../../testdata/versions-missing-positive/head", "--timeout", "200ms")
 	cmd.Env = append(os.Environ(), hangEnv+"=1")
 	var out, errb bytes.Buffer

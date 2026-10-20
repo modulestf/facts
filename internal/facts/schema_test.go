@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -72,9 +73,10 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 		}
 	}
 	if ref, ok := s["$ref"].(string); ok {
-		target, file := s, doc
-		if strings.HasPrefix(ref, "#/$defs/") {
-			target = set[doc]["$defs"].(map[string]any)[strings.TrimPrefix(ref, "#/$defs/")].(map[string]any)
+		var target map[string]any
+		file := doc
+		if name, ok := strings.CutPrefix(ref, "#/$defs/"); ok {
+			target = set[doc]["$defs"].(map[string]any)[name].(map[string]any)
 		} else {
 			file, target = ref, set[ref]
 		}
@@ -94,7 +96,9 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 				types = append(types, y.(string))
 			}
 		}
-		if !contains(types, jsonType(v)) && !(jsonType(v) == "integer" && contains(types, "number")) {
+		// JSON Schema counts an integer as a number.
+		integerAsNumber := jsonType(v) == "integer" && slices.Contains(types, "number")
+		if !slices.Contains(types, jsonType(v)) && !integerAsNumber {
 			fail("type %s, want %v", jsonType(v), types)
 			return
 		}

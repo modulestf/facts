@@ -3,6 +3,7 @@ package facts
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -133,7 +134,7 @@ func lineOr0(l *int) int {
 // It returns StatusNotApplicable as the reason for a rule that does not apply.
 func gate(r Rule, a *Area) string {
 	switch {
-	case !contains(r.Kinds, a.Kind):
+	case !slices.Contains(r.Kinds, a.Kind):
 		return StatusNotApplicable
 	case a.Issue != "":
 		return a.Issue
@@ -176,15 +177,6 @@ func sortFindings(fs []Finding) {
 
 // areaFile is a file path relative to the module root.
 func areaFile(area, file string) string { return path.Join(area, file) }
-
-func contains(ss []string, s string) bool {
-	for _, x := range ss {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
 
 func sortStrings(ss ...[]string) {
 	for _, s := range ss {

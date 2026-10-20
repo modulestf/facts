@@ -223,7 +223,7 @@ func (t *Tree) add(e *Entry) {
 
 // readFile opens p without following a final symlink and without blocking on
 // a fifo swapped in after the directory read, then checks it is regular.
-func readFile(r *os.Root, e *Entry, max int64) {
+func readFile(r *os.Root, e *Entry, limit int64) {
 	f, err := r.OpenFile(e.Path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		e.Kind = KindUnreadable
@@ -238,16 +238,16 @@ func readFile(r *os.Root, e *Entry, max int64) {
 	case !st.Mode().IsRegular():
 		e.Kind = KindSpecial
 		return
-	case st.Size() > max:
+	case st.Size() > limit:
 		e.Kind = KindOversize
 		return
 	}
-	data, err := io.ReadAll(io.LimitReader(f, max+1))
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		e.Kind = KindUnreadable
 		return
 	}
-	if int64(len(data)) > max {
+	if int64(len(data)) > limit {
 		e.Kind = KindOversize
 		return
 	}

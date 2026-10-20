@@ -208,10 +208,10 @@ func human(r *facts.Report) string {
 // clean makes a string from the tree safe for a terminal: control and
 // non-ASCII bytes are escaped and the length is capped.
 func clean(s string) string {
-	const max = 300
+	const maxLen = 300
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
-		if b.Len() >= max {
+		if b.Len() >= maxLen {
 			b.WriteString("...")
 			break
 		}

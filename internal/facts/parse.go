@@ -188,20 +188,22 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 			comments = append(comments, tk)
 		}
 	}
-	collect(m, name, src, f.Body.(*hclsyntax.Body), comments)
+	body, ok := f.Body.(*hclsyntax.Body)
+	if !ok {
+		return fmt.Errorf("parse error: unexpected body type %T", f.Body)
+	}
+	collect(m, name, src, body, comments)
 	return nil
 }
 
 func nestingDepth(tokens hclsyntax.Tokens) int {
-	depth, max := 0, 0
+	depth, deepest := 0, 0
 	for _, tk := range tokens {
 		switch tk.Type {
 		case hclsyntax.TokenOBrace, hclsyntax.TokenOBrack, hclsyntax.TokenOParen,
 			hclsyntax.TokenTemplateInterp, hclsyntax.TokenTemplateControl, hclsyntax.TokenOQuote, hclsyntax.TokenOHeredoc:
 			depth++
-			if depth > max {
-				max = depth
-			}
+			deepest = max(deepest, depth)
 		case hclsyntax.TokenCBrace, hclsyntax.TokenCBrack, hclsyntax.TokenCParen,
 			hclsyntax.TokenTemplateSeqEnd, hclsyntax.TokenCQuote, hclsyntax.TokenCHeredoc:
 			if depth > 0 {
@@ -209,23 +211,21 @@ func nestingDepth(tokens hclsyntax.Tokens) int {
 			}
 		}
 	}
-	return max
+	return deepest
 }
 
 // prefixRun returns the longest run of consecutive `!` or `-` tokens.
 func prefixRun(tokens hclsyntax.Tokens) int {
-	run, max := 0, 0
+	run, longest := 0, 0
 	for _, tk := range tokens {
 		if tk.Type == hclsyntax.TokenBang || tk.Type == hclsyntax.TokenMinus {
 			run++
-			if run > max {
-				max = run
-			}
+			longest = max(longest, run)
 		} else {
 			run = 0
 		}
 	}
-	return max
+	return longest
 }
 
 func collect(m *Module, file string, src []byte, body *hclsyntax.Body, comments []hclsyntax.Token) {
@@ -322,7 +322,8 @@ func moduleCall(b *hclsyntax.Block, file string) ModuleCall {
 // usesAny reports whether a type expression names the `any` keyword.
 func usesAny(e hclsyntax.Expression) bool {
 	found := false
-	hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics {
+	// The visitor returns no diagnostics, so VisitAll has none to report.
+	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics {
 		if st, ok := n.(*hclsyntax.ScopeTraversalExpr); ok && len(st.Traversal) == 1 && st.Traversal.RootName() == "any" {
 			found = true
 		}

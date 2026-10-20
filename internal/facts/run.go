@@ -1,3 +1,6 @@
+// Package facts reads Terraform module trees without following links or
+// running anything, evaluates the implemented rules per area and builds the
+// report the mtf-facts CLI writes.
 package facts
 
 import (

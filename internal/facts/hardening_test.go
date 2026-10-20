@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,7 @@ func TestUnreadableDirectory(t *testing.T) {
 		if err := os.Chmod(filepath.Join(head, d), 0); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { os.Chmod(filepath.Join(head, d), 0o755) })
+		t.Cleanup(func() { _ = os.Chmod(filepath.Join(head, d), 0o755) })
 	}
 	for _, o := range []Options{{Head: head}, {Head: head, Base: base}} {
 		o.Limits = DefaultLimits
@@ -106,9 +107,9 @@ func TestNestingDepthClamp(t *testing.T) {
 func TestManyVariablesAreLinear(t *testing.T) {
 	// 50 files of 2000 variables each stay under the per-file token cap.
 	head, base := map[string]string{"new.tf": "variable \"new\" {}\n"}, map[string]string{}
-	for f := 0; f < 50; f++ {
+	for f := range 50 {
 		var b strings.Builder
-		for i := 0; i < 2000; i++ {
+		for i := range 2000 {
 			fmt.Fprintf(&b, "# v%d\nvariable \"v%d_%d\" {}\n", i, f, i)
 		}
 		name := fmt.Sprintf("v%02d.tf", f)
@@ -281,15 +282,13 @@ func TestTopLevelAreaDirectories(t *testing.T) {
 			if err := os.Chmod(p, 0); err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(func() { os.Chmod(p, 0o755) })
+			t.Cleanup(func() { _ = os.Chmod(p, 0o755) })
 		}, want: "examples is a directory that cannot be read"},
 	}
 	for name, f := range forms {
 		t.Run(name, func(t *testing.T) {
 			files := map[string]string{"main.tf": ""}
-			for k, v := range f.files {
-				files[k] = v
-			}
+			maps.Copy(files, f.files)
 			head := writeTree(t, files)
 			if f.setup != nil {
 				f.setup(t, head)

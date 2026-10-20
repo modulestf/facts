@@ -153,7 +153,7 @@ func TestReadTreeUnreadableSubdirectory(t *testing.T) {
 	if err := os.Chmod(locked, 0); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
 	tr := mustTree(t, root)
 	if e := tr.Entries["b"]; e == nil || e.Kind != KindUnreadable {
 		t.Errorf("b: %+v", e)
