@@ -142,14 +142,14 @@
   {
     "id": "type_optional_attribute",
     "kind": "type_constraint",
-    "match": "An optional(...) modifier on an attribute inside an object(...) type constraint, in the type argument of a variable block.",
+    "match": "An optional(type) call with one argument, inside an object(...) type constraint in any type argument.",
     "introduced": "1.3.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
   },
   {
     "id": "type_optional_attribute_default",
     "kind": "type_constraint",
-    "match": "An optional(type, default) call with a second argument inside an object(...) type constraint.",
+    "match": "An optional(type, default) call with two arguments, inside an object(...) type constraint in any type argument.",
     "introduced": "1.3.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
   },
@@ -268,7 +268,7 @@
   {
     "id": "variable_validation_cross_object",
     "kind": "expression",
-    "match": "A condition or error_message in a variable validation block references an object other than the variable being validated (another var.<name>, local., resource, data, or module reference).",
+    "match": "A condition or error_message in a variable validation block contains any reference other than var.<this variable>.",
     "introduced": "1.9.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md"
   },
@@ -322,13 +322,6 @@
     "source": "https://github.com/hashicorp/terraform/blob/v1.10/CHANGELOG.md"
   },
   {
-    "id": "write_only_argument",
-    "kind": "argument",
-    "match": "A resource block sets an argument the provider schema marks write-only. Needs the provider schema; not decidable from syntax alone.",
-    "introduced": "1.11.0",
-    "source": "https://github.com/hashicorp/terraform/blob/v1.11/CHANGELOG.md"
-  },
-  {
     "id": "import_identity",
     "kind": "argument",
     "match": "An import block sets the identity argument instead of id.",
@@ -345,7 +338,7 @@
   {
     "id": "lifecycle_action_trigger",
     "kind": "block",
-    "match": "An action_trigger block nested in a lifecycle block of a resource block.",
+    "match": "An action_trigger block nested in a lifecycle block of a resource block. The 1.14 changelog does not name the block; the name action_trigger is in the 1.15 changelog and in internal/configs/action.go at tag v1.14.0.",
     "introduced": "1.14.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.14/CHANGELOG.md"
   },
@@ -387,7 +380,7 @@
   {
     "id": "import_block_in_child_module",
     "kind": "block",
-    "match": "An import block in a module that is called as a child module (any reusable module directory other than a root configuration).",
+    "match": "An import block in the module root directory or in any modules/* directory of a reusable module repository; these count as child modules. Import blocks under examples/* or in test fixtures are root configurations and do not match.",
     "introduced": "1.16.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
   },
@@ -401,14 +394,14 @@
   {
     "id": "lifecycle_destroy_false",
     "kind": "argument",
-    "match": "A lifecycle block inside a resource block sets destroy = false.",
+    "match": "A lifecycle block inside a resource block sets the destroy argument, with any value.",
     "introduced": "1.16.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
   },
   {
     "id": "action_trigger_on_failure",
     "kind": "argument",
-    "match": "An action_trigger block sets the on_failure argument (halt, taint or continue).",
+    "match": "An action_trigger block sets the on_failure argument, with any value (halt, taint or continue). The argument does not exist in 1.14 or 1.15.",
     "introduced": "1.16.0",
     "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
   },
