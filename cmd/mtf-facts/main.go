@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -110,6 +111,11 @@ func lint(args []string, stdout, stderr io.Writer) int {
 		timer.Stop()
 	case <-timer.C:
 		// main's os.Exit ends the worker, which may be stuck in a parser.
+		fmt.Fprint(stderr, "mtf-facts: timeout\n")
+		return exitError
+	}
+	if errors.Is(res.err, facts.ErrDeadline) {
+		// The engine's own deadline can win the race with the timer.
 		fmt.Fprint(stderr, "mtf-facts: timeout\n")
 		return exitError
 	}

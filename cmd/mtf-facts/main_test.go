@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -188,5 +189,20 @@ func TestLintRejectsNonPositiveTimeout(t *testing.T) {
 		if out.Len() != 0 || !strings.Contains(errb.String(), "--timeout must be greater than zero") {
 			t.Errorf("--timeout %s: stdout %q stderr %q", v, out.String(), errb.String())
 		}
+	}
+}
+
+func TestLintEngineDeadlineIsTimeout(t *testing.T) {
+	orig := runFacts
+	runFacts = func(facts.Options) (*facts.Report, error) {
+		return nil, fmt.Errorf("head tree: %w", facts.ErrDeadline)
+	}
+	t.Cleanup(func() { runFacts = orig })
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint", "../../testdata/versions-missing-positive/head"}, &out, &errb); code != exitError {
+		t.Errorf("exit %d", code)
+	}
+	if errb.String() != "mtf-facts: timeout\n" || out.Len() != 0 {
+		t.Errorf("stdout %q stderr %q", out.String(), errb.String())
 	}
 }
