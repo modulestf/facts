@@ -11,14 +11,16 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"slices"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 )
 
 // Limits bound what one run reads and writes.
 type Limits struct {
-	MaxFiles       int   // entries in one tree, files and links and special files
+	MaxFiles       int   // directory entries in one tree, of every kind
 	MaxFileBytes   int64 // a larger file is recorded as oversize and not read
 	MaxTotalBytes  int64 // bytes read from one tree
 	MaxDepth       int   // HCL bracket nesting depth per file
@@ -82,68 +84,30 @@ type Tree struct {
 // Terraform working state, neither of which is module source.
 func skipDir(name string) bool { return name == ".git" || name == ".terraform" }
 
+// readDirBatch is how many directory entries one ReadDir call returns at most.
+const readDirBatch = 256
+
+// readDirHook, when set, sees every ReadDir batch: the directory and the
+// number of entries returned. Tests use it; it is nil in production.
+var readDirHook func(dir string, n int)
+
 // ReadTree reads every regular file under root. It never follows a symbolic
 // link: links and special files are recorded by kind and not opened.
+//
+// Limits.MaxFiles is a budget for the whole tree: every directory entry
+// counts, whatever its kind, and the read stops as soon as a ReadDir batch
+// passes it, before reading on or opening any child.
 func ReadTree(root string, lim Limits) (*Tree, error) {
 	r, err := os.OpenRoot(root)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	t := &Tree{Entries: map[string]*Entry{}, Dirs: map[string]bool{".": true}}
-	var total int64
-	err = fs.WalkDir(r.FS(), ".", func(p string, d fs.DirEntry, werr error) error {
-		if werr != nil {
-			if p == "." {
-				return werr
-			}
-			t.add(&Entry{Path: p, Kind: KindUnreadable})
-			if d != nil && d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if p == "." {
-			return nil
-		}
-		if len(t.Entries)+len(t.Dirs) > lim.MaxFiles {
-			return fmt.Errorf("more than %d entries", lim.MaxFiles)
-		}
-		if err := lim.expired(); err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if skipDir(d.Name()) {
-				return fs.SkipDir
-			}
-			t.Dirs[p] = true
-			return nil
-		}
-		e := &Entry{Path: p}
-		switch typ := d.Type(); {
-		case typ&fs.ModeSymlink != 0:
-			e.Kind = KindSymlink
-			if target, err := r.Readlink(p); err == nil {
-				sum := sha256.Sum256([]byte(target))
-				e.linkSHA256 = hex.EncodeToString(sum[:])
-			}
-		case !typ.IsRegular():
-			e.Kind = KindSpecial
-		default:
-			readFile(r, e, lim.MaxFileBytes)
-		}
-		if e.Kind == KindFile {
-			total += int64(len(e.Data))
-			if total > lim.MaxTotalBytes {
-				return fmt.Errorf("more than %d bytes", lim.MaxTotalBytes)
-			}
-		}
-		t.add(e)
-		return nil
-	})
-	if err != nil {
+	w := &treeReader{root: r, lim: lim, t: &Tree{Entries: map[string]*Entry{}, Dirs: map[string]bool{".": true}}}
+	if err := w.walk("."); err != nil {
 		return nil, err
 	}
+	t := w.t
 	sort.Strings(t.Paths)
 	t.byDir = map[string][]*Entry{}
 	for _, p := range t.Paths {
@@ -151,6 +115,105 @@ func ReadTree(root string, lim Limits) (*Tree, error) {
 		t.byDir[d] = append(t.byDir[d], t.Entries[p])
 	}
 	return t, nil
+}
+
+// treeReader holds the state of one depth-first ReadTree walk.
+type treeReader struct {
+	root  *os.Root
+	lim   Limits
+	t     *Tree
+	count int   // directory entries seen, the MaxFiles budget
+	total int64 // bytes read, the MaxTotalBytes budget
+}
+
+// walk reads dir and everything below it. Only the root failing to list is
+// an error; a subdirectory that cannot be listed is recorded as unreadable.
+func (w *treeReader) walk(dir string) error {
+	ents, readErr, err := w.list(dir)
+	if err != nil {
+		return err
+	}
+	if readErr != nil {
+		if dir == "." {
+			return readErr
+		}
+		w.t.add(&Entry{Path: dir, Kind: KindUnreadable})
+		return nil
+	}
+	for _, d := range ents {
+		if err := w.lim.expired(); err != nil {
+			return err
+		}
+		p := path.Join(dir, d.Name())
+		if d.IsDir() {
+			if skipDir(d.Name()) {
+				continue
+			}
+			w.t.Dirs[p] = true
+			if err := w.walk(p); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := w.addEntry(p, d.Type()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// list returns the entries of dir sorted by name. readErr reports a dir that
+// cannot be opened or read; err reports the MaxFiles budget passed.
+func (w *treeReader) list(dir string) (ents []fs.DirEntry, readErr, err error) {
+	f, err := w.root.Open(dir)
+	if err != nil {
+		return nil, err, nil
+	}
+	defer f.Close()
+	for {
+		batch, rerr := f.ReadDir(readDirBatch)
+		if readDirHook != nil {
+			readDirHook(dir, len(batch))
+		}
+		w.count += len(batch)
+		if w.count > w.lim.MaxFiles {
+			return nil, nil, fmt.Errorf("more than %d entries", w.lim.MaxFiles)
+		}
+		ents = append(ents, batch...)
+		if errors.Is(rerr, io.EOF) {
+			break
+		}
+		if rerr != nil {
+			return nil, rerr, nil
+		}
+	}
+	slices.SortFunc(ents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
+	return ents, nil, nil
+}
+
+// addEntry records one non-directory entry by kind, reading regular files.
+func (w *treeReader) addEntry(p string, typ fs.FileMode) error {
+	e := &Entry{Path: p}
+	switch {
+	case typ&fs.ModeSymlink != 0:
+		e.Kind = KindSymlink
+		if target, err := w.root.Readlink(p); err == nil {
+			sum := sha256.Sum256([]byte(target))
+			e.linkSHA256 = hex.EncodeToString(sum[:])
+		}
+	case !typ.IsRegular():
+		e.Kind = KindSpecial
+	default:
+		readFile(w.root, e, w.lim.MaxFileBytes)
+	}
+	if e.Kind == KindFile {
+		w.total += int64(len(e.Data))
+		if w.total > w.lim.MaxTotalBytes {
+			return fmt.Errorf("more than %d bytes", w.lim.MaxTotalBytes)
+		}
+	}
+	w.t.add(e)
+	return nil
 }
 
 func (t *Tree) add(e *Entry) {

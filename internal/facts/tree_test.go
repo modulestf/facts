@@ -3,6 +3,7 @@
 package facts
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,5 +85,85 @@ func TestTreeHashStable(t *testing.T) {
 	c := mustTree(t, writeTree(t, map[string]string{"main.tf": "x", "m/v.tf": "z"}))
 	if a.TreeSHA256() != b.TreeSHA256() || a.TreeSHA256() == c.TreeSHA256() {
 		t.Error("tree hash depends on order or ignores content")
+	}
+}
+
+// recordReadDir installs readDirHook for one test and returns the entries
+// each directory's ReadDir batches returned.
+func recordReadDir(t *testing.T) map[string]int {
+	t.Helper()
+	seen := map[string]int{}
+	readDirHook = func(dir string, n int) { seen[dir] += n }
+	t.Cleanup(func() { readDirHook = nil })
+	return seen
+}
+
+func TestReadTreeStopsListingAtMaxFiles(t *testing.T) {
+	root := t.TempDir()
+	for i := range 366 {
+		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("f%03d.tf", i)), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := recordReadDir(t)
+	lim := DefaultLimits
+	lim.MaxFiles = 10
+	_, err := ReadTree(root, lim)
+	if err == nil || err.Error() != "more than 10 entries" {
+		t.Fatalf("err %v", err)
+	}
+	if seen["."] > lim.MaxFiles+readDirBatch {
+		t.Errorf("listed %d entries, want at most %d", seen["."], lim.MaxFiles+readDirBatch)
+	}
+}
+
+func TestReadTreeSkipDirCountsOnceAndIsNotRead(t *testing.T) {
+	files := map[string]string{"a.tf": "", "b.tf": ""}
+	for i := range 300 {
+		files[fmt.Sprintf(".git/objects/o%03d", i)] = ""
+	}
+	root := writeTree(t, files)
+	seen := recordReadDir(t)
+	lim := DefaultLimits
+	lim.MaxFiles = 3 // a.tf, b.tf and .git
+	tr, err := ReadTree(root, lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for dir := range seen {
+		if dir == ".git" || strings.HasPrefix(dir, ".git/") {
+			t.Errorf("read %s", dir)
+		}
+	}
+	if len(tr.Paths) != 2 || tr.Dirs[".git"] {
+		t.Errorf("paths %v dirs %v", tr.Paths, tr.Dirs)
+	}
+	lim.MaxFiles = 2
+	if _, err := ReadTree(root, lim); err == nil {
+		t.Error(".git not counted")
+	}
+}
+
+func TestReadTreeUnreadableSubdirectory(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads every directory")
+	}
+	root := writeTree(t, map[string]string{"a/x.tf": "", "b/y.tf": "", "c.tf": ""})
+	locked := filepath.Join(root, "b")
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	tr := mustTree(t, root)
+	if e := tr.Entries["b"]; e == nil || e.Kind != KindUnreadable {
+		t.Errorf("b: %+v", e)
+	}
+	for _, p := range []string{"a/x.tf", "c.tf"} {
+		if e := tr.Entries[p]; e == nil || e.Kind != KindFile {
+			t.Errorf("%s: %+v", p, e)
+		}
+	}
+	if _, ok := tr.Entries["b/y.tf"]; ok {
+		t.Error("read inside an unreadable directory")
 	}
 }
