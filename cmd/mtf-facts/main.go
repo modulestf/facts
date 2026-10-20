@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 )
@@ -32,7 +33,7 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
-		return 2
+		return exitError
 	}
 	switch args[0] {
 	case "rules":
@@ -47,7 +48,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return lint(args[1:], stdout, stderr)
 	}
 	fmt.Fprint(stderr, usage)
-	return 2
+	return exitError
 }
 
 func version() string {
@@ -57,8 +58,16 @@ func version() string {
 	return "(devel)"
 }
 
-// lint exits 0 with no findings, 1 with findings and 2 on an error.
-// Candidates are unconfirmed and never change the exit code.
+// Exit codes of lint.
+const (
+	exitClean        = 0 // no findings, every rule decided
+	exitFindings     = 1 // at least one finding
+	exitError        = 2 // bad input, a limit, the deadline or an integrity failure
+	exitNotEvaluated = 3 // no findings, but some (rule, area) was not evaluated
+)
+
+// lint returns one of the exit codes above. Candidates are unconfirmed and
+// never change the exit code.
 func lint(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("lint", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -68,10 +77,11 @@ func lint(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&o.RegistryFile, "registry", "", "rule-facts.md to hash into the output")
 	fs.StringVar(&o.HeadSHA, "head-sha", "", "commit the tree was extracted from")
 	fs.StringVar(&o.MergeBaseSHA, "merge-base-sha", "", "commit the base tree was extracted from")
+	timeout := fs.Duration("timeout", 60*time.Second, "stop with an error after this long")
 	var dirs []string
 	for rest := args; ; {
 		if err := fs.Parse(rest); err != nil {
-			return 2
+			return exitError
 		}
 		if fs.NArg() == 0 {
 			break
@@ -80,19 +90,20 @@ func lint(args []string, stdout, stderr io.Writer) int {
 	}
 	if len(dirs) != 1 {
 		fmt.Fprint(stderr, usage)
-		return 2
+		return exitError
 	}
 	o.Head = dirs[0]
+	o.Limits.Deadline = time.Now().Add(*timeout)
 	sum, err := binarySHA256()
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return 2
+		return exitError
 	}
 	o.BinarySHA256 = sum
 	r, err := facts.Run(o)
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return 2
+		return exitError
 	}
 	var out []byte
 	if *asJSON {
@@ -103,19 +114,24 @@ func lint(args []string, stdout, stderr io.Writer) int {
 	}
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return 2
+		return exitError
 	}
 	if len(out) > o.Limits.MaxOutputBytes {
 		fmt.Fprintf(stderr, "mtf-facts: output over %d bytes\n", o.Limits.MaxOutputBytes)
-		return 2
+		return exitError
 	}
 	if _, err := stdout.Write(out); err != nil {
-		return 2
+		return exitError
 	}
 	if len(r.Findings) > 0 {
-		return 1
+		return exitFindings
 	}
-	return 0
+	for _, e := range r.Manifest {
+		if e.Status == facts.StatusNotEvaluated {
+			return exitNotEvaluated
+		}
+	}
+	return exitClean
 }
 
 func human(r *facts.Report) string {
@@ -125,20 +141,20 @@ func human(r *facts.Report) string {
 		if f.Line != nil {
 			loc = fmt.Sprintf("%s:%d", f.File, *f.Line)
 		}
-		fmt.Fprintf(&b, "%s: %s %s: %s\n  fix: %s\n", loc, f.Severity, f.RuleID, f.Summary, f.SuggestedFix)
+		fmt.Fprintf(&b, "%s: %s %s: %s\n  fix: %s\n", clean(loc), f.Severity, f.RuleID, clean(f.Summary), clean(f.SuggestedFix))
 	}
 	for _, c := range r.Candidates {
 		loc := c.File
 		if c.Line != nil {
 			loc = fmt.Sprintf("%s:%d", c.File, *c.Line)
 		}
-		fmt.Fprintf(&b, "%s: unconfirmed %s: %s, confirm or reject\n", loc, c.RuleID, c.Subject)
+		fmt.Fprintf(&b, "%s: unconfirmed %s: %s, confirm or reject\n", clean(loc), c.RuleID, clean(c.Subject))
 	}
 	counts := map[string]int{}
 	for _, e := range r.Manifest {
 		counts[e.Status]++
 		if e.Status == facts.StatusNotEvaluated {
-			fmt.Fprintf(&b, "not evaluated: %s in %s: %s\n", e.RuleID, e.Area, e.Reason)
+			fmt.Fprintf(&b, "not evaluated: %s in %s: %s\n", e.RuleID, clean(e.Area), clean(e.Reason))
 		}
 	}
 	fmt.Fprintf(&b, "%d findings, %d candidates; manifest: %d finding, %d candidate, %d clean, %d not_evaluated, %d not_applicable\n",
@@ -149,6 +165,25 @@ func human(r *facts.Report) string {
 		reg = *r.Envelope.RegistrySHA256
 	}
 	fmt.Fprintf(&b, "mtf-facts %s, binary sha256 %s, registry sha256 %s\n", r.Envelope.Tool.Version, r.Envelope.Tool.BinarySHA256, reg)
+	return b.String()
+}
+
+// clean makes a string from the tree safe for a terminal: control and
+// non-ASCII bytes are escaped and the length is capped.
+func clean(s string) string {
+	const max = 300
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if b.Len() >= max {
+			b.WriteString("...")
+			break
+		}
+		if c := s[i]; c < 0x20 || c >= 0x7f {
+			fmt.Fprintf(&b, "\\x%02x", c)
+		} else {
+			b.WriteByte(c)
+		}
+	}
 	return b.String()
 }
 
