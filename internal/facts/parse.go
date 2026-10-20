@@ -32,9 +32,10 @@ type Variable struct {
 	File           string
 	Line           int
 	HasType        bool
-	TypeUsesAny    bool // the type expression names `any` anywhere
-	Commented      bool // a comment sits inside the block or on the line above it
-	HasDescription bool // present and not an empty string literal
+	TypeText       string   // source text of the type expression
+	TypeUsesAny    bool     // the type expression names `any` anywhere
+	Comments       []string // comments inside the block or on the line above it
+	HasDescription bool     // present and not an empty string literal
 }
 
 type Output struct {
@@ -156,13 +157,13 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 	if diags.HasErrors() {
 		return fmt.Errorf("parse error")
 	}
-	var commentLines []int
+	var comments []hclsyntax.Token
 	for _, tk := range tokens {
 		if tk.Type == hclsyntax.TokenComment {
-			commentLines = append(commentLines, tk.Range.Start.Line)
+			comments = append(comments, tk)
 		}
 	}
-	collect(m, name, src, f.Body.(*hclsyntax.Body), commentLines)
+	collect(m, name, src, f.Body.(*hclsyntax.Body), comments)
 	return nil
 }
 
@@ -184,7 +185,7 @@ func nestingDepth(tokens hclsyntax.Tokens) int {
 	return max
 }
 
-func collect(m *Module, file string, src []byte, body *hclsyntax.Body, commentLines []int) {
+func collect(m *Module, file string, src []byte, body *hclsyntax.Body, comments []hclsyntax.Token) {
 	for _, b := range body.Blocks {
 		line := b.TypeRange.Start.Line
 		switch {
@@ -192,12 +193,13 @@ func collect(m *Module, file string, src []byte, body *hclsyntax.Body, commentLi
 			v := Variable{Name: b.Labels[0], File: file, Line: line}
 			if a, ok := b.Body.Attributes["type"]; ok {
 				v.HasType = true
+				v.TypeText = exprText(src, a.Expr)
 				v.TypeUsesAny = usesAny(a.Expr)
 			}
 			v.HasDescription = hasText(b.Body.Attributes["description"])
-			for _, l := range commentLines {
-				if l >= line-1 && l <= b.Body.SrcRange.End.Line {
-					v.Commented = true
+			for _, c := range comments {
+				if l := c.Range.Start.Line; l >= line-1 && l <= b.Body.SrcRange.End.Line {
+					v.Comments = append(v.Comments, strings.TrimRight(string(c.Bytes), "\r\n"))
 				}
 			}
 			m.Variables = append(m.Variables, v)

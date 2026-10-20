@@ -1,0 +1,52 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.variable-untyped",
+      "file": "variables.tf",
+      "line": 8,
+      "subject": "variable \"targets\"",
+      "evidence": {
+        "variable": "targets",
+        "type": "any",
+        "comments": [
+          "# Accepts a string or a list: callers pass both forms."
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "structure.variable-untyped",
+      "file": "variables.tf",
+      "line": 13,
+      "subject": "variable \"policy\"",
+      "evidence": {
+        "variable": "policy",
+        "type": "any",
+        "comments": [
+          "# Any JSON-encodable value."
+        ]
+      },
+      "evidence_complete": true
+    }
+  ]
+}

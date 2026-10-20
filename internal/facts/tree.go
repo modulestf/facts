@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strings"
 	"syscall"
 )
 
@@ -193,5 +192,3 @@ func sameEntry(a, b *Entry) bool {
 	}
 	return false // unreadable or oversize: unknown, so treated as changed
 }
-
-func hasPrefixDir(p, dir string) bool { return strings.HasPrefix(p, dir+"/") }

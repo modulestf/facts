@@ -1,0 +1,73 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "modules/child",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "finding"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "modules/child",
+      "status": "finding"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "modules/child",
+      "status": "clean"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "main.tf",
+      "line": 1,
+      "summary": "Variable \"name\" has no description, so its documentation row says nothing about what it controls.",
+      "suggested_fix": "Add a `description` to `variable \"name\"` in `main.tf` stating what the input controls, per Variable Descriptions in the maintainer skill's module-structure reference."
+    },
+    {
+      "id": "F-002",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "main.tf",
+      "line": 5,
+      "summary": "Variable \"blank\" has no description, so its documentation row says nothing about what it controls.",
+      "suggested_fix": "Add a `description` to `variable \"blank\"` in `main.tf` stating what the input controls, per Variable Descriptions in the maintainer skill's module-structure reference."
+    },
+    {
+      "id": "F-003",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "main.tf",
+      "line": 10,
+      "summary": "Output \"id\" has no description, so its documentation row says nothing about what it returns.",
+      "suggested_fix": "Add a `description` to `output \"id\"` in `main.tf` stating what the value is."
+    },
+    {
+      "id": "F-004",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "modules/child/outputs.tf",
+      "line": 1,
+      "summary": "Output \"arn\" has no description, so its documentation row says nothing about what it returns.",
+      "suggested_fix": "Add a `description` to `output \"arn\"` in `modules/child/outputs.tf` stating what the value is."
+    }
+  ],
+  "candidates": []
+}

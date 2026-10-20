@@ -1,0 +1,35 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.variable-untyped",
+      "file": "variables.tf",
+      "line": 5,
+      "subject": "variable \"added\"",
+      "evidence": {
+        "variable": "added",
+        "type": null,
+        "comments": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+output "old" {
+  value = null
+}

@@ -33,7 +33,7 @@ type Report struct {
 	Envelope   Envelope        `json:"envelope"`
 	Manifest   []ManifestEntry `json:"manifest"`
 	Findings   []Finding       `json:"findings"`
-	Candidates []any           `json:"candidates"` // no candidate rule is implemented yet
+	Candidates []Candidate     `json:"candidates"`
 }
 
 // Envelope binds a report to its inputs and to the binary that wrote it.
@@ -98,14 +98,8 @@ func Run(o Options) (*Report, error) {
 		bi := treeInput(base)
 		env.Inputs.Base = &bi
 	}
-	manifest, findings := Evaluate(FindAreas(head, base, o.Limits), Rules)
-	if manifest == nil {
-		manifest = []ManifestEntry{}
-	}
-	if findings == nil {
-		findings = []Finding{}
-	}
-	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: []any{}}, nil
+	manifest, findings, candidates := Evaluate(FindAreas(head, base, o.Limits), Rules)
+	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates}, nil
 }
 
 func optionalSHA(name, s string) (*string, error) {

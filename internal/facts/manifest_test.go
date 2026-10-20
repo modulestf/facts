@@ -8,21 +8,26 @@ import (
 func TestEvaluateStatuses(t *testing.T) {
 	line := 3
 	finding := Rule{ID: "test.finding", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule},
-		Check: func(a *Area) ([]Finding, string) {
+		Check: func(a *Area) Result {
 			if a.Path == "." {
-				return []Finding{{RuleID: "test.finding", Severity: "LOW", File: "main.tf", Line: &line}}, ""
+				return Result{Findings: []Finding{{RuleID: "test.finding", Severity: "LOW", File: "main.tf", Line: &line}}}
 			}
-			return nil, ""
+			return Result{}
 		}}
 	path := Rule{ID: "test.path", Class: ClassPath, Kinds: []string{AreaSubmodule},
-		Check: func(a *Area) ([]Finding, string) { return nil, "" }}
+		Check: func(a *Area) Result {
+			if a.Path == "modules/old" {
+				return Result{Candidates: []Candidate{{RuleID: "test.path", File: "modules/old/x.tf"}}}
+			}
+			return Result{}
+		}}
 	areas := []*Area{
 		{Path: ".", Kind: AreaRoot, Head: &Module{}},
 		{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{Unsupported: []string{"main.tf: parse error"}}},
 		{Path: "examples", Kind: AreaUnknown, Head: &Module{}},
 		{Path: "modules/old", Kind: AreaSubmodule, Head: &Module{}, Base: &Module{Unsupported: []string{"x.tf.json is a JSON configuration file"}}},
 	}
-	m, fs := Evaluate(areas, []Rule{finding, path})
+	m, fs, cs := Evaluate(areas, []Rule{finding, path})
 	want := []ManifestEntry{
 		{RuleID: "test.finding", Area: ".", Status: StatusFinding},
 		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error"},
@@ -31,13 +36,16 @@ func TestEvaluateStatuses(t *testing.T) {
 		{RuleID: "test.path", Area: ".", Status: StatusNotApplicable},
 		{RuleID: "test.path", Area: "modules/bad", Status: StatusClean},
 		{RuleID: "test.path", Area: "examples", Status: StatusNotEvaluated, Reason: "the area kind is unknown"},
-		{RuleID: "test.path", Area: "modules/old", Status: StatusClean},
+		{RuleID: "test.path", Area: "modules/old", Status: StatusCandidate},
 	}
 	if !reflect.DeepEqual(m, want) {
 		t.Errorf("manifest\n got %+v\nwant %+v", m, want)
 	}
 	if len(fs) != 1 || fs[0].ID != "F-001" {
 		t.Errorf("findings %+v", fs)
+	}
+	if len(cs) != 1 || cs[0].CandidateID != "C-001" {
+		t.Errorf("candidates %+v", cs)
 	}
 }
 

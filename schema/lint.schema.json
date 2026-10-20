@@ -10,9 +10,35 @@
     "envelope": {"$ref": "envelope.schema.json"},
     "manifest": {"$ref": "manifest.schema.json"},
     "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
-    "candidates": {"type": "array", "maxItems": 0}
+    "candidates": {"type": "array", "items": {"$ref": "#/$defs/candidate"}}
   },
   "$defs": {
+    "candidate": {
+      "description": "A detected defect for a model or an author to confirm. Never a finding on its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "rule_id", "file", "line", "subject", "evidence", "evidence_complete"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^C-[0-9]{3,}$"},
+        "rule_id": {"type": "string", "pattern": "^[a-z]+\\.[a-z0-9]+(-[a-z0-9]+)*$"},
+        "file": {"type": "string", "minLength": 1},
+        "line": {"type": ["integer", "null"], "minimum": 1},
+        "subject": {"type": "string", "minLength": 1},
+        "evidence": {"$ref": "#/$defs/variable_evidence"},
+        "evidence_complete": {"type": "boolean"}
+      }
+    },
+    "variable_evidence": {
+      "description": "Evidence of a structure.variable-untyped candidate.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variable", "type", "comments"],
+      "properties": {
+        "variable": {"type": "string", "minLength": 1},
+        "type": {"type": ["string", "null"]},
+        "comments": {"type": "array", "items": {"type": "string"}}
+      }
+    },
     "finding": {
       "description": "The seven required fields of the reviewer findings schema.",
       "type": "object",

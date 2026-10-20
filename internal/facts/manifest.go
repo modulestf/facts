@@ -22,15 +22,33 @@ const (
 	ClassPath   = "path"
 )
 
-// Rule is one implemented rule. Check returns the findings for an area, or a
-// non-empty reason when the rule cannot be decided there.
+// Rule is one implemented rule. A tool rule returns findings; a candidate
+// rule returns candidates for the model or the author to confirm.
 type Rule struct {
-	ID       string
-	Tier     string // "tool" or "candidate"
-	Class    string
-	Severity string
-	Kinds    []string
-	Check    func(a *Area) (findings []Finding, notEvaluated string)
+	ID    string
+	Tier  string // "tool" or "candidate"
+	Class string
+	Kinds []string
+	Check func(a *Area) Result
+}
+
+// Result is what a rule found in one area. A non-empty NotEvaluated means
+// the rule could not be decided there.
+type Result struct {
+	Findings     []Finding
+	Candidates   []Candidate
+	NotEvaluated string
+}
+
+// Candidate is a detected defect a model or an author confirms or rejects.
+type Candidate struct {
+	CandidateID      string `json:"candidate_id"`
+	RuleID           string `json:"rule_id"`
+	File             string `json:"file"`
+	Line             *int   `json:"line"`
+	Subject          string `json:"subject"`
+	Evidence         any    `json:"evidence"`
+	EvidenceComplete bool   `json:"evidence_complete"`
 }
 
 // Finding has the seven fields of the reviewer's findings schema.
@@ -53,34 +71,62 @@ type ManifestEntry struct {
 }
 
 // Evaluate runs every rule on every area and returns one manifest entry per
-// (rule, area) and the findings, ordered and numbered as the schema says.
-func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding) {
-	var manifest []ManifestEntry
-	var findings []Finding
+// (rule, area), the findings ordered and numbered as the findings schema
+// says, and the candidates numbered by file and line.
+func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candidate) {
+	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
 		for _, a := range areas {
 			e := ManifestEntry{RuleID: r.ID, Area: a.Path}
-			var fs []Finding
-			reason := gate(r, a)
-			if reason == "" {
-				fs, reason = r.Check(a)
+			res := Result{NotEvaluated: gate(r, a)}
+			if res.NotEvaluated == "" {
+				res = r.Check(a)
 			}
 			switch {
-			case reason == StatusNotApplicable:
+			case res.NotEvaluated == StatusNotApplicable:
 				e.Status = StatusNotApplicable
-			case reason != "":
-				e.Status, e.Reason = StatusNotEvaluated, reason
-			case len(fs) > 0:
+			case res.NotEvaluated != "":
+				e.Status, e.Reason = StatusNotEvaluated, res.NotEvaluated
+			case len(res.Findings) > 0:
 				e.Status = StatusFinding
-				findings = append(findings, fs...)
+			case len(res.Candidates) > 0:
+				e.Status = StatusCandidate
 			default:
 				e.Status = StatusClean
+			}
+			if res.NotEvaluated == "" {
+				findings = append(findings, res.Findings...)
+				candidates = append(candidates, res.Candidates...)
 			}
 			manifest = append(manifest, e)
 		}
 	}
 	sortFindings(findings)
-	return manifest, findings
+	sortCandidates(candidates)
+	return manifest, findings, candidates
+}
+
+func sortCandidates(cs []Candidate) {
+	sort.SliceStable(cs, func(i, j int) bool {
+		a, b := cs[i], cs[j]
+		if a.File != b.File {
+			return a.File < b.File
+		}
+		if la, lb := lineOr0(a.Line), lineOr0(b.Line); la != lb {
+			return la < lb
+		}
+		return a.RuleID < b.RuleID
+	})
+	for i := range cs {
+		cs[i].CandidateID = fmt.Sprintf("C-%03d", i+1)
+	}
+}
+
+func lineOr0(l *int) int {
+	if l == nil {
+		return 0
+	}
+	return *l
 }
 
 // gate applies the checks every rule shares before its own logic runs.

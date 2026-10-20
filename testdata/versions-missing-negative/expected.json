@@ -1,0 +1,36 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "examples/complete",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

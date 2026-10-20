@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"path"
 	"sort"
 	"strings"
 )
@@ -20,12 +21,16 @@ type Area struct {
 
 	HeadExists bool
 	BaseExists bool
-	HasBase    bool    // a base tree was given
 	Head       *Module // known-empty when the area is absent at head
 	Base       *Module // nil without a base tree; known-empty when absent at base
 	// Issue is set when the area path exists but is not a real directory.
 	Issue string
+
+	headTree *Tree
 }
+
+// headEntry returns the head entry of a file directly in the area, or nil.
+func (a *Area) headEntry(name string) *Entry { return a.headTree.Entries[path.Join(a.Path, name)] }
 
 // rootOnlyFiles are root files owned by the profile or CI, not by an area.
 var rootOnlyFiles = map[string]bool{
@@ -101,7 +106,7 @@ func FindAreas(head, base *Tree, lim Limits) []*Area {
 	}
 	var out []*Area
 	for p, k := range set {
-		a := &Area{Path: p, Kind: k, HasBase: base != nil}
+		a := &Area{Path: p, Kind: k, headTree: head}
 		a.HeadExists, a.Issue = dirState(head, p)
 		a.Head = &Module{Dir: p}
 		if a.HeadExists {

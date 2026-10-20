@@ -1,0 +1,57 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "modules/json",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "override.tf is an override file"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "examples/complete",
+      "status": "not_evaluated",
+      "reason": "main.tf: parse error"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "modules/json",
+      "status": "not_evaluated",
+      "reason": "main.tf.json is a JSON configuration file"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "override.tf is an override file"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "examples/complete",
+      "status": "not_evaluated",
+      "reason": "main.tf: parse error"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "modules/json",
+      "status": "not_evaluated",
+      "reason": "main.tf.json is a JSON configuration file"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
