@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: Check vendor
+        run: go mod verify && go mod vendor && git diff --exit-code -- vendor go.mod go.sum
+      - name: Vet
+        run: go vet -mod=vendor ./...
+      - name: Test
+        run: go test -mod=vendor ./...
+      - name: Build
+        run: go build -trimpath -mod=vendor -o bin/mtf-facts ./cmd/mtf-facts
