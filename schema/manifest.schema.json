@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "manifest.schema.json",
+  "title": "mtf-facts manifest",
+  "description": "One entry per in-scope (rule, area).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["rule_id", "area", "status"],
+    "properties": {
+      "rule_id": {"type": "string", "pattern": "^[a-z]+\\.[a-z0-9]+(-[a-z0-9]+)*$"},
+      "area": {"type": "string", "minLength": 1},
+      "status": {"enum": ["clean", "finding", "candidate", "not_evaluated", "not_applicable"]},
+      "reason": {"type": "string", "minLength": 1}
+    }
+  }
+}
