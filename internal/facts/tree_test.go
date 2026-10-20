@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestReadTreeKinds(t *testing.T) {
@@ -166,4 +167,39 @@ func TestReadTreeUnreadableSubdirectory(t *testing.T) {
 	if _, ok := tr.Entries["b/y.tf"]; ok {
 		t.Error("read inside an unreadable directory")
 	}
+}
+
+func TestOpenDirRefusesNonDirectories(t *testing.T) {
+	root := writeTree(t, map[string]string{"real/x.tf": "", "link": "->real", "file.tf": ""})
+	if err := syscall.Mkfifo(filepath.Join(root, "pipe"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	for _, p := range []string{"pipe", "link", "file.tf"} {
+		done := make(chan error, 1)
+		go func() {
+			f, err := openDir(r, p)
+			if err == nil {
+				_ = f.Close()
+			}
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Errorf("%s: opened as a directory", p)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s: open blocked", p)
+		}
+	}
+	f, err := openDir(r, "real")
+	if err != nil {
+		t.Fatalf("real directory: %v", err)
+	}
+	_ = f.Close()
 }

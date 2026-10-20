@@ -165,7 +165,7 @@ func (w *treeReader) walk(dir string) error {
 // list returns the entries of dir sorted by name. readErr reports a dir that
 // cannot be opened or read; err reports the MaxFiles budget passed.
 func (w *treeReader) list(dir string) (ents []fs.DirEntry, readErr, err error) {
-	f, err := w.root.Open(dir)
+	f, err := openDir(w.root, dir)
 	if err != nil {
 		return nil, err, nil
 	}
@@ -189,6 +189,30 @@ func (w *treeReader) list(dir string) (ents []fs.DirEntry, readErr, err error) {
 	}
 	slices.SortFunc(ents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) })
 	return ents, nil, nil
+}
+
+// openDir opens dir for listing. It fails, without blocking, when dir is or
+// was swapped for a link, a fifo or any other non-directory. os.Root follows
+// a link inside the root even with O_NOFOLLOW, so the opened directory must
+// also be the same file Lstat saw before the open.
+func openDir(r *os.Root, dir string) (*os.File, error) {
+	before, err := r.Lstat(dir)
+	if err != nil {
+		return nil, err
+	}
+	if !before.IsDir() {
+		return nil, fmt.Errorf("%s: not a directory", dir)
+	}
+	f, err := r.OpenFile(dir, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	after, err := f.Stat()
+	if err != nil || !os.SameFile(before, after) {
+		_ = f.Close() // read-only; the open is being refused
+		return nil, fmt.Errorf("%s: changed while it was opened", dir)
+	}
+	return f, nil
 }
 
 // addEntry records one non-directory entry by kind, reading regular files.
