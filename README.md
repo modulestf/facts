@@ -37,7 +37,7 @@ mtf-facts lint path/to/module --base path/to/base-tree
 
 Add `--json` for the full report: the envelope, one manifest entry per rule and area, findings in the reviewer's findings schema, and candidates. `--registry <rule-facts.md>` records the registry hash, and `--head-sha` and `--merge-base-sha` record the commits the trees came from. Each one is `null` when its flag is absent, and a host that checks a report against its pins must treat `null` as invalid. The JSON schemas are in [schema/](schema/).
 
-`--timeout` (default `60s`) stops a run that takes longer, with exit code 2.
+`--timeout` (default `60s`, must be greater than zero) stops a run that takes longer: it writes `mtf-facts: timeout` to stderr and exits with code 2.
 
 Exit codes:
 
@@ -47,6 +47,12 @@ Exit codes:
 | 1 | At least one finding. |
 | 2 | An error: bad input, a limit, the timeout, or a failed integrity check. |
 | 3 | No findings, but at least one rule was `not_evaluated` in some area. |
+
+Host contract:
+
+- Exit code 2 means stdout is not a report. Ignore stdout on exit 2: a failed write to stdout can leave partial output.
+- A timeout, or any error before output, writes nothing to stdout.
+- Drain both stdout and stderr while the process runs, and keep your own wall-clock kill. `--timeout` does not replace it.
 
 Candidates are unconfirmed: the author confirms or rejects each one, and they never change the exit code.
 

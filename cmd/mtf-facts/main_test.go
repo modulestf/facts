@@ -2,14 +2,30 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 )
+
+const hangEnv = "MTF_FACTS_TEST_HANG"
+
+// TestMain doubles as a helper process: with hangEnv set it runs the CLI
+// with an engine that never returns, so the timeout path can be tested.
+func TestMain(m *testing.M) {
+	if os.Getenv(hangEnv) == "1" {
+		runFacts = func(facts.Options) (*facts.Report, error) { select {} }
+		os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	}
+	os.Exit(m.Run())
+}
 
 func TestRules(t *testing.T) {
 	var out, errb bytes.Buffer
@@ -132,5 +148,44 @@ func TestLintModulesLinkExitsNotEvaluated(t *testing.T) {
 	var out, errb bytes.Buffer
 	if code := run([]string{"lint", dir}, &out, &errb); code != exitNotEvaluated {
 		t.Errorf("exit %d:\n%s", code, out.String())
+	}
+}
+
+func TestLintTimeoutStopsStuckEngine(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, exe, "lint", "../../testdata/versions-missing-positive/head", "--timeout", "200ms")
+	cmd.Env = append(os.Environ(), hangEnv+"=1")
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err = cmd.Run()
+	if ctx.Err() != nil {
+		t.Fatalf("outer deadline expired: %v", ctx.Err())
+	}
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || ee.ExitCode() != exitError {
+		t.Fatalf("want exit %d, got %v", exitError, err)
+	}
+	if errb.String() != "mtf-facts: timeout\n" {
+		t.Errorf("stderr %q", errb.String())
+	}
+	if out.Len() != 0 {
+		t.Errorf("stdout %q", out.String())
+	}
+}
+
+func TestLintRejectsNonPositiveTimeout(t *testing.T) {
+	for _, v := range []string{"0", "-1s"} {
+		var out, errb bytes.Buffer
+		if code := run([]string{"lint", "--timeout", v, "../../testdata/versions-missing-positive/head"}, &out, &errb); code != exitError {
+			t.Errorf("--timeout %s: exit %d", v, code)
+		}
+		if out.Len() != 0 || !strings.Contains(errb.String(), "--timeout must be greater than zero") {
+			t.Errorf("--timeout %s: stdout %q stderr %q", v, out.String(), errb.String())
+		}
 	}
 }

@@ -92,37 +92,74 @@ func lint(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprint(stderr, usage)
 		return exitError
 	}
+	if *timeout <= 0 {
+		fmt.Fprintln(stderr, "mtf-facts: --timeout must be greater than zero")
+		fmt.Fprint(stderr, usage)
+		return exitError
+	}
 	o.Head = dirs[0]
+	// Defense in depth only: the timer below is the timeout mechanism.
 	o.Limits.Deadline = time.Now().Add(*timeout)
+
+	done := make(chan lintResult, 1) // buffered: a late worker never blocks
+	go func() { done <- lintWork(o, *asJSON) }()
+	timer := time.NewTimer(*timeout)
+	var res lintResult
+	select {
+	case res = <-done:
+		timer.Stop()
+	case <-timer.C:
+		// main's os.Exit ends the worker, which may be stuck in a parser.
+		fmt.Fprint(stderr, "mtf-facts: timeout\n")
+		return exitError
+	}
+	if res.err != nil {
+		fmt.Fprintln(stderr, "mtf-facts:", res.err)
+		return exitError
+	}
+	if _, err := stdout.Write(res.out); err != nil {
+		return exitError
+	}
+	return res.code
+}
+
+// runFacts is the engine entry point; tests replace it.
+var runFacts = facts.Run
+
+// lintResult is what the lint worker hands back. Only lint writes output.
+type lintResult struct {
+	out  []byte
+	code int
+	err  error
+}
+
+// lintWork runs the engine and renders the report. It writes nothing.
+func lintWork(o facts.Options, asJSON bool) lintResult {
 	sum, err := binarySHA256()
 	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
+		return lintResult{err: err}
 	}
 	o.BinarySHA256 = sum
-	r, err := facts.Run(o)
+	r, err := runFacts(o)
 	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
+		return lintResult{err: err}
 	}
 	var out []byte
-	if *asJSON {
-		out, err = json.MarshalIndent(r, "", "  ")
+	if asJSON {
+		if out, err = json.MarshalIndent(r, "", "  "); err != nil {
+			return lintResult{err: err}
+		}
 		out = append(out, '\n')
 	} else {
 		out = []byte(human(r))
 	}
-	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
-	}
 	if len(out) > o.Limits.MaxOutputBytes {
-		fmt.Fprintf(stderr, "mtf-facts: output over %d bytes\n", o.Limits.MaxOutputBytes)
-		return exitError
+		return lintResult{err: fmt.Errorf("output over %d bytes", o.Limits.MaxOutputBytes)}
 	}
-	if _, err := stdout.Write(out); err != nil {
-		return exitError
-	}
+	return lintResult{out: out, code: exitCode(r)}
+}
+
+func exitCode(r *facts.Report) int {
 	if len(r.Findings) > 0 {
 		return exitFindings
 	}
