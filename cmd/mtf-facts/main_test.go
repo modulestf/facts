@@ -120,3 +120,17 @@ func TestHumanOutputEscapesTreeText(t *testing.T) {
 		t.Errorf("cap: %d", len(got))
 	}
 }
+
+func TestLintModulesLinkExitsNotEvaluated(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "real"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real", filepath.Join(dir, "modules")); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint", dir}, &out, &errb); code != exitNotEvaluated {
+		t.Errorf("exit %d:\n%s", code, out.String())
+	}
+}

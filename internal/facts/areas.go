@@ -68,9 +68,17 @@ func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
 	set := map[string]string{}
 	add := func(p string, t *Tree) {
 		// A link, special or unreadable entry where an example or submodule
-		// directory belongs is that area, so its rules report it.
-		if parts := strings.Split(p, "/"); len(parts) == 2 && (parts[0] == "examples" || parts[0] == "modules") {
-			if e := t.Entries[p]; e != nil && e.Kind != KindFile && e.Kind != KindOversize {
+		// directory belongs is that area, so its rules report it. That holds
+		// for examples/ and modules/ themselves too.
+		if e := t.Entries[p]; e != nil && e.Kind != KindFile && e.Kind != KindOversize {
+			switch parts := strings.Split(p, "/"); {
+			case len(parts) == 1 && p == "examples":
+				set[p] = AreaExample
+				return
+			case len(parts) == 1 && p == "modules":
+				set[p] = AreaSubmodule
+				return
+			case len(parts) == 2 && (parts[0] == "examples" || parts[0] == "modules"):
 				p += "/x"
 			}
 		}

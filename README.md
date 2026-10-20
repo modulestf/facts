@@ -70,6 +70,8 @@ Areas are the root module, each `modules/<name>` and each `examples/<name>`, par
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
+`vendor/` holds `golang.org/x/tools`, `x/mod` and `x/sync` although the binary does not use them: `hcl/v2`'s `tools.go` imports `stringer` under the `tools` build tag, and `go mod vendor` ignores build tags.
+
 Not yet: provider schema input, `ledger`, `schema-diff`, and the remaining rules.
 
 ## License

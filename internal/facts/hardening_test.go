@@ -1,3 +1,5 @@
+//go:build unix
+
 package facts
 
 import (
@@ -7,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -249,6 +252,67 @@ func TestDescriptionForms(t *testing.T) {
 			r := runHead(t, map[string]string{"main.tf": tc.src})
 			if s := statusOf(r.Manifest, "structure.missing-description", "."); s != tc.status {
 				t.Errorf("got %s, want %s", s, tc.status)
+			}
+		})
+	}
+}
+
+// examples/ or modules/ itself as a link, a special file or an unreadable
+// directory is an area whose applicable rules are not_evaluated.
+func TestTopLevelAreaDirectories(t *testing.T) {
+	type form struct {
+		files map[string]string
+		setup func(t *testing.T, root string)
+		want  string
+	}
+	forms := map[string]form{
+		"modules link":  {files: map[string]string{"real/main.tf": "variable \"x\" {}\n", "modules": "->real"}, want: "modules is a symbolic link, not a directory"},
+		"examples link": {files: map[string]string{"real/e1/main.tf": "", "examples": "->real"}, want: "examples is a symbolic link, not a directory"},
+		"examples fifo": {setup: func(t *testing.T, root string) {
+			if err := syscall.Mkfifo(filepath.Join(root, "examples"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}, want: "examples is a special file, not a directory"},
+		"examples unreadable": {files: map[string]string{"examples/e1/main.tf": ""}, setup: func(t *testing.T, root string) {
+			if os.Getuid() == 0 {
+				t.Skip("root reads every directory")
+			}
+			p := filepath.Join(root, "examples")
+			if err := os.Chmod(p, 0); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.Chmod(p, 0o755) })
+		}, want: "examples is a directory that cannot be read"},
+	}
+	for name, f := range forms {
+		t.Run(name, func(t *testing.T) {
+			files := map[string]string{"main.tf": ""}
+			for k, v := range f.files {
+				files[k] = v
+			}
+			head := writeTree(t, files)
+			if f.setup != nil {
+				f.setup(t, head)
+			}
+			base := writeTree(t, map[string]string{"main.tf": ""})
+			area := strings.Fields(name)[0]
+			for _, o := range []Options{{Head: head}, {Head: head, Base: base}} {
+				o.Limits = DefaultLimits
+				r, err := Run(o)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rules := []string{"structure.variable-untyped", "structure.missing-description"}
+				if area == "examples" {
+					rules = append(rules, "examples.versions-missing")
+				} else if s := statusOf(r.Manifest, "examples.versions-missing", area); s != "not_applicable" {
+					t.Errorf("base=%v versions-missing: %s", o.Base != "", s)
+				}
+				for _, rule := range rules {
+					if s := statusOf(r.Manifest, rule, area); s != "not_evaluated: "+f.want {
+						t.Errorf("base=%v %s: %s", o.Base != "", rule, s)
+					}
+				}
 			}
 		})
 	}
