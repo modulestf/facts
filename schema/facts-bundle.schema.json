@@ -1,0 +1,420 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json",
+  "title": "Facts bundle",
+  "description": "Host-built bundle the model reads. Six sections in priority order: tool_findings, candidates, area_rules, interface_diff, schema_coverage, file_index; the host writes the keys in that order. A shed section is left out; tool_findings and candidates are never shed. severity_needed holds confirmed candidates on a rule with several severities, which the lead must answer with a severity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "tool_findings",
+    "candidates",
+    "severity_needed"
+  ],
+  "properties": {
+    "tool_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tool_finding"
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "area_rules": {
+      "description": "Per area, every rule whose result is not clean or not_applicable.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "area",
+          "rules"
+        ],
+        "properties": {
+          "area": {
+            "$ref": "finding.schema.json#/$defs/path"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "rule_id",
+                    "status"
+                  ],
+                  "properties": {
+                    "rule_id": {
+                      "$ref": "finding.schema.json#/$defs/rule_id"
+                    },
+                    "status": {
+                      "enum": [
+                        "finding",
+                        "candidate"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "rule_id",
+                    "status",
+                    "reason"
+                  ],
+                  "properties": {
+                    "rule_id": {
+                      "$ref": "finding.schema.json#/$defs/rule_id"
+                    },
+                    "status": {
+                      "const": "not_evaluated"
+                    },
+                    "reason": {
+                      "$ref": "#/$defs/reason"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "interface_diff": {
+      "$ref": "interface-diff.schema.json"
+    },
+    "schema_coverage": {
+      "description": "Schema coverage delta for the blocks the change touches.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "line",
+          "address",
+          "provider_source",
+          "outcome",
+          "arguments"
+        ],
+        "properties": {
+          "file": {
+            "$ref": "finding.schema.json#/$defs/path"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "address": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "enum": [
+              "present",
+              "absent_from_schema",
+              "schema_unavailable"
+            ]
+          },
+          "arguments": {
+            "description": "Argument and nested block paths the change adds or removes, with their state in the latest and declared-minimum schemas.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "change",
+                "at_latest",
+                "at_declared_minimum"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "change": {
+                  "enum": [
+                    "added",
+                    "removed"
+                  ]
+                },
+                "at_latest": {
+                  "$ref": "#/$defs/schema_state"
+                },
+                "at_declared_minimum": {
+                  "$ref": "#/$defs/schema_state"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "file_index": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "change"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "finding.schema.json#/$defs/path"
+          },
+          "change": {
+            "enum": [
+              "added",
+              "modified",
+              "removed"
+            ]
+          }
+        }
+      }
+    },
+    "severity_needed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "rule_id",
+          "file",
+          "line",
+          "subject",
+          "severities",
+          "confirmed_by"
+        ],
+        "properties": {
+          "candidate_id": {
+            "$ref": "#/$defs/candidate_id"
+          },
+          "rule_id": {
+            "$ref": "finding.schema.json#/$defs/rule_id"
+          },
+          "file": {
+            "$ref": "finding.schema.json#/$defs/path"
+          },
+          "line": {
+            "$ref": "finding.schema.json#/$defs/line"
+          },
+          "subject": {
+            "$ref": "#/$defs/subject"
+          },
+          "severities": {
+            "description": "The rule's permitted severities; more than one, or the candidate would be a tool finding.",
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "finding.schema.json#/$defs/severity"
+            }
+          },
+          "confirmed_by": {
+            "$ref": "#/$defs/confirm_class"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^C-[0-9]{3,}$"
+    },
+    "subject": {
+      "description": "What the finding is about inside the file: an argument path, attribute name or block address. Dedup key with rule_id.",
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "confirm_class": {
+      "enum": [
+        "small",
+        "mid"
+      ]
+    },
+    "schema_state": {
+      "enum": [
+        "present",
+        "absent",
+        "deprecated",
+        "unknown"
+      ]
+    },
+    "tool_finding": {
+      "description": "A final finding from the tool. source is set by the host. A finding that came from a confirmed candidate keeps its candidate_id and carries confirmed_by.",
+      "type": "object",
+      "$ref": "finding.schema.json",
+      "required": [
+        "source",
+        "subject"
+      ],
+      "properties": {
+        "source": {
+          "const": "tool"
+        },
+        "subject": {
+          "$ref": "#/$defs/subject"
+        },
+        "candidate_id": {
+          "$ref": "#/$defs/candidate_id"
+        },
+        "confirmed_by": {
+          "$ref": "#/$defs/confirm_class"
+        }
+      },
+      "dependentRequired": {
+        "confirmed_by": [
+          "candidate_id"
+        ],
+        "candidate_id": [
+          "confirmed_by"
+        ]
+      },
+      "unevaluatedProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "rule_id",
+        "file",
+        "line",
+        "subject",
+        "evidence",
+        "evidence_complete"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/candidate_id"
+        },
+        "rule_id": {
+          "$ref": "finding.schema.json#/$defs/rule_id"
+        },
+        "file": {
+          "$ref": "finding.schema.json#/$defs/path"
+        },
+        "line": {
+          "$ref": "finding.schema.json#/$defs/line"
+        },
+        "subject": {
+          "$ref": "#/$defs/subject"
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_lines",
+            "base",
+            "head",
+            "schema_facts"
+          ],
+          "properties": {
+            "source_lines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "revision",
+                  "file",
+                  "line",
+                  "text"
+                ],
+                "properties": {
+                  "revision": {
+                    "enum": [
+                      "head",
+                      "merge_base"
+                    ]
+                  },
+                  "file": {
+                    "$ref": "finding.schema.json#/$defs/path"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "base": {
+              "description": "Base value as source text, null when absent at base.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "head": {
+              "description": "Head value as source text, null when absent at head.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "schema_facts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "provider_source",
+                  "version",
+                  "type",
+                  "path",
+                  "state"
+                ],
+                "properties": {
+                  "provider_source": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "version": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "state": {
+                    "$ref": "#/$defs/schema_state"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "evidence_complete": {
+          "description": "False when a cap cut a pull request string in the evidence. Such a candidate escalates without a confirmer call.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "tool_findings": [
+    {"id": "F-001", "rule_id": "structure.output-no-try", "severity": "LOW", "file": "outputs.tf", "line": 3,
+     "summary": "Output \"arn\" fails when the resource is not created.", "suggested_fix": "Wrap the value in try.",
+     "source": "tool", "subject": "output.arn", "confirmed_by": "small"}
+  ],
+  "candidates": [],
+  "severity_needed": []
+}

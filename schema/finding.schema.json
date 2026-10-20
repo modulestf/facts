@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/finding.schema.json",
+  "title": "Finding",
+  "description": "One finding in the reviewer's findings schema, version 3: the seven required fields. Open to extension: a schema that adds fields references this one and closes it with unevaluatedProperties.",
+  "type": "object",
+  "required": ["id", "rule_id", "severity", "file", "line", "summary", "suggested_fix"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^F-[0-9]{3,}$"},
+    "rule_id": {"$ref": "#/$defs/rule_id"},
+    "severity": {"$ref": "#/$defs/severity"},
+    "file": {"$ref": "#/$defs/path"},
+    "line": {"$ref": "#/$defs/line"},
+    "summary": {"type": "string", "minLength": 1},
+    "suggested_fix": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "rule_id": {
+      "type": "string",
+      "pattern": "^(compat|coverage|structure|examples|profile|scope|review)\\.[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "severity": {"enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]},
+    "path": {
+      "description": "Path relative to the module root with forward slashes, or . for the module root. No absolute path, no backslash, no .. segment.",
+      "type": "string",
+      "pattern": "^(\\.|(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$)).+)$"
+    },
+    "line": {
+      "oneOf": [
+        {"type": "integer", "minimum": 1},
+        {"type": "null"}
+      ]
+    }
+  }
+}

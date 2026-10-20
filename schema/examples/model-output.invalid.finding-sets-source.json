@@ -1,0 +1,7 @@
+{
+  "candidate_decisions": [],
+  "findings": [
+    {"id": "F-001", "rule_id": "structure.insecure-default", "severity": "HIGH", "file": "variables.tf", "line": 40,
+     "summary": "Variable \"public_access\" defaults to true.", "suggested_fix": "Set the default to false.", "source": "tool"}
+  ]
+}

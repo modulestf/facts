@@ -1,0 +1,564 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/interface-diff.schema.json",
+  "title": "Interface diff",
+  "description": "Per in-scope area, the interface elements that differ between the merge base and the head. Values are Terraform source text, never evaluated. An element with no difference is not listed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "head_sha",
+    "merge_base_sha",
+    "areas"
+  ],
+  "properties": {
+    "head_sha": {
+      "$ref": "#/$defs/commit_sha"
+    },
+    "merge_base_sha": {
+      "$ref": "#/$defs/commit_sha"
+    },
+    "areas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "kind",
+          "variables",
+          "outputs",
+          "providers",
+          "resources",
+          "moved",
+          "module_calls"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/dir_path"
+          },
+          "kind": {
+            "enum": [
+              "root",
+              "submodule",
+              "example"
+            ]
+          },
+          "variables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/variable_change"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/output_change"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/provider_change"
+            }
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/resource_change"
+            }
+          },
+          "moved": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/moved_change"
+            }
+          },
+          "module_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/module_call_change"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "dir_path": {
+      "type": "string",
+      "pattern": "^(\\.|(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.(/|$))(?!.*/$).+)$"
+    },
+    "expr": {
+      "description": "Expression source text as written, or null when absent.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "change_kind": {
+      "description": "added: base is null. removed: head is null. changed: both are set.",
+      "oneOf": [
+        {
+          "properties": {
+            "change": {
+              "const": "added"
+            },
+            "base": {
+              "type": "null"
+            },
+            "head": {
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "change": {
+              "const": "removed"
+            },
+            "base": {
+              "type": "object"
+            },
+            "head": {
+              "type": "null"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "change": {
+              "const": "changed"
+            },
+            "base": {
+              "type": "object"
+            },
+            "head": {
+              "type": "object"
+            }
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "variable_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "default",
+        "nullable",
+        "sensitive"
+      ],
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/expr"
+        },
+        "default": {
+          "description": "null means no default, so the variable is required.",
+          "$ref": "#/$defs/expr"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "sensitive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "variable_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "change",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "change": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "base": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/variable_value"
+            }
+          ]
+        },
+        "head": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/variable_value"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/change_kind"
+        }
+      ]
+    },
+    "output_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "sensitive"
+      ],
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/expr"
+        },
+        "sensitive": {
+          "type": "boolean"
+        }
+      }
+    },
+    "output_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "change",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "change": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "base": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/output_value"
+            }
+          ]
+        },
+        "head": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/output_value"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/change_kind"
+        }
+      ]
+    },
+    "provider_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "version_constraint",
+        "configuration_aliases"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version_constraint": {
+          "$ref": "#/$defs/expr"
+        },
+        "configuration_aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "provider_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_name",
+        "change",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "local_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "change": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "base": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/provider_value"
+            }
+          ]
+        },
+        "head": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/provider_value"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/change_kind"
+        }
+      ]
+    },
+    "resource_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "for_each",
+        "provider"
+      ],
+      "properties": {
+        "count": {
+          "$ref": "#/$defs/expr"
+        },
+        "for_each": {
+          "$ref": "#/$defs/expr"
+        },
+        "provider": {
+          "$ref": "#/$defs/expr"
+        }
+      }
+    },
+    "resource_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "change",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "address": {
+          "description": "<type>.<name> for a managed resource, data.<type>.<name> for a data source.",
+          "type": "string",
+          "pattern": "^(data\\.)?[a-z][a-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_-]*$"
+        },
+        "change": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "base": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/resource_value"
+            }
+          ]
+        },
+        "head": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/resource_value"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/change_kind"
+        }
+      ]
+    },
+    "moved_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "to"
+      ],
+      "properties": {
+        "to": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "moved_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "change",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "from": {
+          "description": "The from address as written; unique per module.",
+          "type": "string",
+          "minLength": 1
+        },
+        "change": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "base": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/moved_value"
+            }
+          ]
+        },
+        "head": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/moved_value"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/change_kind"
+        }
+      ]
+    },
+    "module_call_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "version",
+        "count",
+        "for_each"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/expr"
+        },
+        "count": {
+          "$ref": "#/$defs/expr"
+        },
+        "for_each": {
+          "$ref": "#/$defs/expr"
+        }
+      }
+    },
+    "module_call_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "change",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "change": {
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "base": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/module_call_value"
+            }
+          ]
+        },
+        "head": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/module_call_value"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/change_kind"
+        }
+      ]
+    }
+  }
+}

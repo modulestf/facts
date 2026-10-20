@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/confirm-output.schema.json",
+  "title": "Candidate confirmer output",
+  "description": "The forced output of one confirmer call for the one candidate the host sent. Every other field is host-owned.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision"],
+  "properties": {
+    "decision": {"enum": ["confirm", "escalate"]}
+  }
+}
