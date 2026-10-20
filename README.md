@@ -18,7 +18,7 @@ go install github.com/modulestf/facts/cmd/mtf-facts@latest
 Or build from a checkout:
 
 ```sh
-go build -trimpath -mod=vendor -o bin/mtf-facts ./cmd/mtf-facts
+go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
 ```
 
 ## Usage
@@ -69,8 +69,6 @@ Early. Implemented rules:
 Areas are the root module, each `modules/<name>` and each `examples/<name>`, parsed one directory at a time. Files Terraform ignores (a leading `.`, a trailing `~`, `#...#`) are skipped. A directory with a parse error, a `.tf.json` file, an override file, a `.tf` file that is a link or cannot be read, or a file over the token, nesting or unary operator limits gets `not_evaluated` for its configuration rules, never `clean`. An area directory that is a link or cannot be read gets `not_evaluated` for every rule.
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
-
-`vendor/` holds `golang.org/x/tools`, `x/mod` and `x/sync` although the binary does not use them: `hcl/v2`'s `tools.go` imports `stringer` under the `tools` build tag, and `go mod vendor` ignores build tags.
 
 Not yet: provider schema input, `ledger`, `schema-diff`, and the remaining rules.
 

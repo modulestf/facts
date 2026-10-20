@@ -1,14 +1,10 @@
-.PHONY: build test vet vendor
+.PHONY: build test vet
 
 build:
-	go build -trimpath -mod=vendor -o bin/mtf-facts ./cmd/mtf-facts
+	go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
 
 test:
-	go test -mod=vendor -race -count=1 ./...
+	go test -race -count=1 ./...
 
 vet:
-	go vet -mod=vendor ./...
-
-vendor:
-	go mod tidy
-	go mod vendor
+	go vet ./...
