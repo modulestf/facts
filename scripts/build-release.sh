@@ -36,7 +36,11 @@ if [ -e "$out" ]; then
 	exit 1
 fi
 # A file in the checkout marks the build as modified and changes its version.
-out_abs="$(cd "$(dirname "$out")" && pwd -P)/$(basename "$out")"
+if ! parent=$(cd "$(dirname "$out")" && pwd -P); then
+	echo "build-release: the parent directory of ${out} does not exist" >&2
+	exit 1
+fi
+out_abs=$parent/$(basename "$out")
 top=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
 case "$out_abs/" in
 "$top"/*)
