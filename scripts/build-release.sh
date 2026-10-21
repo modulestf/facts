@@ -35,22 +35,29 @@ if [ -e "$out" ]; then
 	echo "build-release: ${out} already exists" >&2
 	exit 1
 fi
+# A file in the checkout marks the build as modified and changes its version.
+out_abs="$(cd "$(dirname "$out")" && pwd -P)/$(basename "$out")"
+top=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+case "$out_abs/" in
+"$top"/*)
+	echo "build-release: ${out} must be outside the checkout" >&2
+	exit 1
+	;;
+esac
 
-# Every setting that changes the output bytes is fixed here, so a user's go
-# env file or shell cannot change the build. GOTOOLCHAIN selects the exact Go
-# release from .go-version; a different local Go downloads that one.
+# The Go settings known to change the output bytes are fixed here, so a
+# user's go env file or shell cannot change them: the toolchain, cgo, module
+# mode, workspace, experiments, the FIPS 140 module and the architecture
+# levels. GOTOOLCHAIN selects the exact Go release from .go-version; a
+# different local Go downloads that one.
 GOTOOLCHAIN="go$(tr -d '[:space:]' < .go-version)"
-export GOTOOLCHAIN CGO_ENABLED=0 GOFLAGS=-mod=readonly GOEXPERIMENT='' GOAMD64=v1 GOARM64=v8.0
+export GOTOOLCHAIN CGO_ENABLED=0 GOFLAGS=-mod=readonly GOWORK=off GOEXPERIMENT='' \
+	GOFIPS140=off GOAMD64=v1 GOARM64=v8.0
 # Go embeds no build time; this is set for any tool that reads it.
 SOURCE_DATE_EPOCH=$(git log -1 --format=%ct HEAD)
 export SOURCE_DATE_EPOCH
 
 mkdir -p "$out"
-# An untracked file marks the build as modified and changes its version.
-if [ -n "$(git status --porcelain)" ]; then
-	echo "build-release: ${out} must be outside the checkout or ignored by git" >&2
-	exit 1
-fi
 for p in "${PLATFORMS[@]}"; do
 	name="mtf-facts_${tag}_${p%/*}_${p#*/}"
 	GOOS=${p%/*} GOARCH=${p#*/} go build -trimpath -buildvcs=true -ldflags=-buildid= \
