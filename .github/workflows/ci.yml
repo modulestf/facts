@@ -49,8 +49,8 @@ jobs:
       # file's SHA-256 together. The hash check refuses a cut-off download.
       - name: Fetch rule registry
         env:
-          SKILLS_COMMIT: fe1f300bfeb7eef5d5a6ae50cb369968f946a496
-          REGISTRY_SHA256: 9317ad0cd383bd2994638cb6bf57672e755714e73bbe5f4cffcf0b41ee2cbc24
+          SKILLS_COMMIT: f2117bcc19d55ae796eb2a3c69b4480ac11d6ba3
+          REGISTRY_SHA256: 5587329776f264455376f717ec23ed861cd577eada2213358502307d6ccf3c31
         run: |
           curl -fsSL --proto '=https' --tlsv1.2 --retry 2 --max-time 30 \
             -o "$RUNNER_TEMP/rule-facts.md" \
