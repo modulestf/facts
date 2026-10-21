@@ -26,6 +26,10 @@ func newVariable(a *Area, name string) bool { return a.Base == nil || !a.Base.va
 
 func newOutput(a *Area, name string) bool { return a.Base == nil || !a.Base.outNames[name] }
 
+// subject is a candidate's dedup key, scoped to its area: "<area>:<address>",
+// such as ".:var.name".
+func subject(area, address string) string { return area + ":" + address }
+
 // short caps a block name before it goes into a finding's text.
 func short(name string) string {
 	if len(name) > maxEvidenceText {
@@ -79,7 +83,7 @@ func checkVariableUntyped(a *Area) Result {
 		line := v.Line
 		res.Candidates = append(res.Candidates, Candidate{
 			RuleID: "structure.variable-untyped", File: areaFile(a.Path, v.File), Line: &line,
-			Subject: fmt.Sprintf("variable %q", name), Evidence: ev, EvidenceComplete: complete,
+			Subject: subject(a.Path, "var."+name), Evidence: ev, EvidenceComplete: complete,
 		})
 	}
 	return res
@@ -109,7 +113,9 @@ func checkMissingDescription(a *Area) Result {
 
 // examples.versions-missing: an example with no versions.tf. A version file
 // under another name is the same finding, since versions.tf is the name the
-// profile and its sibling examples use.
+// profile and its sibling examples use. A path rule reads only whether its
+// path exists, so a symbolic link at versions.tf counts as present and is
+// never followed.
 func checkVersionsMissing(a *Area) Result {
 	if !a.HeadExists {
 		return Result{NotEvaluated: StatusNotApplicable}
@@ -122,7 +128,7 @@ func checkVersionsMissing(a *Area) Result {
 			Summary:      fmt.Sprintf("Example %q has no versions.tf, so its Terraform and provider constraints are not in the file the profile and its sibling examples use.", a.Path),
 			SuggestedFix: fmt.Sprintf("Add `versions.tf` to `%s`, copied from a sibling example, or rename the file that holds its `terraform` block to `versions.tf`.", a.Path),
 		}}}
-	case e.Kind != KindFile:
+	case e.Kind != KindFile && e.Kind != KindSymlink:
 		return Result{NotEvaluated: "versions.tf is " + kindText(e.Kind)}
 	}
 	return Result{}

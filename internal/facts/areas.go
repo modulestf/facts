@@ -31,23 +31,16 @@ type Area struct {
 // headEntry returns the head entry of a file directly in the area, or nil.
 func (a *Area) headEntry(name string) *Entry { return a.headTree.Entries[path.Join(a.Path, name)] }
 
-// rootOnlyFiles are root files owned by the profile or CI, not by an area.
-var rootOnlyFiles = map[string]bool{
-	"CHANGELOG.md": true, ".editorconfig": true, ".gitignore": true,
-	".releaserc.json": true, ".pre-commit-config.yaml": true,
-}
-
 // classify maps a path to its area. ok is false for paths that belong to no
-// area: generated content, tests, CI and profile-owned files, and loose
-// files directly under examples/ or modules/.
+// area: wrappers, tests, and loose files directly under examples/ or
+// modules/. Paths under .github/ and the root profile files count as the
+// root, as the rule registry says.
 func classify(p string) (area, kind string, ok bool) {
 	parts := strings.Split(p, "/")
 	switch {
-	case parts[0] == "wrappers" || parts[0] == "tests" || parts[0] == ".github":
+	case parts[0] == "wrappers" || parts[0] == "tests":
 		return "", "", false
 	case strings.HasSuffix(p, ".tftest.hcl"):
-		return "", "", false
-	case len(parts) == 1 && rootOnlyFiles[p]:
 		return "", "", false
 	case parts[0] == "examples" || parts[0] == "modules":
 		if len(parts) < 3 {
@@ -62,10 +55,10 @@ func classify(p string) (area, kind string, ok bool) {
 	return ".", AreaRoot, true
 }
 
-// FindAreas returns the areas in scope. With a base tree they are the areas of
-// changed, added or removed paths; without one, every area at head.
+// FindAreas returns the areas in scope: the root, always, and with a base tree
+// the areas of changed, added or removed paths; without one, every area at head.
 func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
-	set := map[string]string{}
+	set := map[string]string{".": AreaRoot}
 	add := func(p string, t *Tree) {
 		// A link, special or unreadable entry where an example or submodule
 		// directory belongs is that area, so its rules report it. That holds
@@ -87,7 +80,6 @@ func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
 		}
 	}
 	if base == nil {
-		set["."] = AreaRoot
 		for d := range head.Dirs {
 			if strings.Count(d, "/") >= 1 {
 				add(d+"/x", head) // a directory stands for any file inside it

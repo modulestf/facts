@@ -19,9 +19,10 @@ func TestClassify(t *testing.T) {
 		"wrappers/main.tf":             "none",
 		"tests/basic.tftest.hcl":       "none",
 		"basic.tftest.hcl":             "none",
-		".github/workflows/ci.yml":     "none",
-		"CHANGELOG.md":                 "none",
-		".pre-commit-config.yaml":      "none",
+		".github/workflows/ci.yml":     ". root",
+		"CHANGELOG.md":                 ". root",
+		".pre-commit-config.yaml":      ". root",
+		".editorconfig":                ". root",
 		"examples/complete/.gitignore": "examples/complete example",
 	}
 	for p, want := range cases {
@@ -68,8 +69,40 @@ func TestFindAreasWithBase(t *testing.T) {
 		"CHANGELOG.md": "x",
 	}))
 	got := areaList(FindAreas(head, base, DefaultLimits))
-	want := `modules/a:submodule:true:true:"" modules/gone:submodule:false:true:"" modules/new:submodule:true:false:""`
+	want := `.:root:true:true:"" modules/a:submodule:true:true:"" modules/gone:submodule:false:true:"" modules/new:submodule:true:false:""`
 	if got != want {
 		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}
+
+// A change to a root profile file alone puts the root in scope, and the root
+// is in scope even when the change touches only an example.
+func TestFindAreasRootAlwaysInScope(t *testing.T) {
+	for name, tc := range map[string]struct {
+		base, head map[string]string
+		want       string
+	}{
+		"profile file only": {
+			base: map[string]string{"main.tf": "a", ".editorconfig": "a"},
+			head: map[string]string{"main.tf": "a", ".editorconfig": "b"},
+			want: `.:root:true:true:""`,
+		},
+		"workflow only": {
+			base: map[string]string{"main.tf": "a"},
+			head: map[string]string{"main.tf": "a", ".github/workflows/ci.yml": "b"},
+			want: `.:root:true:true:""`,
+		},
+		"example only": {
+			base: map[string]string{"main.tf": "a", "examples/x/main.tf": "a"},
+			head: map[string]string{"main.tf": "a", "examples/x/main.tf": "b"},
+			want: `.:root:true:true:"" examples/x:example:true:true:""`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := areaList(FindAreas(mustTree(t, writeTree(t, tc.head)), mustTree(t, writeTree(t, tc.base)), DefaultLimits))
+			if got != tc.want {
+				t.Errorf("got  %s\nwant %s", got, tc.want)
+			}
+		})
 	}
 }

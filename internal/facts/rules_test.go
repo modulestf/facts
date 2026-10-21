@@ -38,7 +38,8 @@ func TestVersionsMissingLink(t *testing.T) {
 		"examples/b/versions.tf": "->../a/versions.tf",
 		"examples/c":             "->a",
 	})
-	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/b"); s != "not_evaluated: versions.tf is a symbolic link" {
+	// A link at versions.tf is present and never followed: the path rule is clean.
+	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/b"); s != "clean" {
 		t.Error(s)
 	}
 	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/c"); s != "not_evaluated: examples/c is a symbolic link, not a directory" {
