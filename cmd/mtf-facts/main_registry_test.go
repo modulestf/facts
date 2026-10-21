@@ -32,21 +32,29 @@ func splitCells(line string) []string {
 }
 
 // parseRegistry reads the first markdown table whose header has rule_id and
-// engine columns.
+// engine columns. A cut-off download must not pass as a shorter table, so a
+// line that starts with a pipe but does not end with one is refused, and so
+// is a table with no line after it: the trailing newline does not count.
 func parseRegistry(text string) (*registryTable, error) {
-	lines := strings.Split(text, "\n")
+	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 	t := &registryTable{}
+	closed := false
 	for i, line := range lines {
-		isRow := strings.HasPrefix(strings.TrimSpace(line), "|") && strings.HasSuffix(strings.TrimSpace(line), "|")
+		trimmed := strings.TrimSpace(line)
+		startsRow := strings.HasPrefix(trimmed, "|")
+		if startsRow && (len(trimmed) < 2 || !strings.HasSuffix(trimmed, "|")) {
+			return nil, fmt.Errorf("line %d: table row does not end with a pipe", i+1)
+		}
 		if t.header == nil {
-			if isRow {
+			if startsRow {
 				if cells := splitCells(line); colIndex(cells, "rule_id") >= 0 && colIndex(cells, "engine") >= 0 {
 					t.header = cells
 				}
 			}
 			continue
 		}
-		if !isRow {
+		if !startsRow {
+			closed = true
 			break
 		}
 		cells := splitCells(line)
@@ -61,6 +69,9 @@ func parseRegistry(text string) (*registryTable, error) {
 	}
 	if t.header == nil {
 		return nil, errors.New("no table with rule_id and engine columns")
+	}
+	if !closed {
+		return nil, errors.New("rule table runs to the end of the file")
 	}
 	if len(t.rows) == 0 {
 		return nil, errors.New("rule table has no rows")
@@ -168,12 +179,15 @@ func checkMutations(t *testing.T, listing, text string) {
 		id, tier, _ := strings.Cut(line, "\t")
 		other := map[string]string{"tool": "candidate", "candidate": "tool"}[tier]
 		row := rowOf(t, text, id)
+		cut := text[:strings.Index(text, row)+len(row)] // a download that stops after this row
 		for name, mutated := range map[string]string{
-			"id renamed":      mutateCell(t, text, id, "rule_id", "`"+id+"-renamed`"),
-			"other tier":      mutateCell(t, text, id, "engine", other),
-			"llm tier":        mutateCell(t, text, id, "engine", "llm"),
-			"row duplicated":  strings.Replace(text, "\n"+row, "\n"+row+"\n"+row, 1),
-			"engine col gone": strings.Replace(text, "| `engine` |", "| `engines` |", 1),
+			"id renamed":       mutateCell(t, text, id, "rule_id", "`"+id+"-renamed`"),
+			"other tier":       mutateCell(t, text, id, "engine", other),
+			"llm tier":         mutateCell(t, text, id, "engine", "llm"),
+			"row duplicated":   strings.Replace(text, "\n"+row, "\n"+row+"\n"+row, 1),
+			"engine col gone":  strings.Replace(text, "| `engine` |", "| `engines` |", 1),
+			"cut, partial row": cut + "\n| `x.y` | no",
+			"cut at row end":   cut + "\n",
 		} {
 			if err := checkRegistryText(listing, mutated); err == nil {
 				t.Errorf("%s %s: mutated registry passed", id, name)
@@ -219,6 +233,9 @@ func TestCheckRules(t *testing.T) {
 		{name: "no table", listing: listing, text: "# Rules\n"},
 		{name: "no rows", listing: listing, text: "| `rule_id` | `engine` |\n|---|---|\n"},
 		{name: "short row", listing: listing, text: strings.Replace(fixtureRegistry, "| tool | path |", "| tool |", 1)},
+		{name: "row cut off", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` | never | llm | path |", "| `c.llm` | never", 1)},
+		{name: "table runs to end of file", listing: listing, text: fixtureRegistry[:strings.Index(fixtureRegistry, "| `c.llm`")]},
+		{name: "table runs to end without newline", listing: listing, text: strings.TrimSuffix(fixtureRegistry[:strings.Index(fixtureRegistry, "| `c.llm`")], "\n")},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := checkRegistryText(tt.listing, tt.text); err == nil {
