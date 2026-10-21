@@ -236,7 +236,7 @@
       "pattern": "^C-[0-9]{3,}$"
     },
     "subject": {
-      "description": "What the finding is about inside the file: an argument path, attribute name or block address. Dedup key with rule_id.",
+      "description": "What the finding is about, scoped to its area: '<area>:<address>', such as '.:var.retention_days' or 'modules/worker:aws_sqs_queue.this.redrive.max_count'. A file-level subject, such as that of a path rule, is the file or directory path itself. Dedup key with rule_id.",
       "type": "string",
       "minLength": 1
     },

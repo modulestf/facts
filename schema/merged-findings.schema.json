@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/merged-findings.schema.json",
+  "title": "Merged findings",
+  "description": "The findings the host merge produces from the facts bundle, the confirmer outputs and the lead's reply. Each finding is the seven finding fields plus host-owned provenance. source is the channel: tool for a bundle tool finding, a candidate a small or mid confirmer confirmed, or an answered severity_needed entry; llm for an entry of the lead's findings or a candidate the lead confirmed; host for a finding the host builds itself, a severity_needed fallback or a review.check-not-run for a candidate. candidate_id and confirmed_by are a pair. confirmed_by is one value: when dedup merges findings, the cheapest confirmer wins, small before mid before lead. Subjects are scoped to their area as '<area>:<address>', such as '.:var.retention_days', or are a file path for a path rule. The schema checks the shape; the host checks that a file-level subject is the finding's file.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/merged_finding"
+  },
+  "$defs": {
+    "merged_finding": {
+      "type": "object",
+      "$ref": "finding.schema.json",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "tool",
+            "llm",
+            "host"
+          ]
+        },
+        "subject": {
+          "$ref": "#/$defs/subject"
+        },
+        "candidate_id": {
+          "$ref": "facts-bundle.schema.json#/$defs/candidate_id"
+        },
+        "confirmed_by": {
+          "description": "The class that confirmed the candidate. One value, never a list.",
+          "enum": [
+            "small",
+            "mid",
+            "lead"
+          ]
+        }
+      },
+      "dependentRequired": {
+        "candidate_id": [
+          "confirmed_by"
+        ],
+        "confirmed_by": [
+          "candidate_id"
+        ]
+      },
+      "unevaluatedProperties": false,
+      "allOf": [
+        {
+          "description": "tool: subject required, confirmed by small or mid only, never a review.* rule, which is an llm rule.",
+          "if": {
+            "properties": {
+              "source": {
+                "const": "tool"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "subject"
+            ],
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "not": {
+                  "pattern": "^review\\."
+                }
+              },
+              "subject": {
+                "$ref": "#/$defs/plain_subject"
+              },
+              "confirmed_by": {
+                "enum": [
+                  "small",
+                  "mid"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "description": "llm: subject optional; a candidate the lead confirmed carries subject, candidate_id and confirmed_by lead.",
+          "if": {
+            "properties": {
+              "source": {
+                "const": "llm"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject": {
+                "$ref": "#/$defs/plain_subject"
+              },
+              "confirmed_by": {
+                "const": "lead"
+              }
+            },
+            "dependentRequired": {
+              "candidate_id": [
+                "subject"
+              ]
+            }
+          }
+        },
+        {
+          "description": "host, review.check-not-run for a candidate: subject '<candidate rule_id>@<area>:<address>' or '<candidate rule_id>@<file>', no candidate_id.",
+          "if": {
+            "properties": {
+              "source": {
+                "const": "host"
+              },
+              "rule_id": {
+                "const": "review.check-not-run"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "subject"
+            ],
+            "properties": {
+              "subject": {
+                "pattern": "^(compat|coverage|structure|examples|profile|scope|review)\\.[a-z0-9]+(-[a-z0-9]+)*@.",
+                "type": "string"
+              },
+              "candidate_id": false
+            }
+          }
+        },
+        {
+          "description": "host, any other rule: a severity_needed fallback, which keeps its candidate_id and the confirmer's class.",
+          "if": {
+            "properties": {
+              "source": {
+                "const": "host"
+              },
+              "rule_id": {
+                "not": {
+                  "const": "review.check-not-run"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "subject",
+              "candidate_id"
+            ],
+            "properties": {
+              "subject": {
+                "$ref": "#/$defs/plain_subject"
+              },
+              "confirmed_by": {
+                "enum": [
+                  "small",
+                  "mid"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "subject": {
+      "description": "'<area>:<address>', a file or directory path, or, for a host review.check-not-run, either one prefixed with the candidate's rule_id and '@'.",
+      "type": "string",
+      "minLength": 1
+    },
+    "plain_subject": {
+      "description": "A subject with no rule_id prefix. Only a host review.check-not-run has one.",
+      "type": "string",
+      "not": {
+        "pattern": "^(compat|coverage|structure|examples|profile|scope|review)\\.[a-z0-9]+(-[a-z0-9]+)*@"
+      }
+    }
+  }
+}

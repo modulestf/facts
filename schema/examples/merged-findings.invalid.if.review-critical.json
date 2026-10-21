@@ -1,0 +1,6 @@
+[
+  {"id": "F-001", "rule_id": "review.check-not-run", "severity": "CRITICAL", "file": "variables.tf", "line": 44,
+   "summary": "The type of variable \"subnet_ids\" is narrower than at the base.",
+   "suggested_fix": "Restore the base type of `variable \"subnet_ids\"` in `variables.tf`.",
+   "source": "llm", "subject": ".:var.subnet_ids"}
+]

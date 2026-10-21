@@ -9,6 +9,9 @@
   "findings": [
     {"id": "F-001", "rule_id": "structure.insecure-default", "severity": "HIGH", "file": "variables.tf", "line": 40,
      "summary": "Variable \"public_access\" defaults to true, so a caller that omits it exposes the resource.",
-     "suggested_fix": "Set the default of `variable \"public_access\"` in `variables.tf` to `false`."}
+     "suggested_fix": "Set the default of `variable \"public_access\"` in `variables.tf` to `false`."},
+    {"id": "F-002", "rule_id": "review.check-not-run", "severity": "CRITICAL", "file": ".", "line": null,
+     "summary": "The coverage check could not run because the provider schema was unavailable.",
+     "suggested_fix": "no code change: re-run the review once the provider schema is available."}
   ]
 }
