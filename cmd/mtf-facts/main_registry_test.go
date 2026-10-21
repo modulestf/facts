@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // registryEnv names a local copy of the reviewer skill's rule-facts.md. CI
@@ -88,17 +92,51 @@ func colIndex(cells []string, name string) int {
 	return -1
 }
 
-// tiers maps each rule_id to its engine value.
-func (t *registryTable) tiers() (map[string]string, error) {
-	id, engine := colIndex(t.header, "rule_id"), colIndex(t.header, "engine")
+// column maps each rule_id to its value in the named column.
+func (t *registryTable) column(name string) (map[string]string, error) {
+	id, c := colIndex(t.header, "rule_id"), colIndex(t.header, name)
+	if c < 0 {
+		return nil, fmt.Errorf("rule table has no %s column", name)
+	}
 	m := make(map[string]string, len(t.rows))
 	for _, r := range t.rows {
 		if _, dup := m[r[id]]; dup {
 			return nil, fmt.Errorf("rule %q listed twice", r[id])
 		}
-		m[r[id]] = r[engine]
+		m[r[id]] = r[c]
 	}
 	return m, nil
+}
+
+// engineKinds maps each implemented rule to its area kinds, sorted.
+func engineKinds() map[string][]string {
+	m := make(map[string][]string, len(facts.Rules))
+	for _, r := range facts.Rules {
+		m[r.ID] = slices.Sorted(slices.Values(r.Kinds))
+	}
+	return m
+}
+
+// checkKinds compares each implemented rule's area kinds with the registry's
+// area_kinds cell, a comma-separated list, as sets.
+func checkKinds(kinds map[string][]string, registry map[string]string) error {
+	var errs []error
+	for _, id := range slices.Sorted(maps.Keys(kinds)) {
+		cell, ok := registry[id]
+		if !ok {
+			errs = append(errs, fmt.Errorf("rule %q: not in the registry", id))
+			continue
+		}
+		want := strings.Split(cell, ",")
+		for i, k := range want {
+			want[i] = strings.TrimSpace(k)
+		}
+		slices.Sort(want)
+		if !slices.Equal(kinds[id], want) {
+			errs = append(errs, fmt.Errorf("rule %q: mtf-facts area kinds %v, registry area_kinds %q", id, kinds[id], cell))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // checkRules compares the `mtf-facts rules` listing with the registry tiers.
@@ -127,17 +165,21 @@ func checkRules(listing string, tiers map[string]string) error {
 	return errors.Join(errs...)
 }
 
-// checkRegistryText runs checkRules against the registry text.
-func checkRegistryText(listing, text string) error {
+// checkRegistryText runs checkRules and checkKinds against the registry text.
+func checkRegistryText(listing string, kinds map[string][]string, text string) error {
 	t, err := parseRegistry(text)
 	if err != nil {
 		return err
 	}
-	tiers, err := t.tiers()
+	tiers, err := t.column("engine")
 	if err != nil {
 		return err
 	}
-	return checkRules(listing, tiers)
+	areaKinds, err := t.column("area_kinds")
+	if err != nil {
+		return err
+	}
+	return errors.Join(checkRules(listing, tiers), checkKinds(kinds, areaKinds))
 }
 
 // mutateCell returns text with the named column of the row for id set to value.
@@ -173,11 +215,15 @@ func rulesListing(t *testing.T) string {
 
 // checkMutations is the negative self-check: each mutated copy of the
 // registry must fail the comparison.
-func checkMutations(t *testing.T, listing, text string) {
+func checkMutations(t *testing.T, listing string, kinds map[string][]string, text string) {
 	t.Helper()
 	for line := range strings.SplitSeq(strings.TrimSuffix(listing, "\n"), "\n") {
 		id, tier, _ := strings.Cut(line, "\t")
 		other := map[string]string{"tool": "candidate", "candidate": "tool"}[tier]
+		otherKinds := "root"
+		if !slices.Contains(kinds[id], "example") {
+			otherKinds = strings.Join(append(slices.Clone(kinds[id]), "example"), ", ")
+		}
 		row := rowOf(t, text, id)
 		cut := text[:strings.Index(text, row)+len(row)] // a download that stops after this row
 		for name, mutated := range map[string]string{
@@ -186,10 +232,12 @@ func checkMutations(t *testing.T, listing, text string) {
 			"llm tier":         mutateCell(t, text, id, "engine", "llm"),
 			"row duplicated":   strings.Replace(text, "\n"+row, "\n"+row+"\n"+row, 1),
 			"engine col gone":  strings.Replace(text, "| `engine` |", "| `engines` |", 1),
+			"other kinds":      mutateCell(t, text, id, "area_kinds", otherKinds),
+			"kinds col gone":   strings.Replace(text, "| `area_kinds` |", "| `kinds` |", 1),
 			"cut, partial row": cut + "\n| `x.y` | no",
 			"cut at row end":   cut + "\n",
 		} {
-			if err := checkRegistryText(listing, mutated); err == nil {
+			if err := checkRegistryText(listing, kinds, mutated); err == nil {
 				t.Errorf("%s %s: mutated registry passed", id, name)
 			}
 		}
@@ -208,22 +256,29 @@ func rowOf(t *testing.T, text, id string) string {
 }
 
 const fixtureRegistry = "# Rules\n\n" +
-	"| `rule_id` | Carry | `engine` | `class` |\n" +
-	"|-----------|-------|----------|---------|\n" +
-	"| `a.tool` | never | tool | path |\n" +
-	"| `b.candidate` | file | candidate | config-semantic |\n" +
-	"| `c.llm` | never | llm | path |\n" +
-	"| `d.unimplemented` | never | tool | path |\n" +
+	"| `rule_id` | Carry | `engine` | `class` | `area_kinds` |\n" +
+	"|-----------|-------|----------|---------|--------------|\n" +
+	"| `a.tool` | never | tool | path | example |\n" +
+	"| `b.candidate` | file | candidate | config-semantic | root, submodule |\n" +
+	"| `c.llm` | never | llm | path | root |\n" +
+	"| `d.unimplemented` | never | tool | path | root |\n" +
 	"\ntext after the table\n"
+
+// fixtureKinds are the area kinds of the fixture's implemented rules.
+var fixtureKinds = map[string][]string{
+	"a.tool":      {"example"},
+	"b.candidate": {"root", "submodule"},
+}
 
 func TestCheckRules(t *testing.T) {
 	listing := "a.tool\ttool\nb.candidate\tcandidate\n"
-	if err := checkRegistryText(listing, fixtureRegistry); err != nil {
+	if err := checkRegistryText(listing, fixtureKinds, fixtureRegistry); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	checkMutations(t, listing, fixtureRegistry)
+	checkMutations(t, listing, fixtureKinds, fixtureRegistry)
 	for _, tt := range []struct {
 		name, listing, text string
+		kinds               map[string][]string
 	}{
 		{name: "llm rule listed", listing: "c.llm\tllm\n", text: fixtureRegistry},
 		{name: "llm rule listed as tool", listing: "c.llm\ttool\n", text: fixtureRegistry},
@@ -233,12 +288,19 @@ func TestCheckRules(t *testing.T) {
 		{name: "no table", listing: listing, text: "# Rules\n"},
 		{name: "no rows", listing: listing, text: "| `rule_id` | `engine` |\n|---|---|\n"},
 		{name: "short row", listing: listing, text: strings.Replace(fixtureRegistry, "| tool | path |", "| tool |", 1)},
-		{name: "row cut off", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` | never | llm | path |", "| `c.llm` | never", 1)},
+		{name: "row cut off", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` | never | llm | path | root |", "| `c.llm` | never", 1)},
+		{name: "example kind added", listing: listing, text: fixtureRegistry, kinds: map[string][]string{"b.candidate": {"example", "root", "submodule"}}},
+		{name: "kind missing", listing: listing, text: fixtureRegistry, kinds: map[string][]string{"b.candidate": {"root"}}},
+		{name: "kinds of an unknown rule", listing: listing, text: fixtureRegistry, kinds: map[string][]string{"e.unknown": {"root"}}},
 		{name: "table runs to end of file", listing: listing, text: fixtureRegistry[:strings.Index(fixtureRegistry, "| `c.llm`")]},
 		{name: "table runs to end without newline", listing: listing, text: strings.TrimSuffix(fixtureRegistry[:strings.Index(fixtureRegistry, "| `c.llm`")], "\n")},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := checkRegistryText(tt.listing, tt.text); err == nil {
+			kinds := tt.kinds
+			if kinds == nil {
+				kinds = fixtureKinds
+			}
+			if err := checkRegistryText(tt.listing, kinds, tt.text); err == nil {
 				t.Error("passed")
 			}
 		})
@@ -260,9 +322,9 @@ func TestRulesMatchPinnedRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listing, text := rulesListing(t), string(data)
-	if err := checkRegistryText(listing, text); err != nil {
+	listing, kinds, text := rulesListing(t), engineKinds(), string(data)
+	if err := checkRegistryText(listing, kinds, text); err != nil {
 		t.Fatalf("mtf-facts rules does not match the registry:\n%v", err)
 	}
-	checkMutations(t, listing, text)
+	checkMutations(t, listing, kinds, text)
 }
