@@ -7,16 +7,32 @@
 # of which must fail with an error whose keyword is <keyword> (for example
 # additionalProperties, oneOf, required) in ajv's --all-errors JSON output.
 #
-# Validator: ajv-cli 5.0.0 through npx, draft 2020-12 (--spec=draft2020), strict
-# mode. Needs Node.js and network access to the npm registry on first run.
-# Override the command with AJV, for example AJV="ajv" for a local install.
-# If the npm cache is not writable, set npm_config_cache to a writable directory.
+# Validator: ajv-cli 5.0.0, draft 2020-12 (--spec=draft2020), strict mode.
+# Needs Node.js and npm. It is installed once per run into a private temporary
+# directory, which needs network access to the npm registry, and every check
+# then runs that local copy offline. Calling npx per check instead fetched the
+# package metadata from the registry on every call, so any failed fetch was
+# reported as a failing fixture. Override the command with AJV, for example
+# AJV="ajv" for a local install, to skip the install. If the npm cache is not
+# writable, set npm_config_cache to a writable directory.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 schemas="$root/schema"
 examples="$schemas/examples"
-read -r -a ajv <<<"${AJV:-npx --yes ajv-cli@5.0.0}"
+if [ -n "${AJV:-}" ]; then
+  read -r -a ajv <<<"$AJV"
+else
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/schemas-test.XXXXXX")
+  trap 'rm -rf "$tmp"' EXIT
+  if ! npm install --prefix "$tmp" --no-save --no-audit --no-fund --ignore-scripts \
+    ajv-cli@5.0.0 >"$tmp/install.log" 2>&1; then
+    echo "FAIL could not install ajv-cli 5.0.0:"
+    sed 's/^/     /' "$tmp/install.log"
+    exit 1
+  fi
+  ajv=("$tmp/node_modules/.bin/ajv")
+fi
 
 fail=0
 checked=0
