@@ -1,0 +1,21 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "examples/gone",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "examples/gone",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "examples/gone",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

@@ -1,0 +1,70 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "examples/complete",
+      "status": "finding"
+    },
+    {
+      "rule_id": "examples.versions-missing",
+      "area": "examples/other",
+      "status": "finding"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": "examples/other",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": "examples/other",
+      "status": "clean"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "examples.versions-missing",
+      "severity": "MEDIUM",
+      "file": "examples/complete",
+      "line": null,
+      "summary": "Example \"examples/complete\" has no versions.tf, so its Terraform and provider constraints are not in the file the profile and its sibling examples use.",
+      "suggested_fix": "Add `versions.tf` to `examples/complete`, copied from a sibling example, or rename the file that holds its `terraform` block to `versions.tf`."
+    },
+    {
+      "id": "F-002",
+      "rule_id": "examples.versions-missing",
+      "severity": "MEDIUM",
+      "file": "examples/other",
+      "line": null,
+      "summary": "Example \"examples/other\" has no versions.tf, so its Terraform and provider constraints are not in the file the profile and its sibling examples use.",
+      "suggested_fix": "Add `versions.tf` to `examples/other`, copied from a sibling example, or rename the file that holds its `terraform` block to `versions.tf`."
+    }
+  ],
+  "candidates": []
+}

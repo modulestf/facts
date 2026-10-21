@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "envelope.schema.json",
+  "title": "mtf-facts envelope",
+  "description": "Binds a report to the binary, the rule registry and the input trees.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tool", "head_sha", "merge_base_sha", "registry_sha256", "inputs"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "binary_sha256"],
+      "properties": {
+        "name": {"enum": ["mtf-facts"]},
+        "version": {"type": "string", "minLength": 1},
+        "binary_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "head_sha": {"$ref": "#/$defs/commit"},
+    "merge_base_sha": {"$ref": "#/$defs/commit"},
+    "registry_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head", "base"],
+      "properties": {
+        "head": {"$ref": "#/$defs/tree"},
+        "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}]}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+    "tree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tree_sha256", "files"],
+      "properties": {
+        "tree_sha256": {"$ref": "#/$defs/sha256"},
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "kind"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "kind": {"enum": ["file", "symlink", "special", "unreadable", "oversize"]},
+              "sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

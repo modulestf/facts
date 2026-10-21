@@ -1,0 +1,31 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "finding"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "outputs.tf",
+      "line": 5,
+      "summary": "Output \"new\" has no description, so its documentation row says nothing about what it returns.",
+      "suggested_fix": "Add a `description` to `output \"new\"` in `outputs.tf` stating what the value is."
+    }
+  ],
+  "candidates": []
+}
