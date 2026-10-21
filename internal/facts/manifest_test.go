@@ -256,3 +256,38 @@ func TestCrossAreaPassNotEvaluated(t *testing.T) {
 		})
 	}
 }
+
+func TestNeedsUntouched(t *testing.T) {
+	plain := Rule{ID: "test.plain"}
+	for name, tc := range map[string]struct {
+		rules []Rule
+		want  bool
+	}{
+		"no rules":            {rules: nil, want: false},
+		"no cross-area rule":  {rules: []Rule{plain}, want: false},
+		"one cross-area rule": {rules: []Rule{plain, crossRule(AreaRoot)}, want: true},
+		"implemented rules":   {rules: Rules, want: false}, // none is cross-area today
+	} {
+		if got := needsUntouched(tc.rules); got != tc.want {
+			t.Errorf("%s: got %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+// Run hands the flag to FindAreas: with a cross-area rule implemented, an
+// untouched root that cannot be parsed makes its entry not_evaluated.
+func TestRunReadsUntouchedAreasForCrossAreaRule(t *testing.T) {
+	saved := Rules
+	t.Cleanup(func() { Rules = saved })
+	Rules = []Rule{crossRule(AreaRoot, AreaSubmodule)}
+	base := writeTree(t, map[string]string{"main.tf": "variable {", "modules/a/variables.tf": ""})
+	head := writeTree(t, map[string]string{"main.tf": "variable {", "modules/a/variables.tf": "variable \"x\" {}\n"})
+	r, err := Run(Options{Head: head, Base: base, Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError}}
+	if !reflect.DeepEqual(r.Manifest, want) {
+		t.Errorf("manifest\n got %+v\nwant %+v", r.Manifest, want)
+	}
+}

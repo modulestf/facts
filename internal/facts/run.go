@@ -102,9 +102,7 @@ func Run(o Options) (*Report, error) {
 		bi := treeInput(base)
 		env.Inputs.Base = &bi
 	}
-	// Untouched areas matter only to a cross-area pass, so they are parsed
-	// only when a cross-area rule is implemented.
-	areas, err := FindAreas(head, base, o.Limits, slices.ContainsFunc(Rules, func(r Rule) bool { return r.CrossArea }))
+	areas, err := FindAreas(head, base, o.Limits, needsUntouched(Rules))
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +111,12 @@ func Run(o Options) (*Report, error) {
 		return nil, err
 	}
 	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates}, nil
+}
+
+// needsUntouched reports whether any rule is cross-area. Untouched areas
+// matter only to a cross-area pass, so they are parsed only then.
+func needsUntouched(rules []Rule) bool {
+	return slices.ContainsFunc(rules, func(r Rule) bool { return r.CrossArea })
 }
 
 func optionalSHA(name, s string) (*string, error) {

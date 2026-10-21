@@ -135,7 +135,7 @@ func TestParseDirUnsupported(t *testing.T) {
 // read.
 func TestParseDirLimitExceeded(t *testing.T) {
 	const src = "variable \"x\" {\n  type = string\n}\n"
-	deep := "locals {\n  x = " + strings.Repeat("[", 80) + strings.Repeat("]", 80) + "\n}\n"
+	deep := "locals {\n  x = " + strings.Repeat("[", 65) + strings.Repeat("]", 65) + "\n}\n"
 	unary := "variable \"x\" {\n  default = " + strings.Repeat("!", 65) + "true\n}\n"
 	for name, tc := range map[string]struct {
 		src string
