@@ -154,3 +154,59 @@ func TestCheckManifestCrossArea(t *testing.T) {
 		}
 	}
 }
+
+// A cross-area pass on a submodule-only change reads every area of the
+// module, the untouched root included, and keeps only what it finds in the
+// change. An untouched area it cannot read makes the entry not_evaluated.
+func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
+	const sub = "variable \"x\" {}\n"
+	for name, tc := range map[string]struct {
+		baseRoot, headRoot string
+		want               ManifestEntry
+		wantFindings       []string
+	}{
+		"untouched root is read, its finding dropped": {
+			baseRoot: "", headRoot: "",
+			want:         ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusFinding},
+			wantFindings: []string{"modules/a/variables.tf"},
+		},
+		"untouched root that cannot be parsed": {
+			baseRoot: "variable {", headRoot: "variable {",
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			base := mustTree(t, writeTree(t, map[string]string{"main.tf": tc.baseRoot, "modules/a/variables.tf": ""}))
+			head := mustTree(t, writeTree(t, map[string]string{"main.tf": tc.headRoot, "modules/a/variables.tf": sub}))
+			areas, err := FindAreas(head, base, DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var read []string
+			line := 1
+			rule := Rule{ID: "test.cross", Tier: "tool", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true,
+				Check: func(a *Area) Result {
+					read = append(read, a.Path)
+					// A finding in every area it reads, so a kept root finding shows.
+					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
+				}}
+			m, fs, cs := Evaluate(areas, []Rule{rule})
+			if !reflect.DeepEqual(m, []ManifestEntry{tc.want}) {
+				t.Errorf("manifest\n got %+v\nwant %+v", m, []ManifestEntry{tc.want})
+			}
+			if err := CheckManifest(m, []Rule{rule}, areas); err != nil {
+				t.Error(err)
+			}
+			if tc.want.Status != StatusNotEvaluated && !reflect.DeepEqual(read, []string{".", "modules/a"}) {
+				t.Errorf("pass read %v, want the root and modules/a", read)
+			}
+			var files []string
+			for _, f := range fs {
+				files = append(files, f.File)
+			}
+			if !reflect.DeepEqual(files, tc.wantFindings) || len(cs) != 0 {
+				t.Errorf("findings %v candidates %+v, want %v", files, cs, tc.wantFindings)
+			}
+		})
+	}
+}

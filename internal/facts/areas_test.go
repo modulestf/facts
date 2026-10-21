@@ -43,6 +43,9 @@ func areaList(as []*Area, err error) string {
 	}
 	var out []string
 	for _, a := range as {
+		if a.Untouched {
+			continue // the tests below list the areas in scope
+		}
 		out = append(out, fmt.Sprintf("%s:%s:%v:%v:%q", a.Path, a.Kind, a.HeadExists, a.BaseExists, a.Issue))
 	}
 	return strings.Join(out, " ")

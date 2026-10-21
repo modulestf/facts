@@ -129,3 +129,27 @@ func TestParseDirUnsupported(t *testing.T) {
 		})
 	}
 }
+
+// A file over a limit gives the limit_exceeded reason code: over the token
+// limit when parsed, or over the size limit when read.
+func TestParseDirLimitExceeded(t *testing.T) {
+	const src = "variable \"x\" {\n  type = string\n}\n"
+	for name, lim := range map[string]Limits{
+		"tokens":     func() Limits { l := DefaultLimits; l.MaxTokens = 3; return l }(),
+		"file bytes": func() Limits { l := DefaultLimits; l.MaxFileBytes = 8; return l }(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			tr, err := ReadTree(writeTree(t, map[string]string{"main.tf": src}), lim)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m, err := ParseDir(tr, ".", lim)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := m.reasonCode(); got != ReasonLimitExceeded {
+				t.Errorf("reason code %q, want %q (unsupported %v)", got, ReasonLimitExceeded, m.Unsupported)
+			}
+		})
+	}
+}

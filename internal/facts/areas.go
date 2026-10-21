@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"maps"
 	"path"
 	"sort"
 	"strings"
@@ -13,10 +14,13 @@ const (
 	AreaExample   = "example"
 )
 
-// Area is one module directory in scope, with its head and base facts.
+// Area is one module directory, with its head and base facts.
 type Area struct {
 	Path string // "." for the root module
 	Kind string
+	// Untouched is set for an area the change does not touch. Only a
+	// cross-area rule's pass reads it, and nothing it finds there is kept.
+	Untouched bool
 
 	HeadExists bool
 	BaseExists bool
@@ -57,11 +61,11 @@ func classify(p string) (area, kind string, ok bool) {
 	return ".", AreaRoot, true
 }
 
-// FindAreas returns the areas in scope. With a base tree they are the areas of
-// changed, added or removed paths; without one, every area at head.
+// FindAreas returns every area of the module. With a base tree the areas in
+// scope are those of changed, added or removed paths, and every other area at
+// head is marked Untouched; without one, every area at head is in scope.
 func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
-	set := map[string]string{}
-	add := func(p string, t *Tree) {
+	add := func(set map[string]string, p string, t *Tree) {
 		// A link, special or unreadable entry where an example or submodule
 		// directory belongs is that area, so its rules report it. That holds
 		// for examples/ and modules/ themselves too.
@@ -81,31 +85,41 @@ func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
 			set[a] = k
 		}
 	}
-	if base == nil {
+	// every collects each area at head.
+	every := func(set map[string]string) {
 		set["."] = AreaRoot
 		for d := range head.Dirs {
 			if strings.Count(d, "/") >= 1 {
-				add(d+"/x", head) // a directory stands for any file inside it
+				add(set, d+"/x", head) // a directory stands for any file inside it
 			}
 		}
 		for _, p := range head.Paths {
-			add(p, head)
+			add(set, p, head)
 		}
+	}
+	inScope := map[string]string{}
+	all := inScope
+	if base == nil {
+		every(inScope)
 	} else {
 		for _, p := range head.Paths {
 			if !sameEntry(head.Entries[p], base.Entries[p]) {
-				add(p, head)
+				add(inScope, p, head)
 			}
 		}
 		for _, p := range base.Paths {
 			if head.Entries[p] == nil {
-				add(p, base)
+				add(inScope, p, base)
 			}
 		}
+		all = map[string]string{}
+		every(all)
+		maps.Copy(all, inScope)
 	}
 	var out []*Area
-	for p, k := range set {
-		a := &Area{Path: p, Kind: k, headTree: head, Head: &Module{Dir: p}}
+	for p, k := range all {
+		_, touched := inScope[p]
+		a := &Area{Path: p, Kind: k, Untouched: !touched, headTree: head, Head: &Module{Dir: p}}
 		var err error
 		a.HeadExists, a.Issue, a.issueCode = dirState(head, p)
 		if a.HeadExists && a.Issue == "" {
