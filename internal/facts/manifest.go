@@ -87,8 +87,9 @@ type ManifestEntry struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// Evaluate runs every rule on every area and returns one manifest entry per
-// (rule, area), or one under the root for a cross-area rule, the findings
+// Evaluate runs every rule on every area in scope and returns one manifest
+// entry per (rule, area), or one under the root for a cross-area rule, whose
+// pass also reads the untouched areas, the findings
 // ordered and numbered as the findings schema says, and the candidates
 // numbered by file and line.
 func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candidate) {
@@ -102,6 +103,9 @@ func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candid
 			continue
 		}
 		for _, a := range areas {
+			if a.Untouched {
+				continue
+			}
 			res := evaluate(r, a)
 			manifest = append(manifest, manifestEntry(r.ID, a.Path, res))
 			if res.NotEvaluated == "" {
@@ -123,12 +127,13 @@ func evaluate(r Rule, a *Area) Result {
 	return r.Check(a)
 }
 
-// evaluateCrossArea runs a cross-area rule over every area as one pass. Areas
-// outside its kinds are skipped, so the result is never not_applicable. When
-// any area cannot be evaluated, the pass is incomplete: the result is not
-// evaluated, with the reason code of the first such area, and has no
-// findings or candidates. Otherwise it has every area's findings and
-// candidates, each with its own file.
+// evaluateCrossArea runs a cross-area rule over every area of the module as
+// one pass, untouched areas included. Areas outside its kinds are skipped, so
+// the result is never not_applicable. When any area cannot be evaluated, the
+// pass is incomplete: the result is not evaluated, with the reason code of the
+// first such area, and has no findings or candidates. Otherwise it has the
+// findings and candidates of the areas in scope, each with its own file;
+// those of an untouched area are not in the change and are dropped.
 func evaluateCrossArea(r Rule, areas []*Area) Result {
 	var out Result
 	for _, a := range areas {
@@ -136,6 +141,9 @@ func evaluateCrossArea(r Rule, areas []*Area) Result {
 		switch res.NotEvaluated {
 		case StatusNotApplicable:
 		case "":
+			if a.Untouched {
+				continue
+			}
 			out.Findings = append(out.Findings, res.Findings...)
 			out.Candidates = append(out.Candidates, res.Candidates...)
 		default:
@@ -246,8 +254,8 @@ func sortStrings(ss ...[]string) {
 	}
 }
 
-// CheckManifest is the integrity check: exactly one entry per (rule, area)
-// for every tool and candidate rule, one under the root for a cross-area
+// CheckManifest is the integrity check: exactly one entry per (rule, area in
+// scope) for every tool and candidate rule, one under the root for a cross-area
 // rule, and no other entry.
 func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 	want := map[[2]string]bool{}
@@ -260,6 +268,9 @@ func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 			continue
 		}
 		for _, a := range areas {
+			if a.Untouched {
+				continue
+			}
 			want[[2]string{r.ID, a.Path}] = true
 		}
 	}
