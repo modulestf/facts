@@ -44,9 +44,6 @@ func TestVersionsMissingLink(t *testing.T) {
 	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/c"); s != "not_evaluated: examples/c is a symbolic link, not a directory" {
 		t.Error(s)
 	}
-	if s := statusOf(r.Manifest, "structure.variable-untyped", "examples/b"); s != "not_evaluated: versions.tf is a symbolic link" {
-		t.Error(s)
-	}
 	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/a"); s != "clean" {
 		t.Error(s)
 	}
@@ -63,6 +60,45 @@ func TestDeepNestingStaysInItsArea(t *testing.T) {
 	}
 	if s := statusOf(r.Manifest, "structure.variable-untyped", "modules/ok"); s != "candidate" {
 		t.Error(s)
+	}
+}
+
+// The structure rules fire in root and submodule areas only, as the
+// registry's area_kinds say; in an example area they are not_applicable.
+func TestStructureRulesAreaScope(t *testing.T) {
+	const untyped = "variable \"x\" {}\n" // no type and no description
+	r := runHead(t, map[string]string{
+		"variables.tf":            untyped,
+		"modules/m/variables.tf":  untyped,
+		"examples/e/variables.tf": untyped,
+		"examples/e/versions.tf":  "terraform {}\n",
+	})
+	for _, tt := range []struct {
+		area, description, untyped string
+	}{
+		{area: ".", description: "finding", untyped: "candidate"},
+		{area: "modules/m", description: "finding", untyped: "candidate"},
+		{area: "examples/e", description: "not_applicable", untyped: "not_applicable"},
+	} {
+		if s := statusOf(r.Manifest, "structure.missing-description", tt.area); s != tt.description {
+			t.Errorf("missing-description %s: %s", tt.area, s)
+		}
+		if s := statusOf(r.Manifest, "structure.variable-untyped", tt.area); s != tt.untyped {
+			t.Errorf("variable-untyped %s: %s", tt.area, s)
+		}
+	}
+	for _, f := range r.Findings {
+		if strings.HasPrefix(f.File, "examples/") {
+			t.Errorf("finding in an example area: %+v", f)
+		}
+	}
+	for _, c := range r.Candidates {
+		if strings.HasPrefix(c.File, "examples/") {
+			t.Errorf("candidate in an example area: %+v", c)
+		}
+	}
+	if len(r.Findings) != 2 || len(r.Candidates) != 2 {
+		t.Errorf("want 2 findings and 2 candidates, got %d and %d", len(r.Findings), len(r.Candidates))
 	}
 }
 
