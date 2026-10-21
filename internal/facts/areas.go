@@ -61,10 +61,12 @@ func classify(p string) (area, kind string, ok bool) {
 	return ".", AreaRoot, true
 }
 
-// FindAreas returns every area of the module. With a base tree the areas in
-// scope are those of changed, added or removed paths, and every other area at
-// head is marked Untouched; without one, every area at head is in scope.
-func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
+// FindAreas returns the areas of the module. With a base tree the areas in
+// scope are those of changed, added or removed paths; without one, every area
+// at head is in scope. With untouched set and a base tree, every other area at
+// head is listed and parsed too, marked Untouched, for a cross-area pass to
+// read. Without it those areas are neither listed nor parsed.
+func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	add := func(set map[string]string, p string, t *Tree) {
 		// A link, special or unreadable entry where an example or submodule
 		// directory belongs is that area, so its rules report it. That holds
@@ -112,9 +114,11 @@ func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
 				add(inScope, p, base)
 			}
 		}
-		all = map[string]string{}
-		every(all)
-		maps.Copy(all, inScope)
+		if untouched {
+			all = map[string]string{}
+			every(all)
+			maps.Copy(all, inScope)
+		}
 	}
 	var out []*Area
 	for p, k := range all {

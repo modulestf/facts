@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 )
 
 // SchemaVersion is the version of the report format in schema/.
@@ -101,7 +102,9 @@ func Run(o Options) (*Report, error) {
 		bi := treeInput(base)
 		env.Inputs.Base = &bi
 	}
-	areas, err := FindAreas(head, base, o.Limits)
+	// Untouched areas matter only to a cross-area pass, so they are parsed
+	// only when a cross-area rule is implemented.
+	areas, err := FindAreas(head, base, o.Limits, slices.ContainsFunc(Rules, func(r Rule) bool { return r.CrossArea }))
 	if err != nil {
 		return nil, err
 	}
