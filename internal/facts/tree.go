@@ -205,11 +205,16 @@ func openDir(r *os.Root, dir string) (*os.File, error) {
 	return f, err
 }
 
+// beforeOpen runs between the caller's Lstat and the open in openUnchanged.
+// It does nothing; a test replaces it to swap the path at that point.
+var beforeOpen = func(string) {}
+
 // openUnchanged opens name read-only and checks it is still the file before,
 // which the caller took with Lstat. os.Root follows a link inside the root
 // even with O_NOFOLLOW, so this check is what refuses a path swapped for a
 // link before the open. O_NONBLOCK keeps a swapped-in fifo from blocking.
 func openUnchanged(r *os.Root, name string, before fs.FileInfo, flag int) (*os.File, fs.FileInfo, error) {
+	beforeOpen(name)
 	f, err := r.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|flag, 0)
 	if err != nil {
 		return nil, nil, err

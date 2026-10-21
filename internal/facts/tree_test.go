@@ -204,6 +204,77 @@ func TestOpenDirRefusesNonDirectories(t *testing.T) {
 	_ = f.Close()
 }
 
+// swapOnOpen makes the next open of name in openUnchanged find a link to
+// target in its place, the swap the os.SameFile check exists to refuse.
+func swapOnOpen(t *testing.T, root, name, target string) {
+	t.Helper()
+	t.Cleanup(func() { beforeOpen = func(string) {} })
+	beforeOpen = func(n string) {
+		if n != name {
+			return
+		}
+		beforeOpen = func(string) {}
+		full := filepath.Join(root, name)
+		if err := os.Rename(full, full+".old"); err != nil {
+			t.Error(err)
+		}
+		if err := os.Symlink(target, full); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func TestOpenUnchangedRefusesSwappedPath(t *testing.T) {
+	const refused = "changed while it was opened"
+	open := func(t *testing.T, files map[string]string, name, target string) *os.Root {
+		t.Helper()
+		root := writeTree(t, files)
+		r, err := os.OpenRoot(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = r.Close() })
+		swapOnOpen(t, root, name, target)
+		return r
+	}
+
+	t.Run("directory", func(t *testing.T) {
+		r := open(t, map[string]string{"a/x.tf": "", "b/y.tf": "secret"}, "a", "b")
+		f, err := openDir(r, "a")
+		if err == nil {
+			_ = f.Close()
+		}
+		if err == nil || !strings.Contains(err.Error(), refused) {
+			t.Errorf("openDir: %v, want %q", err, refused)
+		}
+	})
+
+	files := map[string]string{"real.tf": "secret", "other.tf": "other"}
+	t.Run("file", func(t *testing.T) {
+		r := open(t, files, "other.tf", "real.tf")
+		before, err := r.Lstat("other.tf")
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, _, err := openUnchanged(r, "other.tf", before, 0)
+		if err == nil {
+			_ = f.Close()
+		}
+		if err == nil || !strings.Contains(err.Error(), refused) {
+			t.Errorf("openUnchanged: %v, want %q", err, refused)
+		}
+	})
+
+	t.Run("file read", func(t *testing.T) {
+		r := open(t, files, "other.tf", "real.tf")
+		e := &Entry{Path: "other.tf"}
+		readFile(r, e, DefaultLimits.MaxFileBytes)
+		if e.Kind != KindUnreadable || e.Data != nil || e.SHA256 != "" {
+			t.Errorf("kind %s, data %q, sha %q; want unreadable and unread", e.Kind, e.Data, e.SHA256)
+		}
+	})
+}
+
 func TestReadFileRefusesLinksAndFifos(t *testing.T) {
 	root := writeTree(t, map[string]string{"real.tf": "secret", "link.tf": "->real.tf"})
 	if err := syscall.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {

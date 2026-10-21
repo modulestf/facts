@@ -42,7 +42,23 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.15.0
+      # The rule registry, from the public skills repository at a pinned
+      # commit, with no token. TestRulesMatchPinnedRegistry checks the
+      # `mtf-facts rules` listing against it. A registry change is published
+      # there first and then picked up here by bumping the commit and the
+      # file's SHA-256 together. The hash check refuses a cut-off download.
+      - name: Fetch rule registry
+        env:
+          SKILLS_COMMIT: 9fe8ddce92ee7d603ea34e5afde2fb1ac6da4bab
+          REGISTRY_SHA256: 9317ad0cd383bd2994638cb6bf57672e755714e73bbe5f4cffcf0b41ee2cbc24
+        run: |
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 2 --max-time 30 \
+            -o "$RUNNER_TEMP/rule-facts.md" \
+            "https://raw.githubusercontent.com/modulestf/skills/${SKILLS_COMMIT}/.agents/skills/terraform-module-reviewer/references/rule-facts.md"
+          echo "${REGISTRY_SHA256}  ${RUNNER_TEMP}/rule-facts.md" | sha256sum -c -
       - name: Test
+        env:
+          MTF_FACTS_REGISTRY: ${{ runner.temp }}/rule-facts.md
         run: go test -race -count=1 ./...
       - name: Build
         run: go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
