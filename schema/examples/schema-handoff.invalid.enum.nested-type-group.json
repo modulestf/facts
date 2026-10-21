@@ -1,0 +1,15 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "inputs": {
+    "head": {"tree_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "files": []},
+    "merge_base": {"tree_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "files": []}
+  },
+  "caps": {"compressed_bytes": 1, "uncompressed_bytes": 1},
+  "directories": [],
+  "provider_schemas": [
+    {"source": "registry.terraform.io/hashicorp/aws", "version": "6.20.0",
+     "resource_schemas": {"aws_example_thing": {"block": {"attributes": {"rules": {"optional": true, "nested_type": {"nesting_mode": "group", "attributes": {}}}}}}},
+     "data_source_schemas": {}}
+  ]
+}

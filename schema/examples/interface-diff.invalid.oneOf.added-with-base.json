@@ -1,0 +1,9 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "areas": [
+    {"path": ".", "kind": "root", "required_version": null,
+     "variables": [{"name": "name", "change": "added", "base": {"type": "string", "default": null, "nullable": true, "sensitive": false, "description": null, "validation": []}, "head": {"type": "string", "default": null, "nullable": true, "sensitive": false, "description": null, "validation": []}}],
+     "outputs": [], "providers": [], "resources": [], "moved": [], "module_calls": []}
+  ]
+}

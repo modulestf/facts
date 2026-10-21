@@ -1,0 +1,8 @@
+{
+  "tool_findings": [],
+  "candidates": [
+    {"candidate_id": "C-001", "rule_id": "compat.variable-removed", "file": "variables.tf", "line": null, "subject": "variable.retention_days",
+     "evidence": {"source_lines": [], "base": "30", "head": null, "schema_facts": []}}
+  ],
+  "severity_needed": []
+}

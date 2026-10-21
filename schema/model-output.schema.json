@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/model-output.schema.json",
+  "title": "Model output envelope",
+  "description": "The lead model's reply. Shape only: the host also checks that every candidate id is answered exactly once, that a severity_needed id is answered with confirm, that severities are within the rule's list, that a confirm for a candidate not in severity_needed carries summary and suggested_fix (otherwise the reply is invalid and the repair turn applies), and that findings use only llm rule ids or rules injected as not_evaluated for that area. source and confirmed_by are host-owned and never accepted here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "candidate_decisions",
+    "findings"
+  ],
+  "properties": {
+    "candidate_decisions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/candidate_decision"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "$ref": "finding.schema.json",
+        "unevaluatedProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "candidate_decision": {
+      "description": "confirm carries a severity, and summary and suggested_fix, which the host requires except for an id from severity_needed; reject carries none of them. An id from severity_needed takes confirm only, which the host checks.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate_id",
+            "decision",
+            "reason",
+            "severity"
+          ],
+          "properties": {
+            "candidate_id": {
+              "$ref": "#/$defs/candidate_id"
+            },
+            "decision": {
+              "const": "confirm"
+            },
+            "reason": {
+              "$ref": "#/$defs/reason"
+            },
+            "severity": {
+              "$ref": "finding.schema.json#/$defs/severity"
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1
+            },
+            "suggested_fix": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate_id",
+            "decision",
+            "reason"
+          ],
+          "properties": {
+            "candidate_id": {
+              "$ref": "#/$defs/candidate_id"
+            },
+            "decision": {
+              "const": "reject"
+            },
+            "reason": {
+              "$ref": "#/$defs/reason"
+            }
+          }
+        }
+      ]
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^C-[0-9]{3,}$"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  }
+}

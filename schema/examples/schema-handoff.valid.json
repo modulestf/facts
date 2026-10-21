@@ -1,0 +1,35 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "inputs": {
+    "head": {"tree_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "files": [{"path": "main.tf", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}, {"path": "versions.tf", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]},
+    "merge_base": {"tree_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "files": [{"path": "main.tf", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}
+  },
+  "caps": {"compressed_bytes": 2097152, "uncompressed_bytes": 33554432},
+  "directories": [
+    {"path": ".", "providers": [
+      {"local_name": "aws", "source": "registry.terraform.io/hashicorp/aws",
+       "versions": {"latest": "6.20.0", "declared_minimum": "6.0.0", "old_floor": "5.95.0"}}
+    ]},
+    {"path": "examples/complete", "providers": [
+      {"local_name": "aws", "source": "registry.terraform.io/hashicorp/aws", "unresolved_reason": "constraint_unparsable"}
+    ]}
+  ],
+  "provider_schemas": [
+    {"source": "registry.terraform.io/hashicorp/aws", "version": "6.20.0",
+     "resource_schemas": {
+       "aws_example_thing": {"block": {
+         "attributes": {
+           "name": {"required": true},
+           "arn": {"computed": true},
+           "legacy_flag": {"optional": true, "deprecated": true},
+           "rules": {"optional": true, "nested_type": {"nesting_mode": "list", "max_items": 10, "attributes": {"port": {"required": true}, "note": {"optional": true}}}}
+         },
+         "block_types": {
+           "setting": {"nesting_mode": "list", "max_items": 1, "block": {"attributes": {"value": {"optional": true}}}}
+         }
+       }}
+     },
+     "data_source_schemas": {}}
+  ]
+}

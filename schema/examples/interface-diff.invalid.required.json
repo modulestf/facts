@@ -1,0 +1,5 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "areas": [{"path": ".", "kind": "root", "required_version": null, "variables": [], "outputs": [], "providers": [], "resources": [], "moved": []}]
+}

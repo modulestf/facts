@@ -1,0 +1,8 @@
+{
+  "tool_findings": [],
+  "candidates": [],
+  "severity_needed": [
+    {"candidate_id": "C-003", "rule_id": "compat.default-changed", "file": "variables.tf", "line": 5, "subject": "variable.name",
+     "severities": ["CRITICAL", "HIGH"]}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "candidate_decisions": [
+    {"candidate_id": "C-001", "decision": "reject", "reason": "Not a break.", "severity": "LOW"}
+  ],
+  "findings": []
+}
