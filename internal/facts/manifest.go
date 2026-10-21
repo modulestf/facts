@@ -17,6 +17,14 @@ const (
 	StatusNotApplicable = "not_applicable"
 )
 
+// Reason codes, from the closed list of not_evaluated reasons.
+const (
+	ReasonParseError      = "parse_error"
+	ReasonUnsupportedFile = "unsupported_file"
+	ReasonSymlink         = "symlink"
+	ReasonLimitExceeded   = "limit_exceeded"
+)
+
 // Rule classes: a path rule still runs when the configuration cannot be parsed.
 const (
 	ClassConfig = "config-semantic"
@@ -30,15 +38,23 @@ type Rule struct {
 	Tier  string // "tool" or "candidate"
 	Class string
 	Kinds []string
-	Check func(a *Area) Result
+	// CrossArea is the registry's cross_area: the rule is one pass over every
+	// area, with one manifest entry under the root.
+	CrossArea bool
+	Check     func(a *Area) Result
 }
 
+// rootArea is the area of the module root, where a cross-area rule's one
+// manifest entry goes.
+const rootArea = "."
+
 // Result is what a rule found in one area. A non-empty NotEvaluated means
-// the rule could not be decided there.
+// the rule could not be decided there, and Code is that reason's code.
 type Result struct {
 	Findings     []Finding
 	Candidates   []Candidate
 	NotEvaluated string
+	Code         string
 }
 
 // Candidate is a detected defect a model or an author confirms or rejects.
@@ -72,39 +88,84 @@ type ManifestEntry struct {
 }
 
 // Evaluate runs every rule on every area and returns one manifest entry per
-// (rule, area), the findings ordered and numbered as the findings schema
-// says, and the candidates numbered by file and line.
+// (rule, area), or one under the root for a cross-area rule, the findings
+// ordered and numbered as the findings schema says, and the candidates
+// numbered by file and line.
 func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candidate) {
 	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
+		if r.CrossArea {
+			res := evaluateCrossArea(r, areas)
+			manifest = append(manifest, manifestEntry(r.ID, rootArea, res))
+			findings = append(findings, res.Findings...)
+			candidates = append(candidates, res.Candidates...)
+			continue
+		}
 		for _, a := range areas {
-			e := ManifestEntry{RuleID: r.ID, Area: a.Path}
-			res := Result{NotEvaluated: gate(r, a)}
-			if res.NotEvaluated == "" {
-				res = r.Check(a)
-			}
-			switch {
-			case res.NotEvaluated == StatusNotApplicable:
-				e.Status = StatusNotApplicable
-			case res.NotEvaluated != "":
-				e.Status, e.Reason = StatusNotEvaluated, res.NotEvaluated
-			case len(res.Findings) > 0:
-				e.Status = StatusFinding
-			case len(res.Candidates) > 0:
-				e.Status = StatusCandidate
-			default:
-				e.Status = StatusClean
-			}
+			res := evaluate(r, a)
+			manifest = append(manifest, manifestEntry(r.ID, a.Path, res))
 			if res.NotEvaluated == "" {
 				findings = append(findings, res.Findings...)
 				candidates = append(candidates, res.Candidates...)
 			}
-			manifest = append(manifest, e)
 		}
 	}
 	sortFindings(findings)
 	sortCandidates(candidates)
 	return manifest, findings, candidates
+}
+
+// evaluate runs one rule in one area after the shared gate.
+func evaluate(r Rule, a *Area) Result {
+	if reason, code := gate(r, a); reason != "" {
+		return Result{NotEvaluated: reason, Code: code}
+	}
+	return r.Check(a)
+}
+
+// evaluateCrossArea runs a cross-area rule over every area as one pass. Areas
+// outside its kinds are skipped, so the result is never not_applicable. When
+// any area cannot be evaluated, the pass is incomplete: the result is not
+// evaluated, with the reason code of the first such area, and has no
+// findings or candidates. Otherwise it has every area's findings and
+// candidates, each with its own file.
+func evaluateCrossArea(r Rule, areas []*Area) Result {
+	var out Result
+	for _, a := range areas {
+		res := evaluate(r, a)
+		switch res.NotEvaluated {
+		case StatusNotApplicable:
+		case "":
+			out.Findings = append(out.Findings, res.Findings...)
+			out.Candidates = append(out.Candidates, res.Candidates...)
+		default:
+			code := res.Code
+			if code == "" {
+				code = ReasonUnsupportedFile // shortcut: a rule that sets no code; every rule here sets one
+			}
+			return Result{NotEvaluated: code, Code: code}
+		}
+	}
+	return out
+}
+
+// manifestEntry is the entry for one result. Not evaluated takes precedence
+// over findings and candidates.
+func manifestEntry(rule, area string, res Result) ManifestEntry {
+	e := ManifestEntry{RuleID: rule, Area: area}
+	switch {
+	case res.NotEvaluated == StatusNotApplicable:
+		e.Status = StatusNotApplicable
+	case res.NotEvaluated != "":
+		e.Status, e.Reason = StatusNotEvaluated, res.NotEvaluated
+	case len(res.Findings) > 0:
+		e.Status = StatusFinding
+	case len(res.Candidates) > 0:
+		e.Status = StatusCandidate
+	default:
+		e.Status = StatusClean
+	}
+	return e
 }
 
 func sortCandidates(cs []Candidate) {
@@ -130,25 +191,26 @@ func lineOr0(l *int) int {
 	return *l
 }
 
-// gate applies the checks every rule shares before its own logic runs.
-// It returns StatusNotApplicable as the reason for a rule that does not apply.
-func gate(r Rule, a *Area) string {
+// gate applies the checks every rule shares before its own logic runs. It
+// returns the reason a rule cannot be decided in a, with its code, or
+// StatusNotApplicable as the reason for a rule that does not apply.
+func gate(r Rule, a *Area) (reason, code string) {
 	switch {
 	case !slices.Contains(r.Kinds, a.Kind):
-		return StatusNotApplicable
+		return StatusNotApplicable, ""
 	case a.Issue != "":
-		return a.Issue
+		return a.Issue, a.issueCode
 	}
 	if r.Class != ClassConfig {
-		return ""
+		return "", ""
 	}
 	if len(a.Head.Unsupported) > 0 {
-		return strings.Join(a.Head.Unsupported, "; ")
+		return strings.Join(a.Head.Unsupported, "; "), a.Head.reasonCode()
 	}
 	if a.Base != nil && len(a.Base.Unsupported) > 0 {
-		return "at base: " + strings.Join(a.Base.Unsupported, "; ")
+		return "at base: " + strings.Join(a.Base.Unsupported, "; "), a.Base.reasonCode()
 	}
-	return ""
+	return "", ""
 }
 
 var severityRank = map[string]int{"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
@@ -185,11 +247,16 @@ func sortStrings(ss ...[]string) {
 }
 
 // CheckManifest is the integrity check: exactly one entry per (rule, area)
-// for every tool and candidate rule, and no other entry.
+// for every tool and candidate rule, one under the root for a cross-area
+// rule, and no other entry.
 func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 	want := map[[2]string]bool{}
 	for _, r := range rules {
 		if r.Tier != "tool" && r.Tier != "candidate" {
+			continue
+		}
+		if r.CrossArea {
+			want[[2]string{r.ID, rootArea}] = true
 			continue
 		}
 		for _, a := range areas {

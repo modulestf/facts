@@ -66,7 +66,7 @@
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 5,
-      "subject": "variable \"added\"",
+      "subject": ".:var.added",
       "evidence": {
         "variable": "added",
         "type": null,

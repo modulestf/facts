@@ -139,6 +139,33 @@ func checkKinds(kinds map[string][]string, registry map[string]string) error {
 	return errors.Join(errs...)
 }
 
+// engineCross maps each implemented rule to whether it is cross-area.
+func engineCross() map[string]bool {
+	m := make(map[string]bool, len(facts.Rules))
+	for _, r := range facts.Rules {
+		m[r.ID] = r.CrossArea
+	}
+	return m
+}
+
+// checkCross compares each implemented rule's CrossArea with the registry's
+// cross_area cell, which must be yes or no.
+func checkCross(cross map[string]bool, registry map[string]string) error {
+	var errs []error
+	for _, id := range slices.Sorted(maps.Keys(cross)) {
+		cell, ok := registry[id]
+		switch {
+		case !ok:
+			errs = append(errs, fmt.Errorf("rule %q: not in the registry", id))
+		case cell != "yes" && cell != "no":
+			errs = append(errs, fmt.Errorf("rule %q: registry cross_area %q is not yes or no", id, cell))
+		case cross[id] != (cell == "yes"):
+			errs = append(errs, fmt.Errorf("rule %q: mtf-facts cross-area %v, registry cross_area %q", id, cross[id], cell))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // checkRules compares the `mtf-facts rules` listing with the registry tiers.
 // Every listed rule must be a tool or candidate rule that the registry tiers
 // the same way. It is a subset check: the registry has tool and candidate
@@ -165,8 +192,9 @@ func checkRules(listing string, tiers map[string]string) error {
 	return errors.Join(errs...)
 }
 
-// checkRegistryText runs checkRules and checkKinds against the registry text.
-func checkRegistryText(listing string, kinds map[string][]string, text string) error {
+// checkRegistryText runs checkRules, checkKinds and checkCross against the
+// registry text.
+func checkRegistryText(listing string, kinds map[string][]string, cross map[string]bool, text string) error {
 	t, err := parseRegistry(text)
 	if err != nil {
 		return err
@@ -179,7 +207,11 @@ func checkRegistryText(listing string, kinds map[string][]string, text string) e
 	if err != nil {
 		return err
 	}
-	return errors.Join(checkRules(listing, tiers), checkKinds(kinds, areaKinds))
+	crossArea, err := t.column("cross_area")
+	if err != nil {
+		return err
+	}
+	return errors.Join(checkRules(listing, tiers), checkKinds(kinds, areaKinds), checkCross(cross, crossArea))
 }
 
 // mutateCell returns text with the named column of the row for id set to value.
@@ -215,7 +247,7 @@ func rulesListing(t *testing.T) string {
 
 // checkMutations is the negative self-check: each mutated copy of the
 // registry must fail the comparison.
-func checkMutations(t *testing.T, listing string, kinds map[string][]string, text string) {
+func checkMutations(t *testing.T, listing string, kinds map[string][]string, cross map[string]bool, text string) {
 	t.Helper()
 	for line := range strings.SplitSeq(strings.TrimSuffix(listing, "\n"), "\n") {
 		id, tier, _ := strings.Cut(line, "\t")
@@ -224,6 +256,7 @@ func checkMutations(t *testing.T, listing string, kinds map[string][]string, tex
 		if !slices.Contains(kinds[id], "example") {
 			otherKinds = strings.Join(append(slices.Clone(kinds[id]), "example"), ", ")
 		}
+		otherCross := map[bool]string{true: "no", false: "yes"}[cross[id]]
 		row := rowOf(t, text, id)
 		cut := text[:strings.Index(text, row)+len(row)] // a download that stops after this row
 		for name, mutated := range map[string]string{
@@ -234,10 +267,13 @@ func checkMutations(t *testing.T, listing string, kinds map[string][]string, tex
 			"engine col gone":  strings.Replace(text, "| `engine` |", "| `engines` |", 1),
 			"other kinds":      mutateCell(t, text, id, "area_kinds", otherKinds),
 			"kinds col gone":   strings.Replace(text, "| `area_kinds` |", "| `kinds` |", 1),
+			"other cross_area": mutateCell(t, text, id, "cross_area", otherCross),
+			"cross_area word":  mutateCell(t, text, id, "cross_area", "maybe"),
+			"cross col gone":   strings.Replace(text, "| `cross_area` |", "| `cross` |", 1),
 			"cut, partial row": cut + "\n| `x.y` | no",
 			"cut at row end":   cut + "\n",
 		} {
-			if err := checkRegistryText(listing, kinds, mutated); err == nil {
+			if err := checkRegistryText(listing, kinds, cross, mutated); err == nil {
 				t.Errorf("%s %s: mutated registry passed", id, name)
 			}
 		}
@@ -256,13 +292,16 @@ func rowOf(t *testing.T, text, id string) string {
 }
 
 const fixtureRegistry = "# Rules\n\n" +
-	"| `rule_id` | Carry | `engine` | `class` | `area_kinds` |\n" +
-	"|-----------|-------|----------|---------|--------------|\n" +
-	"| `a.tool` | never | tool | path | example |\n" +
-	"| `b.candidate` | file | candidate | config-semantic | root, submodule |\n" +
-	"| `c.llm` | never | llm | path | root |\n" +
-	"| `d.unimplemented` | never | tool | path | root |\n" +
+	"| `rule_id` | Carry | `engine` | `class` | `cross_area` | `area_kinds` |\n" +
+	"|-----------|-------|----------|---------|--------------|--------------|\n" +
+	"| `a.tool` | never | tool | path | no | example |\n" +
+	"| `b.candidate` | file | candidate | config-semantic | yes | root, submodule |\n" +
+	"| `c.llm` | never | llm | path | no | root |\n" +
+	"| `d.unimplemented` | never | tool | path | no | root |\n" +
 	"\ntext after the table\n"
+
+// fixtureCross is whether each of the fixture's implemented rules is cross-area.
+var fixtureCross = map[string]bool{"a.tool": false, "b.candidate": true}
 
 // fixtureKinds are the area kinds of the fixture's implemented rules.
 var fixtureKinds = map[string][]string{
@@ -272,13 +311,14 @@ var fixtureKinds = map[string][]string{
 
 func TestCheckRules(t *testing.T) {
 	listing := "a.tool\ttool\nb.candidate\tcandidate\n"
-	if err := checkRegistryText(listing, fixtureKinds, fixtureRegistry); err != nil {
+	if err := checkRegistryText(listing, fixtureKinds, fixtureCross, fixtureRegistry); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	checkMutations(t, listing, fixtureKinds, fixtureRegistry)
+	checkMutations(t, listing, fixtureKinds, fixtureCross, fixtureRegistry)
 	for _, tt := range []struct {
 		name, listing, text string
 		kinds               map[string][]string
+		cross               map[string]bool
 	}{
 		{name: "llm rule listed", listing: "c.llm\tllm\n", text: fixtureRegistry},
 		{name: "llm rule listed as tool", listing: "c.llm\ttool\n", text: fixtureRegistry},
@@ -288,10 +328,13 @@ func TestCheckRules(t *testing.T) {
 		{name: "no table", listing: listing, text: "# Rules\n"},
 		{name: "no rows", listing: listing, text: "| `rule_id` | `engine` |\n|---|---|\n"},
 		{name: "short row", listing: listing, text: strings.Replace(fixtureRegistry, "| tool | path |", "| tool |", 1)},
-		{name: "row cut off", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` | never | llm | path | root |", "| `c.llm` | never", 1)},
+		{name: "row cut off", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` | never | llm | path | no | root |", "| `c.llm` | never", 1)},
 		{name: "example kind added", listing: listing, text: fixtureRegistry, kinds: map[string][]string{"b.candidate": {"example", "root", "submodule"}}},
 		{name: "kind missing", listing: listing, text: fixtureRegistry, kinds: map[string][]string{"b.candidate": {"root"}}},
 		{name: "kinds of an unknown rule", listing: listing, text: fixtureRegistry, kinds: map[string][]string{"e.unknown": {"root"}}},
+		{name: "cross-area in the engine only", listing: listing, text: fixtureRegistry, cross: map[string]bool{"a.tool": true, "b.candidate": true}},
+		{name: "cross-area in the registry only", listing: listing, text: fixtureRegistry, cross: map[string]bool{"a.tool": false, "b.candidate": false}},
+		{name: "cross-area of an unknown rule", listing: listing, text: fixtureRegistry, cross: map[string]bool{"e.unknown": false}},
 		{name: "table runs to end of file", listing: listing, text: fixtureRegistry[:strings.Index(fixtureRegistry, "| `c.llm`")]},
 		{name: "table runs to end without newline", listing: listing, text: strings.TrimSuffix(fixtureRegistry[:strings.Index(fixtureRegistry, "| `c.llm`")], "\n")},
 	} {
@@ -300,7 +343,11 @@ func TestCheckRules(t *testing.T) {
 			if kinds == nil {
 				kinds = fixtureKinds
 			}
-			if err := checkRegistryText(tt.listing, kinds, tt.text); err == nil {
+			cross := tt.cross
+			if cross == nil {
+				cross = fixtureCross
+			}
+			if err := checkRegistryText(tt.listing, kinds, cross, tt.text); err == nil {
 				t.Error("passed")
 			}
 		})
@@ -322,9 +369,9 @@ func TestRulesMatchPinnedRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listing, kinds, text := rulesListing(t), engineKinds(), string(data)
-	if err := checkRegistryText(listing, kinds, text); err != nil {
+	listing, kinds, cross, text := rulesListing(t), engineKinds(), engineCross(), string(data)
+	if err := checkRegistryText(listing, kinds, cross, text); err != nil {
 		t.Fatalf("mtf-facts rules does not match the registry:\n%v", err)
 	}
-	checkMutations(t, listing, kinds, text)
+	checkMutations(t, listing, kinds, cross, text)
 }

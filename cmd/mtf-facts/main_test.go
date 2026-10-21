@@ -52,7 +52,7 @@ func TestLint(t *testing.T) {
 	if code := run([]string{"lint", head, "--base", base}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	if !strings.Contains(out.String(), `variables.tf:5: unconfirmed structure.variable-untyped: variable "added"`) ||
+	if !strings.Contains(out.String(), `variables.tf:5: unconfirmed structure.variable-untyped: .:var.added`) ||
 		!strings.Contains(out.String(), "registry sha256 none") {
 		t.Errorf("human output:\n%s", out.String())
 	}

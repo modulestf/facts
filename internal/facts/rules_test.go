@@ -37,9 +37,17 @@ func TestVersionsMissingLink(t *testing.T) {
 		"examples/b/main.tf":     "",
 		"examples/b/versions.tf": "->../a/versions.tf",
 		"examples/c":             "->a",
+		"examples/d/main.tf":     "",
+		"examples/d/versions.tf": "->missing.tf",
+		"examples/e/main.tf":     "",
+		"examples/e/versions.tf": "->../../../../outside-the-tree/versions.tf",
 	})
-	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/b"); s != "not_evaluated: versions.tf is a symbolic link" {
-		t.Error(s)
+	// A link at versions.tf is present and never followed: the path rule is
+	// clean whether the target is in the tree, missing, or outside the tree.
+	for _, area := range []string{"examples/b", "examples/d", "examples/e"} {
+		if s := statusOf(r.Manifest, "examples.versions-missing", area); s != "clean" {
+			t.Errorf("%s: %s", area, s)
+		}
 	}
 	if s := statusOf(r.Manifest, "examples.versions-missing", "examples/c"); s != "not_evaluated: examples/c is a symbolic link, not a directory" {
 		t.Error(s)

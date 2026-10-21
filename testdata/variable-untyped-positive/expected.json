@@ -23,7 +23,7 @@
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 1,
-      "subject": "variable \"name\"",
+      "subject": ".:var.name",
       "evidence": {
         "variable": "name",
         "type": null,
@@ -36,7 +36,7 @@
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 5,
-      "subject": "variable \"settings\"",
+      "subject": ".:var.settings",
       "evidence": {
         "variable": "settings",
         "type": "any",
@@ -49,7 +49,7 @@
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 10,
-      "subject": "variable \"rules\"",
+      "subject": ".:var.rules",
       "evidence": {
         "variable": "rules",
         "type": "map(object({ value = optional(any) }))",

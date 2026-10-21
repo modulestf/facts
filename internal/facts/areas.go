@@ -24,6 +24,8 @@ type Area struct {
 	Base       *Module // nil without a base tree; known-empty when absent at base
 	// Issue is set when the area path exists but is not a real directory.
 	Issue string
+	// issueCode is the reason code of Issue.
+	issueCode string
 
 	headTree *Tree
 }
@@ -31,23 +33,16 @@ type Area struct {
 // headEntry returns the head entry of a file directly in the area, or nil.
 func (a *Area) headEntry(name string) *Entry { return a.headTree.Entries[path.Join(a.Path, name)] }
 
-// rootOnlyFiles are root files owned by the profile or CI, not by an area.
-var rootOnlyFiles = map[string]bool{
-	"CHANGELOG.md": true, ".editorconfig": true, ".gitignore": true,
-	".releaserc.json": true, ".pre-commit-config.yaml": true,
-}
-
 // classify maps a path to its area. ok is false for paths that belong to no
-// area: generated content, tests, CI and profile-owned files, and loose
-// files directly under examples/ or modules/.
+// area: wrappers, tests, and loose files directly under examples/ or
+// modules/. Paths under .github/ and the root profile files count as the
+// root, as the rule registry says.
 func classify(p string) (area, kind string, ok bool) {
 	parts := strings.Split(p, "/")
 	switch {
-	case parts[0] == "wrappers" || parts[0] == "tests" || parts[0] == ".github":
+	case parts[0] == "wrappers" || parts[0] == "tests":
 		return "", "", false
 	case strings.HasSuffix(p, ".tftest.hcl"):
-		return "", "", false
-	case len(parts) == 1 && rootOnlyFiles[p]:
 		return "", "", false
 	case parts[0] == "examples" || parts[0] == "modules":
 		if len(parts) < 3 {
@@ -112,18 +107,18 @@ func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
 	for p, k := range set {
 		a := &Area{Path: p, Kind: k, headTree: head, Head: &Module{Dir: p}}
 		var err error
-		a.HeadExists, a.Issue = dirState(head, p)
+		a.HeadExists, a.Issue, a.issueCode = dirState(head, p)
 		if a.HeadExists && a.Issue == "" {
 			if a.Head, err = ParseDir(head, p, lim); err != nil {
 				return nil, err
 			}
 		}
 		if base != nil {
-			var issue string
-			a.BaseExists, issue = dirState(base, p)
+			var issue, code string
+			a.BaseExists, issue, code = dirState(base, p)
 			a.Base = &Module{Dir: p}
 			if issue != "" {
-				a.Base.Unsupported = append(a.Base.Unsupported, issue)
+				a.Base.unsupported(code, issue)
 			} else if a.BaseExists {
 				if a.Base, err = ParseDir(base, p, lim); err != nil {
 					return nil, err
@@ -136,15 +131,15 @@ func FindAreas(head, base *Tree, lim Limits) ([]*Area, error) {
 	return out, nil
 }
 
-// dirState reports whether p is a directory of t, and an issue when p exists
-// but is not a readable directory.
-func dirState(t *Tree, p string) (exists bool, issue string) {
+// dirState reports whether p is a directory of t, and an issue with its reason
+// code when p exists but is not a readable directory.
+func dirState(t *Tree, p string) (exists bool, issue, code string) {
 	e := t.Entries[p]
 	switch {
 	case e != nil && t.Dirs[p]:
-		return true, p + " is a directory that cannot be read"
+		return true, p + " is a directory that cannot be read", ReasonUnsupportedFile
 	case e != nil:
-		return false, p + " is " + kindText(e.Kind) + ", not a directory"
+		return false, p + " is " + kindText(e.Kind) + ", not a directory", kindCode(e.Kind)
 	}
-	return t.Dirs[p], ""
+	return t.Dirs[p], "", ""
 }

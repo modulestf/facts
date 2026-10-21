@@ -23,7 +23,7 @@
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 8,
-      "subject": "variable \"targets\"",
+      "subject": ".:var.targets",
       "evidence": {
         "variable": "targets",
         "type": "any",
@@ -38,7 +38,7 @@
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 13,
-      "subject": "variable \"policy\"",
+      "subject": ".:var.policy",
       "evidence": {
         "variable": "policy",
         "type": "any",
