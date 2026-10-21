@@ -1,0 +1,17 @@
+[
+  {
+    "rule_id": "examples.versions-missing",
+    "area": ".",
+    "status": "not_applicable"
+  },
+  {
+    "rule_id": "structure.missing-description",
+    "area": ".",
+    "status": "clean"
+  },
+  {
+    "rule_id": "structure.variable-untyped",
+    "area": ".",
+    "status": "candidate"
+  }
+]

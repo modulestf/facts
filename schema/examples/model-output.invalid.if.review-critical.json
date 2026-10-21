@@ -1,8 +1,0 @@
-{
-  "candidate_decisions": [],
-  "findings": [
-    {"id": "F-001", "rule_id": "review.check-not-run", "severity": "CRITICAL", "file": ".", "line": null,
-     "summary": "The coverage check could not run because the provider schema was unavailable.",
-     "suggested_fix": "no code change: re-run the review once the provider schema is available."}
-  ]
-}
