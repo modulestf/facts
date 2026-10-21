@@ -85,7 +85,10 @@ func crossRule(kinds ...string) Rule {
 func TestEvaluateCrossArea(t *testing.T) {
 	root := &Area{Path: ".", Kind: AreaRoot, Head: &Module{}}
 	modA := &Area{Path: "modules/a", Kind: AreaSubmodule, Head: &Module{}}
-	modBad := &Area{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{Unsupported: []string{"main.tf: parse error"}}}
+	modBad := &Area{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{}}
+	modBad.Head.unsupported(ReasonParseError, "main.tf: parse error")
+	modLink := &Area{Path: "modules/link", Kind: AreaSubmodule, Head: &Module{},
+		Issue: "modules/link is a symbolic link, not a directory", issueCode: ReasonSymlink}
 	exX := &Area{Path: "examples/x", Kind: AreaExample, Head: &Module{}}
 	for name, tc := range map[string]struct {
 		rule        Rule
@@ -103,15 +106,18 @@ func TestEvaluateCrossArea(t *testing.T) {
 			want:      ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusFinding},
 			nFindings: 1,
 		},
-		"candidate in an example": {
-			rule: crossRule(AreaExample), areas: []*Area{root, exX},
+		"candidate in an example, root not in scope": {
+			rule: crossRule(AreaExample), areas: []*Area{exX},
 			want:        ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusCandidate},
 			nCandidates: 1,
 		},
-		"not evaluated in one area keeps the others' findings": {
+		"parse error in one area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modBad},
-			want:      ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: "modules/bad: main.tf: parse error"},
-			nFindings: 1,
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError},
+		},
+		"unreadable area drops every finding": {
+			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modLink},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

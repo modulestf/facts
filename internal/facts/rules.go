@@ -129,7 +129,7 @@ func checkVersionsMissing(a *Area) Result {
 			SuggestedFix: fmt.Sprintf("Add `versions.tf` to `%s`, copied from a sibling example, or rename the file that holds its `terraform` block to `versions.tf`.", a.Path),
 		}}}
 	case e.Kind != KindFile && e.Kind != KindSymlink:
-		return Result{NotEvaluated: "versions.tf is " + kindText(e.Kind)}
+		return Result{NotEvaluated: "versions.tf is " + kindText(e.Kind), Code: kindCode(e.Kind)}
 	}
 	return Result{}
 }

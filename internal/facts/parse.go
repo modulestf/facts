@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -17,6 +18,8 @@ type Module struct {
 	// Unsupported lists why config-semantic rules cannot be decided here:
 	// parse errors, JSON or override files, links or unreadable .tf files.
 	Unsupported []string
+	// unsupportedCodes holds the reason code of each Unsupported entry.
+	unsupportedCodes []string
 
 	Variables         []Variable
 	Outputs           []Output
@@ -126,21 +129,57 @@ func ParseDir(t *Tree, dir string, lim Limits) (*Module, error) {
 			continue
 		}
 		if r := unsupportedName(name); r != "" {
-			m.Unsupported = append(m.Unsupported, r)
+			m.unsupported(ReasonUnsupportedFile, r)
 			continue
 		}
 		if !strings.HasSuffix(name, ".tf") {
 			continue
 		}
 		if e.Kind != KindFile {
-			m.Unsupported = append(m.Unsupported, fmt.Sprintf("%s is %s", name, kindText(e.Kind)))
+			m.unsupported(kindCode(e.Kind), fmt.Sprintf("%s is %s", name, kindText(e.Kind)))
 			continue
 		}
 		if err := parseFile(m, name, e.Data, lim); err != nil {
-			m.Unsupported = append(m.Unsupported, fmt.Sprintf("%s: %v", name, err))
+			code := ReasonParseError
+			if errors.As(err, new(limitError)) {
+				code = ReasonLimitExceeded
+			}
+			m.unsupported(code, fmt.Sprintf("%s: %v", name, err))
 		}
 	}
 	return m, nil
+}
+
+// unsupported records why config-semantic rules cannot be decided here, with
+// its reason code.
+func (m *Module) unsupported(code, text string) {
+	m.Unsupported = append(m.Unsupported, text)
+	m.unsupportedCodes = append(m.unsupportedCodes, code)
+}
+
+// reasonCode is the code of the first Unsupported entry.
+func (m *Module) reasonCode() string {
+	if len(m.unsupportedCodes) == 0 {
+		return ReasonUnsupportedFile // shortcut: only a Module built by hand lacks codes
+	}
+	return m.unsupportedCodes[0]
+}
+
+// limitError is a parse refused because the file is over a token, nesting or
+// unary operator limit.
+type limitError string
+
+func (e limitError) Error() string { return string(e) }
+
+// kindCode is the reason code of an entry that is not a regular file.
+func kindCode(k string) string {
+	switch k {
+	case KindSymlink:
+		return ReasonSymlink
+	case KindOversize:
+		return ReasonLimitExceeded
+	}
+	return ReasonUnsupportedFile
 }
 
 func kindText(k string) string {
@@ -170,13 +209,13 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 	// The parser recurses on nesting and on unary operators, and a stack
 	// overflow is fatal, so both are bounded before it runs.
 	if len(tokens) > lim.MaxTokens {
-		return fmt.Errorf("%d tokens over the limit %d", len(tokens), lim.MaxTokens)
+		return limitError(fmt.Sprintf("%d tokens over the limit %d", len(tokens), lim.MaxTokens))
 	}
 	if d := nestingDepth(tokens); d > lim.MaxDepth {
-		return fmt.Errorf("nesting depth %d over the limit %d", d, lim.MaxDepth)
+		return limitError(fmt.Sprintf("nesting depth %d over the limit %d", d, lim.MaxDepth))
 	}
 	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
-		return fmt.Errorf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps)
+		return limitError(fmt.Sprintf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps))
 	}
 	f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
 	if diags.HasErrors() {

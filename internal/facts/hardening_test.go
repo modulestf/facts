@@ -167,15 +167,9 @@ func TestSymlinkRetarget(t *testing.T) {
 	if s := statusOf(r.Manifest, "structure.variable-untyped", "."); s != "not_evaluated: main.tf is a symbolic link" {
 		t.Error(s)
 	}
-	// The root is always in scope; an unchanged link adds no other area.
 	r, err = Run(Options{Head: same, Base: base, Limits: DefaultLimits})
-	if err != nil || len(r.Manifest) != len(Rules) {
-		t.Fatalf("unchanged link put an area in scope: %v %+v", err, r.Manifest)
-	}
-	for _, e := range r.Manifest {
-		if e.Area != "." {
-			t.Errorf("unchanged link put an area in scope: %+v", e)
-		}
+	if err != nil || len(r.Manifest) != 0 {
+		t.Errorf("unchanged link put an area in scope: %v %+v", err, r.Manifest)
 	}
 	data, _ := json.Marshal(r)
 	if strings.Contains(string(data), "a.tf\",\"kind\":\"symlink") || strings.Contains(string(data), "->") {
@@ -202,7 +196,7 @@ func TestAreasSameInBothModes(t *testing.T) {
 	base := writeTree(t, map[string]string{"main.tf": "", "examples/README.md": "a", "examples/x/main.tf": ""})
 	head := writeTree(t, map[string]string{"main.tf": "", "examples/README.md": "b", "examples/x/main.tf": "", "modules/l": "->../examples/x"})
 	want := `modules/l:submodule:false:false:"modules/l is a symbolic link, not a directory"`
-	if got := areaList(FindAreas(mustTree(t, head), mustTree(t, base), DefaultLimits)); got != `.:root:true:true:"" `+want {
+	if got := areaList(FindAreas(mustTree(t, head), mustTree(t, base), DefaultLimits)); got != want {
 		t.Errorf("base mode: %s", got)
 	}
 	if got := areaList(FindAreas(mustTree(t, head), nil, DefaultLimits)); !strings.Contains(got, want) || strings.Contains(got, "examples:") {

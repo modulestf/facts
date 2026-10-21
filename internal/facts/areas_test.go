@@ -75,9 +75,10 @@ func TestFindAreasWithBase(t *testing.T) {
 	}
 }
 
-// A change to a root profile file alone puts the root in scope, and the root
-// is in scope even when the change touches only an example.
-func TestFindAreasRootAlwaysInScope(t *testing.T) {
+// The root is in scope only when the change touches it. A change under
+// .github/ or to a root profile file touches the root; a change to an example
+// or a submodule alone does not.
+func TestFindAreasRootInScopeWhenTouched(t *testing.T) {
 	for name, tc := range map[string]struct {
 		base, head map[string]string
 		want       string
@@ -95,7 +96,12 @@ func TestFindAreasRootAlwaysInScope(t *testing.T) {
 		"example only": {
 			base: map[string]string{"main.tf": "a", "examples/x/main.tf": "a"},
 			head: map[string]string{"main.tf": "a", "examples/x/main.tf": "b"},
-			want: `.:root:true:true:"" examples/x:example:true:true:""`,
+			want: `examples/x:example:true:true:""`,
+		},
+		"submodule only": {
+			base: map[string]string{"main.tf": "a", "modules/a/main.tf": "a"},
+			head: map[string]string{"main.tf": "a", "modules/a/main.tf": "b"},
+			want: `modules/a:submodule:true:true:""`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -104,5 +110,26 @@ func TestFindAreasRootAlwaysInScope(t *testing.T) {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
 			}
 		})
+	}
+}
+
+// A change to a submodule alone gives no manifest entry in the root.
+func TestSubmoduleOnlyChangeHasNoRootEntries(t *testing.T) {
+	base := writeTree(t, map[string]string{"main.tf": "", "modules/a/variables.tf": "variable \"x\" {\n  type = string\n  description = \"X.\"\n}\n"})
+	head := writeTree(t, map[string]string{"main.tf": "", "modules/a/variables.tf": "variable \"x\" {\n  type = string\n  description = \"X.\"\n}\nvariable \"y\" {}\n"})
+	r, err := Run(Options{Head: head, Base: base, Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Manifest) != len(Rules) {
+		t.Errorf("want one entry per rule, got %+v", r.Manifest)
+	}
+	for _, e := range r.Manifest {
+		if e.Area != "modules/a" {
+			t.Errorf("entry outside the changed submodule: %+v", e)
+		}
+	}
+	if len(r.Candidates) != 1 || r.Candidates[0].Subject != "modules/a:var.y" {
+		t.Errorf("candidates %+v", r.Candidates)
 	}
 }

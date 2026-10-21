@@ -17,6 +17,14 @@ const (
 	StatusNotApplicable = "not_applicable"
 )
 
+// Reason codes, from the closed list of not_evaluated reasons.
+const (
+	ReasonParseError      = "parse_error"
+	ReasonUnsupportedFile = "unsupported_file"
+	ReasonSymlink         = "symlink"
+	ReasonLimitExceeded   = "limit_exceeded"
+)
+
 // Rule classes: a path rule still runs when the configuration cannot be parsed.
 const (
 	ClassConfig = "config-semantic"
@@ -41,11 +49,12 @@ type Rule struct {
 const rootArea = "."
 
 // Result is what a rule found in one area. A non-empty NotEvaluated means
-// the rule could not be decided there.
+// the rule could not be decided there, and Code is that reason's code.
 type Result struct {
 	Findings     []Finding
 	Candidates   []Candidate
 	NotEvaluated string
+	Code         string
 }
 
 // Candidate is a detected defect a model or an author confirms or rejects.
@@ -108,20 +117,20 @@ func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candid
 
 // evaluate runs one rule in one area after the shared gate.
 func evaluate(r Rule, a *Area) Result {
-	if reason := gate(r, a); reason != "" {
-		return Result{NotEvaluated: reason}
+	if reason, code := gate(r, a); reason != "" {
+		return Result{NotEvaluated: reason, Code: code}
 	}
 	return r.Check(a)
 }
 
 // evaluateCrossArea runs a cross-area rule over every area as one pass. Areas
-// outside its kinds are skipped, so the result is never not_applicable. It is
-// not evaluated when any area could not be evaluated, with each such area's
-// reason, and keeps the findings and candidates of the areas that were, each
-// with its own file.
+// outside its kinds are skipped, so the result is never not_applicable. When
+// any area cannot be evaluated, the pass is incomplete: the result is not
+// evaluated, with the reason code of the first such area, and has no
+// findings or candidates. Otherwise it has every area's findings and
+// candidates, each with its own file.
 func evaluateCrossArea(r Rule, areas []*Area) Result {
 	var out Result
-	var reasons []string
 	for _, a := range areas {
 		res := evaluate(r, a)
 		switch res.NotEvaluated {
@@ -130,10 +139,13 @@ func evaluateCrossArea(r Rule, areas []*Area) Result {
 			out.Findings = append(out.Findings, res.Findings...)
 			out.Candidates = append(out.Candidates, res.Candidates...)
 		default:
-			reasons = append(reasons, a.Path+": "+res.NotEvaluated)
+			code := res.Code
+			if code == "" {
+				code = ReasonUnsupportedFile // shortcut: a rule that sets no code; every rule here sets one
+			}
+			return Result{NotEvaluated: code, Code: code}
 		}
 	}
-	out.NotEvaluated = strings.Join(reasons, "; ")
 	return out
 }
 
@@ -179,25 +191,26 @@ func lineOr0(l *int) int {
 	return *l
 }
 
-// gate applies the checks every rule shares before its own logic runs.
-// It returns StatusNotApplicable as the reason for a rule that does not apply.
-func gate(r Rule, a *Area) string {
+// gate applies the checks every rule shares before its own logic runs. It
+// returns the reason a rule cannot be decided in a, with its code, or
+// StatusNotApplicable as the reason for a rule that does not apply.
+func gate(r Rule, a *Area) (reason, code string) {
 	switch {
 	case !slices.Contains(r.Kinds, a.Kind):
-		return StatusNotApplicable
+		return StatusNotApplicable, ""
 	case a.Issue != "":
-		return a.Issue
+		return a.Issue, a.issueCode
 	}
 	if r.Class != ClassConfig {
-		return ""
+		return "", ""
 	}
 	if len(a.Head.Unsupported) > 0 {
-		return strings.Join(a.Head.Unsupported, "; ")
+		return strings.Join(a.Head.Unsupported, "; "), a.Head.reasonCode()
 	}
 	if a.Base != nil && len(a.Base.Unsupported) > 0 {
-		return "at base: " + strings.Join(a.Base.Unsupported, "; ")
+		return "at base: " + strings.Join(a.Base.Unsupported, "; "), a.Base.reasonCode()
 	}
-	return ""
+	return "", ""
 }
 
 var severityRank = map[string]int{"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
