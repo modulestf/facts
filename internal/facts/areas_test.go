@@ -37,16 +37,14 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// areaList lists areas as path:kind:untouched:head exists:base exists:"issue".
 func areaList(as []*Area, err error) string {
 	if err != nil {
 		return "error: " + err.Error()
 	}
 	var out []string
 	for _, a := range as {
-		if a.Untouched {
-			continue // the tests below list the areas in scope
-		}
-		out = append(out, fmt.Sprintf("%s:%s:%v:%v:%q", a.Path, a.Kind, a.HeadExists, a.BaseExists, a.Issue))
+		out = append(out, fmt.Sprintf("%s:%s:%v:%v:%v:%q", a.Path, a.Kind, a.Untouched, a.HeadExists, a.BaseExists, a.Issue))
 	}
 	return strings.Join(out, " ")
 }
@@ -56,8 +54,9 @@ func TestFindAreasNoBase(t *testing.T) {
 		"main.tf": "", "modules/a/main.tf": "", "examples/x/main.tf": "",
 		"examples/README.md": "", "examples/y": "->x", "wrappers/a/main.tf": "",
 	}))
-	got := areaList(FindAreas(head, nil, DefaultLimits))
-	want := `.:root:true:false:"" examples/x:example:true:false:"" examples/y:example:false:false:"examples/y is a symbolic link, not a directory" modules/a:submodule:true:false:""`
+	// Without a base tree every area is in scope, untouched set or not.
+	got := areaList(FindAreas(head, nil, DefaultLimits, true))
+	want := `.:root:false:true:false:"" examples/x:example:false:true:false:"" examples/y:example:false:false:false:"examples/y is a symbolic link, not a directory" modules/a:submodule:false:true:false:""`
 	if got != want {
 		t.Errorf("got  %s\nwant %s", got, want)
 	}
@@ -71,10 +70,15 @@ func TestFindAreasWithBase(t *testing.T) {
 		"main.tf": "a", "modules/a/main.tf": "b", "modules/new/main.tf": "a", "examples/x/main.tf": "a",
 		"CHANGELOG.md": "x",
 	}))
-	got := areaList(FindAreas(head, base, DefaultLimits))
-	want := `.:root:true:true:"" modules/a:submodule:true:true:"" modules/gone:submodule:false:true:"" modules/new:submodule:true:false:""`
-	if got != want {
-		t.Errorf("got  %s\nwant %s", got, want)
+	// Only a cross-area pass reads untouched areas; without one they are
+	// neither listed nor parsed.
+	for untouched, want := range map[bool]string{
+		false: `.:root:false:true:true:"" modules/a:submodule:false:true:true:"" modules/gone:submodule:false:false:true:"" modules/new:submodule:false:true:false:""`,
+		true:  `.:root:false:true:true:"" examples/x:example:true:true:true:"" modules/a:submodule:false:true:true:"" modules/gone:submodule:false:false:true:"" modules/new:submodule:false:true:false:""`,
+	} {
+		if got := areaList(FindAreas(head, base, DefaultLimits, untouched)); got != want {
+			t.Errorf("untouched %v:\ngot  %s\nwant %s", untouched, got, want)
+		}
 	}
 }
 
@@ -89,26 +93,26 @@ func TestFindAreasRootInScopeWhenTouched(t *testing.T) {
 		"profile file only": {
 			base: map[string]string{"main.tf": "a", ".editorconfig": "a"},
 			head: map[string]string{"main.tf": "a", ".editorconfig": "b"},
-			want: `.:root:true:true:""`,
+			want: `.:root:false:true:true:""`,
 		},
 		"workflow only": {
 			base: map[string]string{"main.tf": "a"},
 			head: map[string]string{"main.tf": "a", ".github/workflows/ci.yml": "b"},
-			want: `.:root:true:true:""`,
+			want: `.:root:false:true:true:""`,
 		},
 		"example only": {
 			base: map[string]string{"main.tf": "a", "examples/x/main.tf": "a"},
 			head: map[string]string{"main.tf": "a", "examples/x/main.tf": "b"},
-			want: `examples/x:example:true:true:""`,
+			want: `.:root:true:true:true:"" examples/x:example:false:true:true:""`,
 		},
 		"submodule only": {
 			base: map[string]string{"main.tf": "a", "modules/a/main.tf": "a"},
 			head: map[string]string{"main.tf": "a", "modules/a/main.tf": "b"},
-			want: `modules/a:submodule:true:true:""`,
+			want: `.:root:true:true:true:"" modules/a:submodule:false:true:true:""`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got := areaList(FindAreas(mustTree(t, writeTree(t, tc.head)), mustTree(t, writeTree(t, tc.base)), DefaultLimits))
+			got := areaList(FindAreas(mustTree(t, writeTree(t, tc.head)), mustTree(t, writeTree(t, tc.base)), DefaultLimits, true))
 			if got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
 			}

@@ -178,7 +178,7 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			base := mustTree(t, writeTree(t, map[string]string{"main.tf": tc.baseRoot, "modules/a/variables.tf": ""}))
 			head := mustTree(t, writeTree(t, map[string]string{"main.tf": tc.headRoot, "modules/a/variables.tf": sub}))
-			areas, err := FindAreas(head, base, DefaultLimits)
+			areas, err := FindAreas(head, base, DefaultLimits, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -208,5 +208,86 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 				t.Errorf("findings %v candidates %+v, want %v", files, cs, tc.wantFindings)
 			}
 		})
+	}
+}
+
+// A cross-area entry is not_evaluated when an area it reads can be parsed at
+// head but not at base, or when an untouched area holds a link.
+func TestCrossAreaPassNotEvaluated(t *testing.T) {
+	const sub = "variable \"x\" {}\n"
+	for name, tc := range map[string]struct {
+		base, head map[string]string
+		want       string
+	}{
+		"parse error at base only": {
+			base: map[string]string{"main.tf": "", "modules/a/variables.tf": "variable {"},
+			head: map[string]string{"main.tf": "", "modules/a/variables.tf": sub},
+			want: ReasonParseError,
+		},
+		"link to a file in an untouched area": {
+			base: map[string]string{"main.tf": "", "modules/a/variables.tf": "", "modules/b/main.tf": "->../../main.tf"},
+			head: map[string]string{"main.tf": "", "modules/a/variables.tf": sub, "modules/b/main.tf": "->../../main.tf"},
+			want: ReasonSymlink,
+		},
+		"untouched area that is a link": {
+			base: map[string]string{"main.tf": "", "modules/a/variables.tf": "", "modules/l": "->a"},
+			head: map[string]string{"main.tf": "", "modules/a/variables.tf": sub, "modules/l": "->a"},
+			want: ReasonSymlink,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			areas, err := FindAreas(mustTree(t, writeTree(t, tc.head)), mustTree(t, writeTree(t, tc.base)), DefaultLimits, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			line := 1
+			rule := Rule{ID: "test.cross", Tier: "tool", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true,
+				Check: func(a *Area) Result {
+					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
+				}}
+			m, fs, cs := Evaluate(areas, []Rule{rule})
+			want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: tc.want}}
+			if !reflect.DeepEqual(m, want) {
+				t.Errorf("manifest\n got %+v\nwant %+v", m, want)
+			}
+			if len(fs) != 0 || len(cs) != 0 {
+				t.Errorf("findings %+v candidates %+v, want none", fs, cs)
+			}
+		})
+	}
+}
+
+func TestNeedsUntouched(t *testing.T) {
+	plain := Rule{ID: "test.plain"}
+	for name, tc := range map[string]struct {
+		rules []Rule
+		want  bool
+	}{
+		"no rules":            {rules: nil, want: false},
+		"no cross-area rule":  {rules: []Rule{plain}, want: false},
+		"one cross-area rule": {rules: []Rule{plain, crossRule(AreaRoot)}, want: true},
+		"implemented rules":   {rules: Rules, want: false}, // none is cross-area today
+	} {
+		if got := needsUntouched(tc.rules); got != tc.want {
+			t.Errorf("%s: got %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+// Run hands the flag to FindAreas: with a cross-area rule implemented, an
+// untouched root that cannot be parsed makes its entry not_evaluated.
+func TestRunReadsUntouchedAreasForCrossAreaRule(t *testing.T) {
+	saved := Rules
+	t.Cleanup(func() { Rules = saved })
+	Rules = []Rule{crossRule(AreaRoot, AreaSubmodule)}
+	base := writeTree(t, map[string]string{"main.tf": "variable {", "modules/a/variables.tf": ""})
+	head := writeTree(t, map[string]string{"main.tf": "variable {", "modules/a/variables.tf": "variable \"x\" {}\n"})
+	r, err := Run(Options{Head: head, Base: base, Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError}}
+	if !reflect.DeepEqual(r.Manifest, want) {
+		t.Errorf("manifest\n got %+v\nwant %+v", r.Manifest, want)
 	}
 }

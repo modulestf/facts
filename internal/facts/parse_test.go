@@ -130,20 +130,28 @@ func TestParseDirUnsupported(t *testing.T) {
 	}
 }
 
-// A file over a limit gives the limit_exceeded reason code: over the token
-// limit when parsed, or over the size limit when read.
+// A file over a limit gives the limit_exceeded reason code: over the token,
+// nesting or unary operator limit when parsed, or over the size limit when
+// read.
 func TestParseDirLimitExceeded(t *testing.T) {
 	const src = "variable \"x\" {\n  type = string\n}\n"
-	for name, lim := range map[string]Limits{
-		"tokens":     func() Limits { l := DefaultLimits; l.MaxTokens = 3; return l }(),
-		"file bytes": func() Limits { l := DefaultLimits; l.MaxFileBytes = 8; return l }(),
+	deep := "locals {\n  x = " + strings.Repeat("[", 65) + strings.Repeat("]", 65) + "\n}\n"
+	unary := "variable \"x\" {\n  default = " + strings.Repeat("!", 65) + "true\n}\n"
+	for name, tc := range map[string]struct {
+		src string
+		lim Limits
+	}{
+		"tokens":          {src: src, lim: func() Limits { l := DefaultLimits; l.MaxTokens = 3; return l }()},
+		"file bytes":      {src: src, lim: func() Limits { l := DefaultLimits; l.MaxFileBytes = 8; return l }()},
+		"nesting":         {src: deep, lim: DefaultLimits},
+		"unary operators": {src: unary, lim: DefaultLimits},
 	} {
 		t.Run(name, func(t *testing.T) {
-			tr, err := ReadTree(writeTree(t, map[string]string{"main.tf": src}), lim)
+			tr, err := ReadTree(writeTree(t, map[string]string{"main.tf": tc.src}), tc.lim)
 			if err != nil {
 				t.Fatal(err)
 			}
-			m, err := ParseDir(tr, ".", lim)
+			m, err := ParseDir(tr, ".", tc.lim)
 			if err != nil {
 				t.Fatal(err)
 			}

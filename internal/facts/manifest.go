@@ -134,6 +134,11 @@ func evaluate(r Rule, a *Area) Result {
 // first such area, and has no findings or candidates. Otherwise it has the
 // findings and candidates of the areas in scope, each with its own file;
 // those of an untouched area are not in the change and are dropped.
+//
+// Findings are dropped per area, not per line, so a finding on an unchanged
+// line of a touched area is still kept. The owner has decided that the engine
+// enforces line-level scoping; that lands in a separate change, before the
+// first cross-area rule ships. No implemented rule is cross-area today.
 func evaluateCrossArea(r Rule, areas []*Area) Result {
 	var out Result
 	for _, a := range areas {

@@ -195,11 +195,11 @@ func TestLongNamesAreCapped(t *testing.T) {
 func TestAreasSameInBothModes(t *testing.T) {
 	base := writeTree(t, map[string]string{"main.tf": "", "examples/README.md": "a", "examples/x/main.tf": ""})
 	head := writeTree(t, map[string]string{"main.tf": "", "examples/README.md": "b", "examples/x/main.tf": "", "modules/l": "->../examples/x"})
-	want := `modules/l:submodule:false:false:"modules/l is a symbolic link, not a directory"`
-	if got := areaList(FindAreas(mustTree(t, head), mustTree(t, base), DefaultLimits)); got != want {
+	want := `modules/l:submodule:false:false:false:"modules/l is a symbolic link, not a directory"`
+	if got := areaList(FindAreas(mustTree(t, head), mustTree(t, base), DefaultLimits, false)); got != want {
 		t.Errorf("base mode: %s", got)
 	}
-	if got := areaList(FindAreas(mustTree(t, head), nil, DefaultLimits)); !strings.Contains(got, want) || strings.Contains(got, "examples:") {
+	if got := areaList(FindAreas(mustTree(t, head), nil, DefaultLimits, false)); !strings.Contains(got, want) || strings.Contains(got, "examples:") {
 		t.Errorf("head mode: %s", got)
 	}
 	r, err := Run(Options{Head: head, Base: base, Limits: DefaultLimits})
