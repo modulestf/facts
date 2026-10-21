@@ -1,0 +1,415 @@
+[
+  {
+    "id": "output_sensitive",
+    "kind": "argument",
+    "match": "An output block sets the sensitive argument.",
+    "introduced": "0.6.16",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.11/CHANGELOG.md"
+  },
+  {
+    "id": "module_count",
+    "kind": "meta_argument",
+    "match": "A module block sets the count argument.",
+    "introduced": "0.13.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.13/CHANGELOG.md"
+  },
+  {
+    "id": "module_for_each",
+    "kind": "meta_argument",
+    "match": "A module block sets the for_each argument.",
+    "introduced": "0.13.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.13/CHANGELOG.md"
+  },
+  {
+    "id": "module_depends_on",
+    "kind": "meta_argument",
+    "match": "A module block sets the depends_on argument.",
+    "introduced": "0.13.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.13/CHANGELOG.md"
+  },
+  {
+    "id": "variable_validation",
+    "kind": "block",
+    "match": "A variable block contains a nested validation block.",
+    "introduced": "0.13.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.13/CHANGELOG.md"
+  },
+  {
+    "id": "function_sum",
+    "kind": "function",
+    "match": "A call to the built-in function sum(...).",
+    "introduced": "0.13.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.13/CHANGELOG.md"
+  },
+  {
+    "id": "variable_sensitive",
+    "kind": "argument",
+    "match": "A variable block sets the sensitive argument.",
+    "introduced": "0.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.14/CHANGELOG.md"
+  },
+  {
+    "id": "function_alltrue",
+    "kind": "function",
+    "match": "A call to the built-in function alltrue(...).",
+    "introduced": "0.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.14/CHANGELOG.md"
+  },
+  {
+    "id": "function_anytrue",
+    "kind": "function",
+    "match": "A call to the built-in function anytrue(...).",
+    "introduced": "0.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.14/CHANGELOG.md"
+  },
+  {
+    "id": "function_textencodebase64",
+    "kind": "function",
+    "match": "A call to the built-in function textencodebase64(...).",
+    "introduced": "0.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.14/CHANGELOG.md"
+  },
+  {
+    "id": "function_textdecodebase64",
+    "kind": "function",
+    "match": "A call to the built-in function textdecodebase64(...).",
+    "introduced": "0.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.14/CHANGELOG.md"
+  },
+  {
+    "id": "required_providers_configuration_aliases",
+    "kind": "argument",
+    "match": "An entry in terraform { required_providers { ... } } sets configuration_aliases.",
+    "introduced": "0.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.15/CHANGELOG.md"
+  },
+  {
+    "id": "function_one",
+    "kind": "function",
+    "match": "A call to the built-in function one(...).",
+    "introduced": "0.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.15/CHANGELOG.md"
+  },
+  {
+    "id": "function_sensitive",
+    "kind": "function",
+    "match": "A call to the built-in function sensitive(...).",
+    "introduced": "0.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.15/CHANGELOG.md"
+  },
+  {
+    "id": "function_nonsensitive",
+    "kind": "function",
+    "match": "A call to the built-in function nonsensitive(...).",
+    "introduced": "0.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v0.15/CHANGELOG.md"
+  },
+  {
+    "id": "moved_block",
+    "kind": "block",
+    "match": "A top-level moved block.",
+    "introduced": "1.1.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.1/CHANGELOG.md"
+  },
+  {
+    "id": "variable_nullable",
+    "kind": "argument",
+    "match": "A variable block sets the nullable argument.",
+    "introduced": "1.1.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.1/CHANGELOG.md"
+  },
+  {
+    "id": "lifecycle_replace_triggered_by",
+    "kind": "argument",
+    "match": "A lifecycle block inside a resource block sets replace_triggered_by.",
+    "introduced": "1.2.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.2/CHANGELOG.md"
+  },
+  {
+    "id": "precondition_block",
+    "kind": "block",
+    "match": "A precondition block nested in a lifecycle block of a resource or data block, or directly in an output block.",
+    "introduced": "1.2.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.2/CHANGELOG.md"
+  },
+  {
+    "id": "postcondition_block",
+    "kind": "block",
+    "match": "A postcondition block nested in a lifecycle block of a resource or data block.",
+    "introduced": "1.2.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.2/CHANGELOG.md"
+  },
+  {
+    "id": "type_optional_attribute",
+    "kind": "type_constraint",
+    "match": "An optional(type) call with one argument, inside an object(...) type constraint in any type argument.",
+    "introduced": "1.3.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
+  },
+  {
+    "id": "type_optional_attribute_default",
+    "kind": "type_constraint",
+    "match": "An optional(type, default) call with two arguments, inside an object(...) type constraint in any type argument.",
+    "introduced": "1.3.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
+  },
+  {
+    "id": "function_startswith",
+    "kind": "function",
+    "match": "A call to the built-in function startswith(...).",
+    "introduced": "1.3.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
+  },
+  {
+    "id": "function_endswith",
+    "kind": "function",
+    "match": "A call to the built-in function endswith(...).",
+    "introduced": "1.3.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
+  },
+  {
+    "id": "function_timecmp",
+    "kind": "function",
+    "match": "A call to the built-in function timecmp(...).",
+    "introduced": "1.3.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.3/CHANGELOG.md"
+  },
+  {
+    "id": "resource_terraform_data",
+    "kind": "block",
+    "match": "A resource block of type terraform_data (resource \"terraform_data\" \"<name>\").",
+    "introduced": "1.4.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.4/CHANGELOG.md"
+  },
+  {
+    "id": "check_block",
+    "kind": "block",
+    "match": "A top-level check block (with one or more assert blocks and an optional scoped data block).",
+    "introduced": "1.5.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.5/CHANGELOG.md"
+  },
+  {
+    "id": "import_block",
+    "kind": "block",
+    "match": "A top-level import block.",
+    "introduced": "1.5.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.5/CHANGELOG.md"
+  },
+  {
+    "id": "function_plantimestamp",
+    "kind": "function",
+    "match": "A call to the built-in function plantimestamp().",
+    "introduced": "1.5.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.5/CHANGELOG.md"
+  },
+  {
+    "id": "function_strcontains",
+    "kind": "function",
+    "match": "A call to the built-in function strcontains(...).",
+    "introduced": "1.5.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.5/CHANGELOG.md"
+  },
+  {
+    "id": "import_for_each",
+    "kind": "meta_argument",
+    "match": "An import block sets the for_each argument.",
+    "introduced": "1.7.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.7/CHANGELOG.md"
+  },
+  {
+    "id": "removed_block",
+    "kind": "block",
+    "match": "A top-level removed block.",
+    "introduced": "1.7.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.7/CHANGELOG.md"
+  },
+  {
+    "id": "provider_defined_function",
+    "kind": "function",
+    "match": "A function call in the provider::<provider name>::<function name>(...) form.",
+    "introduced": "1.8.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.8/CHANGELOG.md"
+  },
+  {
+    "id": "function_issensitive",
+    "kind": "function",
+    "match": "A call to the built-in function issensitive(...).",
+    "introduced": "1.8.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.8/CHANGELOG.md"
+  },
+  {
+    "id": "function_terraform_encode_tfvars",
+    "kind": "function",
+    "match": "A call to provider::terraform::encode_tfvars(...).",
+    "introduced": "1.8.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.8/CHANGELOG.md"
+  },
+  {
+    "id": "function_terraform_decode_tfvars",
+    "kind": "function",
+    "match": "A call to provider::terraform::decode_tfvars(...).",
+    "introduced": "1.8.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.8/CHANGELOG.md"
+  },
+  {
+    "id": "function_terraform_encode_expr",
+    "kind": "function",
+    "match": "A call to provider::terraform::encode_expr(...).",
+    "introduced": "1.8.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.8/CHANGELOG.md"
+  },
+  {
+    "id": "moved_cross_resource_type",
+    "kind": "block",
+    "match": "A moved block whose from and to are resource addresses of different resource types.",
+    "introduced": "1.8.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.8/CHANGELOG.md"
+  },
+  {
+    "id": "variable_validation_cross_object",
+    "kind": "expression",
+    "match": "A condition or error_message in a variable validation block contains any reference other than var.<this variable>.",
+    "introduced": "1.9.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md"
+  },
+  {
+    "id": "function_templatestring",
+    "kind": "function",
+    "match": "A call to the built-in function templatestring(...).",
+    "introduced": "1.9.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md"
+  },
+  {
+    "id": "removed_block_provisioner",
+    "kind": "block",
+    "match": "A provisioner block nested in a removed block.",
+    "introduced": "1.9.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md"
+  },
+  {
+    "id": "moved_null_resource_to_terraform_data",
+    "kind": "block",
+    "match": "A moved block whose from is a null_resource address and whose to is a terraform_data address.",
+    "introduced": "1.9.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md"
+  },
+  {
+    "id": "ephemeral_resource_block",
+    "kind": "block",
+    "match": "A top-level ephemeral block (ephemeral \"<type>\" \"<name>\").",
+    "introduced": "1.10.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.10/CHANGELOG.md"
+  },
+  {
+    "id": "variable_ephemeral",
+    "kind": "argument",
+    "match": "A variable block sets the ephemeral argument.",
+    "introduced": "1.10.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.10/CHANGELOG.md"
+  },
+  {
+    "id": "output_ephemeral",
+    "kind": "argument",
+    "match": "An output block sets the ephemeral argument.",
+    "introduced": "1.10.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.10/CHANGELOG.md"
+  },
+  {
+    "id": "function_ephemeralasnull",
+    "kind": "function",
+    "match": "A call to the built-in function ephemeralasnull(...).",
+    "introduced": "1.10.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.10/CHANGELOG.md"
+  },
+  {
+    "id": "import_identity",
+    "kind": "argument",
+    "match": "An import block sets the identity argument instead of id.",
+    "introduced": "1.12.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.12/CHANGELOG.md"
+  },
+  {
+    "id": "action_block",
+    "kind": "block",
+    "match": "A top-level action block (action \"<type>\" \"<name>\").",
+    "introduced": "1.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.14/CHANGELOG.md"
+  },
+  {
+    "id": "lifecycle_action_trigger",
+    "kind": "block",
+    "match": "An action_trigger block nested in a lifecycle block of a resource block. The 1.14 changelog does not name the block; the name action_trigger is in the 1.15 changelog and in internal/configs/action.go at tag v1.14.0.",
+    "introduced": "1.14.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.14/CHANGELOG.md"
+  },
+  {
+    "id": "variable_deprecated",
+    "kind": "argument",
+    "match": "A variable block sets the deprecated argument.",
+    "introduced": "1.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.15/CHANGELOG.md"
+  },
+  {
+    "id": "output_deprecated",
+    "kind": "argument",
+    "match": "An output block sets the deprecated argument.",
+    "introduced": "1.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.15/CHANGELOG.md"
+  },
+  {
+    "id": "output_type",
+    "kind": "type_constraint",
+    "match": "An output block sets the type argument.",
+    "introduced": "1.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.15/CHANGELOG.md"
+  },
+  {
+    "id": "function_convert",
+    "kind": "function",
+    "match": "A call to the built-in function convert(...).",
+    "introduced": "1.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.15/CHANGELOG.md"
+  },
+  {
+    "id": "module_source_version_variables",
+    "kind": "expression",
+    "match": "The source or version argument of a module block references var.<name> or local.<name>.",
+    "introduced": "1.15.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.15/CHANGELOG.md"
+  },
+  {
+    "id": "import_block_in_child_module",
+    "kind": "block",
+    "match": "An import block in the module root directory or in any modules/* directory of a reusable module repository; these count as child modules. Import blocks under examples/* or in test fixtures are root configurations and do not match.",
+    "introduced": "1.16.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
+  },
+  {
+    "id": "terraform_data_store",
+    "kind": "block",
+    "match": "A store block nested in a resource block of type terraform_data.",
+    "introduced": "1.16.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
+  },
+  {
+    "id": "lifecycle_destroy_false",
+    "kind": "argument",
+    "match": "A lifecycle block inside a resource block sets the destroy argument, with any value.",
+    "introduced": "1.16.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
+  },
+  {
+    "id": "action_trigger_on_failure",
+    "kind": "argument",
+    "match": "An action_trigger block sets the on_failure argument, with any value (halt, taint or continue). The argument does not exist in 1.14 or 1.15.",
+    "introduced": "1.16.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
+  },
+  {
+    "id": "action_trigger_destroy_events",
+    "kind": "expression",
+    "match": "The events argument of an action_trigger block lists before_destroy or after_destroy.",
+    "introduced": "1.16.0",
+    "source": "https://github.com/hashicorp/terraform/blob/v1.16/CHANGELOG.md"
+  }
+]
