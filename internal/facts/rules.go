@@ -4,10 +4,11 @@ import "fmt"
 
 // Rules are the implemented rules, in the order the manifest lists them.
 // Each one follows the Fails when and Severity text of its reviewer check file.
+// Kinds are the registry's area_kinds; any other area is not_applicable.
 var Rules = []Rule{
 	{ID: "examples.versions-missing", Tier: "tool", Class: ClassPath, Kinds: []string{AreaExample}, Check: checkVersionsMissing},
-	{ID: "structure.missing-description", Tier: "tool", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule, AreaExample}, Check: checkMissingDescription},
-	{ID: "structure.variable-untyped", Tier: "candidate", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule, AreaExample}, Check: checkVariableUntyped},
+	{ID: "structure.missing-description", Tier: "tool", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule}, Check: checkMissingDescription},
+	{ID: "structure.variable-untyped", Tier: "candidate", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule}, Check: checkVariableUntyped},
 }
 
 // Caps on pull request text copied into candidate evidence. A cap that bites

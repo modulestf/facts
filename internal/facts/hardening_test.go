@@ -47,7 +47,6 @@ func TestUnreadableDirectory(t *testing.T) {
 			{"structure.variable-untyped", "modules/m"},
 			{"structure.missing-description", "modules/m"},
 			{"examples.versions-missing", "examples/e"},
-			{"structure.missing-description", "examples/e"},
 		} {
 			want := "not_evaluated: " + c.area + " is a directory that cannot be read"
 			if s := statusOf(r.Manifest, c.rule, c.area); s != want {
@@ -302,10 +301,14 @@ func TestTopLevelAreaDirectories(t *testing.T) {
 					t.Fatal(err)
 				}
 				rules := []string{"structure.variable-untyped", "structure.missing-description"}
+				other := []string{"examples.versions-missing"}
 				if area == "examples" {
-					rules = append(rules, "examples.versions-missing")
-				} else if s := statusOf(r.Manifest, "examples.versions-missing", area); s != "not_applicable" {
-					t.Errorf("base=%v versions-missing: %s", o.Base != "", s)
+					rules, other = other, rules
+				}
+				for _, rule := range other {
+					if s := statusOf(r.Manifest, rule, area); s != "not_applicable" {
+						t.Errorf("base=%v %s: %s", o.Base != "", rule, s)
+					}
 				}
 				for _, rule := range rules {
 					if s := statusOf(r.Manifest, rule, area); s != "not_evaluated: "+f.want {

@@ -23,12 +23,12 @@
     {
       "rule_id": "structure.missing-description",
       "area": "examples/complete",
-      "status": "clean"
+      "status": "not_applicable"
     },
     {
       "rule_id": "structure.missing-description",
       "area": "examples/other",
-      "status": "clean"
+      "status": "not_applicable"
     },
     {
       "rule_id": "structure.variable-untyped",
@@ -38,12 +38,12 @@
     {
       "rule_id": "structure.variable-untyped",
       "area": "examples/complete",
-      "status": "clean"
+      "status": "not_applicable"
     },
     {
       "rule_id": "structure.variable-untyped",
       "area": "examples/other",
-      "status": "clean"
+      "status": "not_applicable"
     }
   ],
   "findings": [

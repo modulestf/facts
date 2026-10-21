@@ -24,8 +24,7 @@
     {
       "rule_id": "structure.missing-description",
       "area": "examples/complete",
-      "status": "not_evaluated",
-      "reason": "main.tf: parse error"
+      "status": "not_applicable"
     },
     {
       "rule_id": "structure.missing-description",
@@ -42,8 +41,7 @@
     {
       "rule_id": "structure.variable-untyped",
       "area": "examples/complete",
-      "status": "not_evaluated",
-      "reason": "main.tf: parse error"
+      "status": "not_applicable"
     },
     {
       "rule_id": "structure.variable-untyped",

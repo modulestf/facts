@@ -8,12 +8,12 @@
     {
       "rule_id": "structure.missing-description",
       "area": "examples/gone",
-      "status": "clean"
+      "status": "not_applicable"
     },
     {
       "rule_id": "structure.variable-untyped",
       "area": "examples/gone",
-      "status": "clean"
+      "status": "not_applicable"
     }
   ],
   "findings": [],
