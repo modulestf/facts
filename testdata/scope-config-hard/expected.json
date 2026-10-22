@@ -1,0 +1,23 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.new-submodule",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "unsupported_file",
+      "reason_code": "unsupported_file"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
