@@ -102,29 +102,97 @@ func TestGolden(t *testing.T) {
 	}
 }
 
-// addedRule stands for a rule a family file adds: it reports a finding in
-// every area of every kind, so any case that evaluated it would change.
-var addedRule = Rule{
-	ID: "structure.zz-added-for-test", Tier: "tool", Class: ClassPath, Scope: ScopeAnyFileInArea,
-	Kinds: []string{AreaRoot, AreaSubmodule, AreaExample},
-	Check: func(a *Area) Result {
-		return Result{Findings: []Finding{{RuleID: "structure.zz-added-for-test", Severity: "LOW", File: a.Path, Summary: "s", SuggestedFix: "f"}}}
-	},
+// addedRule stands for a rule a family file adds: it reports a HIGH finding
+// in every area of every kind, so it sorts ahead of every MEDIUM finding and
+// shifts their positional ids.
+func addedRule(crossArea bool) Rule {
+	const id = "structure.zz-added-for-test"
+	return Rule{
+		ID: id, Tier: "tool", Class: ClassPath, Scope: ScopeAnyFileInArea, CrossArea: crossArea,
+		Kinds: []string{AreaRoot, AreaSubmodule, AreaExample},
+		Check: func(a *Area) Result {
+			return Result{Findings: []Finding{{RuleID: id, Severity: "HIGH", File: a.Path, Summary: "s", SuggestedFix: "f"}}}
+		},
+	}
+}
+
+// goldenView is what expected.json holds.
+type goldenView struct {
+	Manifest   []ManifestEntry `json:"manifest"`
+	Findings   []Finding       `json:"findings"`
+	Candidates []Candidate     `json:"candidates"`
+}
+
+// listedOnly keeps the entries, findings and candidates of the listed rules,
+// in their order, with the F- and C- ids cleared.
+func listedOnly(v goldenView, listed []Rule) goldenView {
+	keep := func(id string) bool { return slices.ContainsFunc(listed, func(r Rule) bool { return r.ID == id }) }
+	out := goldenView{Manifest: []ManifestEntry{}, Findings: []Finding{}, Candidates: []Candidate{}}
+	for _, e := range v.Manifest {
+		if keep(e.RuleID) {
+			out.Manifest = append(out.Manifest, e)
+		}
+	}
+	for _, f := range v.Findings {
+		if keep(f.RuleID) {
+			f.ID = ""
+			out.Findings = append(out.Findings, f)
+		}
+	}
+	for _, c := range v.Candidates {
+		if keep(c.RuleID) {
+			c.CandidateID = ""
+			out.Candidates = append(out.Candidates, c)
+		}
+	}
+	return out
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 // TestAddedRuleChangesNoOtherCase joins a new rule into the registry, as a
-// family file would, and checks that every case that does not list it keeps
-// its expected output byte for byte. A case that does list it does change,
-// so the check is not vacuous.
+// family file would, runs every case with the full rule set, as Run does,
+// and checks that the results of the rules each case lists still match its
+// expected.json. The new rule runs alongside them, per area and as a
+// cross-area pass, and its HIGH findings sort ahead of theirs.
+//
+// Finding and candidate ids are positional: F-NNN and C-NNN number the whole
+// report in sort order, so a rule that adds findings renumbers the ids of
+// other rules in the same run. That is how the report is defined, so this
+// comparison ignores the ids; the golden files pin them only for the rules a
+// case lists.
 func TestAddedRuleChangesNoOtherCase(t *testing.T) {
-	rules := joinRules(Rules, []Rule{addedRule})
 	cases := goldenCases(t)
-	for _, dir := range cases {
-		if got := goldenOutput(t, dir, caseRules(t, dir, rules)); !bytes.Equal(got, readExpected(t, dir)) {
-			t.Errorf("%s changed after a rule it does not list was added", filepath.Base(dir))
+	for _, cross := range []bool{false, true} {
+		added := addedRule(cross)
+		rules := joinRules(Rules, []Rule{added})
+		for _, dir := range cases {
+			listed := caseRules(t, dir, Rules)
+			var want goldenView
+			if err := json.Unmarshal(readExpected(t, dir), &want); err != nil {
+				t.Fatal(err)
+			}
+			var full goldenView
+			if err := json.Unmarshal(goldenOutput(t, dir, rules), &full); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.ContainsFunc(full.Manifest, func(e ManifestEntry) bool { return e.RuleID == added.ID }) {
+				t.Fatalf("%s: the added rule did not run", filepath.Base(dir))
+			}
+			if !bytes.Equal(mustJSON(t, listedOnly(full, listed)), mustJSON(t, listedOnly(want, listed))) {
+				t.Errorf("cross-area %v: %s changed after a rule it does not list was added", cross, filepath.Base(dir))
+			}
 		}
 	}
-	listed := append(caseRules(t, cases[0], rules), addedRule)
+	// Control: a comparison that keeps the added rule does see it.
+	listed := append(caseRules(t, cases[0], Rules), addedRule(false))
 	if bytes.Equal(goldenOutput(t, cases[0], listed), readExpected(t, cases[0])) {
 		t.Errorf("%s did not change with the added rule listed", filepath.Base(cases[0]))
 	}
@@ -147,9 +215,7 @@ func TestNoOpHooksChangeNoOutput(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		a, _ := json.Marshal(without)
-		b, _ := json.Marshal(with)
-		if !bytes.Equal(a, b) {
+		if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
 			t.Errorf("%s: schema and profile inputs changed the report", filepath.Base(dir))
 		}
 	}
