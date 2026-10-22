@@ -1,0 +1,423 @@
+{
+  "manifest": [
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "coverage.argument-above-min-version",
+      "file": "main.tf",
+      "line": 23,
+      "subject": ".:aws_demo_widget.values.config.level",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 23,
+            "text": "    level  = 2"
+          }
+        ],
+        "base": null,
+        "head": "2",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "config.level",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "config.level",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "coverage.deprecated-argument",
+      "file": "main.tf",
+      "line": 24,
+      "subject": ".:aws_demo_widget.values.config.legacy",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 24,
+            "text": "    legacy = true"
+          }
+        ],
+        "base": null,
+        "head": "true",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "config.legacy",
+            "state": "deprecated"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "config.legacy",
+            "state": "deprecated"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 25,
+      "subject": ".:aws_demo_widget.values.config.bogus",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 25,
+            "text": "    bogus  = 1"
+          }
+        ],
+        "base": null,
+        "head": "1",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "config.bogus",
+            "state": "absent"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "config.bogus",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 30,
+      "subject": ".:aws_demo_widget.values.rules[1].colour",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 30,
+            "text": "    { port = 2, colour = \"x\" },"
+          }
+        ],
+        "base": null,
+        "head": "\"x\"",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "rules.colour",
+            "state": "absent"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "rules.colour",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 35,
+      "subject": ".:aws_demo_widget.values.peers[1].nope",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 35,
+            "text": "    b = { nope = \"y\" }"
+          }
+        ],
+        "base": null,
+        "head": "\"y\"",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "peers.nope",
+            "state": "absent"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "peers.nope",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 38,
+      "subject": ".:aws_demo_widget.values.tags[0]",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 38,
+            "text": "  tags {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "tags",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "tags",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 47,
+      "subject": ".:aws_demo_widget.computed.config",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 47,
+            "text": "  config = { (var.key) = 1 }"
+          }
+        ],
+        "base": null,
+        "head": "1",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "config",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "config",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 58,
+      "subject": ".:aws_demo_widget.blocks.rules[0].weird",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 58,
+            "text": "    weird = 2"
+          }
+        ],
+        "base": null,
+        "head": "2",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "rules.weird",
+            "state": "absent"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "rules.weird",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 65,
+      "subject": ".:aws_demo_widget.blocks.setting",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 65,
+            "text": "  dynamic \"setting\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "setting",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "setting",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 93,
+      "subject": ".:aws_demo_widget.dynamic_unknown.setting",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 93,
+            "text": "  dynamic \"setting\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "setting",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "setting",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-011",
+      "rule_id": "coverage.argument-above-min-version",
+      "file": "main.tf",
+      "line": 102,
+      "subject": ".:aws_demo_turbo.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 102,
+            "text": "resource \"aws_demo_turbo\" \"this\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_turbo",
+            "path": ".",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_turbo",
+            "path": ".",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    }
+  ]
+}

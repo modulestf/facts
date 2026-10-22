@@ -72,3 +72,22 @@ func TestCoverageSchemaUnboundHandoff(t *testing.T) {
 		}
 	}
 }
+
+// Raw schema files alone carry no versions, so a touched block makes every
+// rule not_evaluated, and the reason says the rule needs the handoff.
+func TestCoverageSchemaRawFilesOnly(t *testing.T) {
+	raw := filepath.Join(t.TempDir(), "aws.json")
+	if err := os.WriteFile(raw, []byte(`{"format_version": "1.0", "provider_schemas": {}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	head := writeTree(t, map[string]string{"main.tf": "resource \"aws_demo_widget\" \"this\" {\n  bogus = 1\n}\n"})
+	r, err := run(Options{Head: head, SchemaFiles: []string{raw}, Limits: DefaultLimits}, coverageSchemaRules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range r.Manifest {
+		if e.Status != StatusNotEvaluated || e.ReasonCode != ReasonSchemaUnavailable || !strings.Contains(e.Reason, "needs the schema handoff") {
+			t.Errorf("%s: %s %s %q", e.RuleID, e.Status, e.ReasonCode, e.Reason)
+		}
+	}
+}

@@ -3,11 +3,11 @@
   "merge_base_sha": "2222222222222222222222222222222222222222",
   "inputs": {
     "head": {
-      "tree_hash": "ef45189dfe48acc322b455325ea719c90e17b7967566b2b8af25fd883e9e6e31",
+      "tree_hash": "0cec46f2a3d2a771fc605f8e58227d3d60eba34c5755a7fd0b4092c90e0d7c78",
       "files": [
         {
           "path": "main.tf",
-          "sha256": "c891e2e65453acf46b0b11600fa44bca358370db7e7fec2f8db1fa1848422fcc"
+          "sha256": "a2b4c093a0ce528e67832a66b569751a1bb41ade6fd4cb9904d7b9c5e4f71e0f"
         },
         {
           "path": "versions.tf",

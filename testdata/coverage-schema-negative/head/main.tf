@@ -26,7 +26,7 @@ resource "aws_demo_widget" "added" {
   tags      = { setting = "x" }
 
   dynamic "setting" {
-    for_each = var.settings
+    for_each = var.setting == null ? [] : [var.setting]
 
     content {
       value = setting.value
