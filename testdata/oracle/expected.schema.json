@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mtf-facts-expected.schema.json",
+  "title": "mtf-facts fixture oracle",
+  "description": "The expected.json of one fixture: the manifest, the tool findings and the candidates, in the shapes of the modulestf/facts schemas. Validate with those schemas loaded as references.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest", "findings", "candidates"],
+  "properties": {
+    "manifest": {"$ref": "manifest.schema.json"},
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json#/$defs/tool_finding"}
+    },
+    "candidates": {
+      "type": "array",
+      "items": {"$ref": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json#/$defs/candidate"}
+    }
+  }
+}

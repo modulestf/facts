@@ -1,0 +1,120 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "inputs": {
+    "head": {
+      "tree_hash": "b84b9d3ec0e2ce6be874a2132d0df384d7fe7b7403fb3d581d79a242c5efeb05",
+      "files": [
+        {
+          "path": "main.tf",
+          "sha256": "6de5b5b43088ae7f14140de2360e21bf6ad0f57d484d64076bfd9aa8c5f2d7a8"
+        },
+        {
+          "path": "outputs.tf",
+          "sha256": "1f23cba501fabd01dd0ed403a69675353f707a56a833cdb95215e9cd89a516e0"
+        },
+        {
+          "path": "variables.tf",
+          "sha256": "eaf8c31928d79edef87c35b3520304e30dae00b4c92bb98795bd13ef93df9d76"
+        },
+        {
+          "path": "versions.tf",
+          "sha256": "8d0b166070ded21a6bac6f1e9007012cb449c3857d43551531dade93e247b91d"
+        }
+      ]
+    },
+    "merge_base": {
+      "tree_hash": "dc0d91dffde2efbbbf42f668fcb0d08abee5da6593f1b398864168170f76bf0c",
+      "files": [
+        {
+          "path": "main.tf",
+          "sha256": "6de5b5b43088ae7f14140de2360e21bf6ad0f57d484d64076bfd9aa8c5f2d7a8"
+        },
+        {
+          "path": "outputs.tf",
+          "sha256": "1f23cba501fabd01dd0ed403a69675353f707a56a833cdb95215e9cd89a516e0"
+        },
+        {
+          "path": "variables.tf",
+          "sha256": "eaf8c31928d79edef87c35b3520304e30dae00b4c92bb98795bd13ef93df9d76"
+        },
+        {
+          "path": "versions.tf",
+          "sha256": "960cc83ed11372e6dcfb885434d2e86345cc4c7dec008182051fc79670efa182"
+        }
+      ]
+    }
+  },
+  "caps": {
+    "compressed_bytes": 2097152,
+    "uncompressed_bytes": 33554432
+  },
+  "directories": [
+    {
+      "path": ".",
+      "providers": [
+        {
+          "local_name": "aws",
+          "source": "registry.terraform.io/hashicorp/aws",
+          "versions": {
+            "latest": "6.2.0",
+            "declared_minimum": "6.2.0",
+            "old_floor": "6.0.0"
+          }
+        }
+      ]
+    }
+  ],
+  "provider_schemas": [
+    {
+      "source": "registry.terraform.io/hashicorp/aws",
+      "version": "6.2.0",
+      "resource_schemas": {
+        "aws_demo_widget": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "tags": {
+                "optional": true
+              },
+              "arn": {
+                "computed": true
+              },
+              "id": {
+                "computed": true
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {}
+    },
+    {
+      "source": "registry.terraform.io/hashicorp/aws",
+      "version": "6.0.0",
+      "resource_schemas": {
+        "aws_demo_widget": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "tags": {
+                "optional": true
+              },
+              "arn": {
+                "computed": true
+              },
+              "id": {
+                "computed": true
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {}
+    }
+  ]
+}

@@ -2,6 +2,8 @@ package facts
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -112,37 +114,57 @@ func TestStructureRulesAreaScope(t *testing.T) {
 	}
 }
 
-// Every rule has a positive golden case that yields its finding or candidate
-// and a negative case that yields neither.
+// Every rule has a positive case that yields its finding or candidate and a
+// negative case that yields neither. A case is the golden case named after
+// the rule under testdata/, which must then yield or not yield it, or an
+// oracle fixture: one that yields the rule is positive, one that lists the
+// rule clean somewhere and yields it nowhere is negative.
 func TestEveryRuleHasGoldenCases(t *testing.T) {
+	yields := func(v goldenView, id string) bool {
+		return slices.ContainsFunc(v.Findings, func(f Finding) bool { return f.RuleID == id }) ||
+			slices.ContainsFunc(v.Candidates, func(c Candidate) bool { return c.RuleID == id })
+	}
+	var oracles []goldenView
+	for _, dir := range oracleFixtures(t) {
+		oracles = append(oracles, readOracle(t, dir))
+	}
 	for _, r := range Rules {
 		if r.Tier != "tool" && r.Tier != "candidate" {
 			t.Errorf("%s: tier %q", r.ID, r.Tier)
 		}
 		slug := r.ID[strings.Index(r.ID, ".")+1:]
+		has := map[bool]bool{}
 		for kind, want := range map[string]bool{"positive": true, "negative": false} {
 			data, err := os.ReadFile(filepath.Join("../../testdata", slug+"-"+kind, "expected.json"))
-			if err != nil {
-				t.Errorf("%s: no %s golden case", r.ID, kind)
+			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
-			var g struct {
-				Findings   []Finding   `json:"findings"`
-				Candidates []Candidate `json:"candidates"`
+			if err != nil {
+				t.Fatal(err)
 			}
+			var g goldenView
 			if err := json.Unmarshal(data, &g); err != nil {
 				t.Fatal(err)
 			}
-			got := false
-			for _, f := range g.Findings {
-				got = got || f.RuleID == r.ID
-			}
-			for _, c := range g.Candidates {
-				got = got || c.RuleID == r.ID
-			}
-			if got != want {
+			if got := yields(g, r.ID); got != want {
 				t.Errorf("%s: %s case yields the rule: %v", r.ID, kind, got)
+				continue
 			}
+			has[want] = true
+		}
+		for _, o := range oracles {
+			switch {
+			case yields(o, r.ID):
+				has[true] = true
+			case slices.ContainsFunc(o.Manifest, func(e ManifestEntry) bool { return e.RuleID == r.ID && e.Status == StatusClean }):
+				has[false] = true
+			}
+		}
+		if !has[true] {
+			t.Errorf("%s: no positive golden or oracle case", r.ID)
+		}
+		if !has[false] {
+			t.Errorf("%s: no negative golden or oracle case", r.ID)
 		}
 	}
 	if !sort.SliceIsSorted(Rules, func(i, j int) bool { return Rules[i].ID < Rules[j].ID }) {

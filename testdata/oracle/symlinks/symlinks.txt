@@ -1,0 +1,3 @@
+head/linked.tf ../outside.tf
+head/modules/alias child
+head/examples/complete/versions.tf ../../versions.tf

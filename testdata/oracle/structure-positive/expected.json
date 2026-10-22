@@ -1,0 +1,214 @@
+{
+  "manifest": [
+    {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "clean"},
+    {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.type-narrowed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.variable-now-required", "area": ".", "status": "clean"},
+    {"rule_id": "compat.variable-removed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.version-constraint-raised", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.argument-above-min-version", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.attribute-not-output", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.block-attribute-mismatch", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.deprecated-argument", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.optional-argument-unexposed", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.required-argument-unreachable", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.unknown-argument", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "examples.disabled-call-missing", "area": ".", "status": "not_applicable"},
+    {"rule_id": "examples.stale-reference", "area": ".", "status": "clean"},
+    {"rule_id": "examples.submodule-missing", "area": ".", "status": "clean"},
+    {"rule_id": "examples.versions-missing", "area": ".", "status": "not_applicable"},
+    {"rule_id": "profile.nonstandard-config-file", "area": ".", "status": "clean"},
+    {"rule_id": "profile.putin-khuylo-missing", "area": ".", "status": "clean"},
+    {"rule_id": "profile.region-not-allowed", "area": ".", "status": "clean"},
+    {"rule_id": "profile.required-file-missing", "area": ".", "status": "clean"},
+    {"rule_id": "profile.template-drift", "area": ".", "status": "clean"},
+    {"rule_id": "scope.module-call", "area": ".", "status": "clean"},
+    {"rule_id": "scope.new-submodule", "area": ".", "status": "not_applicable"},
+    {"rule_id": "scope.pre-commit-hook", "area": ".", "status": "clean"},
+    {"rule_id": "scope.profile-file", "area": ".", "status": "clean"},
+    {"rule_id": "scope.provider", "area": ".", "status": "clean"},
+    {"rule_id": "scope.readme-banner", "area": ".", "status": "clean"},
+    {"rule_id": "scope.tooling", "area": ".", "status": "clean"},
+    {"rule_id": "structure.argument-order", "area": ".", "status": "candidate"},
+    {"rule_id": "structure.arn-partition-hardcoded", "area": ".", "status": "candidate"},
+    {"rule_id": "structure.feature-above-version-floor", "area": ".", "status": "clean"},
+    {"rule_id": "structure.missing-description", "area": ".", "status": "finding"},
+    {"rule_id": "structure.multi-provider", "area": ".", "status": "candidate"},
+    {"rule_id": "structure.output-no-try", "area": ".", "status": "candidate"},
+    {"rule_id": "structure.passthrough-default-drift", "area": ".", "status": "clean"},
+    {"rule_id": "structure.passthrough-field-drift", "area": ".", "status": "clean"},
+    {"rule_id": "structure.variable-untyped", "area": ".", "status": "candidate"},
+    {"rule_id": "structure.version-floor-understated", "area": ".", "status": "clean"},
+    {"rule_id": "structure.wrong-file", "area": ".", "status": "candidate"}
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "variables.tf",
+      "line": 31,
+      "summary": "Variable \"retention_days\" has no description.",
+      "suggested_fix": "Add a `description` to `variable \"retention_days\"` in `variables.tf`.",
+      "source": "tool",
+      "subject": ".:var.retention_days"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.multi-provider",
+      "file": "main.tf",
+      "line": 1,
+      "subject": ".:provider.aws.replica",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 2,
+            "text": "  alias  = \"replica\""
+          }
+        ],
+        "base": null,
+        "head": "replica",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "structure.argument-order",
+      "file": "main.tf",
+      "line": 10,
+      "subject": ".:aws_demo_widget.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 13,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 15,
+            "text": "  tags = var.tags"
+          }
+        ],
+        "base": "count, name, tags",
+        "head": "name, count, tags, retention_days",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "structure.wrong-file",
+      "file": "main.tf",
+      "line": 20,
+      "subject": ".:aws_iam_role.extra",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 20,
+            "text": "resource \"aws_iam_role\" \"extra\" {"
+          }
+        ],
+        "base": null,
+        "head": "iam.tf",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "structure.arn-partition-hardcoded",
+      "file": "main.tf",
+      "line": 25,
+      "subject": ".:aws_iam_role.extra.permissions_boundary",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 25,
+            "text": "  permissions_boundary = \"arn:aws:iam::123456789012:policy/boundary\""
+          }
+        ],
+        "base": null,
+        "head": "\"arn:aws:iam::123456789012:policy/boundary\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 6,
+      "subject": ".:output.widget_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 8,
+            "text": "  value       = aws_demo_widget.this[0].arn"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.this[0].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "structure.variable-untyped",
+      "file": "variables.tf",
+      "line": 31,
+      "subject": ".:var.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 31,
+            "text": "variable \"retention_days\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "structure.variable-untyped",
+      "file": "variables.tf",
+      "line": 35,
+      "subject": ".:var.extra_settings",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 37,
+            "text": "  type        = any"
+          }
+        ],
+        "base": null,
+        "head": "any",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}
