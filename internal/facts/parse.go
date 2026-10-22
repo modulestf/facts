@@ -110,6 +110,8 @@ type Variable struct {
 	Validations    []Validation
 	// TypeAttrs are the object attributes of the type, at any depth.
 	TypeAttrs []TypeAttr
+	// Body holds every argument and the validation blocks as written.
+	Body Body
 }
 
 // Validation is one validation block of a variable.
@@ -146,6 +148,7 @@ type Output struct {
 	// module.y, data.t.n or t.n, sorted and without duplicates.
 	References []string
 	UsesTry    bool // the value calls try()
+	Body       Body // every argument as written
 }
 
 // Local is one named value of a locals block.
@@ -412,7 +415,7 @@ func collect(m *Module, file string, src []byte, body *hclsyntax.Body, comments 
 		case b.Type == "variable" && len(b.Labels) == 1:
 			v := Variable{Span: sp, Name: b.Labels[0],
 				Default: attrExpr(src, b.Body, "default"), Nullable: attrExpr(src, b.Body, "nullable"),
-				Sensitive: attrExpr(src, b.Body, "sensitive")}
+				Sensitive: attrExpr(src, b.Body, "sensitive"), Body: bodyOf(src, b.Body)}
 			if a, ok := b.Body.Attributes["type"]; ok {
 				v.HasType = true
 				v.TypeText = exprText(src, a.Expr)
@@ -435,7 +438,8 @@ func collect(m *Module, file string, src []byte, body *hclsyntax.Body, comments 
 			m.varNames[v.Name] = true
 		case b.Type == "output" && len(b.Labels) == 1:
 			o := Output{Span: sp, Name: b.Labels[0],
-				HasDescription: hasText(b.Body.Attributes["description"]), Sensitive: attrExpr(src, b.Body, "sensitive")}
+				HasDescription: hasText(b.Body.Attributes["description"]), Sensitive: attrExpr(src, b.Body, "sensitive"),
+				Body: bodyOf(src, b.Body)}
 			if a, ok := b.Body.Attributes["value"]; ok {
 				o.Value = &Expr{exprText(src, a.Expr), a.Expr.Range()}
 				o.References, o.UsesTry = references(a.Expr)

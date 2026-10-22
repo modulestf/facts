@@ -163,7 +163,11 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if env.ProfileSHA256, err = applyProfile(o, areas); err != nil {
 		return nil, err
 	}
-	manifest, findings, candidates := Evaluate(areas, rules)
+	ch, err := BuildChangeMap(head, base, areas, o.Limits)
+	if err != nil {
+		return nil, err
+	}
+	manifest, findings, candidates := Evaluate(areas, rules, ch)
 	if err := CheckManifest(manifest, rules, areas); err != nil {
 		return nil, err
 	}

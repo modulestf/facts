@@ -26,7 +26,7 @@ func TestEvaluateStatuses(t *testing.T) {
 		{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{Unsupported: []string{"main.tf: parse error"}, unsupportedCodes: []string{ReasonParseError}}},
 		{Path: "modules/old", Kind: AreaSubmodule, Head: &Module{}, Base: &Module{Unsupported: []string{"x.tf.json is a JSON configuration file"}, unsupportedCodes: []string{ReasonUnsupportedFile}}},
 	}
-	m, fs, cs := Evaluate(areas, []Rule{finding, path})
+	m, fs, cs := Evaluate(areas, []Rule{finding, path}, changeFor(t, areas, "main.tf", "modules/old/x.tf"))
 	want := []ManifestEntry{
 		{RuleID: "test.finding", Area: ".", Status: StatusFinding},
 		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error", ReasonCode: ReasonParseError},
@@ -121,7 +121,7 @@ func TestEvaluateCrossArea(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			m, fs, cs := Evaluate(tc.areas, []Rule{tc.rule})
+			m, fs, cs := Evaluate(tc.areas, []Rule{tc.rule}, changeFor(t, tc.areas, "modules/a/main.tf", "examples/x/main.tf"))
 			if !reflect.DeepEqual(m, []ManifestEntry{tc.want}) {
 				t.Errorf("manifest\n got %+v\nwant %+v", m, []ManifestEntry{tc.want})
 			}
@@ -190,7 +190,7 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 					// A finding in every area it reads, so a kept root finding shows.
 					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
 				}}
-			m, fs, cs := Evaluate(areas, []Rule{rule})
+			m, fs, cs := Evaluate(areas, []Rule{rule}, mustChange(t, head, base, areas))
 			if !reflect.DeepEqual(m, []ManifestEntry{tc.want}) {
 				t.Errorf("manifest\n got %+v\nwant %+v", m, []ManifestEntry{tc.want})
 			}
@@ -245,7 +245,7 @@ func TestCrossAreaPassNotEvaluated(t *testing.T) {
 				Check: func(a *Area) Result {
 					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
 				}}
-			m, fs, cs := Evaluate(areas, []Rule{rule})
+			m, fs, cs := Evaluate(areas, []Rule{rule}, changeFor(t, areas))
 			want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: tc.want, ReasonCode: tc.want}}
 			if !reflect.DeepEqual(m, want) {
 				t.Errorf("manifest\n got %+v\nwant %+v", m, want)
@@ -296,12 +296,12 @@ func TestCheckManifestRefusesMissingReasonCode(t *testing.T) {
 	r := Rule{ID: "test.nocode", Tier: "tool", Class: ClassPath, Kinds: []string{AreaRoot},
 		Check: func(*Area) Result { return Result{NotEvaluated: "cannot tell"} }}
 	areas := []*Area{{Path: ".", Kind: AreaRoot, Head: &Module{}}}
-	m, _, _ := Evaluate(areas, []Rule{r})
+	m, _, _ := Evaluate(areas, []Rule{r}, changeFor(t, areas))
 	if err := CheckManifest(m, []Rule{r}, areas); err == nil {
 		t.Errorf("accepted a not_evaluated entry with no code: %+v", m)
 	}
 	r.CrossArea = true
-	m, _, _ = Evaluate(areas, []Rule{r})
+	m, _, _ = Evaluate(areas, []Rule{r}, changeFor(t, areas))
 	if err := CheckManifest(m, []Rule{r}, areas); err == nil {
 		t.Errorf("cross-area: accepted a not_evaluated entry with no code: %+v", m)
 	}

@@ -146,7 +146,7 @@ func TestDeadline(t *testing.T) {
 
 func TestCheckManifest(t *testing.T) {
 	areas := []*Area{{Path: ".", Kind: AreaRoot, Head: &Module{}}, {Path: "modules/a", Kind: AreaSubmodule, Head: &Module{}}}
-	m, _, _ := Evaluate(areas, Rules)
+	m, _, _ := Evaluate(areas, Rules, changeFor(t, areas))
 	if err := CheckManifest(m, Rules, areas); err != nil {
 		t.Fatal(err)
 	}
