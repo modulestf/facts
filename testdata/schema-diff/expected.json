@@ -3,32 +3,67 @@
     {
       "mode": "data",
       "type": "aws_iam_policy_document",
-      "provider_source": "registry.terraform.io/hashicorp/aws"
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "."
+      ]
+    },
+    {
+      "mode": "data",
+      "type": "aws_region",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "examples/complete"
+      ]
+    },
+    {
+      "mode": "resource",
+      "type": "aws_fork_thing",
+      "provider_source": "registry.terraform.io/acme/aws-fork",
+      "dirs": [
+        "modules/child"
+      ]
     },
     {
       "mode": "resource",
       "type": "aws_gone_thing",
-      "provider_source": "registry.terraform.io/hashicorp/aws"
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "."
+      ]
     },
     {
       "mode": "resource",
       "type": "aws_new_thing",
-      "provider_source": "registry.terraform.io/hashicorp/aws"
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "."
+      ]
     },
     {
       "mode": "resource",
       "type": "aws_nowhere",
-      "provider_source": "registry.terraform.io/hashicorp/aws"
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "."
+      ]
     },
     {
       "mode": "resource",
       "type": "aws_s3_bucket",
-      "provider_source": "registry.terraform.io/hashicorp/aws"
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        ".",
+        "examples/complete"
+      ]
     },
     {
       "mode": "resource",
       "type": "example_widget",
-      "provider_source": "registry.terraform.io/acme/example"
+      "provider_source": "registry.terraform.io/acme/example",
+      "dirs": [
+        "modules/child"
+      ]
     }
   ],
   "changes": [
@@ -38,7 +73,13 @@
       "provider_source": "registry.terraform.io/hashicorp/aws",
       "path": [],
       "element": "type",
-      "change": "deprecated"
+      "change": "deprecated",
+      "from": {
+        "deprecated": false
+      },
+      "to": {
+        "deprecated": true
+      }
     },
     {
       "mode": "resource",
@@ -46,7 +87,11 @@
       "provider_source": "registry.terraform.io/hashicorp/aws",
       "path": [],
       "element": "type",
-      "change": "removed"
+      "change": "removed",
+      "from": {
+        "deprecated": false
+      },
+      "to": null
     },
     {
       "mode": "resource",
@@ -54,7 +99,11 @@
       "provider_source": "registry.terraform.io/hashicorp/aws",
       "path": [],
       "element": "type",
-      "change": "added"
+      "change": "added",
+      "from": null,
+      "to": {
+        "deprecated": false
+      }
     },
     {
       "mode": "resource",
@@ -62,7 +111,9 @@
       "provider_source": "registry.terraform.io/hashicorp/aws",
       "path": [],
       "element": "type",
-      "change": "absent"
+      "change": "absent",
+      "from": null,
+      "to": null
     },
     {
       "mode": "resource",
@@ -72,7 +123,25 @@
         "acl"
       ],
       "element": "argument",
-      "change": "deprecated"
+      "change": "deprecated",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": true,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
     },
     {
       "mode": "resource",
@@ -82,7 +151,17 @@
         "bucket_domain"
       ],
       "element": "attribute",
-      "change": "added"
+      "change": "added",
+      "from": null,
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": false,
+        "computed": true,
+        "sensitive": false,
+        "write_only": false
+      }
     },
     {
       "mode": "resource",
@@ -93,7 +172,73 @@
         "max_age"
       ],
       "element": "argument",
-      "change": "added"
+      "change": "added",
+      "from": null,
+      "to": {
+        "deprecated": false,
+        "attribute_type": "number",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "max_size"
+      ],
+      "element": "argument",
+      "change": "type_changed",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "number",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "owner"
+      ],
+      "element": "attribute",
+      "change": "no_longer_settable",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": false,
+        "computed": true,
+        "sensitive": false,
+        "write_only": false
+      }
     },
     {
       "mode": "resource",
@@ -103,7 +248,17 @@
         "policy"
       ],
       "element": "argument",
-      "change": "removed"
+      "change": "removed",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": null
     },
     {
       "mode": "resource",
@@ -113,7 +268,76 @@
         "region"
       ],
       "element": "argument",
-      "change": "added"
+      "change": "added",
+      "from": null,
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "rules"
+      ],
+      "element": "argument",
+      "change": "type_changed",
+      "from": {
+        "deprecated": false,
+        "nested_type": "list",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": [
+          "list",
+          "string"
+        ],
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "secret"
+      ],
+      "element": "argument",
+      "change": "write_only_changed",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": true
+      }
     },
     {
       "mode": "resource",
@@ -123,7 +347,59 @@
         "tags"
       ],
       "element": "argument",
-      "change": "newly_required"
+      "change": "newly_required",
+      "from": {
+        "deprecated": false,
+        "attribute_type": [
+          "map",
+          "string"
+        ],
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": [
+          "map",
+          "string"
+        ],
+        "required": true,
+        "optional": false,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "token"
+      ],
+      "element": "argument",
+      "change": "sensitive_changed",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": true,
+        "write_only": false
+      }
     },
     {
       "mode": "resource",
@@ -133,7 +409,14 @@
         "lifecycle_rule"
       ],
       "element": "block",
-      "change": "added"
+      "change": "added",
+      "from": null,
+      "to": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 1,
+        "max_items": 0
+      }
     },
     {
       "mode": "resource",
@@ -143,7 +426,14 @@
         "lifecycle_rule"
       ],
       "element": "block",
-      "change": "newly_required"
+      "change": "newly_required",
+      "from": null,
+      "to": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 1,
+        "max_items": 0
+      }
     },
     {
       "mode": "resource",
@@ -153,7 +443,58 @@
         "logging"
       ],
       "element": "block",
-      "change": "removed"
+      "change": "removed",
+      "from": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 0,
+        "max_items": 1
+      },
+      "to": null
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "replication"
+      ],
+      "element": "block",
+      "change": "newly_required",
+      "from": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 0,
+        "max_items": 1
+      },
+      "to": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 1,
+        "max_items": 1
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "replication"
+      ],
+      "element": "block",
+      "change": "nesting_changed",
+      "from": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 0,
+        "max_items": 1
+      },
+      "to": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 1,
+        "max_items": 1
+      }
     },
     {
       "mode": "resource",
@@ -163,7 +504,19 @@
         "versioning"
       ],
       "element": "block",
-      "change": "deprecated"
+      "change": "deprecated",
+      "from": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 0,
+        "max_items": 1
+      },
+      "to": {
+        "deprecated": true,
+        "nesting_mode": "list",
+        "min_items": 0,
+        "max_items": 1
+      }
     },
     {
       "mode": "resource",
@@ -174,7 +527,47 @@
         "enabled"
       ],
       "element": "argument",
-      "change": "newly_required"
+      "change": "newly_required",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "bool",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "bool",
+        "required": true,
+        "optional": false,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "website"
+      ],
+      "element": "block",
+      "change": "nesting_changed",
+      "from": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 0,
+        "max_items": 0
+      },
+      "to": {
+        "deprecated": false,
+        "nesting_mode": "set",
+        "min_items": 0,
+        "max_items": 0
+      }
     },
     {
       "mode": "resource",
@@ -184,7 +577,25 @@
         "size"
       ],
       "element": "argument",
-      "change": "newly_required"
+      "change": "newly_required",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "number",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "number",
+        "required": true,
+        "optional": false,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
     }
   ]
 }

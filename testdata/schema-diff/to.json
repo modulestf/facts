@@ -2,35 +2,97 @@
   "format_version": "1.0",
   "provider_schemas": {
     "registry.terraform.io/hashicorp/aws": {
-      "provider": {"version": 0, "block": {}},
+      "provider": {
+        "version": 0,
+        "block": {}
+      },
       "resource_schemas": {
         "aws_s3_bucket": {
           "version": 0,
           "block": {
             "attributes": {
-              "acl": {"type": "string", "optional": true, "deprecated": true},
-              "arn": {"type": "string", "computed": true},
-              "bucket": {"type": "string", "optional": true},
-              "bucket_domain": {"type": "string", "computed": true},
+              "acl": {
+                "type": "string",
+                "optional": true,
+                "deprecated": true
+              },
+              "arn": {
+                "type": "string",
+                "computed": true
+              },
+              "bucket": {
+                "type": "string",
+                "optional": true
+              },
+              "bucket_domain": {
+                "type": "string",
+                "computed": true
+              },
               "cors": {
                 "nested_type": {
                   "nesting_mode": "list",
                   "attributes": {
-                    "max_age": {"type": "number", "optional": true},
-                    "origins": {"type": ["list", "string"], "optional": true}
+                    "max_age": {
+                      "type": "number",
+                      "optional": true
+                    },
+                    "origins": {
+                      "type": [
+                        "list",
+                        "string"
+                      ],
+                      "optional": true
+                    }
                   }
                 },
                 "optional": true
               },
-              "region": {"type": "string", "optional": true},
-              "tags": {"type": ["map", "string"], "required": true}
+              "region": {
+                "type": "string",
+                "optional": true
+              },
+              "tags": {
+                "type": [
+                  "map",
+                  "string"
+                ],
+                "required": true
+              },
+              "max_size": {
+                "type": "string",
+                "optional": true
+              },
+              "owner": {
+                "type": "string",
+                "computed": true
+              },
+              "rules": {
+                "type": [
+                  "list",
+                  "string"
+                ],
+                "optional": true
+              },
+              "secret": {
+                "type": "string",
+                "optional": true,
+                "write_only": true
+              },
+              "token": {
+                "type": "string",
+                "optional": true,
+                "sensitive": true
+              }
             },
             "block_types": {
               "lifecycle_rule": {
                 "nesting_mode": "list",
                 "block": {
                   "attributes": {
-                    "id": {"type": "string", "required": true}
+                    "id": {
+                      "type": "string",
+                      "required": true
+                    }
                   }
                 },
                 "min_items": 1
@@ -39,11 +101,38 @@
                 "nesting_mode": "list",
                 "block": {
                   "attributes": {
-                    "enabled": {"type": "bool", "required": true}
+                    "enabled": {
+                      "type": "bool",
+                      "required": true
+                    }
                   },
                   "deprecated": true
                 },
                 "max_items": 1
+              },
+              "replication": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "role": {
+                      "type": "string",
+                      "optional": true
+                    }
+                  }
+                },
+                "min_items": 1,
+                "max_items": 1
+              },
+              "website": {
+                "nesting_mode": "set",
+                "block": {
+                  "attributes": {
+                    "index": {
+                      "type": "string",
+                      "optional": true
+                    }
+                  }
+                }
               }
             }
           }
@@ -52,7 +141,10 @@
           "version": 0,
           "block": {
             "attributes": {
-              "id": {"type": "string", "computed": true}
+              "id": {
+                "type": "string",
+                "computed": true
+              }
             }
           }
         }
@@ -62,32 +154,77 @@
           "version": 0,
           "block": {
             "attributes": {
-              "json": {"type": "string", "computed": true},
-              "version": {"type": "string", "optional": true}
+              "json": {
+                "type": "string",
+                "computed": true
+              },
+              "version": {
+                "type": "string",
+                "optional": true
+              }
             },
             "block_types": {
               "statement": {
                 "nesting_mode": "list",
                 "block": {
                   "attributes": {
-                    "sid": {"type": "string", "optional": true}
+                    "sid": {
+                      "type": "string",
+                      "optional": true
+                    }
                   }
                 }
               }
             },
             "deprecated": true
           }
+        },
+        "aws_region": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": {
+                "type": "string",
+                "computed": true
+              }
+            }
+          }
         }
       }
     },
     "registry.terraform.io/acme/example": {
-      "provider": {"version": 0, "block": {}},
+      "provider": {
+        "version": 0,
+        "block": {}
+      },
       "resource_schemas": {
         "example_widget": {
           "version": 0,
           "block": {
             "attributes": {
-              "size": {"type": "number", "required": true}
+              "size": {
+                "type": "number",
+                "required": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "registry.terraform.io/acme/aws-fork": {
+      "provider": {
+        "version": 0,
+        "block": {}
+      },
+      "resource_schemas": {
+        "aws_fork_thing": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "computed": true
+              }
             }
           }
         }
