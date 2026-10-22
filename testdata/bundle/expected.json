@@ -1,0 +1,129 @@
+{
+  "tool_findings": [
+    {
+      "id": "F-001",
+      "rule_id": "examples.versions-missing",
+      "severity": "MEDIUM",
+      "file": "examples/complete",
+      "line": null,
+      "summary": "No versions.tf.",
+      "suggested_fix": "Add one.",
+      "source": "tool",
+      "subject": "examples/complete"
+    },
+    {
+      "id": "F-002",
+      "rule_id": "structure.missing-description",
+      "severity": "MEDIUM",
+      "file": "variables.tf",
+      "line": 3,
+      "summary": "No description.",
+      "suggested_fix": "Add one.",
+      "source": "tool",
+      "subject": ".:var.name"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"retention_days\" {"
+          }
+        ],
+        "base": "variable \"retention_days\" {}",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ],
+  "area_rules": [
+    {
+      "area": ".",
+      "rules": [
+        {
+          "rule_id": "compat.variable-removed",
+          "status": "candidate"
+        },
+        {
+          "rule_id": "coverage.unknown-argument",
+          "status": "not_evaluated",
+          "reason": "section_unavailable"
+        },
+        {
+          "rule_id": "structure.missing-description",
+          "status": "finding"
+        },
+        {
+          "rule_id": "structure.variable-untyped",
+          "status": "not_evaluated",
+          "reason": "parse_error"
+        }
+      ]
+    },
+    {
+      "area": "examples/complete",
+      "rules": [
+        {
+          "rule_id": "examples.versions-missing",
+          "status": "finding"
+        }
+      ]
+    }
+  ],
+  "interface_diff": {
+    "head_sha": "1111111111111111111111111111111111111111",
+    "merge_base_sha": "2222222222222222222222222222222222222222",
+    "areas": [
+      {
+        "path": ".",
+        "kind": "root",
+        "required_version": null,
+        "variables": [
+          {
+            "base": {
+              "default": null,
+              "description": null,
+              "nullable": true,
+              "sensitive": false,
+              "type": null,
+              "validation": []
+            },
+            "change": "removed",
+            "head": null,
+            "name": "retention_days"
+          }
+        ],
+        "outputs": [],
+        "providers": [],
+        "resources": [],
+        "moved": [],
+        "module_calls": []
+      }
+    ]
+  },
+  "file_index": [
+    {
+      "path": "examples/complete/main.tf",
+      "change": "added"
+    },
+    {
+      "path": "outputs.tf",
+      "change": "removed"
+    },
+    {
+      "path": "variables.tf",
+      "change": "modified"
+    }
+  ],
+  "severity_needed": []
+}
