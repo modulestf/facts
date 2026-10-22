@@ -12,9 +12,9 @@ Each fixture is a directory:
 |------|------------|
 | `head/` | The tree under review. |
 | `base/` | The merge-base tree. Absent in `no-base`, which runs without `--base`. |
-| `empty-base` | Marker: the base is an empty tree. the oracle test creates `base/` as an empty directory. |
+| `empty-base` | Marker: the base is an empty tree. The oracle test creates `base/` as an empty directory. |
 | `symlinks.txt` | Links the oracle test creates, one `<link> <target>` per line. The link sits under `head/` or `base/` with no `..` or `.` component, and its target, resolved from the link's directory, stays inside the fixture; the oracle test refuses anything else. |
-| `head/**/gitattributes` | A `.gitattributes` file, stored without the dot. the oracle test renames it. |
+| `head/**/gitattributes` | A `.gitattributes` file, stored without the dot. The oracle test renames it. |
 | `schema-handoff.json` | The schema handoff the engine reads, in the shape of `schema-handoff.schema.json`. Only the `coverage-*` fixtures and `compat-versions-floor` have one. |
 | `outside.tf` | In `symlinks` only: the file a link points to from outside the tree. |
 | `expected.json` | The oracle: `manifest`, `findings` and `candidates`. |
@@ -27,7 +27,7 @@ Git keeps no empty directory, and a link or a `.gitattributes` in this repositor
 go test ./internal/facts -run TestOracle
 ```
 
-`TestOracle` copies each fixture into a temporary directory and does what the oracle test did in the repository the fixtures came from: it creates the links, renames `gitattributes`, creates an empty `base/`, and refuses an unsafe link. It runs the engine on `head/` with `base/`, `schema-handoff.json` and a `profile/` directory when the fixture has them, and compares the results of the implemented rules only, on the keys below. A rule that lands is compared from then on; the oracle files do not change. `TestEveryRuleHasGoldenCases` counts these fixtures as positive and negative cases.
+`TestOracle` copies each fixture into a temporary directory and does what the setup script in the repository the fixtures came from did: it creates the links, renames `gitattributes`, creates an empty `base/`, and refuses an unsafe link. It runs the engine on `head/` with `base/`, `schema-handoff.json` and a `profile/` directory when the fixture has them, and compares the results of the implemented rules only, on the keys below. A rule that lands is compared from then on; the oracle files do not change. `TestEveryRuleHasGoldenCases` counts these fixtures as positive and negative cases.
 
 ## The oracle
 
@@ -166,7 +166,7 @@ Adversarial cases:
 
 ## Comparison with the binary
 
-On 2026-10-21 the binary built from the facts repository's default branch implemented `examples.versions-missing`, `structure.missing-description` and `structure.variable-untyped`. Run on every fixture after the oracle test, it matched these oracles on every status, finding and candidate of those rules, with no difference, `submodule-only` and `example-only` included: it scopes the root only when the change touches it, counts `.github/` and the root profile files as the root, and writes area-scoped subjects.
+On 2026-10-21 the binary built from the facts repository's default branch implemented `examples.versions-missing`, `structure.missing-description` and `structure.variable-untyped`. Run on every fixture after the setup script in the repository the fixtures came from, it matched these oracles on every status, finding and candidate of those rules, with no difference, `submodule-only` and `example-only` included: it scopes the root only when the change touches it, counts `.github/` and the root profile files as the root, and writes area-scoped subjects.
 
 None of its three rules is a cross-area rule, so convention 1's single `.` entry and the cross-area pass show no difference yet; the engine change is tracked in the facts repository's beads.
 
