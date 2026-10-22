@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -78,7 +79,9 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 		if name, ok := strings.CutPrefix(ref, "#/$defs/"); ok {
 			target = set[doc]["$defs"].(map[string]any)[name].(map[string]any)
 		} else {
-			file, target = ref, set[ref]
+			// A ref by $id URL names the file by its last segment.
+			file = path.Base(ref)
+			target = set[file]
 		}
 		if target == nil {
 			fail("unresolved $ref %q", ref)
@@ -202,7 +205,10 @@ func TestSchemaValidatorRejects(t *testing.T) {
 		"bad status":    `[{"rule_id":"structure.variable-untyped","area":".","status":"ok"}]`,
 		"extra field":   `[{"rule_id":"structure.variable-untyped","area":".","status":"clean","x":1}]`,
 		"bad rule id":   `[{"rule_id":"Structure","area":".","status":"clean"}]`,
-		"empty reason":  `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":""}]`,
+		"empty reason":  `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":"","reason_code":"parse_error"}]`,
+		"no code":       `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":"x"}]`,
+		"open code":     `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":"x","reason_code":"other"}]`,
+		"code on clean": `[{"rule_id":"a.b","area":".","status":"clean","reason_code":"parse_error"}]`,
 		"not an array":  `{}`,
 	}
 	for name, doc := range bad {
@@ -210,7 +216,7 @@ func TestSchemaValidatorRejects(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
-	good := `[{"rule_id":"a.b-c","area":"modules/x","status":"not_evaluated","reason":"main.tf: parse error"}]`
+	good := `[{"rule_id":"a.b-c","area":"modules/x","status":"not_evaluated","reason":"main.tf: parse error","reason_code":"parse_error"}]`
 	if errs := set.validate("manifest.schema.json", decodeJSON(t, []byte(good))); len(errs) > 0 {
 		t.Error(errs)
 	}
@@ -219,7 +225,7 @@ func TestSchemaValidatorRejects(t *testing.T) {
 func TestReportMatchesSchemas(t *testing.T) {
 	set := loadSchemas(t)
 	base := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": ""})
-	head := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": "variable \"x\" {}\n", "examples/e/x.tf": "->../../main.tf"})
+	head := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": "# Free-form.\nvariable \"x\" { type = any }\n", "modules/b/main.tf": "variable {", "examples/e/x.tf": "->../../main.tf"})
 	reg := filepath.Join(t.TempDir(), "rule-facts.md")
 	if err := os.WriteFile(reg, []byte("# registry\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -233,21 +239,38 @@ func TestReportMatchesSchemas(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		data, err := json.Marshal(r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		v := decodeJSON(t, data)
-		if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
-			t.Errorf("lint schema: %v\n%s", errs, data)
-		}
-		m := v.(map[string]any)
-		if errs := set.validate("envelope.schema.json", m["envelope"]); len(errs) > 0 {
-			t.Errorf("envelope schema: %v", errs)
-		}
-		if errs := set.validate("manifest.schema.json", m["manifest"]); len(errs) > 0 {
-			t.Errorf("manifest schema: %v", errs)
-		}
+		checkReport(t, set, r)
+		// The keys later inputs and builders fill, filled by hand.
+		sum := strings.Repeat("c", 64)
+		r.Envelope.ProfileSHA256 = &sum
+		r.Envelope.SchemaInputs = &SchemaInputs{HandoffSHA256: sum, HeadSHA: strings.Repeat("a", 40), MergeBaseSHA: strings.Repeat("b", 40),
+			TreeHashes: TreeHashes{Head: sum, MergeBase: sum}, SchemaFiles: []FileHash{{Path: "aws.json", SHA256: sum}}}
+		r.Index = []IndexEntry{{File: "modules/a/main.tf", StartLine: 2, EndLine: 2, Subject: "modules/a:var.x"}}
+		checkReport(t, set, r)
+	}
+}
+
+// checkReport validates a report against the lint, envelope and manifest
+// schemas, and requires one not_evaluated entry with a reason code.
+func checkReport(t *testing.T, set schemaSet, r *Report) {
+	t.Helper()
+	data, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := decodeJSON(t, data)
+	if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
+		t.Errorf("lint schema: %v\n%s", errs, data)
+	}
+	m := v.(map[string]any)
+	if errs := set.validate("envelope.schema.json", m["envelope"]); len(errs) > 0 {
+		t.Errorf("envelope schema: %v", errs)
+	}
+	if errs := set.validate("manifest.schema.json", m["manifest"]); len(errs) > 0 {
+		t.Errorf("manifest schema: %v", errs)
+	}
+	if !strings.Contains(string(data), `"reason_code":"parse_error"`) {
+		t.Errorf("no not_evaluated entry with a reason code: %s", data)
 	}
 }
 

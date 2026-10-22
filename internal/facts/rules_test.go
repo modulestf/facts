@@ -156,8 +156,8 @@ func TestVariableEvidenceCap(t *testing.T) {
 		t.Fatalf("candidates %+v", r.Candidates)
 	}
 	c := r.Candidates[0]
-	if ev := c.Evidence.(VariableEvidence); c.EvidenceComplete || len(*ev.Type) != maxEvidenceText {
-		t.Errorf("cap did not bite: complete=%v len=%d", c.EvidenceComplete, len(*ev.Type))
+	if ev := c.Evidence; c.EvidenceComplete || len(*ev.Head) != maxEvidenceText || ev.Base != nil {
+		t.Errorf("cap did not bite: complete=%v len=%d base=%v", c.EvidenceComplete, len(*ev.Head), ev.Base)
 	}
 }
 

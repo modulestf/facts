@@ -38,12 +38,26 @@ type Options struct {
 	Limits        Limits
 }
 
-// Report is the whole output of one run.
+// Report is the whole output of one run. Index and InterfaceDiff are
+// optional: a run leaves them out until their builders fill them.
 type Report struct {
 	Envelope   Envelope        `json:"envelope"`
 	Manifest   []ManifestEntry `json:"manifest"`
 	Findings   []Finding       `json:"findings"`
 	Candidates []Candidate     `json:"candidates"`
+	Index      []IndexEntry    `json:"index,omitempty"`
+	// InterfaceDiff holds a document of schema/interface-diff.schema.json.
+	InterfaceDiff any `json:"interface_diff,omitempty"`
+}
+
+// IndexEntry maps the lines of one block or argument to its area-scoped
+// subject, "<area>:<address>". Entries nest; the innermost range that holds
+// a line names that line's subject.
+type IndexEntry struct {
+	File      string `json:"file"`
+	StartLine int    `json:"start_line"`
+	EndLine   int    `json:"end_line"`
+	Subject   string `json:"subject"`
 }
 
 // Envelope binds a report to its inputs and to the binary that wrote it.
@@ -54,6 +68,32 @@ type Envelope struct {
 	MergeBaseSHA   *string `json:"merge_base_sha"`
 	RegistrySHA256 *string `json:"registry_sha256"`
 	Inputs         Inputs  `json:"inputs"`
+	// SchemaInputs and ProfileSHA256 are null when the run read no schema
+	// handoff or no profile.
+	SchemaInputs  *SchemaInputs `json:"schema_inputs"`
+	ProfileSHA256 *string       `json:"profile_sha256"`
+}
+
+// SchemaInputs binds a report to the schema handoff it read: the handoff's
+// own hash, the commits and .tf tree hashes the handoff records, and a hash
+// per raw provider schema file.
+type SchemaInputs struct {
+	HandoffSHA256 string     `json:"handoff_sha256"`
+	HeadSHA       string     `json:"head_sha"`
+	MergeBaseSHA  string     `json:"merge_base_sha"`
+	TreeHashes    TreeHashes `json:"tree_hashes"`
+	SchemaFiles   []FileHash `json:"schema_files"`
+}
+
+// TreeHashes are the handoff's tree_hash per revision.
+type TreeHashes struct {
+	Head      string `json:"head"`
+	MergeBase string `json:"merge_base"`
+}
+
+type FileHash struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }
 
 type Tool struct {

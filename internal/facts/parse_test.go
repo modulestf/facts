@@ -76,7 +76,7 @@ func TestParseDir(t *testing.T) {
 	}
 	wantVars := []Variable{
 		{Name: "typed", File: "main.tf", Line: 11, HasType: true, TypeText: "string", HasDescription: true},
-		{Name: "loose", File: "main.tf", Line: 17, HasType: true, TypeText: "any", TypeUsesAny: true, Comments: []string{"# Accepts a list or a map."}},
+		{Name: "loose", File: "main.tf", Line: 17, HasType: true, TypeText: "any", TypeUsesAny: true, Comments: []Comment{{Line: 16, Text: "# Accepts a list or a map."}}},
 		{Name: "nested", File: "main.tf", Line: 21, HasType: true, TypeText: "map(object({ x = optional(any) }))", TypeUsesAny: true},
 	}
 	if !reflect.DeepEqual(m.Variables, wantVars) {

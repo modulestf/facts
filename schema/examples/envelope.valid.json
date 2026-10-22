@@ -39,5 +39,21 @@
         }
       ]
     }
-  }
+  },
+  "schema_inputs": {
+    "handoff_sha256": "3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a",
+    "head_sha": "1111111111111111111111111111111111111111",
+    "merge_base_sha": "2222222222222222222222222222222222222222",
+    "tree_hashes": {
+      "head": "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+      "merge_base": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c"
+    },
+    "schema_files": [
+      {
+        "path": "registry.terraform.io/hashicorp/aws/6.20.0.json",
+        "sha256": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d"
+      }
+    ]
+  },
+  "profile_sha256": "7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e"
 }

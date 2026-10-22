@@ -39,5 +39,7 @@
         }
       ]
     }
-  }
+  },
+  "schema_inputs": null,
+  "profile_sha256": null
 }

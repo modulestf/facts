@@ -13,5 +13,12 @@
     "rule_id": "structure.variable-untyped",
     "area": ".",
     "status": "candidate"
+  },
+  {
+    "rule_id": "structure.variable-untyped",
+    "area": "modules/json",
+    "status": "not_evaluated",
+    "reason": "main.tf.json is a JSON configuration file",
+    "reason_code": "unsupported_file"
   }
 ]

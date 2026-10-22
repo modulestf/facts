@@ -1,0 +1,94 @@
+{
+  "envelope": {
+    "schema_version": 1,
+    "tool": {
+      "name": "mtf-facts",
+      "version": "v0.1.0",
+      "binary_sha256": "2967a0e2142bbf18507684ef74f689ebb5c9be3bdbed0aaa9708e761312a863a"
+    },
+    "head_sha": "1111111111111111111111111111111111111111",
+    "merge_base_sha": "2222222222222222222222222222222222222222",
+    "registry_sha256": null,
+    "inputs": {
+      "head": {
+        "tree_sha256": "19857b185eb00dc35517dc2af61a97333c2ae8aabe62e30d7c690ac0559a8819",
+        "files": [
+          {
+            "path": "modules/child/variables.tf",
+            "kind": "file",
+            "sha256": "74e104e88a981b630f6b70cf8fb1e1e66335e7ae8a319521a548b6e623c10988"
+          },
+          {
+            "path": "variables.tf",
+            "kind": "file",
+            "sha256": "83fb07723195af70805de34b0189bf7459fc9c95f7946cce78a946debd946511"
+          }
+        ]
+      },
+      "base": {
+        "tree_sha256": "cb6d103da7b305e8c431d7528fd9d112b9c69ab7e2ca1ee2123e284597cd80a8",
+        "files": [
+          {
+            "path": "modules/child/variables.tf",
+            "kind": "file",
+            "sha256": "74e104e88a981b630f6b70cf8fb1e1e66335e7ae8a319521a548b6e623c10988"
+          },
+          {
+            "path": "variables.tf",
+            "kind": "file",
+            "sha256": "c9f58508820c4f5675a0a535d1fb2ea10a8db0c8c58eff81a822e65c6a6b44e9"
+          }
+        ]
+      }
+    },
+    "schema_inputs": {
+      "handoff_sha256": "3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a",
+      "head_sha": "1111111111111111111111111111111111111111",
+      "merge_base_sha": "2222222222222222222222222222222222222222",
+      "tree_hashes": {
+        "head": "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+        "merge_base": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c"
+      },
+      "schema_files": [
+        {
+          "path": "registry.terraform.io/hashicorp/aws/6.20.0.json",
+          "sha256": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d"
+        }
+      ]
+    },
+    "profile_sha256": "7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e"
+  },
+  "manifest": [
+    {
+      "rule_id": "examples.versions-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.missing-description",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.variable-untyped",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.variable-untyped",
+      "file": "variables.tf",
+      "line": 5,
+      "subject": ".:var.added",
+      "evidence": {
+        "variable": "added",
+        "type": null,
+        "comments": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

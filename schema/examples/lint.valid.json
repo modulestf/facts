@@ -40,7 +40,23 @@
           }
         ]
       }
-    }
+    },
+    "schema_inputs": {
+      "handoff_sha256": "3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a",
+      "head_sha": "1111111111111111111111111111111111111111",
+      "merge_base_sha": "2222222222222222222222222222222222222222",
+      "tree_hashes": {
+        "head": "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+        "merge_base": "5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c"
+      },
+      "schema_files": [
+        {
+          "path": "registry.terraform.io/hashicorp/aws/6.20.0.json",
+          "sha256": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d"
+        }
+      ]
+    },
+    "profile_sha256": "7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e"
   },
   "manifest": [
     {
@@ -68,11 +84,170 @@
       "line": 5,
       "subject": ".:var.added",
       "evidence": {
-        "variable": "added",
-        "type": null,
-        "comments": []
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 4,
+            "text": "# Accepts a string or a list."
+          }
+        ],
+        "base": null,
+        "head": "any",
+        "schema_facts": []
       },
       "evidence_complete": true
     }
-  ]
+  ],
+  "index": [
+    {
+      "file": "variables.tf",
+      "start_line": 5,
+      "end_line": 8,
+      "subject": ".:var.added"
+    },
+    {
+      "file": "variables.tf",
+      "start_line": 6,
+      "end_line": 6,
+      "subject": ".:var.added.type"
+    }
+  ],
+  "interface_diff": {
+    "head_sha": "1111111111111111111111111111111111111111",
+    "merge_base_sha": "2222222222222222222222222222222222222222",
+    "areas": [
+      {
+        "path": ".",
+        "kind": "root",
+        "required_version": {
+          "base": ">= 1.3",
+          "head": ">= 1.5.7"
+        },
+        "variables": [
+          {
+            "name": "retention_days",
+            "change": "removed",
+            "base": {
+              "type": "number",
+              "default": "30",
+              "nullable": true,
+              "sensitive": false,
+              "description": null,
+              "validation": []
+            },
+            "head": null
+          },
+          {
+            "name": "name",
+            "change": "changed",
+            "base": {
+              "type": "string",
+              "default": "\"\"",
+              "nullable": true,
+              "sensitive": false,
+              "description": null,
+              "validation": []
+            },
+            "head": {
+              "type": "string",
+              "default": null,
+              "nullable": false,
+              "sensitive": false,
+              "description": "\"Name of the thing.\"",
+              "validation": [
+                {
+                  "condition": "length(var.name) <= 64",
+                  "error_message": "\"name must be 64 characters or fewer, got ${length(var.name)}.\""
+                }
+              ]
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "name": "arn",
+            "change": "added",
+            "base": null,
+            "head": {
+              "value": "try(aws_example_thing.this[0].arn, null)",
+              "sensitive": false,
+              "description": "\"ARN of the thing.\""
+            }
+          }
+        ],
+        "providers": [
+          {
+            "local_name": "aws",
+            "change": "changed",
+            "base": {
+              "source": "hashicorp/aws",
+              "version_constraint": ">= 5.95",
+              "configuration_aliases": []
+            },
+            "head": {
+              "source": "hashicorp/aws",
+              "version_constraint": ">= 6.0",
+              "configuration_aliases": []
+            }
+          }
+        ],
+        "resources": [
+          {
+            "address": "aws_example_thing.this",
+            "change": "changed",
+            "base": {
+              "count": "var.create ? 1 : 0",
+              "for_each": null,
+              "provider": null
+            },
+            "head": {
+              "count": null,
+              "for_each": "var.things",
+              "provider": null
+            }
+          }
+        ],
+        "moved": [
+          {
+            "from": "aws_example_thing.this",
+            "change": "added",
+            "base": null,
+            "head": {
+              "to": "aws_example_thing.this[\"default\"]"
+            }
+          }
+        ],
+        "module_calls": []
+      },
+      {
+        "path": "examples/complete",
+        "kind": "example",
+        "required_version": null,
+        "variables": [],
+        "outputs": [],
+        "providers": [],
+        "resources": [],
+        "moved": [],
+        "module_calls": [
+          {
+            "name": "example",
+            "change": "changed",
+            "base": {
+              "source": "../../",
+              "version": null,
+              "count": null,
+              "for_each": null
+            },
+            "head": {
+              "source": "../../",
+              "version": null,
+              "count": "0",
+              "for_each": null
+            }
+          }
+        ]
+      }
+    ]
+  }
 }

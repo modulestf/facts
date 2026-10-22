@@ -19,10 +19,13 @@ const (
 
 // Reason codes, from the closed list of not_evaluated reasons.
 const (
-	ReasonParseError      = "parse_error"
-	ReasonUnsupportedFile = "unsupported_file"
-	ReasonSymlink         = "symlink"
-	ReasonLimitExceeded   = "limit_exceeded"
+	ReasonParseError         = "parse_error"
+	ReasonUnsupportedFile    = "unsupported_file"
+	ReasonSymlink            = "symlink"
+	ReasonLimitExceeded      = "limit_exceeded"
+	ReasonNoBase             = "no_base"
+	ReasonSchemaUnavailable  = "schema_unavailable"
+	ReasonProfileUnavailable = "profile_unavailable"
 )
 
 // Rule classes: a path rule still runs when the configuration cannot be parsed.
@@ -68,13 +71,13 @@ type Result struct {
 
 // Candidate is a detected defect a model or an author confirms or rejects.
 type Candidate struct {
-	CandidateID      string `json:"candidate_id"`
-	RuleID           string `json:"rule_id"`
-	File             string `json:"file"`
-	Line             *int   `json:"line"`
-	Subject          string `json:"subject"`
-	Evidence         any    `json:"evidence"`
-	EvidenceComplete bool   `json:"evidence_complete"`
+	CandidateID      string   `json:"candidate_id"`
+	RuleID           string   `json:"rule_id"`
+	File             string   `json:"file"`
+	Line             *int     `json:"line"`
+	Subject          string   `json:"subject"`
+	Evidence         Evidence `json:"evidence"`
+	EvidenceComplete bool     `json:"evidence_complete"`
 }
 
 // Finding has the seven fields of the reviewer's findings schema.
@@ -94,6 +97,8 @@ type ManifestEntry struct {
 	Area   string `json:"area"`
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`
+	// ReasonCode is set with Reason: one of the Reason constants.
+	ReasonCode string `json:"reason_code,omitempty"`
 }
 
 // Evaluate runs every rule on every area in scope and returns one manifest
@@ -179,7 +184,10 @@ func manifestEntry(rule, area string, res Result) ManifestEntry {
 	case res.NotEvaluated == StatusNotApplicable:
 		e.Status = StatusNotApplicable
 	case res.NotEvaluated != "":
-		e.Status, e.Reason = StatusNotEvaluated, res.NotEvaluated
+		e.Status, e.Reason, e.ReasonCode = StatusNotEvaluated, res.NotEvaluated, res.Code
+		if e.ReasonCode == "" {
+			e.ReasonCode = ReasonUnsupportedFile // shortcut: a rule that sets no code; every rule here sets one
+		}
 	case len(res.Findings) > 0:
 		e.Status = StatusFinding
 	case len(res.Candidates) > 0:

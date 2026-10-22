@@ -19,7 +19,8 @@
       "rule_id": "structure.missing-description",
       "area": ".",
       "status": "not_evaluated",
-      "reason": "override.tf is an override file"
+      "reason": "override.tf is an override file",
+      "reason_code": "unsupported_file"
     },
     {
       "rule_id": "structure.missing-description",
@@ -30,13 +31,15 @@
       "rule_id": "structure.missing-description",
       "area": "modules/json",
       "status": "not_evaluated",
-      "reason": "main.tf.json is a JSON configuration file"
+      "reason": "main.tf.json is a JSON configuration file",
+      "reason_code": "unsupported_file"
     },
     {
       "rule_id": "structure.variable-untyped",
       "area": ".",
       "status": "not_evaluated",
-      "reason": "override.tf is an override file"
+      "reason": "override.tf is an override file",
+      "reason_code": "unsupported_file"
     },
     {
       "rule_id": "structure.variable-untyped",
@@ -47,7 +50,8 @@
       "rule_id": "structure.variable-untyped",
       "area": "modules/json",
       "status": "not_evaluated",
-      "reason": "main.tf.json is a JSON configuration file"
+      "reason": "main.tf.json is a JSON configuration file",
+      "reason_code": "unsupported_file"
     }
   ],
   "findings": [],

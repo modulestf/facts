@@ -77,16 +77,39 @@ func finding(rule, area, file string, line int, summary, fix string) Finding {
 	return Finding{RuleID: rule, Severity: "MEDIUM", File: areaFile(area, file), Line: &l, Summary: summary, SuggestedFix: fix}
 }
 
-// VariableEvidence is the evidence of a structure.variable-untyped candidate.
-type VariableEvidence struct {
-	Variable string   `json:"variable"`
-	Type     *string  `json:"type"`     // source text of the type, null when absent
-	Comments []string `json:"comments"` // comments inside the block or on the line above it
+// Evidence is a candidate's evidence, in the shape the facts bundle carries:
+// the source lines the rule read, the base and head values as source text,
+// and the schema facts it used.
+type Evidence struct {
+	SourceLines []SourceLine `json:"source_lines"`
+	Base        *string      `json:"base"` // null when absent at base
+	Head        *string      `json:"head"` // null when absent at head
+	SchemaFacts []SchemaFact `json:"schema_facts"`
+}
+
+// SourceLine is one line of source text. Revision is "head" or "merge_base".
+type SourceLine struct {
+	Revision string `json:"revision"`
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Text     string `json:"text"`
+}
+
+// SchemaFact is the state of one argument or block path in one provider
+// schema version: present, absent, deprecated or unknown.
+type SchemaFact struct {
+	ProviderSource string `json:"provider_source"`
+	Version        string `json:"version"`
+	Type           string `json:"type"`
+	Path           string `json:"path"`
+	State          string `json:"state"`
 }
 
 // structure.variable-untyped is a candidate rule: whether a comment gives a
 // reason for `any` is prose, which the engine does not judge. A new variable
-// with no type, or whose type uses `any`, is a candidate with its evidence.
+// with no type, or whose type uses `any`, is a candidate. Its evidence is the
+// type source text as head, null base (the variable is new) and the comments
+// inside the block or on the line above it as source lines.
 func checkVariableUntyped(a *Area) Result {
 	var res Result
 	for _, v := range a.Head.Variables {
@@ -102,21 +125,22 @@ func checkVariableUntyped(a *Area) Result {
 			return s
 		}
 		name := capText(v.Name)
-		ev := VariableEvidence{Variable: name, Comments: []string{}}
+		file := areaFile(a.Path, v.File)
+		ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
 		if v.HasType {
 			t := capText(v.TypeText)
-			ev.Type = &t
+			ev.Head = &t
 		}
 		for i, c := range v.Comments {
 			if i == maxEvidenceComments {
 				complete = false
 				break
 			}
-			ev.Comments = append(ev.Comments, capText(c))
+			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: c.Line, Text: capText(c.Text)})
 		}
 		line := v.Line
 		res.Candidates = append(res.Candidates, Candidate{
-			RuleID: "structure.variable-untyped", File: areaFile(a.Path, v.File), Line: &line,
+			RuleID: "structure.variable-untyped", File: file, Line: &line,
 			Subject: subject(a.Path, "var."+name), Evidence: ev, EvidenceComplete: complete,
 		})
 	}

@@ -29,8 +29,8 @@ func TestEvaluateStatuses(t *testing.T) {
 	m, fs, cs := Evaluate(areas, []Rule{finding, path})
 	want := []ManifestEntry{
 		{RuleID: "test.finding", Area: ".", Status: StatusFinding},
-		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error"},
-		{RuleID: "test.finding", Area: "modules/old", Status: StatusNotEvaluated, Reason: "at base: x.tf.json is a JSON configuration file"},
+		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error", ReasonCode: ReasonUnsupportedFile}, // a hand-built Module has no codes,
+		{RuleID: "test.finding", Area: "modules/old", Status: StatusNotEvaluated, Reason: "at base: x.tf.json is a JSON configuration file", ReasonCode: ReasonUnsupportedFile},
 		{RuleID: "test.path", Area: ".", Status: StatusNotApplicable},
 		{RuleID: "test.path", Area: "modules/bad", Status: StatusClean},
 		{RuleID: "test.path", Area: "modules/old", Status: StatusCandidate},
@@ -113,11 +113,11 @@ func TestEvaluateCrossArea(t *testing.T) {
 		},
 		"parse error in one area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modBad},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError},
 		},
 		"unreadable area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modLink},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink, ReasonCode: ReasonSymlink},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -172,7 +172,7 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 		},
 		"untouched root that cannot be parsed": {
 			baseRoot: "variable {", headRoot: "variable {",
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -246,7 +246,7 @@ func TestCrossAreaPassNotEvaluated(t *testing.T) {
 					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
 				}}
 			m, fs, cs := Evaluate(areas, []Rule{rule})
-			want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: tc.want}}
+			want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: tc.want, ReasonCode: tc.want}}
 			if !reflect.DeepEqual(m, want) {
 				t.Errorf("manifest\n got %+v\nwant %+v", m, want)
 			}
@@ -286,7 +286,7 @@ func TestRunReadsUntouchedAreasForCrossAreaRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError}}
+	want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError}}
 	if !reflect.DeepEqual(r.Manifest, want) {
 		t.Errorf("manifest\n got %+v\nwant %+v", r.Manifest, want)
 	}

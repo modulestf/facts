@@ -184,7 +184,7 @@ func TestLongNamesAreCapped(t *testing.T) {
 		t.Fatalf("candidates %+v", r.Candidates)
 	}
 	c := r.Candidates[0]
-	if c.EvidenceComplete || len(c.Subject) > maxEvidenceText+20 || len(c.Evidence.(VariableEvidence).Variable) != maxEvidenceText {
+	if c.EvidenceComplete || len(c.Subject) > maxEvidenceText+20 || c.Subject != ".:var."+long[:maxEvidenceText] {
 		t.Errorf("not capped: complete=%v subject=%d", c.EvidenceComplete, len(c.Subject))
 	}
 	if len(r.Findings[0].Summary) > maxEvidenceText+200 {

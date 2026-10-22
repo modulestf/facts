@@ -2,17 +2,36 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "manifest.schema.json",
   "title": "mtf-facts manifest",
-  "description": "One entry per in-scope (rule, area).",
+  "description": "One entry per in-scope (rule, area). A not_evaluated entry carries its reason as text and as a code from a closed list.",
   "type": "array",
   "items": {
-    "type": "object",
-    "additionalProperties": false,
-    "required": ["rule_id", "area", "status"],
-    "properties": {
-      "rule_id": {"type": "string", "pattern": "^[a-z]+\\.[a-z0-9]+(-[a-z0-9]+)*$"},
-      "area": {"type": "string", "minLength": 1},
-      "status": {"enum": ["clean", "finding", "candidate", "not_evaluated", "not_applicable"]},
-      "reason": {"type": "string", "minLength": 1}
-    }
+    "oneOf": [
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "area", "status"],
+        "properties": {
+          "rule_id": {"$ref": "#/$defs/rule_id"},
+          "area": {"$ref": "#/$defs/area"},
+          "status": {"enum": ["clean", "finding", "candidate", "not_applicable"]}
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "area", "status", "reason", "reason_code"],
+        "properties": {
+          "rule_id": {"$ref": "#/$defs/rule_id"},
+          "area": {"$ref": "#/$defs/area"},
+          "status": {"enum": ["not_evaluated"]},
+          "reason": {"type": "string", "minLength": 1},
+          "reason_code": {"enum": ["parse_error", "unsupported_file", "symlink", "limit_exceeded", "no_base", "schema_unavailable", "profile_unavailable"]}
+        }
+      }
+    ]
+  },
+  "$defs": {
+    "rule_id": {"type": "string", "pattern": "^[a-z]+\\.[a-z0-9]+(-[a-z0-9]+)*$"},
+    "area": {"type": "string", "minLength": 1}
   }
 }
