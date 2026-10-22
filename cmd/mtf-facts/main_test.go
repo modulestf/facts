@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -204,5 +205,35 @@ func TestLintEngineDeadlineIsTimeout(t *testing.T) {
 	}
 	if errb.String() != "mtf-facts: timeout\n" || out.Len() != 0 {
 		t.Errorf("stdout %q stderr %q", out.String(), errb.String())
+	}
+}
+
+func TestStubSubcommandsExit2(t *testing.T) {
+	for _, name := range []string{"bundle", "merge", "ledger", "schema-diff"} {
+		var out, errb bytes.Buffer
+		if code := run([]string{name, "x"}, &out, &errb); code != exitError || out.Len() != 0 ||
+			!strings.Contains(errb.String(), name+" is not implemented") {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q", name, code, out.String(), errb.String())
+		}
+	}
+}
+
+// TestLintHookFlagsChangeNoOutput passes the schema and profile flags, which
+// reach only the no-op hooks, and checks lint writes the same bytes and exit
+// code as without them, in both output formats.
+func TestLintHookFlagsChangeNoOutput(t *testing.T) {
+	hooks := []string{"--schema-handoff", "handoff.json", "--schema-files", "schemas", "--profile-dir", "profile"}
+	for _, args := range [][]string{
+		{"lint", "../../testdata/variable-untyped-base/head", "--base", "../../testdata/variable-untyped-base/base"},
+		{"lint", "--json", "../../testdata/versions-missing-positive/head"},
+		{"lint", "../../testdata/unparsable-areas/head"},
+	} {
+		var out, errb bytes.Buffer
+		code := run(args, &out, &errb)
+		var hout, herrb bytes.Buffer
+		hcode := run(append(slices.Clone(args), hooks...), &hout, &herrb)
+		if code != hcode || out.String() != hout.String() || errb.String() != herrb.String() {
+			t.Errorf("%v: exit %d vs %d, output differs:\n%s\n---\n%s", args, code, hcode, out.String(), hout.String())
+		}
 	}
 }

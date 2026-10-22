@@ -1,14 +1,48 @@
 package facts
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
 
-// Rules are the implemented rules, in the order the manifest lists them.
-// Each one follows the Fails when and Severity text of its reviewer check file.
-// Kinds are the registry's area_kinds; any other area is not_applicable.
-var Rules = []Rule{
-	{ID: "examples.versions-missing", Tier: "tool", Class: ClassPath, Kinds: []string{AreaExample}, Check: checkVersionsMissing},
-	{ID: "structure.missing-description", Tier: "tool", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule}, Check: checkMissingDescription},
-	{ID: "structure.variable-untyped", Tier: "candidate", Class: ClassConfig, Kinds: []string{AreaRoot, AreaSubmodule}, Check: checkVariableUntyped},
+// Rules are every implemented rule: the family slices joined and sorted by
+// id, which is the order the manifest lists them in. Each family has its own
+// file, so work on one family never touches another family's file.
+var Rules = joinRules(
+	p1Rules,
+	profileToolRules,
+	compatIfaceRules,
+	compatResRules,
+	coverageSchemaRules,
+	coverageReachRules,
+	structureLocalRules,
+	structureVersionsRules,
+	examplesRules,
+	scopePathRules,
+	scopeConfigRules,
+)
+
+// p1Rules are the rules of the first phase. Each one follows the Fails when
+// and Severity text of its reviewer check file. Kinds are the registry's
+// area_kinds; any other area is not_applicable. Scope is the registry's scope.
+var p1Rules = []Rule{
+	{ID: "examples.versions-missing", Tier: "tool", Class: ClassPath, Scope: ScopeAnyFileInArea, Kinds: []string{AreaExample}, Check: checkVersionsMissing},
+	{ID: "structure.missing-description", Tier: "tool", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, Check: checkMissingDescription},
+	{ID: "structure.variable-untyped", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, Check: checkVariableUntyped},
+}
+
+// joinRules concatenates rule families and sorts the result by id. Two rules
+// with one id are a programming error, caught when the package loads.
+func joinRules(families ...[]Rule) []Rule {
+	out := slices.Concat(families...)
+	slices.SortFunc(out, func(a, b Rule) int { return strings.Compare(a.ID, b.ID) })
+	for i := 1; i < len(out); i++ {
+		if out[i].ID == out[i-1].ID {
+			panic("facts: duplicate rule id " + out[i].ID)
+		}
+	}
+	return out
 }
 
 // Caps on pull request text copied into candidate evidence. A cap that bites

@@ -31,6 +31,13 @@ type Area struct {
 	// issueCode is the reason code of Issue.
 	issueCode string
 
+	// Schema and profile inputs of the area, for the hooks in schema_hook.go
+	// and profile_hook.go to set. Those hooks are no-ops today, so these
+	// stay empty and no rule reads them.
+	SchemaHandoff string
+	SchemaFiles   string
+	ProfileDir    string
+
 	headTree *Tree
 }
 

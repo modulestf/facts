@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -158,4 +159,25 @@ func TestVariableEvidenceCap(t *testing.T) {
 	if ev := c.Evidence.(VariableEvidence); c.EvidenceComplete || len(*ev.Type) != maxEvidenceText {
 		t.Errorf("cap did not bite: complete=%v len=%d", c.EvidenceComplete, len(*ev.Type))
 	}
+}
+
+func TestRulesSortedWithScope(t *testing.T) {
+	scopes := []string{ScopeTouchedBlock, ScopeTouchedExpression, ScopeNewlyIntroduced, ScopeAnyFileInArea}
+	for i, r := range Rules {
+		if i > 0 && Rules[i-1].ID >= r.ID {
+			t.Errorf("Rules not sorted by id at %s", r.ID)
+		}
+		if !slices.Contains(scopes, r.Scope) {
+			t.Errorf("%s: scope %q", r.ID, r.Scope)
+		}
+	}
+}
+
+func TestJoinRulesRefusesDuplicateID(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("no panic on a duplicate id")
+		}
+	}()
+	joinRules(p1Rules, p1Rules[:1])
 }

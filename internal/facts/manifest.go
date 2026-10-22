@@ -31,12 +31,21 @@ const (
 	ClassPath   = "path"
 )
 
+// Rule scopes, the registry's scope column: what a rule judges.
+const (
+	ScopeTouchedBlock      = "touched-block"      // a block the change adds, edits or removes
+	ScopeTouchedExpression = "touched-expression" // a value or literal the change sets
+	ScopeNewlyIntroduced   = "newly-introduced"   // only what the change adds
+	ScopeAnyFileInArea     = "any-file-in-area"   // anything in the area, touched or not
+)
+
 // Rule is one implemented rule. A tool rule returns findings; a candidate
 // rule returns candidates for the model or the author to confirm.
 type Rule struct {
 	ID    string
 	Tier  string // "tool" or "candidate"
 	Class string
+	Scope string // one of the Scope constants
 	Kinds []string
 	// CrossArea is the registry's cross_area: the rule is one pass over every
 	// area, with one manifest entry under the root.

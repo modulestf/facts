@@ -27,9 +27,15 @@ type Options struct {
 	HeadSHA      string // optional commit the head tree was extracted from
 	MergeBaseSHA string // optional commit the base tree was extracted from
 	RegistryFile string // optional rule-facts.md to hash
-	Version      string
-	BinarySHA256 string
-	Limits       Limits
+	// SchemaHandoff, SchemaFiles and ProfileDir are optional inputs for the
+	// schema and profile hooks. The hooks are no-ops today: these change no
+	// output.
+	SchemaHandoff string // schema handoff file from the schema job
+	SchemaFiles   string // directory of provider schema files
+	ProfileDir    string // module profile directory in a skills checkout
+	Version       string
+	BinarySHA256  string
+	Limits        Limits
 }
 
 // Report is the whole output of one run.
@@ -73,7 +79,11 @@ type FileInput struct {
 }
 
 // Run reads the trees, evaluates every rule and builds the report.
-func Run(o Options) (*Report, error) {
+func Run(o Options) (*Report, error) { return run(o, Rules) }
+
+// run is Run with the rules to evaluate given, so a test can evaluate a
+// subset of Rules or a rule that is not in it.
+func run(o Options, rules []Rule) (*Report, error) {
 	env := Envelope{SchemaVersion: SchemaVersion, Tool: Tool{Name: "mtf-facts", Version: o.Version, BinarySHA256: o.BinarySHA256}}
 	var err error
 	if env.HeadSHA, err = optionalSHA("head SHA", o.HeadSHA); err != nil {
@@ -102,12 +112,18 @@ func Run(o Options) (*Report, error) {
 		bi := treeInput(base)
 		env.Inputs.Base = &bi
 	}
-	areas, err := FindAreas(head, base, o.Limits, needsUntouched(Rules))
+	areas, err := FindAreas(head, base, o.Limits, needsUntouched(rules))
 	if err != nil {
 		return nil, err
 	}
-	manifest, findings, candidates := Evaluate(areas, Rules)
-	if err := CheckManifest(manifest, Rules, areas); err != nil {
+	if err := applySchema(o, areas); err != nil {
+		return nil, err
+	}
+	if err := applyProfile(o, areas); err != nil {
+		return nil, err
+	}
+	manifest, findings, candidates := Evaluate(areas, rules)
+	if err := CheckManifest(manifest, rules, areas); err != nil {
 		return nil, err
 	}
 	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates}, nil
