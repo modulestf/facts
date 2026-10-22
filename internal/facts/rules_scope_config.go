@@ -298,6 +298,9 @@ func checkScopeProvider(a *Area) Result {
 		case owner != a.Path || len(ev.ev.SourceLines) == 0:
 			// Another area reports it, or no site is in the change.
 		case anchor == nil:
+			// Reached only for a new provider with a changed site and no added
+			// block to anchor it; every other run is unaffected.
+			// shortcut: registry scope newly-introduced drops entries added to existing blocks; flips to touched-expression with the registry pin bump (mtf-lcc.2.40)
 			return Result{NotEvaluated: "provider " + short(src) + " is added only inside a block the base already has", Code: ReasonUnsupportedFile}
 		default:
 			ev.ev.Head = ev.value(strings.TrimPrefix(src, defaultRegistryHost+"/"))
