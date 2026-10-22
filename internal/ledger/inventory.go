@@ -72,7 +72,8 @@ type Inventory struct {
 // Build reads the module in dir, not its submodules or examples, and lists
 // the fields of every resource and data source type it declares, from the
 // raw schema files. A module with a file the parser cannot model, a provider
-// with no schema, a type the schema lacks or an ephemeral block is an error: an inventory with a
+// with no schema, a type the schema lacks, an ephemeral block, or a
+// directory with no .tf file or no resource or data block is an error: an inventory with a
 // gap would let a ledger pass that misses fields.
 func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, error) {
 	if len(schemaFiles) == 0 {
@@ -92,6 +93,12 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	}
 	if len(m.Unsupported) > 0 {
 		return nil, fmt.Errorf("module tree: %s", strings.Join(m.Unsupported, "; "))
+	}
+	if !slices.ContainsFunc(tree.DirEntries("."), func(e *facts.Entry) bool { return strings.HasSuffix(e.Path, ".tf") }) {
+		return nil, errors.New("module tree: no .tf file in the module directory")
+	}
+	if len(m.Resources) == 0 {
+		return nil, errors.New("module tree: no resource or data block, so there is nothing to inventory")
 	}
 	for _, b := range m.Other {
 		if b.Type == "ephemeral" {

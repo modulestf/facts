@@ -115,6 +115,9 @@ func TestBuildErrors(t *testing.T) {
 			schemas: []string{testSchema},
 			want:    "registry.terraform.io/hashicorp/google",
 		},
+		{name: "no tf file", files: map[string]string{"README.md": "x"}, schemas: []string{testSchema}, want: "no .tf file"},
+		{name: "tf file only in a subdirectory", files: map[string]string{"modules/x/main.tf": `resource "aws_example_bucket" "x" {}`}, schemas: []string{testSchema}, want: "no .tf file"},
+		{name: "no resource or data block", files: map[string]string{"variables.tf": `variable "x" {}`}, schemas: []string{testSchema}, want: "no resource or data block"},
 		{name: "parse error", files: map[string]string{"main.tf": `resource "aws_example_bucket" {`}, schemas: []string{testSchema}, want: "module tree:"},
 		{name: "json file", files: map[string]string{"main.tf.json": `{}`}, schemas: []string{testSchema}, want: "module tree:"},
 	}
@@ -123,7 +126,11 @@ func TestBuildErrors(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
 			for name, body := range tc.files {
-				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+				p := filepath.Join(dir, name)
+				if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}

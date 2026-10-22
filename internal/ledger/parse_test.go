@@ -41,7 +41,13 @@ func TestParse(t *testing.T) {
 		{name: "omission with output", doc: field(`{"name": "a", "disposition": "sensitive_omission", "reason": "r", "output": "a"}`)},
 		{name: "null reason", doc: field(`{"name": "a", "disposition": "not_applicable", "reason": null}`)},
 		{name: "number name", doc: field(`{"name": 1, "disposition": "input", "variable": "a"}`)},
-		{name: "bad field path", doc: field(`{"name": "a..b", "disposition": "input", "variable": "a"}`)},
+		{name: "path with empty segment", doc: field(`{"name": "a..b", "disposition": "input", "variable": "a"}`)},
+		{name: "path with leading dot", doc: field(`{"name": ".a", "disposition": "input", "variable": "a"}`)},
+		{name: "path with trailing dot", doc: field(`{"name": "a.", "disposition": "input", "variable": "a"}`)},
+		{name: "path segment starting with a digit", doc: field(`{"name": "a.1b", "disposition": "input", "variable": "a"}`)},
+		{name: "path with a space", doc: field(`{"name": "a b", "disposition": "input", "variable": "a"}`)},
+		{name: "empty path", doc: field(`{"name": "", "disposition": "input", "variable": "a"}`)},
+		{name: "path with dashes and underscores", doc: field(`{"name": "_a-b.c_d", "disposition": "input", "variable": "a"}`), ok: true},
 		// encoding/json folds case and keeps the last duplicate; the schema's
 		// additionalProperties false refuses the first, and a ledger must not
 		// say two things of one field either.
