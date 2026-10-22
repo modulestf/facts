@@ -55,11 +55,6 @@
           "status": "candidate"
         },
         {
-          "rule_id": "coverage.unknown-argument",
-          "status": "not_evaluated",
-          "reason": "section_unavailable"
-        },
-        {
           "rule_id": "structure.missing-description",
           "status": "finding"
         },

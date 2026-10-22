@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	fb "github.com/modulestf/facts/internal/bundle"
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/registry"
 )
@@ -43,7 +44,7 @@ func writeReport(t *testing.T, dir string) string {
 			Inputs: facts.Inputs{Head: facts.TreeInput{Files: []facts.FileInput{}}, Base: &facts.TreeInput{Files: []facts.FileInput{}}}},
 		Manifest: []facts.ManifestEntry{
 			{RuleID: "structure.missing-description", Area: ".", Status: facts.StatusFinding},
-			{RuleID: "coverage.unknown-argument", Area: ".", Status: facts.StatusClean},
+			{RuleID: "coverage.unknown-argument", Area: ".", Status: facts.StatusNotEvaluated, Reason: "no schema", ReasonCode: facts.ReasonSchemaUnavailable},
 		},
 		Findings: []facts.Finding{{ID: "F-001", RuleID: "structure.missing-description", Severity: "MEDIUM", File: "variables.tf",
 			Summary: "No description.", SuggestedFix: "Add one."}},
@@ -133,6 +134,7 @@ func TestBundleRefuses(t *testing.T) {
 		"no report":           {replace(bundleArgsFor(report, skills, tmp), "--report", ""), "required"},
 		"extra argument":      {append(bundleArgsFor(report, skills, tmp), "x"), "unexpected argument"},
 		"missing skills":      {replace(bundleArgsFor(report, skills, tmp), "--skills", tmp), "registry"},
+		"same output twice":   {replace(bundleArgsFor(report, skills, tmp), "--injection", filepath.Join(tmp, ".", "bundle.txt")), "different files"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -144,6 +146,19 @@ func TestBundleRefuses(t *testing.T) {
 				t.Error("a refused run wrote the bundle")
 			}
 		})
+	}
+	// An injection file that exists stops the run before the bundle is written.
+	if err := os.WriteFile(filepath.Join(tmp, "injection.md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := runBundle(bundleArgsFor(report, skills, tmp)); code != exitError || !strings.Contains(stderr, "exists") {
+		t.Errorf("existing injection: exit %d, stderr %q", code, stderr)
+	}
+	if _, err := os.Lstat(filepath.Join(tmp, "bundle.txt")); err == nil {
+		t.Error("the bundle was written beside an existing injection file")
+	}
+	if err := os.Remove(filepath.Join(tmp, "injection.md")); err != nil {
+		t.Fatal(err)
 	}
 	// An output that exists, a planted link included, is never written.
 	if err := os.Symlink(filepath.Join(tmp, "elsewhere"), filepath.Join(tmp, "bundle.txt")); err != nil {
@@ -215,13 +230,13 @@ func TestBundleFromLint(t *testing.T) {
 	if code != 0 || stdout != "judgment\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
-	b, err := os.ReadFile(filepath.Join(tmp, "bundle.txt"))
+	f, err := os.Open(filepath.Join(tmp, "bundle.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	lines := strings.Split(string(b), "\n")
-	var payload string
-	if len(lines) != 5 || json.Unmarshal([]byte(lines[2]), &payload) != nil || !strings.Contains(payload, `"candidates":[{"candidate_id":"C-001"`) {
-		t.Errorf("bundle %s", b)
+	defer f.Close()
+	b, err := fb.Decode(f)
+	if err != nil || len(b.Candidates) == 0 || b.Candidates[0].CandidateID != "C-001" {
+		t.Errorf("bundle %+v, %v", b, err)
 	}
 }

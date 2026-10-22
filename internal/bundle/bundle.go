@@ -31,23 +31,6 @@ const (
 	ModeFull     = "full"
 )
 
-// Reason codes for a (rule, area) the bundle leaves not_evaluated because a
-// section it relies on was shed to fit the cap, or because the report does
-// not carry that section.
-const (
-	ReasonSectionShed        = "section_shed"
-	ReasonSectionUnavailable = "section_unavailable"
-)
-
-// Region markers. The header line, outside the region, gives the payload's
-// byte count; the payload is one line, a JSON string with every byte
-// outside printable ASCII escaped, so no text in it can end the region.
-const (
-	headerPrefix = "FACTS-BUNDLE-BYTES "
-	regionBegin  = "FACTS-BUNDLE BEGIN"
-	regionEnd    = "FACTS-BUNDLE END"
-)
-
 // shedOrder lists the sections that may be shed, lowest priority first.
 // tool-findings and candidates are never shed.
 var shedOrder = []string{
@@ -78,41 +61,6 @@ type Result struct {
 	Shed      []string
 }
 
-// toolFinding is a finding with the fields the bundle adds.
-type toolFinding struct {
-	facts.Finding
-	Source  string `json:"source"`
-	Subject string `json:"subject"`
-}
-
-type areaRule struct {
-	RuleID string `json:"rule_id"`
-	Status string `json:"status"`
-	Reason string `json:"reason,omitempty"`
-}
-
-type areaRules struct {
-	Area  string     `json:"area"`
-	Rules []areaRule `json:"rules"`
-}
-
-type fileChange struct {
-	Path   string `json:"path"`
-	Change string `json:"change"`
-}
-
-// doc is the bundle, its keys in the schema's order. A nil section is left
-// out. schema_coverage has no field: the report carries no schema coverage
-// delta yet, so Build always leaves it out.
-type doc struct {
-	ToolFindings   []toolFinding     `json:"tool_findings"`
-	Candidates     []facts.Candidate `json:"candidates"`
-	AreaRules      *[]areaRules      `json:"area_rules,omitempty"`
-	InterfaceDiff  json.RawMessage   `json:"interface_diff,omitempty"`
-	FileIndex      *[]fileChange     `json:"file_index,omitempty"`
-	SeverityNeeded []struct{}        `json:"severity_needed"`
-}
-
 // Build checks the report against the registry and builds the bundle and
 // the injection. A report that does not match the registry is an error. A
 // bundle whose first two sections alone are over the cap, or an injection
@@ -121,39 +69,35 @@ func Build(r *Report, reg *registry.Registry, text EngineText, o Options) (*Resu
 	if err := checkReport(r, reg); err != nil {
 		return nil, err
 	}
-	base, err := baseDoc(r, reg)
+	b, err := fullBundle(r, reg)
 	if err != nil {
 		return nil, err
 	}
-	// The report carries no schema coverage delta yet, so that section is
-	// always left out; an absent interface diff is left out too.
-	missing := []string{registry.SectionSchemaCoverage}
-	if base.InterfaceDiff == nil {
-		missing = append(missing, registry.SectionInterfaceDiff)
-	}
+	// Shedding never changes a manifest entry: a tool or candidate rule's
+	// findings and candidates carry their own evidence, and its clean is the
+	// engine's exhaustive answer. An llm rule that reads a shed section is
+	// judged from the files in any case. schema_coverage is never built.
 	var shed []string
-	for {
-		out := map[string]string{}
-		for _, s := range missing {
-			out[s] = ReasonSectionUnavailable
-		}
-		for _, s := range shed {
-			out[s] = ReasonSectionShed
-		}
-		manifest := applyOut(r.Manifest, reg, out)
-		payload, err := encode(withSections(base, manifest, out))
+	for _, section := range shedOrder {
+		payload, err := encode(b)
 		if err != nil {
 			return nil, err
 		}
 		if len(payload) <= o.CapBytes {
-			return finish(payload, manifest, text, o, shed)
+			return finish(payload, r.Manifest, text, o, shed)
 		}
-		next := slices.IndexFunc(shedOrder, func(s string) bool { _, gone := out[s]; return !gone })
-		if next < 0 {
-			return &Result{Mode: ModeFull, Reason: fmt.Sprintf("tool findings and candidates alone are %d bytes, over the %d byte cap", len(payload), o.CapBytes), Shed: shed}, nil
+		if b.drop(section) {
+			shed = append(shed, section)
 		}
-		shed = append(shed, shedOrder[next])
 	}
+	payload, err := encode(b)
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) <= o.CapBytes {
+		return finish(payload, r.Manifest, text, o, shed)
+	}
+	return &Result{Mode: ModeFull, Reason: fmt.Sprintf("tool findings and candidates alone are %d bytes, over the %d byte cap", len(payload), o.CapBytes), Shed: shed}, nil
 }
 
 // finish renders the region and the injection, or gives ModeFull when the
@@ -175,9 +119,7 @@ func finish(payload []byte, manifest []facts.ManifestEntry, text EngineText, o O
 	if len(inj) > o.InjectionBudget {
 		return &Result{Mode: ModeFull, Reason: fmt.Sprintf("injected rule text is %d bytes, over the %d byte budget", len(inj), o.InjectionBudget), Shed: shed}, nil
 	}
-	var b bytes.Buffer
-	fmt.Fprintf(&b, "%s%d\n%s\n%s\n%s\n", headerPrefix, len(payload), regionBegin, payload, regionEnd)
-	return &Result{Mode: ModeJudgment, Bundle: b.Bytes(), Injection: inj, Shed: shed}, nil
+	return &Result{Mode: ModeJudgment, Bundle: region(payload), Injection: inj, Shed: shed}, nil
 }
 
 // checkReport refuses a report the registry does not describe: a manifest,
@@ -216,13 +158,14 @@ func checkReport(r *Report, reg *registry.Registry) error {
 	return nil
 }
 
-// baseDoc builds every section from the report, with the strings from the
-// pull request capped. Area rules are filled in per attempt by withSections.
-func baseDoc(r *Report, reg *registry.Registry) (doc, error) {
-	d := doc{ToolFindings: []toolFinding{}, Candidates: []facts.Candidate{}, SeverityNeeded: []struct{}{}}
+// fullBundle builds every section the report carries, with the strings from
+// the pull request capped.
+func fullBundle(r *Report, reg *registry.Registry) (*Bundle, error) {
+	d := &Bundle{ToolFindings: []ToolFinding{}, Candidates: []facts.Candidate{}, SeverityNeeded: []SeverityNeeded{}}
 	for _, f := range r.Findings {
-		f.Summary, f.SuggestedFix = capMarked(f.Summary), capMarked(f.SuggestedFix)
-		d.ToolFindings = append(d.ToolFindings, toolFinding{Finding: f, Source: "tool", Subject: findingSubject(f, r.Index, reg)})
+		subject := capMarked(findingSubject(f, r.Index, reg))
+		f.File, f.Summary, f.SuggestedFix = capMarked(f.File), capMarked(f.Summary), capMarked(f.SuggestedFix)
+		d.ToolFindings = append(d.ToolFindings, ToolFinding{Finding: f, Source: "tool", Subject: subject})
 	}
 	for _, c := range r.Candidates {
 		d.Candidates = append(d.Candidates, capCandidate(c))
@@ -230,10 +173,12 @@ func baseDoc(r *Report, reg *registry.Registry) (doc, error) {
 	if r.InterfaceDiff != nil {
 		raw, err := capStrings(r.InterfaceDiff)
 		if err != nil {
-			return doc{}, fmt.Errorf("interface diff: %w", err)
+			return nil, fmt.Errorf("interface diff: %w", err)
 		}
 		d.InterfaceDiff = raw
 	}
+	ar := areaRulesOf(r.Manifest)
+	d.AreaRules = &ar
 	idx := fileIndex(r.Envelope.Inputs)
 	d.FileIndex = &idx
 	return d, nil
@@ -252,60 +197,23 @@ func findingSubject(f facts.Finding, index []facts.IndexEntry, reg *registry.Reg
 	return f.File
 }
 
-// withSections returns d with the area rules of manifest and without the
-// sections in out.
-func withSections(d doc, manifest []facts.ManifestEntry, out map[string]string) doc {
-	if _, gone := out[registry.SectionAreaRules]; !gone {
-		ar := areaRulesOf(manifest)
-		d.AreaRules = &ar
-	}
-	if _, gone := out[registry.SectionInterfaceDiff]; gone {
-		d.InterfaceDiff = nil
-	}
-	if _, gone := out[registry.SectionFileIndex]; gone {
-		d.FileIndex = nil
-	}
-	return d
-}
-
-// applyOut returns the manifest with every entry of a rule that relies on a
-// section in out made not_evaluated with that section's reason, unless it is
-// not_applicable or already not_evaluated.
-func applyOut(manifest []facts.ManifestEntry, reg *registry.Registry, out map[string]string) []facts.ManifestEntry {
-	res := slices.Clone(manifest)
-	for i, e := range res {
-		if e.Status == facts.StatusNotApplicable || e.Status == facts.StatusNotEvaluated {
-			continue
-		}
-		rule, _ := reg.Rule(e.RuleID)
-		for _, s := range rule.BundleSections {
-			if reason, gone := out[s]; gone {
-				res[i] = facts.ManifestEntry{RuleID: e.RuleID, Area: e.Area, Status: facts.StatusNotEvaluated,
-					Reason: "bundle section " + s + " left out", ReasonCode: reason}
-				break
-			}
-		}
-	}
-	return res
-}
-
 // areaRulesOf groups the entries that are not clean or not_applicable by
 // area, areas and rules sorted.
-func areaRulesOf(manifest []facts.ManifestEntry) []areaRules {
-	by := map[string][]areaRule{}
+func areaRulesOf(manifest []facts.ManifestEntry) []AreaRules {
+	by := map[string][]AreaRule{}
 	for _, e := range manifest {
 		switch e.Status {
 		case facts.StatusFinding, facts.StatusCandidate:
-			by[e.Area] = append(by[e.Area], areaRule{RuleID: e.RuleID, Status: e.Status})
+			by[e.Area] = append(by[e.Area], AreaRule{RuleID: e.RuleID, Status: e.Status})
 		case facts.StatusNotEvaluated:
-			by[e.Area] = append(by[e.Area], areaRule{RuleID: e.RuleID, Status: e.Status, Reason: e.ReasonCode})
+			by[e.Area] = append(by[e.Area], AreaRule{RuleID: e.RuleID, Status: e.Status, Reason: e.ReasonCode})
 		}
 	}
-	out := []areaRules{}
+	out := []AreaRules{}
 	for _, a := range sortedKeys(by) {
 		rules := by[a]
-		slices.SortStableFunc(rules, func(x, y areaRule) int { return strings.Compare(x.RuleID, y.RuleID) })
-		out = append(out, areaRules{Area: a, Rules: rules})
+		slices.SortStableFunc(rules, func(x, y AreaRule) int { return strings.Compare(x.RuleID, y.RuleID) })
+		out = append(out, AreaRules{Area: capMarked(a), Rules: rules})
 	}
 	return out
 }
@@ -320,39 +228,49 @@ func sortedKeys[V any](m map[string]V) []string {
 }
 
 // fileIndex lists the files the change adds, modifies or removes.
-func fileIndex(in facts.Inputs) []fileChange {
+func fileIndex(in facts.Inputs) []FileChange {
 	base := map[string]facts.FileInput{}
 	if in.Base != nil {
 		for _, f := range in.Base.Files {
 			base[f.Path] = f
 		}
 	}
-	out := []fileChange{}
+	out := []FileChange{}
 	for _, f := range in.Head.Files {
 		b, ok := base[f.Path]
 		switch {
 		case !ok:
-			out = append(out, fileChange{Path: f.Path, Change: "added"})
+			out = append(out, FileChange{Path: f.Path, Change: "added"})
 		case b != f:
-			out = append(out, fileChange{Path: f.Path, Change: "modified"})
+			out = append(out, FileChange{Path: f.Path, Change: "modified"})
 		}
 		delete(base, f.Path)
 	}
 	for _, p := range sortedKeys(base) {
-		out = append(out, fileChange{Path: p, Change: "removed"})
+		out = append(out, FileChange{Path: p, Change: "removed"})
 	}
-	slices.SortStableFunc(out, func(x, y fileChange) int { return strings.Compare(x.Path, y.Path) })
+	slices.SortStableFunc(out, func(x, y FileChange) int { return strings.Compare(x.Path, y.Path) })
+	for i := range out {
+		out[i].Path = capMarked(out[i].Path)
+	}
 	return out
 }
 
-// capCandidate caps the evidence text of one candidate. A cut sets
-// evidence_complete to false.
+// capCandidate caps the strings of one candidate: its file and subject and
+// the text and files of its evidence. A cut sets evidence_complete to false.
 func capCandidate(c facts.Candidate) facts.Candidate {
+	capped := func(s string) string {
+		t := capMarked(s)
+		c.EvidenceComplete = c.EvidenceComplete && t == s
+		return t
+	}
+	c.File, c.Subject = capped(c.File), capped(c.Subject)
 	ev := c.Evidence
 	lines := make([]facts.SourceLine, len(ev.SourceLines))
 	for i, l := range ev.SourceLines {
 		var cut bool
 		l.Text, cut = capString(l.Text)
+		l.File = capped(l.File)
 		c.EvidenceComplete = c.EvidenceComplete && !cut
 		lines[i] = l
 	}
@@ -383,7 +301,8 @@ func capString(s string) (string, bool) {
 	return s[:n], true
 }
 
-// capMarked caps s and marks a cut with the number of bytes omitted.
+// capMarked caps s and marks a cut with the number of bytes omitted. The
+// marker ends in "]", so a cut path never ends in a ".." segment.
 func capMarked(s string) string {
 	t, cut := capString(s)
 	if cut {
@@ -392,7 +311,7 @@ func capMarked(s string) string {
 	return t
 }
 
-// capStrings caps every string value, not object keys, in a JSON document,
+// capStrings caps every string, object keys included, in a JSON document,
 // keeping its structure and key order.
 func capStrings(raw json.RawMessage) (json.RawMessage, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -436,10 +355,7 @@ func capStrings(raw json.RawMessage) (json.RawMessage, error) {
 			b.WriteString(v.String())
 			stack = append(stack, frame{object: v == '{'})
 		case string:
-			if !key {
-				v = capMarked(v)
-			}
-			enc, err := json.Marshal(v)
+			enc, err := json.Marshal(capMarked(v))
 			if err != nil {
 				return nil, err
 			}
@@ -457,7 +373,7 @@ func capStrings(raw json.RawMessage) (json.RawMessage, error) {
 
 // encode renders d as compact JSON, then as one JSON string value with every
 // byte outside printable ASCII escaped: the payload the header counts.
-func encode(d doc) ([]byte, error) {
+func encode(d *Bundle) ([]byte, error) {
 	inner, err := json.Marshal(d)
 	if err != nil {
 		return nil, err

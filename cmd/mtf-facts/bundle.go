@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -47,15 +48,9 @@ func bundle(args []string, stdout, stderr io.Writer) int {
 	}
 	if res.Mode == fb.ModeFull {
 		fmt.Fprintln(stderr, "mtf-facts: bundle: full variant:", res.Reason)
-	} else {
-		if err := writeNew(a.out, res.Bundle); err != nil {
-			fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
-			return exitError
-		}
-		if err := writeNew(a.injection, res.Injection); err != nil {
-			fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
-			return exitError
-		}
+	} else if err := writeOutputs(a.out, a.injection, res.Bundle, res.Injection); err != nil {
+		fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
+		return exitError
 	}
 	if _, err := fmt.Fprintln(stdout, res.Mode); err != nil {
 		return exitError
@@ -88,6 +83,8 @@ func parseBundleArgs(args []string, stderr io.Writer) (bundleArgs, error) {
 		return a, fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	case a.report == "" || a.skills == "" || a.out == "" || a.injection == "":
 		return a, errors.New("--report, --skills, --out and --injection are required")
+	case filepath.Clean(a.out) == filepath.Clean(a.injection):
+		return a, errors.New("--out and --injection must be different files")
 	case !commitPattern.MatchString(a.pins.HeadSHA) || !commitPattern.MatchString(a.pins.MergeBaseSHA):
 		return a, errors.New("--head-sha and --merge-base-sha must be 40 or 64 lowercase hex characters")
 	case !sha256Pattern.MatchString(a.pins.BinarySHA256):
@@ -129,6 +126,24 @@ func buildBundle(a bundleArgs) (*fb.Result, error) {
 		return nil, err
 	}
 	return fb.Build(r, reg, text, fb.Options{CapBytes: fb.DefaultCapBytes, InjectionBudget: fb.DefaultInjectionBudget})
+}
+
+// writeOutputs writes the bundle and the injection. Both must be absent
+// before either is written; when the second write fails, the first file is
+// removed, so a failed run leaves no bundle behind.
+func writeOutputs(out, injection string, b, inj []byte) error {
+	for _, p := range []string{out, injection} {
+		if _, err := os.Lstat(p); !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%s exists or cannot be checked", p)
+		}
+	}
+	if err := writeNew(out, b); err != nil {
+		return err
+	}
+	if err := writeNew(injection, inj); err != nil {
+		return errors.Join(err, os.Remove(out))
+	}
+	return nil
 }
 
 // writeNew creates p, which must not exist, so a planted link or an earlier

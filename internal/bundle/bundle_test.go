@@ -15,7 +15,7 @@ import (
 	"github.com/modulestf/facts/internal/registry"
 )
 
-var update = flag.Bool("update", false, "rewrite testdata/bundle/expected.json")
+var update = flag.Bool("update", false, "rewrite schema/examples/facts-bundle.valid.golden.json")
 
 const (
 	testSkills = "../../testdata/bundle/skills"
@@ -175,11 +175,10 @@ func TestBuildJudgment(t *testing.T) {
 	if tf[0]["subject"] != "examples/complete" || tf[1]["subject"] != ".:var.name" || tf[0]["source"] != "tool" {
 		t.Errorf("tool finding subjects %v, %v", tf[0], tf[1])
 	}
-	// The report has no schema coverage, so the rule that relies on it is
-	// not_evaluated and injected, with the one parse_error entry.
+	// schema_coverage is never built, and a clean rule that relies on it
+	// stays clean: only the report's own not_evaluated entry is injected.
 	ar := string(d["area_rules"])
 	for _, w := range []string{
-		`{"rule_id":"coverage.unknown-argument","status":"not_evaluated","reason":"section_unavailable"}`,
 		`{"rule_id":"structure.variable-untyped","status":"not_evaluated","reason":"parse_error"}`,
 		`{"rule_id":"compat.variable-removed","status":"candidate"}`,
 	} {
@@ -187,24 +186,23 @@ func TestBuildJudgment(t *testing.T) {
 			t.Errorf("area_rules %s lacks %s", ar, w)
 		}
 	}
-	if strings.Contains(ar, "compat.default-changed") {
+	if strings.Contains(ar, "compat.default-changed") || strings.Contains(ar, "coverage.unknown-argument") {
 		t.Errorf("area_rules lists a clean rule: %s", ar)
 	}
 	inj := string(res.Injection)
-	for _, w := range []string{"Rule `coverage.unknown-argument` is not_evaluated in:\n- area \".\", reason section_unavailable\n",
-		"**Fails when:** an argument is not in the provider schema.", "**Fails when:** a new variable has no type."} {
+	for _, w := range []string{"Rule `structure.variable-untyped` is not_evaluated in:\n- area \".\", reason parse_error\n",
+		"**Fails when:** a new variable has no type."} {
 		if !strings.Contains(inj, w) {
 			t.Errorf("injection lacks %q:\n%s", w, inj)
 		}
 	}
-	if strings.Contains(inj, "a default changes") {
+	if strings.Contains(inj, "a default changes") || strings.Contains(inj, "provider schema.") {
 		t.Errorf("injection holds a rule that was evaluated:\n%s", inj)
 	}
 }
 
-// TestGolden pins the decoded bundle of testReport. The file validates
-// against schema/facts-bundle.schema.json, with ajv as tests/schemas-test.sh
-// runs it.
+// TestGolden pins the decoded bundle of testReport. tests/schemas-test.sh
+// validates the file against schema/facts-bundle.schema.json.
 func TestGolden(t *testing.T) {
 	_, d := parseRegion(t, build(t, testReport(), big).Bundle)
 	got, err := json.MarshalIndent(orderedDoc(t, d), "", "  ")
@@ -212,7 +210,7 @@ func TestGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = append(got, '\n')
-	golden := "../../testdata/bundle/expected.json"
+	golden := "../../schema/examples/facts-bundle.valid.golden.json"
 	if *update {
 		if err := os.WriteFile(golden, got, 0o644); err != nil {
 			t.Fatal(err)
@@ -315,20 +313,17 @@ func TestShedOrder(t *testing.T) {
 		}
 		prev = len(p)
 	}
-	// Shedding interface-diff makes the rules that rely on it not_evaluated.
-	res := build(t, r, Options{CapBytes: payloadAfter(t, r, 1) - 1, InjectionBudget: big.InjectionBudget})
-	_, d := parseRegion(t, res.Bundle)
-	for _, w := range []string{
-		`{"rule_id":"compat.default-changed","status":"not_evaluated","reason":"section_shed"}`,
-		`{"rule_id":"compat.variable-removed","status":"not_evaluated","reason":"section_shed"}`,
-		`{"rule_id":"examples.versions-missing","status":"not_evaluated","reason":"section_shed"}`,
-	} {
-		if !strings.Contains(string(d["area_rules"]), w) {
-			t.Errorf("area_rules %s lacks %s", d["area_rules"], w)
-		}
+	// Shedding never changes the manifest: the area rules left and the
+	// injection are those of the unshed bundle.
+	whole := build(t, r, big)
+	_, wd := parseRegion(t, whole.Bundle)
+	res := build(t, r, Options{CapBytes: payloadAfter(t, r, 2) - 1, InjectionBudget: big.InjectionBudget})
+	if !slices.Equal(res.Shed, []string{"file-index", "interface-diff", "area-rules"}) || !bytes.Equal(res.Injection, whole.Injection) {
+		t.Errorf("shed %v, injection %q, want %q", res.Shed, res.Injection, whole.Injection)
 	}
-	if !strings.Contains(string(res.Injection), "Rule `compat.default-changed` is not_evaluated in:\n- area \".\", reason section_shed") {
-		t.Errorf("injection lacks the shed rule:\n%s", res.Injection)
+	res = build(t, r, Options{CapBytes: payloadAfter(t, r, 1) - 1, InjectionBudget: big.InjectionBudget})
+	if _, d := parseRegion(t, res.Bundle); !bytes.Equal(d["area_rules"], wd["area_rules"]) || !bytes.Equal(res.Injection, whole.Injection) {
+		t.Errorf("shedding interface-diff changed area_rules %s or the injection", d["area_rules"])
 	}
 	// Under the payload of tool findings and candidates alone: full.
 	alone := payloadAfter(t, r, 3)
@@ -384,7 +379,7 @@ func TestInjectionBudget(t *testing.T) {
 func TestNoNotEvaluatedGivesEmptyInjection(t *testing.T) {
 	r := testReport()
 	r.Manifest = slices.DeleteFunc(r.Manifest, func(e facts.ManifestEntry) bool {
-		return e.Status == facts.StatusNotEvaluated || e.RuleID == "coverage.unknown-argument"
+		return e.Status == facts.StatusNotEvaluated
 	})
 	res := build(t, r, big)
 	if res.Mode != ModeJudgment || res.Injection == nil || len(res.Injection) != 0 {
@@ -491,6 +486,28 @@ func TestPRStringsAreCapped(t *testing.T) {
 	if !strings.Contains(string(d["interface_diff"]), `{"areas":[{"description":"`+strings.Repeat("a", maxPRString-1)+` [truncated: 6 bytes omitted]"}]}`) {
 		t.Errorf("interface diff %s", d["interface_diff"])
 	}
+	// Subjects, files and interface diff keys are capped too.
+	r = testReport()
+	r.Candidates[0].Subject = ".:var." + long
+	r.Candidates[0].File = long
+	r.Findings[0].File = long
+	r.InterfaceDiff = json.RawMessage(`{` + string(mustJSON(t, long)) + `:1}`)
+	_, d = parseRegion(t, build(t, r, big).Bundle)
+	if err := json.Unmarshal(d["candidates"], &c); err != nil {
+		t.Fatal(err)
+	}
+	if len(c[0].Subject) > maxPRString+40 || len(c[0].File) > maxPRString+40 || c[0].EvidenceComplete {
+		t.Errorf("candidate subject %d bytes, file %d bytes, complete %v", len(c[0].Subject), len(c[0].File), c[0].EvidenceComplete)
+	}
+	if err := json.Unmarshal(d["tool_findings"], &tf); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(tf[0].File, " [truncated: 6 bytes omitted]") {
+		t.Errorf("finding file %q", tf[0].File)
+	}
+	if !strings.HasSuffix(string(d["interface_diff"]), ` [truncated: 6 bytes omitted]":1}`) {
+		t.Errorf("interface diff key not capped: %.60s", d["interface_diff"])
+	}
 	// A string at the cap is kept whole.
 	r = testReport()
 	at := strings.Repeat("b", maxPRString)
@@ -539,8 +556,61 @@ func TestBuildRefusesReportOffRegistry(t *testing.T) {
 
 func TestBuildRefusesMissingEngineText(t *testing.T) {
 	text := testEngine(t)
-	delete(text, "coverage.unknown-argument")
+	delete(text, "structure.variable-untyped")
 	if _, err := Build(testReport(), testRegistry(t), text, big); err == nil || !strings.Contains(err.Error(), "no engine text") {
 		t.Errorf("err %v", err)
+	}
+}
+
+func TestDecodeRoundTrip(t *testing.T) {
+	res := build(t, testReport(), big)
+	b, err := Decode(bytes.NewReader(res.Bundle))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := encode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(region(payload), res.Bundle) {
+		t.Errorf("decode and encode changed the bundle:\n%s\n%s", region(payload), res.Bundle)
+	}
+	if len(b.ToolFindings) != 2 || b.ToolFindings[1].Subject != ".:var.name" || len(b.Candidates) != 1 || b.FileIndex == nil {
+		t.Errorf("decoded %+v", b)
+	}
+	// A shed bundle decodes with its sections left out.
+	shed := build(t, testReport(), Options{CapBytes: payloadAfter(t, testReport(), 3), InjectionBudget: big.InjectionBudget})
+	if b, err := Decode(bytes.NewReader(shed.Bundle)); err != nil || b.AreaRules != nil || b.InterfaceDiff != nil || b.FileIndex != nil {
+		t.Errorf("shed bundle: %+v, %v", b, err)
+	}
+}
+
+func TestDecodeRefuses(t *testing.T) {
+	good := string(build(t, testReport(), big).Bundle)
+	lines := strings.Split(good, "\n")
+	payload := lines[2]
+	inner := func(s string) string { return string(region(asciiOnly(mustJSON(t, s)))) }
+	cases := map[string]string{
+		"count off by one":   strings.Replace(good, lines[0], headerPrefix+strconv.Itoa(len(payload)+1), 1),
+		"count with sign":    strings.Replace(good, lines[0], headerPrefix+"+"+strconv.Itoa(len(payload)), 1),
+		"no header":          strings.Join(lines[1:], "\n"),
+		"two regions":        good + strings.Join(lines[1:], "\n"),
+		"text after the end": good + "x\n",
+		"no final newline":   strings.TrimSuffix(good, "\n"),
+		"CRLF":               strings.ReplaceAll(good, "\n", "\r\n"),
+		"no end marker":      strings.Replace(good, regionEnd, "FACTS-BUNDLE STOP", 1),
+		"payload not string": string(region([]byte(`{"tool_findings":[]}`))),
+		"unknown field":      inner(`{"tool_findings":[],"candidates":[],"severity_needed":[],"x":1}`),
+		"missing candidates": inner(`{"tool_findings":[],"severity_needed":[]}`),
+		"two values":         inner(`{"tool_findings":[],"candidates":[],"severity_needed":[]} {}`),
+		"empty":              "",
+	}
+	for name, in := range cases {
+		if _, err := Decode(strings.NewReader(in)); err == nil {
+			t.Errorf("%s: decoded", name)
+		}
+	}
+	if _, err := Decode(strings.NewReader(inner(`{"tool_findings":[],"candidates":[],"severity_needed":[]}`))); err != nil {
+		t.Errorf("minimal bundle: %v", err)
 	}
 }

@@ -126,7 +126,7 @@ func injection(entries []notEvaluated, text EngineText) ([]byte, error) {
 			}
 			fmt.Fprintf(&b, "\nRule `%s` is not_evaluated in:\n", e.rule)
 		}
-		fmt.Fprintf(&b, "- area %s, reason %s", quote(e.area), e.reason)
+		fmt.Fprintf(&b, "- area %s, reason %s", quote(capMarked(e.area)), e.reason)
 		if e.reason == "schema_unavailable" {
 			b.WriteString(". " + schemaNote)
 		}
