@@ -18,7 +18,7 @@ A feature the table does not list is a candidate for the model to confirm: no re
 
 - Only HCL expressions and blocks in `.tf` files. Template text in heredocs and the files that `templatefile` reads are not scanned.
 - A `function` row matches only a call to that exact name. A `provider::` call matches a built-in function row only when the row's `match` names the `provider::` form; any other `provider::` call matches `provider_defined_function`.
-- A feature the table does not list is one of: a call to a name that is not a built-in function of Terraform v1.16.7, a `core::` call, a type constraint keyword Terraform does not have, a top-level block type, or an argument or nested block of a `variable`, `output`, `terraform` or `lifecycle` block, that Terraform does not have. The built-in function names are read from [internal/lang/functions.go at v1.16.7](https://github.com/hashicorp/terraform/blob/v1.16.7/internal/lang/functions.go); the list is in `internal/facts/rules_structure_versions.go`.
+- A feature the table does not list is one of: a call to a name that is not a built-in function of Terraform v1.16.7, a `core::` call, a type constraint keyword Terraform does not have, a top-level block type, or an argument or nested block of a `variable`, `output`, `terraform` or `lifecycle` block, that Terraform does not have. The built-in function names are read from [internal/lang/functions.go at v1.16.7](https://github.com/hashicorp/terraform/blob/v1.16.7/internal/lang/functions.go); the list is in `internal/facts/rules_structure_versions_features.go`.
 - `core-features.json` is embedded in the binary (`embed.go`), so a run reads no file for it.
 
 ## Row schema

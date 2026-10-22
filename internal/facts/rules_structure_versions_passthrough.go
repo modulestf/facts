@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // structure.passthrough-default-drift and structure.passthrough-field-drift
@@ -174,16 +175,24 @@ func sameRef(a, b passRef) bool {
 	return a.each == b.each && a.name == b.name && slices.Equal(a.path, b.path)
 }
 
-// traversalRef reads var.<name>.<attr>... or each.value.<attr>...; an index
-// step is not an attribute path.
+// traversalRef reads var.<name>.<attr>... or each.value.<attr>...; a
+// string index such as ["mode"] is an attribute step too. Any other index,
+// such as [0], selects an element, which is not an attribute path, so the
+// reference is not forwarding.
 func traversalRef(t hcl.Traversal, eachOK bool) (passRef, bool) {
 	var names []string
 	for _, step := range t[1:] {
-		a, ok := step.(hcl.TraverseAttr)
-		if !ok {
+		switch st := step.(type) {
+		case hcl.TraverseAttr:
+			names = append(names, st.Name)
+		case hcl.TraverseIndex:
+			if !st.Key.IsKnown() || st.Key.IsNull() || st.Key.Type() != cty.String {
+				return passRef{}, false
+			}
+			names = append(names, st.Key.AsString())
+		default:
 			return passRef{}, false
 		}
-		names = append(names, a.Name)
 	}
 	switch {
 	case t.RootName() == "var" && len(names) >= 1:
@@ -312,7 +321,12 @@ func (p *passCheck) call(call ModuleCall, callee *Area, vars map[string]*Variabl
 		}
 	}
 	// A callee variable the call sets by no expression, while it forwards
-	// attributes of a root object, is an attribute the root cannot pass.
+	// attributes of a root object, is an attribute the root cannot pass. The
+	// call's for_each or source line is an anchor too, so a new call lands.
+	callLine := anchor{areaFile(p.a.Path, call.File), call.SourceRange.Start.Line}
+	if fe := call.Body.Arg("for_each"); fe != nil {
+		callLine.line = fe.Range.Start.Line
+	}
 	for _, name := range objects {
 		rv := vars[name]
 		for i := range callee.Head.Variables {
@@ -320,7 +334,7 @@ func (p *passCheck) call(call ModuleCall, callee *Area, vars map[string]*Variabl
 			if set[sv.Name] {
 				continue
 			}
-			p.add("structure.passthrough-field-drift", "var."+name, []anchor{p.typeLine(rv), p.rootFile(rv, rv.Line), p.subFile(callee, sv, sv.Line)}, typeText(rv))
+			p.add("structure.passthrough-field-drift", "var."+name, []anchor{p.typeLine(rv), p.rootFile(rv, rv.Line), callLine, p.subFile(callee, sv, sv.Line)}, typeText(rv))
 		}
 	}
 }
@@ -400,7 +414,15 @@ func (p *passCheck) ref(r passRef, rv, sv *Variable, callee *Area, arg anchor, s
 			p.add(def, addr, slices.Concat(declared, []anchor{arg}, subDecl), &rootUnset)
 		}
 	}
-	p.walk(root, varType(sv), addr, rv, sv, callee, arg)
+	rootAt := p.typeLine(rv)
+	if last != nil {
+		rootAt = p.rootFile(rv, last.line)
+	}
+	subAt := p.subFile(callee, sv, sv.Line)
+	if x := sv.Body.Arg("type"); x != nil {
+		subAt.line = x.Range.Start.Line
+	}
+	p.walk(root, varType(sv), addr, rv, sv, callee, arg, rootAt, subAt)
 }
 
 // refUnset is what a reference yields when the caller sets nothing. required
@@ -414,15 +436,15 @@ func (p *passCheck) refUnset(r passRef, rv *Variable, last *passAttr) (value str
 		return "", true, true
 	case len(r.path) == 0:
 		return rv.Default.Text, true, false
-	case r.each || (rv.Default != nil && len(r.path) == 1 && normExpr(rv.Default.Text) == "{ }"):
-		if last == nil {
-			return "", false, false
-		}
+	case last == nil:
+		return "", false, false
+	case r.each || rv.Default == nil || normExpr(rv.Default.Text) == "{ }":
+		// Unset, or set to an object with the attribute left out, the
+		// attribute takes its optional() default.
 		v, ok := last.unset()
 		return v, true, !ok
-	case rv.Default == nil:
-		return "", true, true
 	}
+	// A default that is null or sets attributes needs evaluating.
 	return rv.Default.Text, false, false
 }
 
@@ -435,14 +457,21 @@ func sameUnset(root, sub string, substitutes bool) bool {
 	return normExpr(root) == normExpr(sub)
 }
 
-// walk compares the attributes of two types at every depth.
-func (p *passCheck) walk(r, s *passType, addr string, rv, sv *Variable, callee *Area, arg anchor) {
+// walk compares the attributes of two types at every depth. rootAt and
+// subAt are where each side declares the type walked.
+func (p *passCheck) walk(r, s *passType, addr string, rv, sv *Variable, callee *Area, arg, rootAt, subAt anchor) {
 	const field, def = "structure.passthrough-field-drift", "structure.passthrough-default-drift"
 	switch {
-	case r.kind == passColl && s.kind == passColl:
-		p.walk(r.elem, s.elem, addr, rv, sv, callee, arg)
+	case r.kind == passAny || s.kind == passAny:
 		return
-	case r.kind != passObject || s.kind != passObject:
+	case r.kind == passColl && s.kind == passColl:
+		p.walk(r.elem, s.elem, addr, rv, sv, callee, arg, rootAt, subAt)
+		return
+	case r.kind != s.kind:
+		// An object or collection on one side only: the shapes differ.
+		p.add(field, addr, []anchor{rootAt, arg, subAt}, typeText(rv))
+		return
+	case r.kind != passObject:
 		return
 	}
 	for _, sa := range s.attrs {
@@ -462,6 +491,6 @@ func (p *passCheck) walk(r, s *passType, addr string, rv, sv *Variable, callee *
 		if rok && sok && !sameUnset(ru, su, sa.def != nil) {
 			p.add(def, sub, []anchor{p.rootFile(rv, ra.line), arg, p.subFile(callee, sv, sa.line)}, &ru)
 		}
-		p.walk(ra.typ, sa.typ, sub, rv, sv, callee, arg)
+		p.walk(ra.typ, sa.typ, sub, rv, sv, callee, arg, p.rootFile(rv, ra.line), p.subFile(callee, sv, sa.line))
 	}
 }

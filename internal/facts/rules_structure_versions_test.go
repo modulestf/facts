@@ -282,6 +282,11 @@ func TestFeatureAboveFloorHardCases(t *testing.T) {
 			want: []string{featureRule + " main.tf:1 .:foo.x", featureRule + " main.tf:5 .:var.x", featureRule + " versions.tf:3 .:cloud"},
 		},
 		{
+			name: "a module source read from a local",
+			head: map[string]string{"versions.tf": requires(">= 1.14"), "main.tf": "locals {\n  src = \"./modules/x\"\n}\n\nmodule \"m\" {\n  source = local.src\n}\n"},
+			want: []string{featureRule + " main.tf:6 .:module.m.source"},
+		},
+		{
 			name: "a parse error is not evaluated",
 			head: map[string]string{"main.tf": "locals {\n"},
 			want: []string{featureRule + " . not_evaluated parse_error", defaultRule + " . not_evaluated parse_error",
@@ -306,6 +311,11 @@ func TestFeatureEvidenceCap(t *testing.T) {
 	if len(r.Candidates) != 1 || r.Candidates[0].EvidenceComplete || len(*r.Candidates[0].Evidence.Head) != maxEvidenceText {
 		t.Errorf("cap did not bite: %+v", r.Candidates)
 	}
+}
+
+func providers(rv, aws string) string {
+	return "terraform {\n  required_version = \"" + rv + "\"\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n" +
+		"      version = " + aws + "\n    }\n    random = {\n      source  = \"hashicorp/random\"\n      version = \">= 3.0\"\n    }\n  }\n}\n"
 }
 
 func TestVersionFloorUnderstatedHardCases(t *testing.T) {
@@ -345,6 +355,28 @@ func TestVersionFloorUnderstatedHardCases(t *testing.T) {
 			head: map[string]string{"versions.tf": requires(">= 1.0"), "main.tf": call("./modules/a"),
 				"modules/a/versions.tf": requires(">= 1.3"), "modules/a/main.tf": call("../b"), "modules/b/versions.tf": requires(">= 1.5")},
 			want: []string{understateRule + " modules/a/versions.tf:2 modules/a:required_version", understateRule + " versions.tf:2 .:required_version"},
+		},
+		{
+			name: "disjoint sets where the caller's floor is the higher",
+			head: map[string]string{"versions.tf": requires("~> 1.4.0"), "examples/e/main.tf": call("../../"), "examples/e/versions.tf": requires(">= 1.6")},
+			want: []string{understateRule + " examples/e/versions.tf:2 examples/e:required_version"},
+		},
+		{
+			name: "a provider floor below the callee's, compared per source address",
+			head: map[string]string{"versions.tf": providers(">= 1.5.7", "\">= 6.0\""), "main.tf": call("./modules/a"),
+				"modules/a/versions.tf": strings.Replace(providers(">= 1.5.7", "\">= 6.42\""), "\"hashicorp/aws\"", "\"registry.terraform.io/HashiCorp/aws\"", 1)},
+			want: []string{understateRule + " versions.tf:6 .:required_providers.aws"},
+		},
+		{
+			name: "a provider version that is not a plain string",
+			head: map[string]string{"versions.tf": providers(">= 1.5.7", "var.v"), "main.tf": call("./modules/a"),
+				"modules/a/versions.tf": providers(">= 1.5.7", "\">= 6.0\"")},
+			want: []string{understateRule + " versions.tf:6 .:required_providers.aws"},
+		},
+		{
+			name: "a root with no required_version calls a submodule with a floor",
+			head: map[string]string{"main.tf": call("./modules/a"), "modules/a/versions.tf": requires(">= 1.3")},
+			want: []string{understateRule + " modules/a/versions.tf:2 .:required_version"},
 		},
 		{
 			name: "a constraint that is not a plain string is a candidate",
@@ -406,6 +438,26 @@ func TestPassthroughHardCases(t *testing.T) {
 					"variable \"first\" {\n  type    = string\n  default = \"f\"\n}\n\nvariable \"name\" {\n  type    = string\n  default = \"n\"\n}\n\n" +
 					"variable \"merged\" {\n  type    = any\n  default = {}\n}\n"},
 			want: []string{defaultRule + " variables.tf:1 .:var.a", fieldRule + " variables.tf:2 .:var.a.extra"},
+		},
+		{
+			name: "a required object, a string index, and a new call that sets no other variable",
+			base: map[string]string{"variables.tf": "variable \"settings\" {\n  type = object({\n    mode = optional(string, \"a\")\n  })\n}\n",
+				"modules/c/variables.tf": "variable \"mode\" {\n  type    = string\n  default = \"b\"\n}\n\nvariable \"tags\" {\n  type    = map(string)\n  default = {}\n}\n"},
+			head: map[string]string{"variables.tf": "variable \"settings\" {\n  type = object({\n    mode = optional(string, \"a\")\n  })\n}\n",
+				"modules/c/variables.tf": "variable \"mode\" {\n  type    = string\n  default = \"b\"\n}\n\nvariable \"tags\" {\n  type    = map(string)\n  default = {}\n}\n",
+				"main.tf":                "module \"c\" {\n  source = \"./modules/c\"\n  mode   = var.settings[\"mode\"]\n}\n"},
+			want: []string{defaultRule + " main.tf:3 .:var.settings.mode", fieldRule + " main.tf:2 .:var.settings"},
+		},
+		{
+			name: "a shape mismatch, an explicit nullable = true, and several references",
+			head: map[string]string{
+				"variables.tf": "variable \"cfg\" {\n  type    = string\n  default = \"x\"\n}\n\nvariable \"label\" {\n  type    = string\n  default = null\n}\n\n" +
+					"variable \"a\" {\n  type    = number\n  default = 20\n}\n\nvariable \"b\" {\n  type    = number\n  default = 20\n}\n",
+				"main.tf": "module \"c\" {\n  source = \"./modules/c\"\n  cfg    = var.cfg\n  label  = var.label\n  size   = coalesce(var.a, var.b)\n}\n",
+				"modules/c/variables.tf": "variable \"cfg\" {\n  type    = object({ a = optional(string) })\n  default = {}\n}\n\n" +
+					"variable \"label\" {\n  type     = string\n  default  = \"c\"\n  nullable = true\n}\n\n" + sub},
+			want: []string{defaultRule + " variables.tf:1 .:var.cfg", defaultRule + " variables.tf:11 .:var.a", defaultRule + " variables.tf:16 .:var.b",
+				defaultRule + " variables.tf:6 .:var.label", fieldRule + " variables.tf:2 .:var.cfg"},
 		},
 		{
 			name: "a registry call and a root null into a non-nullable variable are silent",

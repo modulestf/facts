@@ -2,11 +2,13 @@ package facts
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 // structureVersionsRules is the structure_versions rule family. Rule work for this family adds its rules and
@@ -151,63 +153,201 @@ func crossCandidate(a *Area, lc *lineChanges, rule, addr string, anchors []ancho
 	return Candidate{RuleID: rule, File: at.file, Line: &line, Subject: subject(a.Path, e.trim(addr)), Evidence: e.ev, EvidenceComplete: e.complete}
 }
 
-// structure.version-floor-understated: an area whose required_version admits
-// a lower release than a local module it calls, or no release that module
-// admits. A constraint that is not a plain string is a candidate. One
-// candidate per caller, subject <area>:required_version, lands on the
-// caller's required_version, else the callee's, else the call's source,
-// whichever the change touches first.
+// floorDecl is one declared floor of a module: its required_version, or the
+// version constraints of one provider source address.
+type floorDecl struct {
+	addr string // subject address: required_version or required_providers.<name>
+	d    versionDecl
+	text []string // the constraints as written, for evidence
+}
+
+// moduleFloors returns the floors a module declares, keyed "" for its
+// required_version and by provider source address otherwise. A provider
+// entry with no version declares the provider and no floor. A source or
+// version that is not a plain string makes that entry's floor unreadable.
+func moduleFloors(m *Module) map[string]*floorDecl {
+	out := map[string]*floorDecl{}
+	if rv := requiredVersions(m); len(rv.lines) > 0 {
+		f := &floorDecl{addr: "required_version", d: rv}
+		if t := ifRequiredVersion(m); t != nil {
+			f.text = []string{*t}
+		}
+		out[""] = f
+	}
+	for _, t := range m.Terraform {
+		for _, nb := range t.Body.Blocks {
+			if nb.Type != "required_providers" {
+				continue
+			}
+			for _, at := range nb.Body.Attributes {
+				addFloor(out, t.File, at)
+			}
+		}
+	}
+	return out
+}
+
+// addFloor adds one required_providers entry to the floors.
+func addFloor(out map[string]*floorDecl, file string, at Attribute) {
+	source, sourceOK := "hashicorp/"+at.Name, true
+	line := at.Range.Start.Line
+	var constraint *Expr
+	switch e := reparse(file, at.Value).(type) {
+	case *hclsyntax.ObjectConsExpr:
+		for _, it := range e.Items {
+			v := Expr{Text: sourceOf(at.Value, it.ValueExpr.Range()), Range: it.ValueExpr.Range()}
+			switch keyName(it.KeyExpr) {
+			case "source":
+				if s, ok := literalString(it.ValueExpr); ok {
+					source = s
+				} else {
+					sourceOK = false
+				}
+			case "version":
+				constraint, line = &v, it.KeyExpr.Range().Start.Line
+			}
+		}
+	default:
+		constraint = &at.Value // the legacy form: a version constraint string
+	}
+	key := providerKey(source)
+	if !sourceOK {
+		key = "?" + at.Name
+	}
+	f := out[key]
+	if f == nil {
+		f = &floorDecl{addr: "required_providers." + at.Name, d: versionDecl{ok: true}}
+		out[key] = f
+	}
+	f.d.lines = append(f.d.lines, declLine{file, line})
+	f.d.ok = f.d.ok && sourceOK
+	if constraint == nil {
+		return
+	}
+	f.text = append(f.text, constraint.Text)
+	s, err := strconv.Unquote(constraint.Text)
+	if err != nil || strings.Contains(constraint.Text, "${") || strings.Contains(constraint.Text, "%{") {
+		f.d.ok = false
+		return
+	}
+	cs, err := version.NewConstraint(s)
+	if err != nil {
+		f.d.ok = false
+		return
+	}
+	f.d.cs = append(f.d.cs, cs...)
+}
+
+// providerKey normalizes a provider source address: lower case, with the
+// default registry host and namespace filled in.
+func providerKey(source string) string {
+	s := strings.ToLower(source)
+	switch strings.Count(s, "/") {
+	case 0:
+		return "registry.terraform.io/hashicorp/" + s
+	case 1:
+		return "registry.terraform.io/" + s
+	}
+	return s
+}
+
+// structure.version-floor-understated: an area whose required_version, or
+// the version constraints of a provider it requires, admit a lower release
+// than a local module it calls, or no release that module admits. Provider
+// floors are compared per source address. A constraint that is not a plain
+// string is a candidate. One candidate per caller and floor, subject
+// <area>:required_version or <area>:required_providers.<name>, lands on the
+// caller's declaration, else the callee's, else the call's source, whichever
+// the change touches first.
 func checkVersionFloorUnderstated(a *Area) Result {
 	const id = "structure.version-floor-understated"
-	caller := requiredVersions(a.Head)
-	var anchors []anchor
-	for _, d := range caller.lines {
-		anchors = append(anchors, anchor{areaFile(a.Path, d.file), d.line})
+	callerFloors := moduleFloors(a.Head)
+	type finding struct {
+		floor   *floorDecl // the callee's, when the caller declares none
+		callees []anchor
+		calls   []anchor
+		seen    map[string]bool
 	}
-	var calls []ModuleCall
-	offending := map[string]bool{}
+	found := map[string]*finding{}
 	for _, call := range a.Head.ModuleCalls {
 		callee := calledArea(a, call)
 		if callee == nil {
 			continue
 		}
-		if _, done := offending[callee.Path]; !done {
-			d := requiredVersions(callee.Head)
-			offending[callee.Path] = understated(caller, d)
-			for _, l := range d.lines {
-				if offending[callee.Path] {
-					anchors = append(anchors, anchor{areaFile(callee.Path, l.file), l.line})
+		for key, ce := range moduleFloors(callee.Head) {
+			cr := callerFloors[key]
+			var cd versionDecl
+			if cr != nil {
+				cd = cr.d
+			}
+			if !understated(cd, ce.d, a.Kind == AreaExample) {
+				continue
+			}
+			f := found[key]
+			if f == nil {
+				f = &finding{floor: ce, seen: map[string]bool{}}
+				found[key] = f
+			}
+			if !f.seen[callee.Path] {
+				f.seen[callee.Path] = true
+				for _, l := range ce.d.lines {
+					f.callees = append(f.callees, anchor{areaFile(callee.Path, l.file), l.line})
 				}
 			}
+			f.calls = append(f.calls, anchor{areaFile(a.Path, call.File), call.SourceRange.Start.Line})
 		}
-		if offending[callee.Path] {
-			calls = append(calls, call)
-		}
-	}
-	for _, call := range calls {
-		anchors = append(anchors, anchor{areaFile(a.Path, call.File), call.SourceRange.Start.Line})
-	}
-	if len(calls) == 0 {
-		return Result{}
 	}
 	lc := &lineChanges{a: a, cache: map[string][]lineRange{}}
-	var base *string
-	if a.Base != nil {
-		base = ifRequiredVersion(a.Base)
+	var res Result
+	for _, key := range slices.Sorted(maps.Keys(found)) {
+		f := found[key]
+		addr, head := f.floor.addr, (*string)(nil)
+		var anchors []anchor
+		if cr := callerFloors[key]; cr != nil {
+			addr = cr.addr
+			for _, l := range cr.d.lines {
+				anchors = append(anchors, anchor{areaFile(a.Path, l.file), l.line})
+			}
+			head = joined(cr.text)
+		}
+		var base *string
+		if a.Base != nil {
+			if bf := moduleFloors(a.Base)[key]; bf != nil {
+				base = joined(bf.text)
+			}
+		}
+		anchors = slices.Concat(anchors, f.callees, f.calls)
+		res.Candidates = append(res.Candidates, crossCandidate(a, lc, id, addr, anchors, base, head))
 	}
-	return Result{Candidates: []Candidate{crossCandidate(a, lc, id, "required_version", anchors, base, ifRequiredVersion(a.Head))}}
+	return res
+}
+
+func joined(parts []string) *string {
+	if len(parts) == 0 {
+		return nil
+	}
+	s := strings.Join(parts, ", ")
+	return &s
 }
 
 // understated reports whether a caller's constraints admit a lower release
 // than its callee's, or no release the callee's admit too. Either side not
-// readable counts. A caller that declares no required_version declares no
-// floor, which examples.versions-missing reports for an example, and a callee
-// with none admits every release, so neither is understated.
-func understated(caller, callee versionDecl) bool {
+// readable counts. A callee that declares nothing, or declares no floor,
+// admits every release, so it is never understated. A caller that declares
+// nothing against a callee floor is understated, except an example: that
+// case is examples.versions-missing.
+func understated(caller, callee versionDecl, example bool) bool {
 	switch {
-	case len(caller.lines) == 0 || len(callee.lines) == 0:
+	case len(callee.lines) == 0:
 		return false
-	case !caller.ok || !callee.ok:
+	case len(caller.lines) == 0 && example:
+		return false
+	case !callee.ok:
+		return true
+	case len(caller.lines) == 0:
+		low := lowestAdmitted(callee.cs)
+		return low == nil || low.GreaterThan(version.Must(version.NewVersion("0.0.0")))
+	case !caller.ok:
 		return true
 	}
 	low, calleeLow := lowestAdmitted(caller.cs), lowestAdmitted(callee.cs)
