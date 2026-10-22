@@ -1,11 +1,13 @@
 package facts
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestChangedLines(t *testing.T) {
@@ -24,7 +26,8 @@ func TestChangedLines(t *testing.T) {
 		"crlf differs":         {base: "a\nb\n", head: "a\r\nb\n", want: []lineRange{{1, 1}}},
 		"repeated lines":       {base: "}\n}\n", head: "}\nx\n}\n}\n", want: []lineRange{{2, 3}}},
 	} {
-		got, ok := changedLines([]byte(tc.base), []byte(tc.head))
+		budget := maxDiffTotalCells
+		got, ok := changedLines([]byte(tc.base), []byte(tc.head), &budget)
 		if !ok || !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: got %v %v, want %v", name, got, ok, tc.want)
 		}
@@ -44,12 +47,13 @@ func distinctLines(prefix string, n int) string {
 func TestChangedLinesLimit(t *testing.T) {
 	// 2048 x 2048 cells is at the limit: the table needs one row and column
 	// more, so it is past it.
-	if _, ok := changedLines([]byte(distinctLines("a", 2048)), []byte(distinctLines("b", 2048))); ok {
+	budget := maxDiffTotalCells
+	if _, ok := changedLines([]byte(distinctLines("a", 2048)), []byte(distinctLines("b", 2048)), &budget); ok {
 		t.Error("a diff past the limit was computed")
 	}
 	// The common prefix and suffix do not count toward the limit.
 	same := distinctLines("s", 5000)
-	got, ok := changedLines([]byte(same+"x\n"+same), []byte(same+"y\n"+same))
+	got, ok := changedLines([]byte(same+"x\n"+same), []byte(same+"y\n"+same), &budget)
 	if !ok || !reflect.DeepEqual(got, []lineRange{{5001, 5001}}) {
 		t.Errorf("trimmed diff: got %v %v", got, ok)
 	}
@@ -75,7 +79,28 @@ func scopeAreas(t *testing.T, base map[string]string, head map[string]string) ([
 	if err != nil {
 		t.Fatal(err)
 	}
-	return areas, BuildChangeMap(ht, bt, areas)
+	return areas, mustChange(t, ht, bt, areas)
+}
+
+func mustChange(t *testing.T, head, base *Tree, areas []*Area) *ChangeMap {
+	t.Helper()
+	ch, err := BuildChangeMap(head, base, areas, DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ch
+}
+
+// changeFor is the change map, with no base, of a head tree that holds each
+// file with ten lines, for areas a test builds by hand: every line of those
+// files is changed.
+func changeFor(t *testing.T, areas []*Area, files ...string) *ChangeMap {
+	t.Helper()
+	tree := map[string]string{}
+	for _, f := range files {
+		tree[f] = strings.Repeat("#\n", 10)
+	}
+	return mustChange(t, mustTree(t, writeTree(t, tree)), nil, areas)
 }
 
 func TestBlockStatus(t *testing.T) {
@@ -95,7 +120,7 @@ func TestBlockStatus(t *testing.T) {
 		}
 	}
 	for line := 1; line <= 11; line++ {
-		if !ch.LineChanged("main.tf", line) {
+		if c, _ := ch.rangeChanged("main.tf", line, line); !c {
 			t.Errorf("no base: line %d unchanged", line)
 		}
 	}
@@ -126,8 +151,12 @@ func keptLines(fs []Finding) []int {
 }
 
 // Each scope keeps its own subset. The any-file-in-area case is the mutation
-// for the rest: the same rule with no filter keeps every finding, so each
-// drop below is the filter's. The cross-area case shows the line-level drop:
+// for the rest: the same rule with that scope keeps every finding, so each
+// drop below is the filter's. touched-expression keeps line 5: a variable's
+// type argument has no index entry of its own, so the innermost entry that
+// holds line 5 is the whole edited variable, whose line 6 changed. touched-expression keeps line 5: a variable's
+// type argument has no index entry of its own, so the innermost entry that
+// holds line 5 is the whole edited variable, whose line 6 changed. The cross-area case shows the line-level drop:
 // line 5 is in a touched area and an edited block but is not a changed line.
 func TestScopeFilters(t *testing.T) {
 	areas, ch := scopeAreas(t, map[string]string{"main.tf": scopeBase}, map[string]string{"main.tf": scopeHead})
@@ -138,23 +167,18 @@ func TestScopeFilters(t *testing.T) {
 		wantCandidate bool
 		status        string
 	}{
-		"any-file-in-area":                 {rule: scopeRule(ScopeAnyFileInArea, false, all...), want: all, wantCandidate: true, status: StatusFinding},
-		"touched-block":                    {rule: scopeRule(ScopeTouchedBlock, false, all...), want: []int{5, 6, 9, 11}, wantCandidate: true, status: StatusFinding},
-		"touched-expression":               {rule: scopeRule(ScopeTouchedExpression, false, all...), want: []int{6, 9, 11}, wantCandidate: true, status: StatusFinding},
-		"newly-introduced":                 {rule: scopeRule(ScopeNewlyIntroduced, false, all...), want: []int{9, 11}, status: StatusFinding},
-		"cross-area, any-file-in-area":     {rule: scopeRule(ScopeAnyFileInArea, true, all...), want: []int{6, 9, 11}, wantCandidate: true, status: StatusFinding},
-		"cross-area, touched-block":        {rule: scopeRule(ScopeTouchedBlock, true, all...), want: []int{6, 9, 11}, wantCandidate: true, status: StatusFinding},
-		"newly-introduced, all dropped":    {rule: scopeRule(ScopeNewlyIntroduced, false, 1, 5), want: []int{}, status: StatusClean},
-		"cross-area unchanged line only":   {rule: scopeRule(ScopeAnyFileInArea, true, 5), want: []int{}, wantCandidate: true, status: StatusCandidate},
-		"mutation: per area, line 5 kept":  {rule: scopeRule(ScopeAnyFileInArea, false, 5), want: []int{5}, wantCandidate: true, status: StatusFinding},
-		"mutation: no change map keeps it": {rule: scopeRule(ScopeAnyFileInArea, true, 5), want: []int{5}, wantCandidate: true, status: StatusFinding},
+		"any-file-in-area":                {rule: scopeRule(ScopeAnyFileInArea, false, all...), want: all, wantCandidate: true, status: StatusFinding},
+		"touched-block":                   {rule: scopeRule(ScopeTouchedBlock, false, all...), want: []int{5, 6, 9, 11}, wantCandidate: true, status: StatusFinding},
+		"touched-expression":              {rule: scopeRule(ScopeTouchedExpression, false, all...), want: []int{5, 6, 9, 11}, wantCandidate: true, status: StatusFinding},
+		"newly-introduced":                {rule: scopeRule(ScopeNewlyIntroduced, false, all...), want: []int{9, 11}, status: StatusFinding},
+		"cross-area, any-file-in-area":    {rule: scopeRule(ScopeAnyFileInArea, true, all...), want: []int{6, 9, 11}, wantCandidate: true, status: StatusFinding},
+		"cross-area, touched-block":       {rule: scopeRule(ScopeTouchedBlock, true, all...), want: []int{6, 9, 11}, wantCandidate: true, status: StatusFinding},
+		"newly-introduced, all dropped":   {rule: scopeRule(ScopeNewlyIntroduced, false, 1, 5), want: []int{}, status: StatusClean},
+		"cross-area unchanged line only":  {rule: scopeRule(ScopeAnyFileInArea, true, 5), want: []int{}, wantCandidate: true, status: StatusCandidate},
+		"mutation: per area, line 5 kept": {rule: scopeRule(ScopeAnyFileInArea, false, 5), want: []int{5}, wantCandidate: true, status: StatusFinding},
 	} {
 		t.Run(name, func(t *testing.T) {
-			use := ch
-			if strings.HasPrefix(name, "mutation: no change map") {
-				use = nil
-			}
-			m, fs, cs := Evaluate(areas, []Rule{tc.rule}, use)
+			m, fs, cs := Evaluate(areas, []Rule{tc.rule}, ch)
 			if got := keptLines(fs); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("kept lines %v, want %v", got, tc.want)
 			}
@@ -241,4 +265,153 @@ func TestRunDropsCrossAreaFindingOnUnchangedLine(t *testing.T) {
 			t.Errorf("line %d: findings %+v, want %d", line, rep.Findings, want)
 		}
 	}
+}
+
+// Repeated addresses: each head block takes its own status. Of two
+// terraform blocks, the one with an unchanged hash stays untouched.
+func TestBlockStatusPerSpan(t *testing.T) {
+	const one = "terraform {\n  required_version = \">= 1.0\"\n}\n"
+	const two = "\nterraform {\n  experiments = []\n}\n"
+	_, ch := scopeAreas(t, map[string]string{"main.tf": one + two},
+		map[string]string{"main.tf": one + "\nterraform {\n  experiments = [x]\n}\n"})
+	if got := ch.blockAt("main.tf", 2); got != BlockUntouched {
+		t.Errorf("first terraform block: %q", got)
+	}
+	if got := ch.blockAt("main.tf", 6); got != BlockEdited {
+		t.Errorf("second terraform block: %q", got)
+	}
+	if got := ch.BlockStatus(".", "terraform"); got != BlockEdited {
+		t.Errorf("address: %q", got)
+	}
+	// One of two blocks removed: the address is edited, the head block
+	// untouched.
+	_, ch = scopeAreas(t, map[string]string{"main.tf": one + two}, map[string]string{"main.tf": one + "\n"})
+	if got, st := ch.blockAt("main.tf", 2), ch.BlockStatus(".", "terraform"); got != BlockUntouched || st != BlockEdited {
+		t.Errorf("block %q, address %q", got, st)
+	}
+}
+
+// The innermost block wins: a finding on an unchanged local of an edited
+// locals block is out of touched-block scope, one on the changed local is
+// in. The outer locals block alone would keep both.
+func TestInnermostSpanWins(t *testing.T) {
+	areas, ch := scopeAreas(t,
+		map[string]string{"main.tf": "locals {\n  a = 1\n  b = 2\n}\n"},
+		map[string]string{"main.tf": "locals {\n  a = 1\n  b = 3\n}\n"})
+	if got := ch.blockAt("main.tf", 1); got != BlockEdited {
+		t.Fatalf("locals block: %q", got)
+	}
+	_, fs, _ := Evaluate(areas, []Rule{scopeRule(ScopeTouchedBlock, false, 2, 3)}, ch)
+	if got := keptLines(fs); !reflect.DeepEqual(got, []int{3}) {
+		t.Errorf("kept %v, want [3]", got)
+	}
+}
+
+// touched-expression matches the innermost index entry: a finding on the
+// first line of a multi-line argument whose later line changed is kept; a
+// finding on an unchanged argument of the same block is not. The mutation
+// checks only the finding's own line and drops line 2.
+func TestTouchedExpressionMultiLine(t *testing.T) {
+	const res = "resource \"x\" \"y\" {\n  tags = merge(\n    { a = 1 },\n    { b = %d },\n  )\n  name = \"n\"\n}\n"
+	areas, ch := scopeAreas(t, map[string]string{"main.tf": fmt.Sprintf(res, 2)}, map[string]string{"main.tf": fmt.Sprintf(res, 3)})
+	_, fs, _ := Evaluate(areas, []Rule{scopeRule(ScopeTouchedExpression, false, 2, 6)}, ch)
+	if got := keptLines(fs); !reflect.DeepEqual(got, []int{2}) {
+		t.Errorf("kept %v, want [2]", got)
+	}
+	if in, _ := ch.onChangedLine("main.tf", new(2)); in {
+		t.Error("mutation: line 2 itself counts as changed")
+	}
+}
+
+// A block moved to another file in the area keeps its hash, so it is
+// untouched: touched-expression and touched-block drop a finding in it,
+// although every line of the new file is changed.
+func TestTouchedScopesSkipMovedBlock(t *testing.T) {
+	const v = "variable \"x\" {\n  type = string\n}\n"
+	areas, ch := scopeAreas(t, map[string]string{"a.tf": v}, map[string]string{"b.tf": v})
+	if c, _ := ch.rangeChanged("b.tf", 2, 2); !c {
+		t.Fatal("b.tf line 2 is not changed")
+	}
+	rule := func(scope string) Rule {
+		r := scopeRule(scope, false)
+		r.Check = func(*Area) Result {
+			return Result{Findings: []Finding{{RuleID: "test.scope", Severity: "LOW", File: "b.tf", Line: new(2)}}}
+		}
+		return r
+	}
+	for scope, want := range map[string]int{ScopeTouchedExpression: 0, ScopeTouchedBlock: 0, ScopeAnyFileInArea: 1} {
+		if _, fs, _ := Evaluate(areas, []Rule{rule(scope)}, ch); len(fs) != want {
+			t.Errorf("%s: %d findings, want %d", scope, len(fs), want)
+		}
+	}
+}
+
+// A result with no line, such as a finding about a removed block, which has
+// no head line, is judged by its path. newly-introduced keeps it only for a
+// path the base does not have: an added file or directory.
+func TestNoLineResults(t *testing.T) {
+	areas, ch := scopeAreas(t,
+		map[string]string{"main.tf": scopeBase, "gone.tf": "variable \"g\" {}\n", "modules/a/main.tf": ""},
+		map[string]string{"main.tf": scopeHead, "new.tf": "", "modules/a/main.tf": "", "modules/new/main.tf": ""})
+	for _, tc := range []struct {
+		file, scope string
+		want        bool
+	}{
+		{"main.tf", ScopeTouchedBlock, true}, // var "gone" was removed from it
+		{"gone.tf", ScopeTouchedBlock, true},
+		{"gone.tf", ScopeTouchedExpression, true},
+		{"gone.tf", ScopeNewlyIntroduced, false},
+		{"main.tf", ScopeNewlyIntroduced, false},
+		{"new.tf", ScopeNewlyIntroduced, true},
+		{"modules/new", ScopeNewlyIntroduced, true},
+		{"modules/new", ScopeTouchedBlock, true},
+		{"modules/a", ScopeNewlyIntroduced, false},
+		{"modules/a", ScopeTouchedBlock, false},
+	} {
+		if in, _ := ch.inScope(tc.scope, tc.file, nil); in != tc.want {
+			t.Errorf("%s %s: %v, want %v", tc.file, tc.scope, in, tc.want)
+		}
+	}
+	if len(areas) == 0 {
+		t.Fatal("no areas")
+	}
+}
+
+// The total cell budget across files: four files at the per-file cap use it
+// all, so a fifth is past it although it is under the per-file cap.
+func TestChangeMapTotalBudget(t *testing.T) {
+	base, head := map[string]string{}, map[string]string{}
+	for _, f := range []string{"a", "b", "c", "d", "e"} {
+		base[f+".txt"] = distinctLines("o"+f, 2047)
+		head[f+".txt"] = distinctLines("n"+f, 2047)
+	}
+	_, ch := scopeAreas(t, base, head)
+	var over []string
+	for f := range ch.overLimit {
+		over = append(over, f)
+	}
+	if !reflect.DeepEqual(over, []string{"e.txt"}) {
+		t.Errorf("over the budget: %v, want [e.txt]", over)
+	}
+}
+
+func TestChangeMapDeadline(t *testing.T) {
+	head := mustTree(t, writeTree(t, map[string]string{"main.tf": ""}))
+	lim := DefaultLimits
+	lim.Deadline = time.Now().Add(-time.Second)
+	if _, err := BuildChangeMap(head, nil, nil, lim); !errors.Is(err, ErrDeadline) {
+		t.Errorf("err %v", err)
+	}
+	if _, err := BuildChangeMap(head, nil, nil, DefaultLimits); err != nil {
+		t.Errorf("no deadline: %v", err)
+	}
+}
+
+func TestEvaluateNeedsChangeMap(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("Evaluate ran with no change map")
+		}
+	}()
+	Evaluate(nil, nil, nil)
 }

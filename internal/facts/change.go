@@ -3,7 +3,6 @@ package facts
 import (
 	"bytes"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 )
@@ -16,33 +15,41 @@ const (
 	BlockUntouched = "untouched"
 )
 
-// maxDiffCells bounds the line diff of one file: the product of the base and
-// head line counts left after the common prefix and suffix are trimmed. A
-// file past it has no changed line ranges; see ChangeMap.overLimit. At 4
-// bytes a cell that is 16 MiB for the worst file.
-const maxDiffCells = 1 << 22
+// Bounds of the line diff. maxDiffCells bounds one file: the product of the
+// base and head line counts, each plus one, left after the common prefix
+// and suffix are trimmed. At 4 bytes a cell that is 16 MiB for the worst
+// file. maxDiffTotalCells bounds every file of one run together, so many
+// files near the per-file cap cannot run long. A file past either has no
+// changed line ranges; see ChangeMap.overLimit.
+const (
+	maxDiffCells      = 1 << 22
+	maxDiffTotalCells = 1 << 24
+)
 
 // lineRange is a run of head lines, 1-based and inclusive.
 type lineRange struct{ Start, End int }
 
 // ChangeMap is what the change touches: the paths it adds, changes or
 // removes, the changed head line ranges per file and the status of every
-// block address per area. With no base tree every head path is added, every
-// head line is changed and every block is added.
+// block per area. With no base tree every head path is added, every head
+// line is changed and every block is added.
 type ChangeMap struct {
+	base  *Tree           // nil with no base tree
 	paths map[string]bool // added, changed or removed paths
-	added map[string]bool // paths with no base entry
 	// lines are the changed head line ranges of each head file in the change,
 	// sorted. A file that is not a regular file at head has none.
 	lines map[string][]lineRange
-	// overLimit names the files whose diff passed maxDiffCells. Which of
-	// their lines changed is unknown.
+	// overLimit names the files whose diff passed a bound. Which of their
+	// lines changed is unknown.
 	overLimit map[string]bool
 	// blocks is the status of every block address, per area.
 	blocks map[string]map[string]string
-	// spans are the top-level block spans of each head file, with the status
-	// of their address.
+	// spans are the top-level block spans of each head file, each with its
+	// own status.
 	spans map[string][]blockSpan
+	// index is the index of the areas in scope, for the innermost entry that
+	// holds a line.
+	index []IndexEntry
 }
 
 type blockSpan struct {
@@ -51,11 +58,17 @@ type blockSpan struct {
 }
 
 // BuildChangeMap compares the head and base trees, and the parsed head and
-// base modules of the areas. base is nil when there is no base tree.
-func BuildChangeMap(head, base *Tree, areas []*Area) *ChangeMap {
-	ch := &ChangeMap{paths: map[string]bool{}, added: map[string]bool{}, lines: map[string][]lineRange{},
-		overLimit: map[string]bool{}, blocks: map[string]map[string]string{}, spans: map[string][]blockSpan{}}
+// base modules of the areas. base is nil when there is no base tree. It
+// stops with ErrDeadline when lim's deadline passes.
+func BuildChangeMap(head, base *Tree, areas []*Area, lim Limits) (*ChangeMap, error) {
+	ch := &ChangeMap{base: base, paths: map[string]bool{}, lines: map[string][]lineRange{},
+		overLimit: map[string]bool{}, blocks: map[string]map[string]string{}, spans: map[string][]blockSpan{},
+		index: BuildIndex(areas)}
+	budget := maxDiffTotalCells
 	for _, p := range head.Paths {
+		if err := lim.expired(); err != nil {
+			return nil, err
+		}
 		h := head.Entries[p]
 		var b *Entry
 		if base != nil {
@@ -65,9 +78,6 @@ func BuildChangeMap(head, base *Tree, areas []*Area) *ChangeMap {
 			continue
 		}
 		ch.paths[p] = true
-		if b == nil {
-			ch.added[p] = true
-		}
 		if h.Kind != KindFile {
 			continue
 		}
@@ -75,7 +85,7 @@ func BuildChangeMap(head, base *Tree, areas []*Area) *ChangeMap {
 		if b != nil && b.Kind == KindFile {
 			old = b.Data
 		}
-		if r, ok := changedLines(old, h.Data); ok {
+		if r, ok := changedLines(old, h.Data, &budget); ok {
 			ch.lines[p] = r
 		} else {
 			ch.overLimit[p] = true
@@ -91,111 +101,69 @@ func BuildChangeMap(head, base *Tree, areas []*Area) *ChangeMap {
 	for _, a := range areas {
 		ch.addBlocks(a)
 	}
-	return ch
+	return ch, nil
 }
 
-// addBlocks sets the status of every block address of an area. An address
-// with several blocks, such as two terraform blocks, compares them as a
-// multiset of hashes: they are edited together when any one differs.
+// addBlocks sets the status of every block of an area. Each head block of an
+// address takes one base block of that address with the same hash, and is
+// untouched when it finds one and edited when it does not; with no base
+// block of that address it is added. An address is untouched when all its
+// head blocks are and no base block is left, removed when it has no head
+// block, and otherwise edited, or added when it has no base block.
 func (ch *ChangeMap) addBlocks(a *Area) {
-	headBlocks, baseBlocks := moduleBlocks(a.Head), moduleBlocks(a.Base)
-	hashes := func(bs []addressedSpan) map[string][]string {
-		m := map[string][]string{}
-		for _, b := range bs {
-			m[b.addr] = append(m[b.addr], b.Hash)
+	left := map[string]map[string]int{} // address -> hash -> base blocks not yet taken
+	if a.Base != nil {
+		for _, b := range topBlocks(a.Base) {
+			if left[b.addr] == nil {
+				left[b.addr] = map[string]int{}
+			}
+			left[b.addr][b.Hash]++
 		}
-		for _, h := range m {
-			slices.Sort(h)
-		}
-		return m
 	}
-	hh, bh := hashes(headBlocks), hashes(baseBlocks)
 	status := map[string]string{}
-	for addr, h := range hh {
-		switch b, ok := bh[addr]; {
-		case a.Base == nil || !ok:
-			status[addr] = BlockAdded
-		case slices.Equal(h, b):
-			status[addr] = BlockUntouched
+	for _, b := range topBlocks(a.Head) {
+		hashes, atBase := left[b.addr]
+		st := BlockAdded
+		switch {
+		case !atBase:
+		case hashes[b.Hash] > 0:
+			hashes[b.Hash]--
+			st = BlockUntouched
 		default:
-			status[addr] = BlockEdited
+			st = BlockEdited
 		}
+		if prev, ok := status[b.addr]; !ok || prev == BlockUntouched {
+			status[b.addr] = st
+		}
+		f := path.Join(a.Path, b.File)
+		ch.spans[f] = append(ch.spans[f], blockSpan{start: b.Range.Start.Line, end: b.Range.End.Line, status: st})
 	}
-	for addr := range bh {
-		if _, ok := hh[addr]; !ok {
+	for addr, hashes := range left {
+		_, atHead := status[addr]
+		switch {
+		case !atHead:
 			status[addr] = BlockRemoved
+		case status[addr] == BlockUntouched:
+			for _, n := range hashes {
+				if n > 0 {
+					status[addr] = BlockEdited
+				}
+			}
 		}
 	}
 	ch.blocks[a.Path] = status
-	for _, b := range headBlocks {
-		f := path.Join(a.Path, b.File)
-		ch.spans[f] = append(ch.spans[f], blockSpan{start: b.Range.Start.Line, end: b.Range.End.Line, status: status[b.addr]})
-	}
 }
 
 // BlockStatus returns the status of a block address in an area, or "" when
 // neither revision has it.
 func (ch *ChangeMap) BlockStatus(area, addr string) string { return ch.blocks[area][addr] }
 
-type addressedSpan struct {
-	Span
-	addr string
-}
-
-// moduleBlocks lists the top-level blocks of a module with their addresses,
-// as BuildIndex writes them. A Local is listed as well as its locals block.
-func moduleBlocks(m *Module) []addressedSpan {
-	if m == nil {
-		return nil
-	}
-	var out []addressedSpan
-	add := func(s Span, addr string) { out = append(out, addressedSpan{Span: s, addr: addr}) }
-	for _, v := range m.Variables {
-		add(v.Span, "var."+v.Name)
-	}
-	for _, o := range m.Outputs {
-		add(o.Span, "output."+o.Name)
-	}
-	for _, l := range m.Locals {
-		add(l.Span, "local."+l.Name)
-	}
-	for _, o := range m.Other {
-		add(o.Span, strings.Join(append([]string{o.Type}, o.Labels...), "."))
-	}
-	for _, t := range m.Terraform {
-		add(t.Span, "terraform")
-	}
-	for _, p := range m.Providers {
-		addr := "provider." + p.Name
-		if alias, ok := literalAlias(p.Body); ok {
-			addr += "." + alias
-		}
-		add(p.Span, addr)
-	}
-	for _, r := range m.Resources {
-		addr := r.Type + "." + r.Name
-		if r.Mode == "data" {
-			addr = "data." + addr
-		}
-		add(r.Span, addr)
-	}
-	for _, c := range m.ModuleCalls {
-		add(c.Span, "module."+c.Name)
-	}
-	for _, mv := range m.Moved {
-		add(mv.Span, "moved."+fromAddr(mv.FromAddr, mv.From))
-	}
-	for _, rm := range m.Removed {
-		add(rm.Span, "removed."+fromAddr(rm.FromAddr, rm.From))
-	}
-	return out
-}
-
 // changedLines returns the head lines that are not in a longest common
 // subsequence of the base and head lines, as sorted ranges. ok is false when
-// the diff is past maxDiffCells. A file with no base has every line changed.
+// the diff is past maxDiffCells or the cells left in budget, which it
+// lowers by the cells it uses. A file with no base has every line changed.
 // Lines removed from base change no head line.
-func changedLines(base, head []byte) (r []lineRange, ok bool) {
+func changedLines(base, head []byte, budget *int) (r []lineRange, ok bool) {
 	o, h := splitLines(base), splitLines(head)
 	p := 0
 	for p < len(o) && p < len(h) && bytes.Equal(o[p], h[p]) {
@@ -216,52 +184,11 @@ func changedLines(base, head []byte) (r []lineRange, ok bool) {
 			changed[j] = true
 		}
 	} else {
-		if n+1 > maxDiffCells/(m+1) {
+		if n+1 > maxDiffCells/(m+1) || (n+1)*(m+1) > *budget {
 			return nil, false
 		}
-		ids := map[string]int32{}
-		id := func(l []byte) int32 {
-			k, ok := ids[string(l)]
-			if !ok {
-				k = int32(len(ids)) // #nosec G115 -- at most n+m distinct lines, under maxDiffCells
-				ids[string(l)] = k
-			}
-			return k
-		}
-		oi, hi := make([]int32, n), make([]int32, m)
-		for i, l := range o {
-			oi[i] = id(l)
-		}
-		for j, l := range h {
-			hi[j] = id(l)
-		}
-		// lcs[i*(m+1)+j] is the LCS length of o[i:] and h[j:].
-		w := m + 1
-		lcs := make([]int32, (n+1)*w)
-		for i := n - 1; i >= 0; i-- {
-			for j := m - 1; j >= 0; j-- {
-				if oi[i] == hi[j] {
-					lcs[i*w+j] = lcs[(i+1)*w+j+1] + 1
-				} else {
-					lcs[i*w+j] = max(lcs[(i+1)*w+j], lcs[i*w+j+1])
-				}
-			}
-		}
-		i, j := 0, 0
-		for i < n && j < m {
-			switch {
-			case oi[i] == hi[j]:
-				i, j = i+1, j+1
-			case lcs[(i+1)*w+j] >= lcs[i*w+j+1]:
-				i++
-			default:
-				changed[j] = true
-				j++
-			}
-		}
-		for ; j < m; j++ {
-			changed[j] = true
-		}
+		*budget -= (n + 1) * (m + 1)
+		lcsChanged(o, h, changed)
 	}
 	for j, c := range changed {
 		line := p + j + 1
@@ -274,6 +201,55 @@ func changedLines(base, head []byte) (r []lineRange, ok bool) {
 		}
 	}
 	return r, true
+}
+
+// lcsChanged marks in changed the lines of h that are not in a longest
+// common subsequence of o and h. Both are non-empty.
+func lcsChanged(o, h [][]byte, changed []bool) {
+	n, m := len(o), len(h)
+	ids := map[string]int32{}
+	id := func(l []byte) int32 {
+		k, ok := ids[string(l)]
+		if !ok {
+			k = int32(len(ids)) // #nosec G115 -- at most n+m distinct lines, under maxDiffCells
+			ids[string(l)] = k
+		}
+		return k
+	}
+	oi, hi := make([]int32, n), make([]int32, m)
+	for i, l := range o {
+		oi[i] = id(l)
+	}
+	for j, l := range h {
+		hi[j] = id(l)
+	}
+	// lcs[i*w+j] is the LCS length of o[i:] and h[j:].
+	w := m + 1
+	lcs := make([]int32, (n+1)*w)
+	for i := n - 1; i >= 0; i-- {
+		for j := m - 1; j >= 0; j-- {
+			if oi[i] == hi[j] {
+				lcs[i*w+j] = lcs[(i+1)*w+j+1] + 1
+			} else {
+				lcs[i*w+j] = max(lcs[(i+1)*w+j], lcs[i*w+j+1])
+			}
+		}
+	}
+	i, j := 0, 0
+	for i < n && j < m {
+		switch {
+		case oi[i] == hi[j]:
+			i, j = i+1, j+1
+		case lcs[(i+1)*w+j] >= lcs[i*w+j+1]:
+			i++
+		default:
+			changed[j] = true
+			j++
+		}
+	}
+	for ; j < m; j++ {
+		changed[j] = true
+	}
 }
 
 // splitLines splits text into lines without their newline. A final newline
@@ -289,11 +265,15 @@ func splitLines(b []byte) [][]byte {
 	return ls
 }
 
-// LineChanged reports whether a head line of a file is in the change.
-func (ch *ChangeMap) LineChanged(file string, line int) bool {
+// rangeChanged reports whether any head line from start to end of a file is
+// changed. unknown is set for a file past the diff bounds.
+func (ch *ChangeMap) rangeChanged(file string, start, end int) (changed, unknown bool) {
+	if ch.overLimit[file] {
+		return false, true
+	}
 	r := ch.lines[file]
-	i := sort.Search(len(r), func(i int) bool { return r[i].End >= line })
-	return i < len(r) && r[i].Start <= line
+	i := sort.Search(len(r), func(i int) bool { return r[i].End >= start })
+	return i < len(r) && r[i].Start <= end, false
 }
 
 // pathChanged reports whether p, or a path under p when p is a directory, is
@@ -310,6 +290,11 @@ func (ch *ChangeMap) pathChanged(p string) bool {
 	return false
 }
 
+// pathAdded reports whether the base has no file, link or directory at p.
+func (ch *ChangeMap) pathAdded(p string) bool {
+	return ch.base == nil || (ch.base.Entries[p] == nil && !ch.base.Dirs[p])
+}
+
 // blockAt returns the status of the innermost top-level block of a head file
 // that holds the line, or "" when no block does.
 func (ch *ChangeMap) blockAt(file string, line int) string {
@@ -322,31 +307,55 @@ func (ch *ChangeMap) blockAt(file string, line int) string {
 	return best
 }
 
+// entryAt returns the lines of the innermost index entry that holds the
+// line, or the line alone when none does.
+func (ch *ChangeMap) entryAt(file string, line int) (start, end int) {
+	start, end = line, line
+	span := -1
+	for _, e := range ch.index {
+		if e.File == file && line >= e.StartLine && line <= e.EndLine && (span < 0 || e.EndLine-e.StartLine <= span) {
+			start, end, span = e.StartLine, e.EndLine, e.EndLine-e.StartLine
+		}
+	}
+	return start, end
+}
+
 // inScope reports whether a result at file and line is inside what a rule of
 // the given scope judges:
 //   - any-file-in-area: always.
-//   - touched-expression: a changed line.
+//   - touched-expression: a line whose innermost index entry, such as a
+//     whole multi-line argument, has a changed line, in a block that is not
+//     untouched. A block whose hash is unchanged is out, so a block moved to
+//     another file is not judged again.
 //   - touched-block: a line of an added or edited block.
 //   - newly-introduced: a line of an added block.
 //
-// A line outside every block is in scope for those two when it is changed.
-// A result with no line is in scope when its path is in the change, for
-// newly-introduced only when the path is added. unknown is set when the
-// answer needs the changed lines of a file whose diff passed the limit.
+// A line outside every block is in scope for the last two when it is
+// changed. A result with no line is in scope when its path, or a path under
+// it, is in the change; for newly-introduced only when the base has nothing
+// at that path, so an added file or directory. A finding about a removed
+// block has no head line, so it has a null line and is judged by its file.
+// unknown is set when the answer needs the changed lines of a file past the
+// diff bounds.
 func (ch *ChangeMap) inScope(scope, file string, line *int) (in, unknown bool) {
 	if scope == ScopeAnyFileInArea {
 		return true, false
 	}
 	if line == nil {
 		if scope == ScopeNewlyIntroduced {
-			return ch.added[file], false
+			return ch.pathAdded(file), false
 		}
 		return ch.pathChanged(file), false
 	}
+	st := ch.blockAt(file, *line)
 	if scope == ScopeTouchedExpression {
-		return ch.onChangedLine(file, line)
+		if st == BlockUntouched {
+			return false, false
+		}
+		s, e := ch.entryAt(file, *line)
+		return ch.rangeChanged(file, s, e)
 	}
-	switch ch.blockAt(file, *line) {
+	switch st {
 	case "":
 		return ch.onChangedLine(file, line)
 	case BlockAdded:
@@ -363,8 +372,5 @@ func (ch *ChangeMap) onChangedLine(file string, line *int) (in, unknown bool) {
 	if line == nil {
 		return ch.pathChanged(file), false
 	}
-	if ch.overLimit[file] {
-		return false, true
-	}
-	return ch.LineChanged(file, *line), false
+	return ch.rangeChanged(file, *line, *line)
 }

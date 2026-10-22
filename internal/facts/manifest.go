@@ -115,9 +115,11 @@ type ManifestEntry struct {
 // pass also reads the untouched areas, the findings
 // ordered and numbered as the findings schema says, and the candidates
 // numbered by file and line. Each rule keeps only the findings and
-// candidates its scope judges in ch; see scoped. A nil ch keeps every one,
-// for tests that build areas by hand.
+// candidates its scope judges in ch; see scoped. ch must not be nil.
 func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Finding, []Candidate) {
+	if ch == nil {
+		panic("facts: Evaluate needs a change map")
+	}
 	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
 		if r.CrossArea {
@@ -194,7 +196,7 @@ func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
 // that turns on the lines of a file whose diff passed its limit, the result
 // is not_evaluated(limit_exceeded).
 func scoped(r Rule, res Result, ch *ChangeMap) Result {
-	if ch == nil || res.NotEvaluated != "" {
+	if res.NotEvaluated != "" {
 		return res
 	}
 	unknown := false

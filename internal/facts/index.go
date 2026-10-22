@@ -77,65 +77,94 @@ func SubjectAt(index []IndexEntry, file string, line int) string {
 // moduleIndex appends the entries of one module, with file names relative to
 // its directory and addresses without the area.
 func moduleIndex(out []IndexEntry, m *Module) []IndexEntry {
-	add := func(file string, r hcl.Range, addr string) {
-		out = append(out, IndexEntry{File: file, StartLine: r.Start.Line, EndLine: r.End.Line, Subject: addr})
-	}
-	for _, v := range m.Variables {
-		addr := "var." + v.Name
-		add(v.File, v.Range, addr)
-		for _, ta := range v.TypeAttrs {
-			add(v.File, ta.Range, addr+"."+ta.Path)
+	for _, b := range topBlocks(m) {
+		out = append(out, IndexEntry{File: b.File, StartLine: b.Range.Start.Line, EndLine: b.Range.End.Line, Subject: b.addr})
+		for _, in := range b.inner {
+			out = append(out, IndexEntry{File: b.File, StartLine: in.Range.Start.Line, EndLine: in.Range.End.Line, Subject: in.addr})
 		}
+		if b.body != nil {
+			out = bodyIndex(out, b.File, *b.body, b.addr)
+		}
+	}
+	return out
+}
+
+// topBlock is one top-level block of a module with its address. inner are
+// the entries indexed inside it that are not in a body: the object
+// attributes of a variable's type, and the arguments, nested blocks and
+// required_providers entries of a terraform block. body, when set, is
+// indexed under the address.
+type topBlock struct {
+	Span
+	addr  string
+	inner []innerEntry
+	body  *Body
+}
+
+type innerEntry struct {
+	Range hcl.Range
+	addr  string
+}
+
+// topBlocks lists the top-level blocks of a module in index order. A Local
+// is listed as well as its locals block. It is the one place the address
+// rules of top-level blocks live; see BuildIndex.
+func topBlocks(m *Module) []topBlock {
+	if m == nil {
+		return nil
+	}
+	var out []topBlock
+	for _, v := range m.Variables {
+		b := topBlock{Span: v.Span, addr: "var." + v.Name}
+		for _, ta := range v.TypeAttrs {
+			b.inner = append(b.inner, innerEntry{ta.Range, b.addr + "." + ta.Path})
+		}
+		out = append(out, b)
 	}
 	for _, o := range m.Outputs {
-		add(o.File, o.Range, "output."+o.Name)
+		out = append(out, topBlock{Span: o.Span, addr: "output." + o.Name})
 	}
 	for _, o := range m.Other {
-		addr := strings.Join(append([]string{o.Type}, o.Labels...), ".")
-		add(o.File, o.Range, addr)
-		out = bodyIndex(out, o.File, o.Body, addr)
+		out = append(out, topBlock{Span: o.Span, addr: strings.Join(append([]string{o.Type}, o.Labels...), "."), body: &o.Body})
 	}
 	for _, l := range m.Locals {
-		add(l.File, l.Range, "local."+l.Name)
+		out = append(out, topBlock{Span: l.Span, addr: "local." + l.Name})
 	}
 	for _, t := range m.Terraform {
-		add(t.File, t.Range, "terraform")
+		b := topBlock{Span: t.Span, addr: "terraform"}
 		for _, a := range t.Body.Attributes {
-			add(t.File, a.Range, a.Name)
+			b.inner = append(b.inner, innerEntry{a.Range, a.Name})
 		}
 		for _, nb := range t.Body.Blocks {
-			add(t.File, nb.Range, nb.Type)
+			b.inner = append(b.inner, innerEntry{nb.Range, nb.Type})
 		}
 		for _, rp := range t.RequiredProviders {
-			add(t.File, rp.Range, "required_providers."+rp.Name)
+			b.inner = append(b.inner, innerEntry{rp.Range, "required_providers." + rp.Name})
 		}
+		out = append(out, b)
 	}
 	for _, p := range m.Providers {
 		addr := "provider." + p.Name
 		if alias, ok := literalAlias(p.Body); ok {
 			addr += "." + alias
 		}
-		add(p.File, p.Range, addr)
-		out = bodyIndex(out, p.File, p.Body, addr)
+		out = append(out, topBlock{Span: p.Span, addr: addr, body: &p.Body})
 	}
 	for _, r := range m.Resources {
 		addr := r.Type + "." + r.Name
 		if r.Mode == "data" {
 			addr = "data." + addr
 		}
-		add(r.File, r.Range, addr)
-		out = bodyIndex(out, r.File, r.Body, addr)
+		out = append(out, topBlock{Span: r.Span, addr: addr, body: &r.Body})
 	}
 	for _, c := range m.ModuleCalls {
-		addr := "module." + c.Name
-		add(c.File, c.Range, addr)
-		out = bodyIndex(out, c.File, c.Body, addr)
+		out = append(out, topBlock{Span: c.Span, addr: "module." + c.Name, body: &c.Body})
 	}
 	for _, mv := range m.Moved {
-		add(mv.File, mv.Range, "moved."+fromAddr(mv.FromAddr, mv.From))
+		out = append(out, topBlock{Span: mv.Span, addr: "moved." + fromAddr(mv.FromAddr, mv.From)})
 	}
 	for _, rm := range m.Removed {
-		add(rm.File, rm.Range, "removed."+fromAddr(rm.FromAddr, rm.From))
+		out = append(out, topBlock{Span: rm.Span, addr: "removed." + fromAddr(rm.FromAddr, rm.From)})
 	}
 	return out
 }
