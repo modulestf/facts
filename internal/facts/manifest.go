@@ -59,6 +59,9 @@ type Rule struct {
 	// CrossArea is the registry's cross_area: the rule is one pass over every
 	// area, with one manifest entry under the root.
 	CrossArea bool
+	// NeedsBase is set for a rule that cannot be decided without the base
+	// tree: with none, every area is not_evaluated(no_base).
+	NeedsBase bool
 	Check     func(a *Area) Result
 }
 
@@ -111,12 +114,14 @@ type ManifestEntry struct {
 // entry per (rule, area), or one under the root for a cross-area rule, whose
 // pass also reads the untouched areas, the findings
 // ordered and numbered as the findings schema says, and the candidates
-// numbered by file and line.
-func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candidate) {
+// numbered by file and line. Each rule keeps only the findings and
+// candidates its scope judges in ch; see scoped. A nil ch keeps every one,
+// for tests that build areas by hand.
+func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Finding, []Candidate) {
 	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
 		if r.CrossArea {
-			res := evaluateCrossArea(r, areas)
+			res := evaluateCrossArea(r, areas, ch)
 			manifest = append(manifest, manifestEntry(r.ID, rootArea, res))
 			findings = append(findings, res.Findings...)
 			candidates = append(candidates, res.Candidates...)
@@ -126,7 +131,7 @@ func Evaluate(areas []*Area, rules []Rule) ([]ManifestEntry, []Finding, []Candid
 			if a.Untouched {
 				continue
 			}
-			res := evaluate(r, a)
+			res := scoped(r, evaluate(r, a), ch)
 			manifest = append(manifest, manifestEntry(r.ID, a.Path, res))
 			if res.NotEvaluated == "" {
 				findings = append(findings, res.Findings...)
@@ -155,14 +160,15 @@ func evaluate(r Rule, a *Area) Result {
 // findings and candidates of the areas in scope, each with its own file;
 // those of an untouched area are not in the change and are dropped.
 //
-// Findings are dropped per area, not per line, so a finding on an unchanged
-// line of a touched area is still kept. The owner has decided that the engine
-// enforces line-level scoping; that lands in a separate change, before the
-// first cross-area rule ships. No implemented rule is cross-area today.
-func evaluateCrossArea(r Rule, areas []*Area) Result {
+// In the areas in scope, scoped also drops each finding and candidate that is
+// not on a changed line, so only those on lines in the change are kept.
+func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
 	var out Result
 	for _, a := range areas {
 		res := evaluate(r, a)
+		if !a.Untouched {
+			res = scoped(r, res, ch)
+		}
 		switch res.NotEvaluated {
 		case StatusNotApplicable:
 		case "":
@@ -181,6 +187,31 @@ func evaluateCrossArea(r Rule, areas []*Area) Result {
 		}
 	}
 	return out
+}
+
+// scoped keeps the findings and candidates of a result that its rule's scope
+// judges, and for a cross-area rule only those on lines in the change. When
+// that turns on the lines of a file whose diff passed its limit, the result
+// is not_evaluated(limit_exceeded).
+func scoped(r Rule, res Result, ch *ChangeMap) Result {
+	if ch == nil || res.NotEvaluated != "" {
+		return res
+	}
+	unknown := false
+	drop := func(file string, line *int) bool {
+		in, u := ch.inScope(r.Scope, file, line)
+		if in && r.CrossArea {
+			in, u = ch.onChangedLine(file, line)
+		}
+		unknown = unknown || u
+		return !in
+	}
+	res.Findings = slices.DeleteFunc(res.Findings, func(f Finding) bool { return drop(f.File, f.Line) })
+	res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { return drop(c.File, c.Line) })
+	if unknown {
+		return Result{NotEvaluated: "a changed file is past the line diff limit", Code: ReasonLimitExceeded}
+	}
+	return res
 }
 
 // manifestEntry is the entry for one result. Not evaluated takes precedence
@@ -234,6 +265,8 @@ func gate(r Rule, a *Area) (reason, code string) {
 		return StatusNotApplicable, ""
 	case a.Issue != "":
 		return a.Issue, a.issueCode
+	case r.NeedsBase && a.Base == nil:
+		return "no base revision to compare with", ReasonNoBase
 	}
 	if r.Class != ClassConfig {
 		return "", ""
