@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ledger.schema.json",
+  "title": "mtf-facts coverage ledger",
+  "description": "The module author's coverage ledger that `mtf-facts ledger --check` reads: one disposition per top-level field of each resource and data source type the module declares. A nested block or nested attribute is one field. That each field appears exactly once, that each type is one the module declares, and that each named variable and output exists in the module are checked by the command, not by this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ledger_version", "types"],
+  "properties": {
+    "ledger_version": {"enum": [1]},
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode", "type", "fields"],
+        "properties": {
+          "mode": {"enum": ["resource", "data"]},
+          "type": {"$ref": "#/$defs/name"},
+          "fields": {"type": "array", "items": {"$ref": "#/$defs/field"}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"},
+    "field": {
+      "description": "An exposed input names its variable, a computed-only output names its output, and every omission gives its reason.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "disposition", "variable"],
+          "properties": {
+            "name": {"$ref": "#/$defs/name"},
+            "disposition": {"const": "input"},
+            "variable": {"$ref": "#/$defs/name"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "disposition", "output"],
+          "properties": {
+            "name": {"$ref": "#/$defs/name"},
+            "disposition": {"const": "output"},
+            "output": {"$ref": "#/$defs/name"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "disposition", "reason"],
+          "properties": {
+            "name": {"$ref": "#/$defs/name"},
+            "disposition": {"enum": ["sensitive_omission", "intentional_omission", "not_applicable"]},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    }
+  }
+}
