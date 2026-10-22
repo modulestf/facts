@@ -1,0 +1,5 @@
+structure.argument-order
+structure.arn-partition-hardcoded
+structure.multi-provider
+structure.output-no-try
+structure.wrong-file

@@ -1,0 +1,31 @@
+{
+  "manifest": [
+    {
+      "rule_id": "structure.argument-order",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.arn-partition-hardcoded",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.multi-provider",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.output-no-try",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.wrong-file",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
