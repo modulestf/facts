@@ -3,9 +3,7 @@
     {
       "rule_id": "structure.argument-order",
       "area": ".",
-      "status": "not_evaluated",
-      "reason": "no profile input",
-      "reason_code": "profile_unavailable"
+      "status": "candidate"
     },
     {
       "rule_id": "structure.arn-partition-hardcoded",
@@ -160,15 +158,15 @@
       "candidate_id": "C-007",
       "rule_id": "structure.arn-partition-hardcoded",
       "file": "main.tf",
-      "line": 25,
+      "line": 26,
       "subject": ".:aws_demo_gadget.this.policy",
       "evidence": {
         "source_lines": [
           {
             "revision": "head",
             "file": "main.tf",
-            "line": 25,
-            "text": "  policy     = \u003c\u003c-EOT"
+            "line": 26,
+            "text": "    {\"Resource\": \"arn:${local.partition}:sqs:${local.region}:123456789012:queue\"}"
           }
         ],
         "base": null,
@@ -200,6 +198,27 @@
     },
     {
       "candidate_id": "C-009",
+      "rule_id": "structure.argument-order",
+      "file": "main.tf",
+      "line": 40,
+      "subject": ".:aws_demo_widget.ordered_late",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 42,
+            "text": "  for_each = var.items"
+          }
+        ],
+        "base": null,
+        "head": "name, for_each",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
       "rule_id": "structure.output-no-try",
       "file": "outputs.tf",
       "line": 1,
@@ -220,7 +239,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-010",
+      "candidate_id": "C-011",
       "rule_id": "structure.output-no-try",
       "file": "outputs.tf",
       "line": 6,
@@ -241,7 +260,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-011",
+      "candidate_id": "C-012",
       "rule_id": "structure.arn-partition-hardcoded",
       "file": "variables.tf",
       "line": 4,

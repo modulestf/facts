@@ -3,6 +3,7 @@ package facts
 import (
 	"bytes"
 	"cmp"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -95,18 +96,16 @@ func sourceOf(x Expr, r hcl.Range) string {
 	return x.Text[s:e]
 }
 
-// structure.output-no-try: an output with no try() fallback, or with a
-// fallback that may change its type. An output that reads only input
-// variables, or nothing, cannot fail on an object that was not created and
-// is skipped. A try() whose last argument is not null may change the type;
-// the engine cannot type it, so it is a candidate too.
+// structure.output-no-try: an output that can fail on an object that was
+// not created, or whose fallback may change its type. A traversal outside
+// every try() argument is a candidate, except a bare var.<name> with nothing
+// after it, which cannot fail. A try() with one argument, or whose last
+// argument is not null, is a candidate too: the engine cannot type the
+// fallback. An output with no other traversal is clean.
 func checkOutputNoTry(a *Area) Result {
 	var res Result
 	for _, o := range a.Head.Outputs {
-		if o.Value == nil || !slices.ContainsFunc(o.References, func(r string) bool { return !strings.HasPrefix(r, "var.") }) {
-			continue
-		}
-		if o.UsesTry && nullFallbacks(o.File, *o.Value) {
+		if o.Value == nil || outputSafe(o.File, *o.Value) {
 			continue
 		}
 		e := newEvidence(a)
@@ -117,30 +116,78 @@ func checkOutputNoTry(a *Area) Result {
 	return res
 }
 
-// nullFallbacks reports whether every try() in the expression ends in null.
-func nullFallbacks(file string, x Expr) bool {
+// outputSafe reports whether an output value needs no candidate. A value
+// that does not parse again is not safe.
+func outputSafe(file string, x Expr) bool {
 	e := reparse(file, x)
 	if e == nil {
 		return false
 	}
-	ok := true
-	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics {
-		if c, is := n.(*hclsyntax.FunctionCallExpr); is && c.Name == "try" {
-			if len(c.Args) < 2 {
-				ok = false
-				return nil
+	w := &tryWalker{safe: true}
+	_ = hclsyntax.Walk(e, w)
+	return w.safe
+}
+
+// tryWalker walks an output value with its stack of nodes, so it knows the
+// try() calls around a traversal and what follows a traversal.
+type tryWalker struct {
+	stack []hclsyntax.Node
+	tries int
+	safe  bool
+}
+
+func (w *tryWalker) Enter(n hclsyntax.Node) hcl.Diagnostics {
+	switch x := n.(type) {
+	case *hclsyntax.FunctionCallExpr:
+		if x.Name == "try" {
+			w.tries++
+			if len(x.Args) < 2 {
+				w.safe = false
+			} else if lit, ok := x.Args[len(x.Args)-1].(*hclsyntax.LiteralValueExpr); !ok || !lit.Val.IsNull() {
+				w.safe = false
 			}
-			lit, isLit := c.Args[len(c.Args)-1].(*hclsyntax.LiteralValueExpr)
-			ok = ok && isLit && lit.Val.IsNull()
 		}
-		return nil
-	})
-	return ok
+	case *hclsyntax.ScopeTraversalExpr:
+		if w.tries == 0 && !w.bareVar(x) {
+			w.safe = false
+		}
+	}
+	w.stack = append(w.stack, n)
+	return nil
+}
+
+func (w *tryWalker) Exit(n hclsyntax.Node) hcl.Diagnostics {
+	w.stack = w.stack[:len(w.stack)-1]
+	if c, ok := n.(*hclsyntax.FunctionCallExpr); ok && c.Name == "try" {
+		w.tries--
+	}
+	return nil
+}
+
+// bareVar reports whether t is var.<name> with no attribute, index or splat
+// after it, in the traversal or in the expression that holds it.
+func (w *tryWalker) bareVar(t *hclsyntax.ScopeTraversalExpr) bool {
+	if len(t.Traversal) != 2 || t.Traversal.RootName() != "var" {
+		return false
+	}
+	if len(w.stack) == 0 {
+		return true
+	}
+	switch p := w.stack[len(w.stack)-1].(type) {
+	case *hclsyntax.IndexExpr:
+		return p.Collection != t
+	case *hclsyntax.SplatExpr:
+		return p.Source != t
+	case *hclsyntax.RelativeTraversalExpr:
+		return p.Source != t
+	}
+	return true
 }
 
 // structure.multi-provider: a provider block with an alias, a provider
-// argument on a resource or data block, or a providers argument on a module
-// block. Example areas are not_applicable by kind.
+// argument on a resource, data, ephemeral or import block or on a data block
+// inside a check block, or a providers argument on a module block. Example
+// areas are not_applicable by kind.
 func checkMultiProvider(a *Area) Result {
 	const id = "structure.multi-provider"
 	var res Result
@@ -173,15 +220,31 @@ func checkMultiProvider(a *Area) Result {
 		}
 	}
 	for _, r := range a.Head.Resources {
-		arg(r.File, resourceAddr(r), "provider", r.Body)
+		arg(r.File, blockAddr(r), "provider", r.Body)
 	}
 	for _, c := range a.Head.ModuleCalls {
 		arg(c.File, "module."+c.Name, "providers", c.Body)
 	}
+	for _, o := range a.Head.Other {
+		addr := strings.Join(append([]string{o.Type}, o.Labels...), ".")
+		switch o.Type {
+		case "ephemeral", "import":
+			arg(o.File, addr, "provider", o.Body)
+		case "check":
+			// A check block's scoped data blocks, named as the index names them.
+			n := 0
+			for _, nb := range o.Body.Blocks {
+				if nb.Type == "data" && !nb.Dynamic {
+					arg(o.File, addr+".data["+strconv.Itoa(n)+"]", "provider", nb.Body)
+					n++
+				}
+			}
+		}
+	}
 	return res
 }
 
-func resourceAddr(r Resource) string {
+func blockAddr(r Resource) string {
 	if r.Mode == "data" {
 		return "data." + r.Type + "." + r.Name
 	}
@@ -189,48 +252,80 @@ func resourceAddr(r Resource) string {
 }
 
 // archetypeFiles are the files the service archetypes name for a group of
-// blocks, with the test for a block of that group: identity resources in
-// iam.tf, logging resources in logging.tf, locals in locals.tf. A
-// feature file, <feature>.tf, has no fixed name or members, so no block is
-// out of place for it.
+// blocks, with the test for a block of that group. The identity group is the
+// maintainer skill's references/service-archetypes.md, "iam.tf (Identity /
+// Access Management)": it names aws_iam_role, aws_iam_policy_document,
+// google_service_account, google_project_iam_member, azurerm_role_assignment
+// and azurerm_user_assigned_identity, read here as their type families. Locals
+// go in locals.tf. Logging has no fixed file: the archetypes allow it in
+// main.tf or logging.tf, so logging.tf counts as a feature file.
 var archetypeFiles = []struct {
 	file   string
 	member func(kind, typ string) bool
 }{
-	{"iam.tf", func(kind, typ string) bool {
-		return kind == "resource" && (strings.HasPrefix(typ, "aws_iam_") || strings.HasPrefix(typ, "google_service_account") ||
-			strings.HasPrefix(typ, "google_") && strings.Contains(typ, "_iam_") ||
-			strings.HasPrefix(typ, "azurerm_role_") || typ == "azurerm_user_assigned_identity")
-	}},
-	{"logging.tf", func(kind, typ string) bool {
-		return kind == "resource" && (strings.HasPrefix(typ, "aws_cloudwatch_log_") || strings.HasPrefix(typ, "google_logging_") ||
-			typ == "azurerm_monitor_diagnostic_setting")
-	}},
+	{"iam.tf", identityType},
 	{"locals.tf", func(kind, _ string) bool { return kind == "locals" }},
 }
+
+func identityType(kind, typ string) bool {
+	return kind == "resource" && (strings.HasPrefix(typ, "aws_iam_") || strings.HasPrefix(typ, "google_service_account") ||
+		strings.HasPrefix(typ, "google_") && strings.Contains(typ, "_iam_") ||
+		strings.HasPrefix(typ, "azurerm_role_") || typ == "azurerm_user_assigned_identity")
+}
+
+// fixedFiles are the .tf files whose contents the profile and the archetypes
+// fix. Any other .tf file of an area is a feature file.
+var fixedFiles = []string{"main.tf", "variables.tf", "outputs.tf", "versions.tf", "iam.tf", "locals.tf"}
 
 // structure.wrong-file: a block of a group placed outside the file the
 // archetype names for it, when the directory has that file at the head. A
 // directory without the file gets no candidate for that group. Data sources
 // count with their resources: data.aws_iam_policy_document is identity.
+//
+// A feature file, <feature>.tf, has no fixed members, so whether a resource
+// in main.tf belongs there is not decidable: with one present, every resource
+// or data block in main.tf that no group claims is a candidate, with the
+// feature files as head evidence.
 func checkWrongFile(a *Area) Result {
+	const id = "structure.wrong-file"
 	var res Result
-	add := func(file string, line int, addr, kind, typ string) {
+	var features []string
+	var paths []string
+	if a.headTree != nil {
+		paths = a.headTree.Paths
+	}
+	for _, p := range paths {
+		name := path.Base(p)
+		if path.Dir(p) == a.Path && strings.HasSuffix(name, ".tf") && !slices.Contains(fixedFiles, name) {
+			if en := a.headTree.Entries[p]; en.Kind == KindFile {
+				features = append(features, name)
+			}
+		}
+	}
+	add := func(file string, line int, addr, kind, typ string) bool {
 		for _, g := range archetypeFiles {
-			if file == g.file || !g.member(kind, typ) {
+			if !g.member(kind, typ) {
 				continue
 			}
-			if en := a.headEntry(g.file); en == nil || en.Kind != KindFile {
-				continue
+			if en := a.headEntry(g.file); file == g.file || en == nil || en.Kind != KindFile {
+				return file == g.file
 			}
 			e := newEvidence(a)
 			e.line(file, line)
 			e.head(g.file)
-			res.Candidates = append(res.Candidates, e.candidate("structure.wrong-file", file, line, addr))
+			res.Candidates = append(res.Candidates, e.candidate(id, file, line, addr))
+			return true
 		}
+		return false
 	}
 	for _, r := range a.Head.Resources {
-		add(r.File, r.Line, resourceAddr(r), "resource", r.Type)
+		if add(r.File, r.Line, blockAddr(r), "resource", r.Type) || r.File != "main.tf" || len(features) == 0 {
+			continue
+		}
+		e := newEvidence(a)
+		e.line(r.File, r.Line)
+		e.head(strings.Join(features, ", "))
+		res.Candidates = append(res.Candidates, e.candidate(id, r.File, r.Line, blockAddr(r)))
 	}
 	// Each local by itself: every locals block shares the one address, so a
 	// new block in a module that has one reads as an edit, a new local as new.
@@ -274,7 +369,7 @@ func checkArgumentOrder(a *Area) Result {
 			e.base(itemNames(bodyItems(b.Body)))
 		}
 		e.head(itemNames(items))
-		addr := resourceAddr(r)
+		addr := blockAddr(r)
 		res.Candidates = append(res.Candidates, e.candidate("structure.argument-order", r.File, r.Line, addr))
 	}
 	return res
@@ -314,7 +409,7 @@ func baseResource(a *Area, r Resource) *Resource {
 		return nil
 	}
 	for i, b := range a.Base.Resources {
-		if resourceAddr(b) == resourceAddr(r) {
+		if blockAddr(b) == blockAddr(r) {
 			return &a.Base.Resources[i]
 		}
 	}
@@ -329,27 +424,36 @@ var (
 
 // structure.arn-partition-hardcoded: a string in the configuration holding an
 // ARN whose partition is a literal, or whose region or account is a literal
-// region or a 12-digit account ID. Strings are read from the syntax tree, so
-// an ARN in a comment is never one. One candidate per string, at its line,
-// with the argument as subject; an ARN in a variable, an output or a local is
-// subject to that block.
+// region or a 12-digit account ID, or a format verb, which format() may fill
+// with either. Strings are read from the syntax tree, so an ARN in a comment
+// is never one. One candidate per string, at the line its arn: is on, with
+// the argument as subject; an ARN in a variable, an output, a local, a
+// removed block or a nested terraform block is subject to that block, and a
+// terraform argument to its name. An expression that does not parse again is
+// a candidate, so the rule fails closed.
+//
+// shortcut: an ARN assembled by join(":", [...]) from list elements is not
+// read; read the join's literal list when such a case turns up.
 func checkARNHardcoded(a *Area) Result {
 	var res Result
 	scan := func(file, addr string, x Expr) {
+		add := func(line int, head string) {
+			ev := newEvidence(a)
+			ev.line(file, line)
+			ev.head(head)
+			res.Candidates = append(res.Candidates, ev.candidate("structure.arn-partition-hardcoded", file, line, addr))
+		}
 		e := reparse(file, x)
 		if e == nil {
+			add(x.Range.Start.Line, x.Text)
 			return
 		}
 		_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics {
-			t, ok := n.(*hclsyntax.TemplateExpr)
-			if !ok || !hardcodedARN(templateText(t)) {
-				return nil
+			if t, ok := n.(*hclsyntax.TemplateExpr); ok {
+				if line := hardcodedARNLine(t); line > 0 {
+					add(line, sourceOf(x, t.SrcRange))
+				}
 			}
-			ev := newEvidence(a)
-			line := t.SrcRange.Start.Line
-			ev.line(file, line)
-			ev.head(sourceOf(x, t.SrcRange))
-			res.Candidates = append(res.Candidates, ev.candidate("structure.arn-partition-hardcoded", file, line, addr))
 			return nil
 		})
 	}
@@ -363,6 +467,17 @@ func checkARNHardcoded(a *Area) Result {
 	}
 	for _, l := range a.Head.Locals {
 		scan(l.File, "local."+l.Name, l.Value)
+	}
+	for _, t := range a.Head.Terraform {
+		for _, at := range t.Body.Attributes {
+			scan(t.File, at.Name, at.Value)
+		}
+		for _, nb := range t.Body.Blocks {
+			walkBody(nb.Body, nb.Type, false, func(sub string, x Expr) { scan(t.File, sub, x) })
+		}
+	}
+	for _, rm := range a.Head.Removed {
+		walkBody(rm.Body, "removed."+fromAddr(rm.FromAddr, rm.From), false, func(sub string, x Expr) { scan(rm.File, sub, x) })
 	}
 	return res
 }
@@ -394,35 +509,57 @@ func walkBody(b Body, addr string, args bool, fn func(subject string, x Expr)) {
 	}
 }
 
-// templateText is a string template's text with every interpolation as NUL.
-func templateText(t *hclsyntax.TemplateExpr) string {
+// hardcodedARNLine returns the line of the first ARN in a string template
+// with a literal or format-verb partition, region or account, or 0 for none.
+// The template's text has every interpolation as NUL; the line is that of the
+// literal part the ARN starts in plus the newlines before it in that part.
+func hardcodedARNLine(t *hclsyntax.TemplateExpr) int {
 	var b strings.Builder
+	type part struct{ start, line int }
+	var parts []part
 	for _, p := range t.Parts {
 		if lit, ok := p.(*hclsyntax.LiteralValueExpr); ok && lit.Val.Type() == cty.String && lit.Val.IsKnown() && !lit.Val.IsNull() {
+			parts = append(parts, part{b.Len(), lit.SrcRange.Start.Line})
 			b.WriteString(lit.Val.AsString())
 		} else {
 			b.WriteByte(0)
 		}
 	}
-	return b.String()
+	s := b.String()
+	i := hardcodedARN(s)
+	if i < 0 {
+		return 0
+	}
+	line := t.SrcRange.Start.Line
+	for _, p := range parts {
+		if p.start <= i {
+			line = p.line + strings.Count(s[p.start:i], "\n")
+		}
+	}
+	return line
 }
 
-// hardcodedARN reports whether a string holds an ARN,
+// hardcodedARN returns the offset of the first ARN in s,
 // arn:<partition>:<service>:<region>:<account>:<resource>, with a literal
-// partition, or a literal region or account ID.
-func hardcodedARN(s string) bool {
+// partition, a literal region or account ID, or a format verb in one of the
+// three, or -1 for none.
+func hardcodedARN(s string) int {
 	for i := 0; ; i++ {
 		j := strings.Index(s[i:], "arn:")
 		if j < 0 {
-			return false
+			return -1
 		}
 		i += j
 		if i > 0 && isWordByte(s[i-1]) {
 			continue
 		}
 		f := strings.SplitN(s[i:], ":", 6)
-		if len(f) == 6 && (partitionField.MatchString(f[1]) || regionField.MatchString(f[3]) || accountField.MatchString(f[4])) {
-			return true
+		if len(f) < 6 {
+			continue
+		}
+		verb := strings.Contains(f[1], "%") || strings.Contains(f[3], "%") || strings.Contains(f[4], "%")
+		if verb || partitionField.MatchString(f[1]) || regionField.MatchString(f[3]) || accountField.MatchString(f[4]) {
+			return i
 		}
 	}
 }

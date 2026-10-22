@@ -36,3 +36,8 @@ module "child" {
     aws = aws.replica
   }
 }
+
+resource "aws_demo_widget" "ordered_late" {
+  name     = var.name
+  for_each = var.items
+}

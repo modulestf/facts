@@ -22,3 +22,16 @@ locals {
   partition  = "aws"
   account_id = "123456789012"
 }
+
+resource "aws_demo_gadget" "ordered" {
+  for_each = var.items
+
+  name = each.key
+
+  dynamic "rule" {
+    for_each = var.rules
+    content {}
+  }
+
+  tags = var.tags
+}

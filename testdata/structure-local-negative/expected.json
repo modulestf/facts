@@ -3,9 +3,7 @@
     {
       "rule_id": "structure.argument-order",
       "area": ".",
-      "status": "not_evaluated",
-      "reason": "no profile input",
-      "reason_code": "profile_unavailable"
+      "status": "clean"
     },
     {
       "rule_id": "structure.arn-partition-hardcoded",

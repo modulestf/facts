@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/hcl/v2"
 )
 
 // localKeys runs a change with the test profile and lists, for the structure
@@ -112,7 +114,7 @@ func TestStructureLocalHardCases(t *testing.T) {
 			want: []string{"structure.multi-provider modules/m/main.tf:1 modules/m:provider.aws"},
 		},
 		{
-			name: "output: null fallbacks, input-only values and untouched outputs are silent",
+			name: "output: every traversal outside try() but a bare var is a candidate; null fallbacks and untouched outputs are silent",
 			base: map[string]string{"outputs.tf": "output \"old\" {\n  value = aws_demo_widget.this[0].id\n}\n"},
 			head: map[string]string{"outputs.tf": "output \"old\" {\n  value = aws_demo_widget.this[0].id\n}\n" +
 				"output \"a\" {\n  value = try(aws_demo_widget.this[0].id, null)\n}\n" +
@@ -120,8 +122,20 @@ func TestStructureLocalHardCases(t *testing.T) {
 				"output \"c\" {\n  value = \"fixed\"\n}\n" +
 				"output \"d\" {\n  value = { x = try(module.m.x, null), y = try(local.y, null) }\n}\n" +
 				"output \"e\" {\n  value = { x = try(module.m.x, null), y = local.y }\n}\n" +
-				"output \"f\" {\n  value = try(local.y)\n}\n"},
-			want: []string{"structure.output-no-try outputs.tf:19 .:output.f"},
+				"output \"f\" {\n  value = try(local.y)\n}\n" +
+				"output \"g\" {\n  value = { id = aws_demo_widget.this[0].id, name = try(aws_demo_widget.this[0].name, null) }\n}\n" +
+				"output \"h\" {\n  value = var.config.name\n}\n" +
+				"output \"i\" {\n  value = var.list[0]\n}\n" +
+				"output \"j\" {\n  value = var.list[*].id\n}\n" +
+				"output \"k\" {\n  value = \"${var.a}-${var.b}\"\n}\n"},
+			want: []string{
+				"structure.output-no-try outputs.tf:16 .:output.e",
+				"structure.output-no-try outputs.tf:19 .:output.f",
+				"structure.output-no-try outputs.tf:22 .:output.g",
+				"structure.output-no-try outputs.tf:25 .:output.h",
+				"structure.output-no-try outputs.tf:28 .:output.i",
+				"structure.output-no-try outputs.tf:31 .:output.j",
+			},
 		},
 		{
 			name: "wrong file: no archetype file, a block in its file, a symbolic link is not the file",
@@ -141,13 +155,50 @@ func TestStructureLocalHardCases(t *testing.T) {
 			},
 		},
 		{
-			name: "wrong file: logging and locals groups",
+			name: "wrong file: locals group, and a feature file makes main.tf resources candidates",
 			head: map[string]string{
-				"main.tf":    "resource \"aws_cloudwatch_log_group\" \"a\" {}\nlocals {\n  x = 1\n}\n",
-				"logging.tf": "",
-				"locals.tf":  "locals {\n  y = 2\n}\n",
+				"main.tf":       "resource \"aws_kms_key\" \"a\" {}\nlocals {\n  x = 1\n}\ndata \"aws_demo\" \"d\" {}\n",
+				"encryption.tf": "",
+				"locals.tf":     "locals {\n  y = 2\n}\n",
+				"other.tf":      "resource \"aws_kms_key\" \"b\" {}\n",
 			},
-			want: []string{"structure.wrong-file main.tf:1 .:aws_cloudwatch_log_group.a", "structure.wrong-file main.tf:3 .:local.x"},
+			want: []string{"structure.wrong-file main.tf:1 .:aws_kms_key.a", "structure.wrong-file main.tf:3 .:local.x", "structure.wrong-file main.tf:5 .:data.aws_demo.d"},
+		},
+		{
+			name: "wrong file: an identity resource with iam.tf is the iam.tf candidate only; iam.tf as a directory is not the file",
+			head: map[string]string{
+				"main.tf":                "resource \"aws_iam_role\" \"a\" {}\n",
+				"iam.tf":                 "",
+				"logging.tf":             "",
+				"modules/m/main.tf":      "resource \"aws_iam_role\" \"c\" {}\n",
+				"modules/m/iam.tf/x.txt": "",
+			},
+			want: []string{"structure.wrong-file main.tf:1 .:aws_iam_role.a"},
+		},
+		{
+			name: "multi-provider: ephemeral, import and a data block in a check block",
+			head: map[string]string{"main.tf": "ephemeral \"aws_demo\" \"e\" {\n  provider = aws.x\n}\n" +
+				"import {\n  to       = aws_demo_widget.this\n  id       = \"x\"\n  provider = aws.x\n}\n" +
+				"check \"c\" {\n  data \"aws_demo\" \"a\" {}\n  data \"aws_demo\" \"b\" {\n    provider = aws.x\n  }\n  assert {\n    condition     = true\n    error_message = \"x\"\n  }\n}\n"},
+			want: []string{
+				"structure.multi-provider main.tf:12 .:check.c.data[1].provider",
+				"structure.multi-provider main.tf:2 .:ephemeral.aws_demo.e.provider",
+				"structure.multi-provider main.tf:7 .:import.provider",
+			},
+		},
+		{
+			name: "arn: format verbs, a heredoc line, terraform and removed blocks",
+			head: map[string]string{"main.tf": "resource \"aws_demo_widget\" \"this\" {\n" +
+				"  a = format(\"arn:%s:iam::%s:role/x\", local.p, local.a)\n" +
+				"  b = <<-EOT\n    first line\n    arn:${local.p}:iam::123456789012:role/x\n  EOT\n}\n" +
+				"terraform {\n  backend \"s3\" {\n    role_arn = \"arn:aws:iam::123456789012:role/state\"\n  }\n}\n" +
+				"removed {\n  from = aws_demo_widget.old\n  lifecycle {\n    destroy = false\n  }\n  provisioner \"local-exec\" {\n    command = \"echo arn:aws:s3:::x\"\n  }\n}\n"},
+			want: []string{
+				"structure.arn-partition-hardcoded main.tf:10 .:backend",
+				"structure.arn-partition-hardcoded main.tf:19 .:removed.aws_demo_widget.old",
+				"structure.arn-partition-hardcoded main.tf:2 .:aws_demo_widget.this.a",
+				"structure.arn-partition-hardcoded main.tf:5 .:aws_demo_widget.this.b",
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -177,5 +228,50 @@ func TestStructureLocalEvidenceCap(t *testing.T) {
 	c := r.Candidates[i]
 	if c.EvidenceComplete || len(*c.Evidence.Head) != maxEvidenceText || c.Evidence.Base != nil {
 		t.Errorf("cap did not bite: complete=%v len=%d", c.EvidenceComplete, len(*c.Evidence.Head))
+	}
+}
+
+func TestIdentityTypesNamedByTheArchetypes(t *testing.T) {
+	for _, typ := range []string{"aws_iam_role", "aws_iam_policy_document", "google_service_account",
+		"google_project_iam_member", "azurerm_role_assignment", "azurerm_user_assigned_identity"} {
+		if !identityType("resource", typ) {
+			t.Errorf("%s is not an identity type", typ)
+		}
+	}
+	for _, typ := range []string{"aws_kms_key", "aws_cloudwatch_log_group", "google_storage_bucket", "azurerm_resource_group"} {
+		if identityType("resource", typ) {
+			t.Errorf("%s is an identity type", typ)
+		}
+	}
+}
+
+// Nine misplaced tags blocks are past the source line cap.
+func TestStructureLocalSourceLineCap(t *testing.T) {
+	body := strings.Repeat("  tags {}\n  name = 1\n", 1) + strings.Repeat("  tags {}\n", 8) + "  name2 = 1\n"
+	r, err := Run(Options{Head: writeTree(t, map[string]string{
+		"main.tf": "resource \"aws_demo_widget\" \"this\" {\n" + body + "}\n",
+	}), Limits: DefaultLimits, ProfileDir: testProfile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(r.Candidates, func(c Candidate) bool { return c.RuleID == "structure.argument-order" })
+	if i < 0 {
+		t.Fatalf("no candidate: %+v", r.Candidates)
+	}
+	if c := r.Candidates[i]; c.EvidenceComplete || len(c.Evidence.SourceLines) != maxEvidenceComments || len(*c.Evidence.Head) >= maxEvidenceText {
+		t.Errorf("line cap did not bite: complete=%v lines=%d", c.EvidenceComplete, len(c.Evidence.SourceLines))
+	}
+}
+
+func TestReparseFailureIsACandidate(t *testing.T) {
+	l := Local{Name: "x", Value: Expr{Text: "(", Range: hcl.Range{Start: hcl.Pos{Line: 3, Column: 7}}}}
+	l.File, l.Line = "main.tf", 3
+	a := &Area{Path: ".", Kind: AreaRoot, headTree: &Tree{Entries: map[string]*Entry{}}, Head: &Module{Locals: []Local{l}}}
+	res := checkARNHardcoded(a)
+	if len(res.Candidates) != 1 || res.Candidates[0].Subject != ".:local.x" || *res.Candidates[0].Line != 3 {
+		t.Errorf("candidates %+v", res.Candidates)
+	}
+	if outputSafe("outputs.tf", Expr{Text: "("}) {
+		t.Error("an output that does not parse again is safe")
 	}
 }

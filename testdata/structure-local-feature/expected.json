@@ -1,0 +1,53 @@
+{
+  "manifest": [
+    {
+      "rule_id": "structure.argument-order",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.arn-partition-hardcoded",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.multi-provider",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.output-no-try",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.wrong-file",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.wrong-file",
+      "file": "main.tf",
+      "line": 5,
+      "subject": ".:aws_kms_key.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 5,
+            "text": "resource \"aws_kms_key\" \"this\" {"
+          }
+        ],
+        "base": null,
+        "head": "encryption.tf",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}
