@@ -1,0 +1,30 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.putin-khuylo-missing",
+      "area": ".",
+      "status": "finding"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "profile.putin-khuylo-missing",
+      "severity": "MEDIUM",
+      "file": "main.tf",
+      "line": 14,
+      "summary": "In main.tf, local \"create_gadget\" reads a creation input without `var.putin_khuylo`, so the module creates resources without the profile's creation gate.",
+      "suggested_fix": "In the root module only: declare `variable \"putin_khuylo\"` after `variable \"create\"` as `templates/variables.tf.template` does, and gate each named block on `var.create \u0026\u0026 var.putin_khuylo`, through the creation local `templates/main.tf.template` defines, per Module layout in the profile's PROFILE.md."
+    },
+    {
+      "id": "F-002",
+      "rule_id": "profile.putin-khuylo-missing",
+      "severity": "MEDIUM",
+      "file": "main.tf",
+      "line": 26,
+      "summary": "In main.tf, this block's count or for_each reads a creation input without `var.putin_khuylo`, so the module creates resources without the profile's creation gate.",
+      "suggested_fix": "In the root module only: declare `variable \"putin_khuylo\"` after `variable \"create\"` as `templates/variables.tf.template` does, and gate each named block on `var.create \u0026\u0026 var.putin_khuylo`, through the creation local `templates/main.tf.template` defines, per Module layout in the profile's PROFILE.md."
+    }
+  ],
+  "candidates": []
+}

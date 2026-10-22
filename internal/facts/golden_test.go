@@ -240,7 +240,7 @@ func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 		}
 		with.Envelope.SchemaInputs = nil
 		if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
-			t.Errorf("%s: schema or profile inputs changed more than the envelope", filepath.Base(dir))
+			t.Errorf("%s: the schema input changed more than the envelope", filepath.Base(dir))
 		}
 	}
 }

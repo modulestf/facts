@@ -1,0 +1,16 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.required-file-missing",
+      "area": "examples/old",
+      "status": "clean"
+    },
+    {
+      "rule_id": "profile.required-file-missing",
+      "area": "modules/new",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

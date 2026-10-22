@@ -1,0 +1,57 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.nonstandard-config-file",
+      "area": ".",
+      "status": "finding"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "profile.nonstandard-config-file",
+      "severity": "HIGH",
+      "file": "alt.tofu",
+      "line": null,
+      "summary": "alt.tofu is a configuration file format the profile's quality gate cannot read.",
+      "suggested_fix": "Rewrite a `*.tf.json` file as a `.tf` file with the same blocks, or fold an override file into the file it overrides and delete it, or rewrite a `.tofu` file or an OpenTofu-only block in Terraform's language, per Configuration file formats in the profile's code-conventions.md."
+    },
+    {
+      "id": "F-002",
+      "rule_id": "profile.nonstandard-config-file",
+      "severity": "HIGH",
+      "file": "extra.tf.json",
+      "line": null,
+      "summary": "extra.tf.json is a configuration file format the profile's quality gate cannot read.",
+      "suggested_fix": "Rewrite a `*.tf.json` file as a `.tf` file with the same blocks, or fold an override file into the file it overrides and delete it, or rewrite a `.tofu` file or an OpenTofu-only block in Terraform's language, per Configuration file formats in the profile's code-conventions.md."
+    },
+    {
+      "id": "F-003",
+      "rule_id": "profile.nonstandard-config-file",
+      "severity": "HIGH",
+      "file": "local_override.tf",
+      "line": null,
+      "summary": "local_override.tf is a configuration file format the profile's quality gate cannot read.",
+      "suggested_fix": "Rewrite a `*.tf.json` file as a `.tf` file with the same blocks, or fold an override file into the file it overrides and delete it, or rewrite a `.tofu` file or an OpenTofu-only block in Terraform's language, per Configuration file formats in the profile's code-conventions.md."
+    },
+    {
+      "id": "F-004",
+      "rule_id": "profile.nonstandard-config-file",
+      "severity": "HIGH",
+      "file": "providers.tf",
+      "line": 3,
+      "summary": "providers.tf line 3 is a block only OpenTofu has, which Terraform and the profile's quality gate cannot read.",
+      "suggested_fix": "Rewrite a `*.tf.json` file as a `.tf` file with the same blocks, or fold an override file into the file it overrides and delete it, or rewrite a `.tofu` file or an OpenTofu-only block in Terraform's language, per Configuration file formats in the profile's code-conventions.md."
+    },
+    {
+      "id": "F-005",
+      "rule_id": "profile.nonstandard-config-file",
+      "severity": "HIGH",
+      "file": "versions.tf",
+      "line": 4,
+      "summary": "versions.tf line 4 is a block only OpenTofu has, which Terraform and the profile's quality gate cannot read.",
+      "suggested_fix": "Rewrite a `*.tf.json` file as a `.tf` file with the same blocks, or fold an override file into the file it overrides and delete it, or rewrite a `.tofu` file or an OpenTofu-only block in Terraform's language, per Configuration file formats in the profile's code-conventions.md."
+    }
+  ],
+  "candidates": []
+}

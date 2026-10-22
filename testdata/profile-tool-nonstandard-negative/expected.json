@@ -1,0 +1,11 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.nonstandard-config-file",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
