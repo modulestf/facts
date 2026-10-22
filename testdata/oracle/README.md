@@ -37,7 +37,7 @@ go test ./internal/facts -run TestOracle
 - `findings`: the bundle's `tool_finding` from `facts-bundle.schema.json`, the seven finding fields plus `source` and `subject`.
 - `candidates`: the bundle's `candidate`, with `source_lines`, `base`, `head` and `schema_facts` evidence.
 
-Compare a run on `{rule_id, area, status}` for the manifest, `{rule_id, file, line, severity}` for findings and `{rule_id, file, line, subject}` for candidates. The `summary`, `suggested_fix` and evidence text are curated, not the engine's wording, and the `reason` of a `not_evaluated` entry is a code, where the binary writes a sentence today.
+Compare a run on `{rule_id, area, status, reason_code}` for the manifest, `{rule_id, file, line, severity}` for findings and `{rule_id, file, line, subject}` for candidates. The `summary`, `suggested_fix` and evidence text are curated, not the engine's wording, and the `reason` of a `not_evaluated` entry repeats its `reason_code`, where the binary writes a sentence.
 
 Subjects are area-scoped, `<area>:<address>`: `.:var.retention_days`, `.:aws_demo_widget.extra.bogus_flag`, `examples/complete:local.region`. A file-level subject, such as that of a path rule, is the file or directory path itself. This is the owner's decision.
 
@@ -162,7 +162,7 @@ Adversarial cases:
 - `symlinks`: the oracle test creates three links: a root `.tf` file that points out of the tree at a file with an undescribed variable, a submodule directory that is a link, and an example `versions.tf` that is a link. No rule follows a link: the config rules that would read one are not evaluated, the link at `versions.tf` counts as present for `examples.versions-missing`, and the escaped variable gives no finding.
 - `gitattributes`: the oracle test renames `gitattributes` to `.gitattributes`. It marks `hidden.tf` `export-ignore` and `stamp.tf` `export-subst`. The engine reads the tree as committed: `hidden.tf` is still parsed, so its undescribed variable is a finding, and `stamp.tf` keeps its `$Format:%H$` text. A host that extracted the tree with `git archive` would lose the finding.
 - `deep-nesting`: `deep.tf` nests 70 brackets, over the 64 the engine allows, so the root config rules are not evaluated. A `.tf` file two directories below a submodule is not part of that module: its undescribed, untyped variable gives no finding and no candidate.
-- `no-base`: `lint` with no `--base`: every area is in scope and every block counts as added. The rules convention 5 names are not evaluated with reason `no_base`.
+- `no-base`: `lint` with no `--base`: every area is in scope and every block counts as added. The rules convention 5 names are not evaluated with reason code `no_base`.
 
 ## Comparison with the binary
 

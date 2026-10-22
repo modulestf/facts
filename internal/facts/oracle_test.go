@@ -163,14 +163,14 @@ func lineKey(l *int) string {
 }
 
 // oracleKeys renders the compared fields of the implemented rules' results,
-// sorted: {rule_id, area, status} of a manifest entry, {rule_id, file, line,
+// sorted: {rule_id, area, status, reason_code} of a manifest entry, {rule_id, file, line,
 // severity} of a finding and {rule_id, file, line, subject} of a candidate.
-// Text, evidence, ids and the reason code are curated, not compared.
+// Text, evidence, ids and the reason sentence are curated, not compared.
 func oracleKeys(v goldenView, implemented func(string) bool) []string {
 	var out []string
 	for _, e := range v.Manifest {
 		if implemented(e.RuleID) {
-			out = append(out, strings.Join([]string{"manifest", e.RuleID, e.Area, e.Status}, " "))
+			out = append(out, strings.Join([]string{"manifest", e.RuleID, e.Area, e.Status, e.ReasonCode}, " "))
 		}
 	}
 	for _, f := range v.Findings {
@@ -246,14 +246,15 @@ func TestOracleMutationFails(t *testing.T) {
 	}
 	other := 9999
 	for name, mutate := range map[string]func(v *goldenView){
-		"manifest status":  func(v *goldenView) { v.Manifest[mi].Status = "not_evaluated" },
-		"manifest area":    func(v *goldenView) { v.Manifest[mi].Area = "modules/none" },
-		"manifest dropped": func(v *goldenView) { v.Manifest = slices.Delete(v.Manifest, mi, mi+1) },
-		"finding line":     func(v *goldenView) { v.Findings[fi].Line = &other },
-		"finding file":     func(v *goldenView) { v.Findings[fi].File = "other.tf" },
-		"finding severity": func(v *goldenView) { v.Findings[fi].Severity = "HIGH" },
-		"finding dropped":  func(v *goldenView) { v.Findings = slices.Delete(v.Findings, fi, fi+1) },
-		"finding added":    func(v *goldenView) { v.Findings = append(v.Findings, v.Findings[fi]) },
+		"manifest status":      func(v *goldenView) { v.Manifest[mi].Status = "not_evaluated" },
+		"manifest area":        func(v *goldenView) { v.Manifest[mi].Area = "modules/none" },
+		"manifest reason code": func(v *goldenView) { v.Manifest[mi].ReasonCode = ReasonParseError },
+		"manifest dropped":     func(v *goldenView) { v.Manifest = slices.Delete(v.Manifest, mi, mi+1) },
+		"finding line":         func(v *goldenView) { v.Findings[fi].Line = &other },
+		"finding file":         func(v *goldenView) { v.Findings[fi].File = "other.tf" },
+		"finding severity":     func(v *goldenView) { v.Findings[fi].Severity = "HIGH" },
+		"finding dropped":      func(v *goldenView) { v.Findings = slices.Delete(v.Findings, fi, fi+1) },
+		"finding added":        func(v *goldenView) { v.Findings = append(v.Findings, v.Findings[fi]) },
 		"candidate subject": func(v *goldenView) {
 			v.Candidates[ci].Subject = ".:var.other"
 		},

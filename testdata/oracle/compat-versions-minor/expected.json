@@ -2,7 +2,7 @@
   "manifest": [
     {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
     {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
-    {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable"},
+    {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
     {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
     {"rule_id": "compat.type-narrowed", "area": ".", "status": "clean"},
     {"rule_id": "compat.variable-now-required", "area": ".", "status": "clean"},
