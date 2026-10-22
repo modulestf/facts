@@ -141,3 +141,53 @@ func TestCoverageReachModeOutputs(t *testing.T) {
 		t.Errorf("output candidates %v", got)
 	}
 }
+
+// A Required argument set from a local is reachable only when the local can
+// be followed to a value that is not the literal null.
+func TestCoverageReachRequiredLocal(t *testing.T) {
+	for _, c := range []struct {
+		locals, name string
+		want         bool
+	}{
+		{"n = null", "local.n", true},
+		{"m = null\n  n = local.m", "local.n", true},
+		{"n = var.name", "local.n", false},
+		{"n = \"a\"", "(local.n)", false},
+		{"n = { a = 1 }", "local.n.a", true},
+		{"", "local.missing", true},
+		{"n = local.m\n  m = local.n", "local.n", true},
+		{"", "var.name", false},
+	} {
+		head := map[string]string{"main.tf": "locals {\n  " + c.locals + "\n}\n\nresource \"aws_demo_widget\" \"this\" {\n  name = " + c.name +
+			"\n  listener {\n    port = 1\n  }\n}\n"}
+		r := runCoverageReach(t, head, map[string]string{})
+		got := slices.ContainsFunc(r.Candidates, func(c Candidate) bool {
+			return c.RuleID == "coverage.required-argument-unreachable" && c.Subject == ".:aws_demo_widget.this.name"
+		})
+		if got != c.want {
+			t.Errorf("locals %q, name = %s: candidate %v, want %v", c.locals, c.name, got, c.want)
+		}
+	}
+}
+
+// An output reading a counted resource through locals, or a module call with
+// for_each, is in a module with a mode switch.
+func TestCoverageReachModeThroughLocalsAndModules(t *testing.T) {
+	main := "locals {\n  a = local.b\n  b = aws_demo_widget.this[0].arn\n}\n\n" +
+		"resource \"aws_demo_widget\" \"this\" {\n  count = 1\n}\n\n" +
+		"module \"child\" {\n  source   = \"./modules/child\"\n  for_each = {}\n}\n\n" +
+		"module \"plain\" {\n  source = \"./modules/child\"\n}\n"
+	out := "output \"via_local\" {\n  value = local.a\n}\n" +
+		"output \"via_module\" {\n  value = module.child\n}\n" +
+		"output \"plain\" {\n  value = module.plain.id\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{})
+	var got []string
+	for _, c := range r.Candidates {
+		if strings.HasPrefix(c.Subject, ".:output.") {
+			got = append(got, c.Subject)
+		}
+	}
+	if !slices.Equal(got, []string{".:output.via_local", ".:output.via_module"}) {
+		t.Errorf("output candidates %v", got)
+	}
+}

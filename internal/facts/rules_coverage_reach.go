@@ -66,22 +66,23 @@ func checkReach(a *Area, id string, judge reachJudge) Result {
 }
 
 // requiredUnreachable: a Required attribute, or a nested block of at least
-// one item, that the block leaves unset or sets to the literal null. Any
-// other value, an input or a static one, can set it; a dynamic block counts
-// as set unless its for_each is a literal with no element. In an edited
-// block a gap the base block had too is not this change's: base gaps are a
-// multiset by schema path.
-func requiredUnreachable(_ *Area, ps providerSchema, r Resource, base *Resource) []schemaItem {
+// one item, that the block leaves unset or sets to null, the literal or a
+// local that is the literal null. Any other value, an input or a static one,
+// can set it; a local the engine cannot follow to such a value is a
+// candidate. A dynamic block counts as set unless its for_each is a literal
+// with no element. In an edited block a gap the base block had too is not
+// this change's: base gaps are a multiset by schema path.
+func requiredUnreachable(a *Area, ps providerSchema, r Resource, base *Resource) []schemaItem {
 	had := map[string]int{}
 	if base != nil {
-		for _, it := range unsetItems(ps, coverageBlockAddr(*base), base.File, base.Line, base.Body, nil, true) {
+		for _, it := range unsetItems(ps, nullish(a.Base.Locals), coverageBlockAddr(*base), base.File, base.Line, base.Body, nil, true) {
 			if required(it) {
 				had[it.key()]++
 			}
 		}
 	}
 	var out []schemaItem
-	for _, it := range unsetItems(ps, coverageBlockAddr(r), r.File, r.Line, r.Body, nil, true) {
+	for _, it := range unsetItems(ps, nullish(a.Head.Locals), coverageBlockAddr(r), r.File, r.Line, r.Body, nil, true) {
 		if !required(it) {
 			continue
 		}
@@ -103,7 +104,7 @@ func optionalUnexposed(_ *Area, ps providerSchema, r Resource, base *Resource) [
 		return nil
 	}
 	var out []schemaItem
-	for _, it := range unsetItems(ps, coverageBlockAddr(r), r.File, r.Line, r.Body, nil, true) {
+	for _, it := range unsetItems(ps, nullLiteral, coverageBlockAddr(r), r.File, r.Line, r.Body, nil, true) {
 		switch f := it.field; {
 		case f.Attribute != nil:
 			// The id of a type is the provider's own, never an argument.
@@ -123,17 +124,18 @@ func optionalUnexposed(_ *Area, ps providerSchema, r Resource, base *Resource) [
 // modeOutputs: an output the change adds or edits, in a module with a mode
 // switch, may be wrong in one of its modes, which only the confirmer can
 // judge (owner decision). A module has a mode switch when it declares a
-// create flag, a variable named create or create_*, or when a resource or
-// data block the output reads has count or for_each. The evidence is the
-// output's lines, then each count or for_each line of the blocks it reads
-// and each create flag's line.
+// create flag, a variable named create or create_*, or when a resource,
+// data block or module call the output reads, directly or through locals at
+// any depth, has count or for_each. The evidence is the output's lines, then
+// each count or for_each line of what it reads and each create flag's line.
 func modeOutputs(a *Area) []Candidate {
 	var flags []Variable
 	for _, v := range a.Head.Variables {
-		if v.Name == "create" || strings.HasPrefix(v.Name, "create_") {
+		if isCreationVar("var." + v.Name) {
 			flags = append(flags, v)
 		}
 	}
+	locals := localRefs(a.Head.Locals)
 	var out []Candidate
 	for _, o := range a.Head.Outputs {
 		var base *Output
@@ -153,16 +155,32 @@ func modeOutputs(a *Area) []Candidate {
 		for n := o.Range.Start.Line; n <= o.Range.End.Line; n++ {
 			lines = append(lines, line{o.File, n})
 		}
-		switched := len(flags) > 0
-		for _, r := range a.Head.Resources {
-			if !slices.Contains(o.References, coverageBlockAddr(r)) {
-				continue
-			}
-			for _, m := range []string{"count", "for_each"} {
-				if e := r.Body.Arg(m); e != nil {
-					switched = true
-					lines = append(lines, line{r.File, e.Range.Start.Line})
+		reads := map[string]bool{}
+		for refs := slices.Clone(o.References); len(refs) > 0; refs = refs[1:] {
+			if !reads[refs[0]] {
+				reads[refs[0]] = true
+				if l, ok := strings.CutPrefix(refs[0], "local."); ok {
+					refs = append(refs, locals[l]...)
 				}
+			}
+		}
+		switched := len(flags) > 0
+		meta := func(file string, b Body) {
+			for _, m := range []string{"count", "for_each"} {
+				if e := b.Arg(m); e != nil {
+					switched = true
+					lines = append(lines, line{file, e.Range.Start.Line})
+				}
+			}
+		}
+		for _, r := range a.Head.Resources {
+			if reads[coverageBlockAddr(r)] {
+				meta(r.File, r.Body)
+			}
+		}
+		for _, m := range a.Head.ModuleCalls {
+			if reads["module."+m.Name] {
+				meta(m.File, m.Body)
 			}
 		}
 		if !switched {
@@ -211,7 +229,9 @@ func modeOutputs(a *Area) []Candidate {
 // resource block the change adds that no output of the area reads. An output
 // reads it when its value names the attribute on the block, through indexes
 // or a splat, or is the block itself. A read through a local or a for
-// expression is not traced, so it stays a candidate.
+// expression is not traced, so it stays a candidate. Only top-level
+// attributes are judged: a computed attribute inside a nested block is left
+// to the model, a limit the oracle README records among its hard cases.
 func attributeNotOutput(a *Area, ps providerSchema, r Resource, base *Resource) []schemaItem {
 	if base != nil || r.Mode == "data" {
 		return nil
@@ -249,10 +269,10 @@ func required(it schemaItem) bool {
 // unsetItems lists what a body leaves unset in the latest schema of the
 // block at path: each attribute and nested block type it does not write, at
 // the body's line, and each attribute it sets to the literal null, at that
-// line with its value. It descends into the nested blocks the body writes,
+// line with its value; null decides that. It descends into the nested blocks the body writes,
 // static and dynamic content alike, and into the object constructors of a
 // nested attribute's value. A name the schema lacks is another rule's.
-func unsetItems(ps providerSchema, addr, file string, line int, b Body, path []string, top bool) []schemaItem {
+func unsetItems(ps providerSchema, null func(string) bool, addr, file string, line int, b Body, path []string, top bool) []schemaItem {
 	_, f := ps.lookup(ps.latest, path)
 	if f.Block == nil {
 		return nil
@@ -266,7 +286,7 @@ func unsetItems(ps providerSchema, addr, file string, line int, b Body, path []s
 		set[at.Name] = true
 		sub := addr + "." + at.Name
 		p := append(slices.Clone(path), at.Name)
-		if nullLiteral(at.Value.Text) {
+		if null(at.Value.Text) {
 			it := ps.item(sub, file, p, at.Range.Start.Line)
 			v := at.Value.Text
 			it.value = &v
@@ -274,7 +294,7 @@ func unsetItems(ps providerSchema, addr, file string, line int, b Body, path []s
 			continue
 		}
 		if s := f.Block.Attributes[at.Name]; s != nil && s.AttributeNestedType != nil {
-			out = append(out, unsetKeys(ps, sub, file, p, s.AttributeNestedType, at.Value)...)
+			out = append(out, unsetKeys(ps, null, sub, file, p, s.AttributeNestedType, at.Value)...)
 		}
 	}
 	seen := map[string]int{} // static blocks per type, for the file index
@@ -291,7 +311,7 @@ func unsetItems(ps providerSchema, addr, file string, line int, b Body, path []s
 		}
 		set[nb.Type] = true
 		if f.Block.NestedBlocks[nb.Type] != nil {
-			out = append(out, unsetItems(ps, sub, file, nb.Range.Start.Line, nb.Body, append(slices.Clone(path), nb.Type), false)...)
+			out = append(out, unsetItems(ps, null, sub, file, nb.Range.Start.Line, nb.Body, append(slices.Clone(path), nb.Type), false)...)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(f.Block.Attributes)) {
@@ -313,7 +333,7 @@ func unsetItems(ps providerSchema, addr, file string, line int, b Body, path []s
 // constructor in its value leaves out or sets to the literal null. A value
 // with no object constructor, such as var.x, is the caller's to fill. A
 // computed key may be any name, so it sets none.
-func unsetKeys(ps providerSchema, addr, file string, path []string, nt *nestedAttrType, v Expr) []schemaItem {
+func unsetKeys(ps providerSchema, null func(string) bool, addr, file string, path []string, nt *nestedAttrType, v Expr) []schemaItem {
 	src := []byte(v.Text)
 	e, diags := hclsyntax.ParseExpression(src, file, hcl.Pos{Line: v.Range.Start.Line, Column: v.Range.Start.Column})
 	if diags.HasErrors() {
@@ -336,12 +356,12 @@ func unsetKeys(ps providerSchema, addr, file string, path []string, nt *nestedAt
 				set[name] = true
 				text := string(kv.ValueExpr.Range().SliceBytes(src))
 				p := append(slices.Clone(path), name)
-				if nullLiteral(text) {
+				if null(text) {
 					it := ps.item(oaddr+"."+name, file, p, kv.KeyExpr.Range().Start.Line)
 					it.value = &text
 					out = append(out, it)
 				} else if s := nt.Attributes[name]; s != nil && s.AttributeNestedType != nil {
-					out = append(out, unsetKeys(ps, oaddr+"."+name, file, p, s.AttributeNestedType, Expr{Text: text, Range: kv.ValueExpr.Range()})...)
+					out = append(out, unsetKeys(ps, null, oaddr+"."+name, file, p, s.AttributeNestedType, Expr{Text: text, Range: kv.ValueExpr.Range()})...)
 				}
 			}
 			for _, name := range slices.Sorted(maps.Keys(nt.Attributes)) {
@@ -352,6 +372,53 @@ func unsetKeys(ps providerSchema, addr, file string, path []string, nt *nestedAt
 		}
 	}
 	return out
+}
+
+// nullish returns what decides that a value is null for a body whose module
+// has locals ls: the literal null, or a local whose value, followed through
+// further locals, is. A local the engine cannot follow to a value, such as
+// one read with an attribute or index, a missing one or a cycle, counts as
+// null, so its argument stays a candidate.
+func nullish(ls []Local) func(string) bool {
+	value := map[string]string{}
+	for _, l := range ls {
+		value[l.Name] = l.Value.Text
+	}
+	return func(text string) bool {
+		for range len(value) + 1 {
+			if nullLiteral(text) {
+				return true
+			}
+			name, whole, ok := readsLocal(text)
+			if !ok {
+				return false
+			}
+			v, found := value[name]
+			if !whole || !found {
+				return true
+			}
+			text = v
+		}
+		return true // a cycle
+	}
+}
+
+// readsLocal returns the local an expression reads when it is a reference to
+// one, and whole when it reads that local and nothing inside it.
+func readsLocal(text string) (name string, whole, ok bool) {
+	e, diags := hclsyntax.ParseExpression([]byte(text), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return "", false, false
+	}
+	t, isTraversal := unparen(e).(*hclsyntax.ScopeTraversalExpr)
+	if !isTraversal || t.Traversal.RootName() != "local" || len(t.Traversal) < 2 {
+		return "", false, false
+	}
+	a, isAttr := t.Traversal[1].(hcl.TraverseAttr)
+	if !isAttr {
+		return "", false, false
+	}
+	return a.Name, len(t.Traversal) == 2, true
 }
 
 // nullLiteral reports whether an expression is the literal null.
