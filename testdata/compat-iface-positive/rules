@@ -1,0 +1,4 @@
+compat.default-changed
+compat.type-narrowed
+compat.variable-now-required
+compat.variable-removed

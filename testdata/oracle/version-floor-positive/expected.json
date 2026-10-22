@@ -1,6 +1,6 @@
 {
   "manifest": [
-    {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.default-changed", "area": ".", "status": "candidate"},
     {"rule_id": "compat.default-changed", "area": "examples/complete", "status": "not_applicable"},
     {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
     {"rule_id": "compat.generated-policy-narrowed", "area": "examples/complete", "status": "not_applicable"},
@@ -130,6 +130,27 @@
         ],
         "base": null,
         "head": "templatestring(var.banner_template, { name = var.name })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 28,
+      "subject": ".:var.banner_template",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 28,
+            "text": "  default     = \"Hello $${name}\""
+          }
+        ],
+        "base": null,
+        "head": "\"Hello $${name}\"",
         "schema_facts": []
       },
       "evidence_complete": true

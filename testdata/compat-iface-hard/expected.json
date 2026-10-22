@@ -1,0 +1,420 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.default-changed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.type-narrowed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.profile",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 71,
+            "text": "  type = object({"
+          }
+        ],
+        "base": "object({\n    tier = optional(string, \"basic\")\n  })",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.old_name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 57,
+            "text": "variable \"old_name\" {"
+          }
+        ],
+        "base": "var.old_name",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 6,
+      "subject": ".:var.name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 7,
+            "text": "    condition     = length(var.name) \u003c= 64"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 7,
+            "text": "    condition     = length(var.name) \u003c= 32"
+          }
+        ],
+        "base": "length(var.name) \u003c= 64",
+        "head": "length(var.name) \u003c= 32",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 14,
+      "subject": ".:var.count_hint",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 14,
+            "text": "  type        = number"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 14,
+            "text": "  type        = string"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 18,
+            "text": "    condition     = can(tonumber(var.count_hint))"
+          }
+        ],
+        "base": "number",
+        "head": "string",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 15,
+      "subject": ".:var.count_hint",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 15,
+            "text": "  default     = 1"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 15,
+            "text": "  default     = \"1\""
+          }
+        ],
+        "base": "1",
+        "head": "\"1\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 27,
+      "subject": ".:var.rules.match.priority",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 22,
+            "text": "      priority = optional(number, 1)"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 27,
+            "text": "      priority = optional(number, 10)"
+          }
+        ],
+        "base": "optional(number, 1)",
+        "head": "optional(number, 10)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 36,
+      "subject": ".:var.tuning",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 33,
+            "text": "  default = {}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 36,
+            "text": "  default     = { level = 1 }"
+          },
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 30,
+            "text": "  type = object({"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 35,
+            "text": "  type        = any"
+          }
+        ],
+        "base": "{}",
+        "head": "{ level = 1 }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 41,
+      "subject": ".:var.limits",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 38,
+            "text": "  type = object({"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 41,
+            "text": "  type = object({"
+          }
+        ],
+        "base": "object({\n    cpu    = number\n    memory = optional(number)\n  })",
+        "head": "object({\n    cpu   = number\n    burst = number\n  })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 50,
+      "subject": ".:var.pair",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 47,
+            "text": "  type        = tuple([string, number])"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 50,
+            "text": "  type        = tuple([string])"
+          }
+        ],
+        "base": "tuple([string, number])",
+        "head": "tuple([string])",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "compat.variable-now-required",
+      "file": "variables.tf",
+      "line": 54,
+      "subject": ".:var.token",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 54,
+            "text": "  default     = null"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 54,
+            "text": "variable \"token\" {"
+          }
+        ],
+        "base": "null",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-011",
+      "rule_id": "compat.variable-now-required",
+      "file": "variables.tf",
+      "line": 59,
+      "subject": ".:var.new_name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 59,
+            "text": "variable \"new_name\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-012",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 72,
+      "subject": ".:var.labels",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 65,
+            "text": "  type        = map(string)"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 72,
+            "text": "  type        = map(any)"
+          }
+        ],
+        "base": "map(string)",
+        "head": "map(any)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-013",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 86,
+      "subject": ".:var.window",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 87,
+            "text": "    condition     = var.window \u003c= local.max_window"
+          }
+        ],
+        "base": null,
+        "head": "var.window \u003c= local.max_window",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-014",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 95,
+      "subject": ".:var.added_with_default",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 95,
+            "text": "  default     = \"x\""
+          }
+        ],
+        "base": null,
+        "head": "\"x\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-015",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 100,
+      "subject": ".:var.shape",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 90,
+            "text": "  type = object({"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 100,
+            "text": "  type = object({"
+          }
+        ],
+        "base": "object({\n    sides = number\n  })",
+        "head": "object({\n    sides = number\n    color = optional(string, \"red\")\n  })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

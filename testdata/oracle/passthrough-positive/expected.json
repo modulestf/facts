@@ -1,6 +1,6 @@
 {
   "manifest": [
-    {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.default-changed", "area": ".", "status": "candidate"},
     {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
     {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "clean"},
     {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
@@ -80,6 +80,27 @@
     },
     {
       "candidate_id": "C-002",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 28,
+      "subject": ".:var.child_size",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 28,
+            "text": "  default     = 10"
+          }
+        ],
+        "base": null,
+        "head": "10",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
       "rule_id": "structure.passthrough-field-drift",
       "file": "variables.tf",
       "line": 33,
@@ -112,7 +133,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-003",
+      "candidate_id": "C-004",
       "rule_id": "structure.passthrough-default-drift",
       "file": "variables.tf",
       "line": 34,
@@ -140,6 +161,27 @@
         ],
         "base": null,
         "head": "\"fast\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 36,
+      "subject": ".:var.child_settings",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 36,
+            "text": "  default = {}"
+          }
+        ],
+        "base": null,
+        "head": "{}",
         "schema_facts": []
       },
       "evidence_complete": true

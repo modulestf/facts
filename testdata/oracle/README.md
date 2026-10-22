@@ -51,7 +51,7 @@ Subjects are area-scoped, `<area>:<address>`: `.:var.retention_days`, `.:aws_dem
 
 ## Status conventions
 
-The engine's text leaves some outcomes to the reader. These fixtures read them this way. Conventions 1, 3, 5 and 8, the `compat.provider-floor-raised` sentence of convention 4, and the reading of `compat.variable-now-required` below are owner decisions.
+The engine's text leaves some outcomes to the reader. These fixtures read them this way. Conventions 1, 3, 5, 8, 10 and 11, the `compat.provider-floor-raised` sentence of convention 4, and the reading of `compat.variable-now-required` below are owner decisions.
 
 1. Areas: with a base, the root `.`, `modules/<name>` and `examples/<name>` that hold a changed, added or removed path; without one, every area. Paths under `.github/` and the root profile files count as `.`, as rule-facts.md says. The root `.` is in scope only when the change touches it, like any other area. A rule with `cross_area` `yes` has exactly one entry, under `.`, for the cross-area pass, whether or not the root is in scope. That pass reads every area of the module, in scope or not; its findings and candidates land only on lines in the change and keep their own `file`. A cross-area candidate is anchored at the change that causes it (owner decision): an example that reads an output the change removes gets its `examples.stale-reference` candidate on the called module's `outputs.tf` with a null line, and one the change renames on the head line of the new output; a candidate with no line is in the change when its path is. The entry is never `not_applicable`. If an area the pass reads cannot be read, or for a `config-semantic` rule cannot be parsed, the entry is `not_evaluated` with no items; a `path` rule still runs, as convention 3 says. `TestOracleInvariants` derives the areas the change touches from `base/` and `head/`, comparing each file's content and mode and each link's target in `symlinks.txt`, and holds the manifest to them.
 2. `not_applicable` exactly when the area kind is outside the rule's `area_kinds`.
@@ -62,6 +62,8 @@ The engine's text leaves some outcomes to the reader. These fixtures read them t
 7. `profile.required-file-missing` fires for a module the change adds. A directory the change adds inside an existing module is held to its own file set, and an existing module missing a file it never had is no finding of this change.
 8. A new variable with no default, in a module that exists at the base, is `compat.variable-now-required`: every existing caller must now set it.
 9. For `compat.provider-floor-raised`, `schema_facts` are the arguments set in the `resource` and `data` blocks of the area, looked up at the old floor. Attributes the area reads, such as an `id` in an output, are not included.
+10. A new variable with a non-null default in an existing module is a `compat.default-changed` candidate.
+11. An added object attribute is a `compat.type-narrowed` candidate, `optional()` with a default included.
 
 ## Coverage
 
@@ -71,7 +73,7 @@ The engine's text leaves some outcomes to the reader. These fixtures read them t
 | `compat.generated-policy-narrowed` | `compat-resources-positive` | `compat-resources-negative` |
 | `compat.provider-floor-raised` | `compat-versions-floor` | `compat-versions-major` |
 | `compat.resource-address-changed` | `compat-resources-positive` | `compat-resources-negative` |
-| `compat.type-narrowed` | `compat-variables-positive` | `compat-variables-negative` |
+| `compat.type-narrowed` | `compat-variables-positive`, `compat-variables-negative` | `compat-resources-negative` |
 | `compat.variable-now-required` | `compat-variables-positive` | `compat-variables-negative` |
 | `compat.variable-removed` | `compat-variables-positive`, `examples-positive`, `examples-negative` | `compat-variables-negative` |
 | `compat.version-constraint-raised` | `compat-versions-major` | `compat-versions-minor` |
@@ -119,7 +121,7 @@ Hard cases:
 | `dynamic` blocks | `coverage-negative`: a required nested block filled by `dynamic` over an input is reachable |
 | `count` to `for_each` | `compat-resources-positive` without `moved`, `compat-resources-negative` with one `moved` block per instance key |
 | `moved` blocks | `compat-resources-negative`: a rename and an instance key change, both moved |
-| `optional()` with defaults | `compat-variables-positive` (a changed default), `compat-variables-negative` (a new attribute with a default is a widening), `passthrough-positive` (an unset value that differs from the submodule's) |
+| `optional()` with defaults | `compat-variables-positive` (a changed default), `compat-variables-negative` (a new attribute with a default is a `compat.type-narrowed` candidate, convention 11), `passthrough-positive` (an unset value that differs from the submodule's) |
 | `any` | `compat-variables-positive` (`any` narrowed), `compat-variables-negative`, `structure-positive` (a new `any` input) |
 
 Adversarial cases:
@@ -146,7 +148,7 @@ Adversarial cases:
 - `passthrough-positive`: the root adds a call to a local submodule and forwards three inputs. Two unset values differ from the submodule defaults, and the submodule type has an attribute the root type lacks. The candidate lines are where the root declares the type or attribute.
 - `passthrough-negative`: near misses: an equal default, a root null into a submodule variable with `nullable = false`, and settings passed through `merge()`, which is not forwarding and is not compared.
 - `compat-variables-positive`: a removed variable, a default removed, `any` narrowed to `map(string)`, a `validation` block added, a changed default, a changed `optional()` default, and a new variable with no default. A removed variable has no head line, so its line is null and its evidence is the merge base line.
-- `compat-variables-negative`: near misses: a description edit, a new `optional()` attribute with a default, a list default written with other spacing but equal, and a new variable.
+- `compat-variables-negative`: near misses: a description edit, a list default written with other spacing but equal, and a new variable with a null default. A new `optional()` attribute with a default is a `compat.type-narrowed` candidate (convention 11).
 - `compat-resources-positive`: `count` to `for_each` with no `moved` block, a resource renamed with no `moved` block, and an action removed from a policy document the module builds.
 - `compat-resources-negative`: near misses: `count` to `for_each` with a `moved` block per instance key, a rename with a `moved` block, and an action added to the policy document.
 - `compat-versions-major`: the core floor rises and the provider floor crosses a major version. Both are `compat.version-constraint-raised`; `compat.provider-floor-raised` stays `clean`.

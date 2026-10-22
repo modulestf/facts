@@ -138,8 +138,13 @@ func TestSubmoduleOnlyChangeHasNoRootEntries(t *testing.T) {
 			t.Errorf("entry outside the changed submodule: %+v", e)
 		}
 	}
-	if len(r.Candidates) != 1 || r.Candidates[0].Subject != "modules/a:var.y" {
-		t.Errorf("candidates %+v", r.Candidates)
+	var got []string
+	for _, c := range r.Candidates {
+		got = append(got, c.RuleID+" "+c.Subject)
+	}
+	slices.Sort(got)
+	if want := []string{"compat.variable-now-required modules/a:var.y", "structure.variable-untyped modules/a:var.y"}; !slices.Equal(got, want) {
+		t.Errorf("candidates %q", got)
 	}
 }
 

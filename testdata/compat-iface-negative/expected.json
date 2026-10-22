@@ -1,0 +1,46 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.default-changed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.default-changed",
+      "area": "modules/new",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.type-narrowed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.type-narrowed",
+      "area": "modules/new",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": "modules/new",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "modules/new",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

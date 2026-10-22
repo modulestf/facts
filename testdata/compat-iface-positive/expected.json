@@ -1,0 +1,307 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.default-changed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.default-changed",
+      "area": "examples/basic",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.default-changed",
+      "area": "modules/child",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.type-narrowed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.type-narrowed",
+      "area": "examples/basic",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.type-narrowed",
+      "area": "modules/child",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": "examples/basic",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": "modules/child",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "examples/basic",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "modules/child",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.default-changed",
+      "file": "main.tf",
+      "line": null,
+      "subject": ".:data.aws_caller_identity.current",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 1,
+            "text": "data \"aws_caller_identity\" \"current\" {}"
+          }
+        ],
+        "base": "data.aws_caller_identity.current",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.variable-now-required",
+      "file": "modules/child/variables.tf",
+      "line": 1,
+      "subject": "modules/child:var.port",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "modules/child/variables.tf",
+            "line": 4,
+            "text": "  default     = 443"
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/variables.tf",
+            "line": 1,
+            "text": "variable \"port\" {"
+          }
+        ],
+        "base": "443",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "compat.variable-removed",
+      "file": "outputs.tf",
+      "line": null,
+      "subject": ".:output.widget_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "outputs.tf",
+            "line": 6,
+            "text": "output \"widget_arn\" {"
+          }
+        ],
+        "base": "output.widget_arn",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.region_hint",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 7,
+            "text": "variable \"region_hint\" {"
+          }
+        ],
+        "base": "var.region_hint",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "compat.variable-now-required",
+      "file": "variables.tf",
+      "line": 11,
+      "subject": ".:var.mode",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 11,
+            "text": "  nullable    = false"
+          }
+        ],
+        "base": null,
+        "head": "false",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 16,
+      "subject": ".:var.size",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 21,
+            "text": "  type        = number"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 16,
+            "text": "  type        = string"
+          }
+        ],
+        "base": "number",
+        "head": "string",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 17,
+      "subject": ".:var.size",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 22,
+            "text": "  default     = 1"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 17,
+            "text": "  default     = \"1\""
+          }
+        ],
+        "base": "1",
+        "head": "\"1\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 23,
+      "subject": ".:var.settings.label",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 28,
+            "text": "    label = optional(string)"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 23,
+            "text": "    label = optional(string, \"widget\")"
+          }
+        ],
+        "base": "optional(string)",
+        "head": "optional(string, \"widget\")",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 31,
+      "subject": ".:var.instance_type",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 36,
+            "text": "  default     = \"t3.micro\""
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 31,
+            "text": "  default     = \"t3.small\""
+          }
+        ],
+        "base": "\"t3.micro\"",
+        "head": "\"t3.small\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "compat.variable-now-required",
+      "file": "variables.tf",
+      "line": 34,
+      "subject": ".:var.subnet_ids",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 34,
+            "text": "variable \"subnet_ids\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+module "widget" {
+  source = "../../"
+}
