@@ -45,7 +45,7 @@ type Set struct {
 	Handoff *Handoff
 	// HandoffSHA256 hashes the handoff file as read, compressed or not.
 	HandoffSHA256 string
-	// SchemaFiles hashes each raw schema file, in the order given.
+	// SchemaFiles hashes each raw schema file, in the order given, by base name.
 	SchemaFiles []FileHash
 	// Mismatch says why the handoff does not cover the run, empty when it does.
 	Mismatch string

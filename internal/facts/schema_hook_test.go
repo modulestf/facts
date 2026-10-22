@@ -1,7 +1,9 @@
 package facts
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,8 +57,8 @@ func TestOracleHandoffsBindToTheirTrees(t *testing.T) {
 		if r := s.Resolve(".", "aws"); r.Outcome != schema.Present {
 			t.Errorf("%s: resolve %+v", name, r)
 		}
-		if in == nil || in.HeadSHA != oracleHeadSHA || in.MergeBaseSHA != oracleBaseSHA ||
-			in.TreeHashes.Head != s.Handoff.Inputs.Head.TreeHash || len(in.HandoffSHA256) != 64 || in.SchemaFiles == nil {
+		if in == nil || in.TreeHashes == nil || deref(in.HeadSHA) != oracleHeadSHA || deref(in.MergeBaseSHA) != oracleBaseSHA ||
+			in.TreeHashes.Head != s.Handoff.Inputs.Head.TreeHash || len(deref(in.HandoffSHA256)) != 64 || in.SchemaFiles == nil {
 			t.Errorf("%s: schema_inputs %+v", name, in)
 		}
 	}
@@ -97,7 +99,7 @@ func TestHandoffForOtherInputsIsUnavailable(t *testing.T) {
 			t.Errorf("%s: lookup %s", name, outcome)
 		}
 		// The envelope still records the handoff it read, for the host to compare.
-		if in == nil || in.HandoffSHA256 == "" {
+		if in == nil || deref(in.HandoffSHA256) == "" {
 			t.Errorf("%s: no schema_inputs", name)
 		}
 	}
@@ -144,7 +146,7 @@ func TestSchemaInputsInTheEnvelope(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := r.Envelope.SchemaInputs
-	if in == nil || len(in.SchemaFiles) != 1 || in.SchemaFiles[0].Path != raw || len(in.SchemaFiles[0].SHA256) != 64 {
+	if in == nil || len(in.SchemaFiles) != 1 || in.SchemaFiles[0].Path != "aws.json" || len(in.SchemaFiles[0].SHA256) != 64 {
 		t.Fatalf("schema_inputs %+v", in)
 	}
 	data, err := json.Marshal(r.Envelope)
@@ -154,11 +156,83 @@ func TestSchemaInputsInTheEnvelope(t *testing.T) {
 	if errs := loadSchemas(t).validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
 		t.Errorf("envelope schema: %v\n%s", errs, data)
 	}
-	// Raw files alone: read, but there is no handoff to record.
-	r, err = Run(Options{Head: o.Head, SchemaFiles: []string{raw}, Limits: DefaultLimits})
-	if err != nil || r.Envelope.SchemaInputs != nil {
-		t.Errorf("raw files alone: %v, schema_inputs %+v", err, r.Envelope.SchemaInputs)
+}
+
+// TestRawSchemaFilesInTheEnvelope runs the engine with raw schema files and
+// no handoff: each file's hash is recorded, the handoff keys are null, and the
+// envelope schema accepts that and refuses the mutations that break it.
+func TestRawSchemaFilesInTheEnvelope(t *testing.T) {
+	dir := t.TempDir()
+	raws := []string{filepath.Join(dir, "aws.json"), filepath.Join(dir, "random.json")}
+	for i, p := range raws {
+		doc := fmt.Sprintf(`{"format_version": "1.0", "provider_schemas": {}, "n": %d}`, i)
+		if err := os.WriteFile(p, []byte(doc), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
+	head := filepath.Join("..", "..", "testdata", "oracle", "coverage-positive", "head")
+	o := Options{Head: head, SchemaFiles: raws, Limits: DefaultLimits, Version: "test", BinarySHA256: strings.Repeat("0", 64)}
+	r, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := r.Envelope.SchemaInputs
+	if in == nil || in.HandoffSHA256 != nil || in.HeadSHA != nil || in.MergeBaseSHA != nil || in.TreeHashes != nil {
+		t.Fatalf("schema_inputs %+v", in)
+	}
+	if len(in.SchemaFiles) != len(raws) {
+		t.Fatalf("schema_files %+v", in.SchemaFiles)
+	}
+	// The files are read by absolute path; only the base name is recorded.
+	for i, f := range in.SchemaFiles {
+		data, err := os.ReadFile(raws[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := filepath.Base(raws[i])
+		if want := fmt.Sprintf("%x", sha256.Sum256(data)); !filepath.IsAbs(raws[i]) || f.Path != name || f.SHA256 != want {
+			t.Errorf("schema_files[%d] = %+v, want %s %s", i, f, name, want)
+		}
+	}
+	data, err := json.Marshal(r.Envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), dir) {
+		t.Errorf("envelope holds the host path %s:\n%s", dir, data)
+	}
+	set := loadSchemas(t)
+	if errs := set.validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
+		t.Errorf("envelope schema: %v\n%s", errs, data)
+	}
+
+	sum := strings.Repeat("c", 64)
+	sha := strings.Repeat("a", 40)
+	for name, mutate := range map[string]func(*SchemaInputs){
+		"no schema files":         func(s *SchemaInputs) { s.SchemaFiles = []FileHash{} },
+		"path with a directory":   func(s *SchemaInputs) { s.SchemaFiles = []FileHash{{Path: "dir/aws.json", SHA256: sum}} },
+		"handoff hash only":       func(s *SchemaInputs) { s.HandoffSHA256 = &sum },
+		"commits only":            func(s *SchemaInputs) { s.HeadSHA, s.MergeBaseSHA = &sha, &sha },
+		"head only":               func(s *SchemaInputs) { s.HeadSHA = &sha },
+		"merge base only":         func(s *SchemaInputs) { s.MergeBaseSHA = &sha },
+		"tree hashes only":        func(s *SchemaInputs) { s.TreeHashes = &TreeHashes{Head: sum, MergeBase: sum} },
+		"handoff, no tree hashes": func(s *SchemaInputs) { s.HandoffSHA256, s.HeadSHA, s.MergeBaseSHA = &sum, &sha, &sha },
+	} {
+		env := r.Envelope
+		si := *in
+		mutate(&si)
+		env.SchemaInputs = &si
+		if errs := set.validate("envelope.schema.json", decodeJSON(t, mustJSON(t, env))); len(errs) == 0 {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // TestBadSchemaInputsFailTheRun checks a missing or wrong schema input

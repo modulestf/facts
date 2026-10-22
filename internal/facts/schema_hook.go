@@ -14,7 +14,7 @@ import (
 // area the result. A missing, oversized or malformed input is an error. A
 // handoff for other commits or trees is no error: its lookups are
 // schema_unavailable. It returns the envelope's schema_inputs, nil when the
-// run read no handoff.
+// run read no schema input, with nil handoff keys when it read raw files only.
 func applySchema(o Options, head, base *Tree, areas []*Area) (*SchemaInputs, error) {
 	if o.SchemaHandoff == "" && len(o.SchemaFiles) == 0 {
 		return nil, nil
@@ -31,19 +31,14 @@ func applySchema(o Options, head, base *Tree, areas []*Area) (*SchemaInputs, err
 	for _, a := range areas {
 		a.Schema = s
 	}
-	h := s.Handoff
-	if h == nil {
-		return nil, nil
-	}
-	in := &SchemaInputs{
-		HandoffSHA256: s.HandoffSHA256,
-		HeadSHA:       h.HeadSHA,
-		MergeBaseSHA:  h.MergeBaseSHA,
-		TreeHashes:    TreeHashes{Head: h.Inputs.Head.TreeHash, MergeBase: h.Inputs.MergeBase.TreeHash},
-		SchemaFiles:   []FileHash{},
-	}
+	in := &SchemaInputs{SchemaFiles: []FileHash{}}
 	for _, f := range s.SchemaFiles {
 		in.SchemaFiles = append(in.SchemaFiles, FileHash{Path: f.Path, SHA256: f.SHA256})
+	}
+	if h := s.Handoff; h != nil {
+		sum, headSHA, mergeBaseSHA := s.HandoffSHA256, h.HeadSHA, h.MergeBaseSHA // copies: the envelope does not alias the set
+		in.HandoffSHA256, in.HeadSHA, in.MergeBaseSHA = &sum, &headSHA, &mergeBaseSHA
+		in.TreeHashes = &TreeHashes{Head: h.Inputs.Head.TreeHash, MergeBase: h.Inputs.MergeBase.TreeHash}
 	}
 	return in, nil
 }

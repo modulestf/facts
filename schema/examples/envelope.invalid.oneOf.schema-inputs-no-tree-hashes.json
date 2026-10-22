@@ -46,7 +46,7 @@
     "merge_base_sha": "2222222222222222222222222222222222222222",
     "schema_files": [
       {
-        "path": "registry.terraform.io/hashicorp/aws/6.20.0.json",
+        "path": "aws-6.20.0.json",
         "sha256": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d"
       }
     ]

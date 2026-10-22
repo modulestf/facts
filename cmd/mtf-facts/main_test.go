@@ -251,6 +251,13 @@ func TestLintHookFlagsChangeNoOutput(t *testing.T) {
 func TestLintSchemaFlagsFailClosed(t *testing.T) {
 	head := "../../testdata/versions-missing-positive/head"
 	good := "../../schema/examples/schema-handoff.valid.json"
+	raw := []byte(`{"format_version": "1.0", "provider_schemas": {}}`)
+	same := []string{filepath.Join(t.TempDir(), "aws.json"), filepath.Join(t.TempDir(), "aws.json")}
+	for _, p := range same {
+		if err := os.WriteFile(p, raw, 0o600); err != nil { //nolint:gosec // G703: a file in the test temp directory
+			t.Fatal(err)
+		}
+	}
 	for name, c := range map[string]struct {
 		flags []string
 		code  int
@@ -262,6 +269,7 @@ func TestLintSchemaFlagsFailClosed(t *testing.T) {
 		"missing file":        {[]string{"--schema-files", "missing.json"}, exitError},
 		"handoff as file":     {[]string{"--schema-files", good}, exitError},
 		"second file missing": {[]string{"--schema-handoff", good, "--schema-files", "missing.json"}, exitError},
+		"same base name":      {[]string{"--schema-files", same[0], "--schema-files", same[1]}, exitError},
 	} {
 		var out, errb bytes.Buffer
 		code := run(append([]string{"lint", "--json", head}, c.flags...), &out, &errb)

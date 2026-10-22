@@ -30,7 +30,7 @@
         "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}]}
       }
     },
-    "schema_inputs": {"description": "Null when the run read no schema handoff.", "oneOf": [{"type": "null"}, {"$ref": "#/$defs/schema_inputs"}]},
+    "schema_inputs": {"description": "Null when the run read no schema input. With raw provider schema files and no handoff, the handoff keys are null and schema_files lists the files.", "oneOf": [{"type": "null"}, {"$ref": "#/$defs/schema_inputs"}, {"$ref": "#/$defs/schema_files_inputs"}]},
     "profile_sha256": {"description": "SHA-256, lowercase hex, of the module profile input, null when the run read no valid profile. The preimage is one line per file the profile was built from, PROFILE.md and templates/<name> for each template its template-destinations block names, written as <sha256><two spaces><path><LF> with the path relative to the profile directory, the lines sorted by the bytes of path, with no other bytes: the layout of the schema handoff tree_hash.", "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
   },
   "$defs": {
@@ -56,17 +56,32 @@
             "merge_base": {"$ref": "#/$defs/sha256"}
           }
         },
-        "schema_files": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["path", "sha256"],
-            "properties": {
-              "path": {"type": "string", "minLength": 1},
-              "sha256": {"$ref": "#/$defs/sha256"}
-            }
-          }
+        "schema_files": {"$ref": "#/$defs/schema_files"}
+      }
+    },
+    "schema_files_inputs": {
+      "description": "Raw provider schema files read with no schema handoff: the handoff keys are null and every file has a hash.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handoff_sha256", "head_sha", "merge_base_sha", "tree_hashes", "schema_files"],
+      "properties": {
+        "handoff_sha256": {"type": "null"},
+        "head_sha": {"type": "null"},
+        "merge_base_sha": {"type": "null"},
+        "tree_hashes": {"type": "null"},
+        "schema_files": {"$ref": "#/$defs/schema_files", "type": "array", "minItems": 1}
+      }
+    },
+    "schema_files": {
+      "description": "SHA-256 of each raw provider schema file as read, in the order given, with its base name: no directory, so no host path is recorded and the same file read from another directory records the same entry. Two files with one base name stop the run.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^[^/]+$"},
+          "sha256": {"$ref": "#/$defs/sha256"}
         }
       }
     },
