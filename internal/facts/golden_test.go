@@ -207,12 +207,13 @@ func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 	}
 }
 
-// TestNoOpHooksChangeNoOutput sets the schema and profile inputs, which the
-// no-op hooks ignore, and checks every case keeps its expected output.
-func TestNoOpHooksChangeNoOutput(t *testing.T) {
+// TestHookInputsChangeOnlyTheEnvelope sets a schema handoff and the profile
+// input on every case. No rule reads either yet, so the manifest, findings
+// and candidates stay the same; only the envelope records the handoff.
+func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 	for _, dir := range goldenCases(t) {
 		o := Options{Head: filepath.Join(dir, "head"), Limits: DefaultLimits,
-			SchemaHandoff: "handoff.json", SchemaFiles: "schemas", ProfileDir: "profile"}
+			SchemaHandoff: "../../schema/examples/schema-handoff.valid.json", ProfileDir: "profile"}
 		if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 			o.Base = filepath.Join(dir, "base")
 		}
@@ -224,6 +225,10 @@ func TestNoOpHooksChangeNoOutput(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if with.Envelope.SchemaInputs == nil {
+			t.Errorf("%s: no schema_inputs", filepath.Base(dir))
+		}
+		with.Envelope.SchemaInputs = nil
 		if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
 			t.Errorf("%s: schema and profile inputs changed the report", filepath.Base(dir))
 		}

@@ -218,14 +218,14 @@ func TestStubSubcommandsExit2(t *testing.T) {
 	}
 }
 
-// TestLintHookFlagsChangeNoOutput passes the schema and profile flags, which
-// reach only the no-op hooks, and checks lint writes the same bytes and exit
-// code as without them, in both output formats.
+// TestLintHookFlagsChangeNoOutput passes a schema handoff and the profile
+// flag, which no implemented rule reads, and checks lint writes the same
+// human output and exit code as without them.
 func TestLintHookFlagsChangeNoOutput(t *testing.T) {
-	hooks := []string{"--schema-handoff", "handoff.json", "--schema-files", "schemas", "--profile-dir", "profile"}
+	hooks := []string{"--schema-handoff", "../../schema/examples/schema-handoff.valid.json", "--profile-dir", "profile"}
 	for _, args := range [][]string{
 		{"lint", "../../testdata/variable-untyped-base/head", "--base", "../../testdata/variable-untyped-base/base"},
-		{"lint", "--json", "../../testdata/versions-missing-positive/head"},
+		{"lint", "../../testdata/versions-missing-positive/head"},
 		{"lint", "../../testdata/unparsable-areas/head"},
 	} {
 		var out, errb bytes.Buffer
@@ -234,6 +234,34 @@ func TestLintHookFlagsChangeNoOutput(t *testing.T) {
 		hcode := run(append(slices.Clone(args), hooks...), &hout, &herrb)
 		if code != hcode || out.String() != hout.String() || errb.String() != herrb.String() {
 			t.Errorf("%v: exit %d vs %d, output differs:\n%s\n---\n%s", args, code, hcode, out.String(), hout.String())
+		}
+	}
+}
+
+// TestLintSchemaFlagsFailClosed checks a missing or wrong schema input exits
+// 2 with nothing on stdout, and a good one is read.
+func TestLintSchemaFlagsFailClosed(t *testing.T) {
+	head := "../../testdata/versions-missing-positive/head"
+	good := "../../schema/examples/schema-handoff.valid.json"
+	for name, c := range map[string]struct {
+		flags []string
+		code  int
+	}{
+		"good handoff":        {[]string{"--schema-handoff", good}, exitFindings},
+		"missing handoff":     {[]string{"--schema-handoff", "missing.json"}, exitError},
+		"directory handoff":   {[]string{"--schema-handoff", "../../schema"}, exitError},
+		"malformed handoff":   {[]string{"--schema-handoff", "../../schema/examples/schema-handoff.invalid.oneOf.json"}, exitError},
+		"missing file":        {[]string{"--schema-files", "missing.json"}, exitError},
+		"handoff as file":     {[]string{"--schema-files", good}, exitError},
+		"second file missing": {[]string{"--schema-handoff", good, "--schema-files", "missing.json"}, exitError},
+	} {
+		var out, errb bytes.Buffer
+		code := run(append([]string{"lint", "--json", head}, c.flags...), &out, &errb)
+		if code != c.code || (code == exitError) != (out.Len() == 0) {
+			t.Errorf("%s: exit %d, stdout %d bytes, stderr %q", name, code, out.Len(), errb.String())
+		}
+		if code == exitFindings && !strings.Contains(out.String(), `"handoff_sha256"`) {
+			t.Errorf("%s: no schema_inputs in the report", name)
 		}
 	}
 }

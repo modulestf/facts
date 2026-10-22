@@ -3,7 +3,9 @@ module github.com/modulestf/facts
 go 1.27.2
 
 require (
+	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/hcl/v2 v2.25.0
+	github.com/hashicorp/terraform-json v0.29.0
 	github.com/zclconf/go-cty v1.19.0
 )
 
