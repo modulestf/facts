@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
@@ -107,30 +109,47 @@ func TestNestingDepthClamp(t *testing.T) {
 // The run time grows linearly with the number of variables: four times the
 // files take well under the sixteen times a quadratic pass would. A ratio,
 // not a wall-clock limit, so a slow or race-instrumented build still passes.
+// Each size is timed several times, interleaved, and the fastest run of each
+// counts: load from other processes only ever adds time, so the minimum is
+// the closest to the work itself, and one slow run cannot fail the test.
 func TestManyVariablesAreLinear(t *testing.T) {
 	// files of 2000 variables each stay under the per-file token cap.
-	run := func(files int) (*Report, time.Duration) {
-		head, base := map[string]string{"new.tf": "variable \"new\" {}\n"}, map[string]string{}
+	tree := func(files int) (head, base string) {
+		h, b := map[string]string{"new.tf": "variable \"new\" {}\n"}, map[string]string{}
 		for f := range files {
-			var b strings.Builder
+			var sb strings.Builder
 			for i := range 2000 {
-				fmt.Fprintf(&b, "# v%d\nvariable \"v%d_%d\" {}\n", i, f, i)
+				fmt.Fprintf(&sb, "# v%d\nvariable \"v%d_%d\" {}\n", i, f, i)
 			}
 			name := fmt.Sprintf("v%02d.tf", f)
-			head[name], base[name] = b.String(), b.String()
+			h[name], b[name] = sb.String(), sb.String()
 		}
-		h, bs := writeTree(t, head), writeTree(t, base)
+		return writeTree(t, h), writeTree(t, b)
+	}
+	run := func(head, base string) (*Report, time.Duration) {
+		runtime.GC()
 		start := time.Now()
-		r, err := Run(Options{Head: h, Base: bs, Limits: DefaultLimits})
+		r, err := Run(Options{Head: head, Base: base, Limits: DefaultLimits})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return r, time.Since(start)
 	}
-	_, small := run(10)
-	r, large := run(40)
+	const tries = 3
+	smallHead, smallBase := tree(10)
+	largeHead, largeBase := tree(40)
+	var r *Report
+	small, large := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
+	for range tries {
+		_, d := run(smallHead, smallBase)
+		small = min(small, d)
+		var dl time.Duration
+		r, dl = run(largeHead, largeBase)
+		large = min(large, dl)
+	}
+	t.Logf("fastest of %d: 10 files %v, 40 files %v", tries, small, large)
 	if ratio := float64(large) / float64(small); ratio > 8 {
-		t.Errorf("40 files took %v, 10 files %v: ratio %.1f, want at most 8", large, small, ratio)
+		t.Errorf("40 files took %v, 10 files %v (fastest of %d): ratio %.1f, want at most 8", large, small, tries, ratio)
 	}
 	// The one new variable, untyped and with no default, is the only candidate
 	// subject: once for each of the two rules that report it.
@@ -185,14 +204,46 @@ func TestSymlinkRetarget(t *testing.T) {
 		t.Error(s)
 	}
 	r, err = Run(Options{Head: same, Base: base, Limits: DefaultLimits})
-	// Only the cross-area rules keep their one root entry: clean, or for a
-	// config-semantic pass, which reads the untouched root and its linked
-	// main.tf, not_evaluated(symlink).
-	if err != nil || slices.ContainsFunc(r.Manifest, func(e ManifestEntry) bool {
-		ok := e.Status == StatusClean || e.Status == StatusNotEvaluated && e.ReasonCode == ReasonSymlink
-		return e.Area != rootArea || !ok || !isCrossArea(e.RuleID)
-	}) || len(r.Findings) != 0 || len(r.Candidates) != 0 {
-		t.Errorf("unchanged link put an area in scope: %v %+v %+v %+v", err, r.Manifest, r.Findings, r.Candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Only the cross-area rules keep their one root entry. A rule that reads
+	// the root reads the untouched root and its linked main.tf, so it is
+	// not_evaluated(symlink); a rule that reads only examples or submodules
+	// finds none and is clean. The list is pinned: a new cross-area rule
+	// fails here until its expected status is added.
+	const linked = "not_evaluated: symlink"
+	want := map[string]string{
+		"compat.resource-address-changed":     linked,
+		"examples.stale-reference":            "clean",
+		"examples.submodule-missing":          "clean",
+		"scope.provider":                      linked,
+		"structure.passthrough-default-drift": linked,
+		"structure.passthrough-field-drift":   linked,
+		"structure.version-floor-understated": linked,
+	}
+	var crossArea []string
+	for _, rule := range Rules {
+		if rule.CrossArea {
+			crossArea = append(crossArea, rule.ID)
+		}
+	}
+	slices.Sort(crossArea)
+	if keys := slices.Sorted(maps.Keys(want)); !slices.Equal(keys, crossArea) {
+		t.Errorf("cross-area rules %q, expectations for %q", crossArea, keys)
+	}
+	for _, e := range r.Manifest {
+		if e.Area != rootArea || !isCrossArea(e.RuleID) {
+			t.Errorf("unchanged link put an area in scope: %+v", e)
+		}
+	}
+	for id, w := range want {
+		if s := statusOf(r.Manifest, id, rootArea); s != w {
+			t.Errorf("%s: %s, want %s", id, s, w)
+		}
+	}
+	if len(r.Findings) != 0 || len(r.Candidates) != 0 {
+		t.Errorf("unchanged link gave findings %+v candidates %+v", r.Findings, r.Candidates)
 	}
 	data, _ := json.Marshal(r)
 	if strings.Contains(string(data), "a.tf\",\"kind\":\"symlink") || strings.Contains(string(data), "->") {
