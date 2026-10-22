@@ -120,7 +120,7 @@ Hard cases:
 | Case | Fixtures |
 |------|----------|
 | `dynamic` blocks | `coverage-negative`: a required nested block filled by `dynamic` over an input is reachable |
-| Computed attributes of nested blocks | none: `coverage.attribute-not-output` judges top-level computed attributes only, and leaves one inside a nested block to the model |
+| Computed attributes of nested blocks | none: `coverage.attribute-not-output` reads a computed attribute inside a nested block or a nested attribute as it reads a top-level one, at its nested address; the engine's unit tests cover it |
 | `count` to `for_each` | `compat-resources-positive` without `moved`, `compat-resources-negative` with one `moved` block per instance key |
 | `moved` blocks | `compat-resources-negative`: a rename and an instance key change, both moved |
 | `optional()` with defaults | `compat-variables-positive` (a changed default), `compat-variables-negative` (a new attribute with a default is a `compat.type-narrowed` candidate, convention 11), `passthrough-positive` (an unset value that differs from the submodule's) |

@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	tfjson "github.com/hashicorp/terraform-json"
 )
 
 // coverageReachRules is the coverage_reach rule family. Rule work for this family adds its rules and
@@ -225,13 +226,14 @@ func modeOutputs(a *Area) []Candidate {
 	return out
 }
 
-// attributeNotOutput: a computed, not deprecated, top-level attribute of a
-// resource block the change adds that no output of the area reads. An output
-// reads it when its value names the attribute on the block, through indexes
-// or a splat, or is the block itself. A read through a local or a for
-// expression is not traced, so it stays a candidate. Only top-level
-// attributes are judged: a computed attribute inside a nested block is left
-// to the model, a limit the oracle README records among its hard cases.
+// attributeNotOutput: a computed, not deprecated attribute of a resource
+// block the change adds that no output of the area reads, at the top level,
+// inside a nested block at any depth, or inside a nested attribute that is
+// not itself computed; the candidate's address and schema path name each
+// level. An output reads an attribute when its value names it on the block,
+// through indexes or a splat, or names a level above it or below it, or is
+// the block itself. A read through a local or a for expression is not
+// traced, so it stays a candidate.
 func attributeNotOutput(a *Area, ps providerSchema, r Resource, base *Resource) []schemaItem {
 	if base != nil || r.Mode == "data" {
 		return nil
@@ -246,13 +248,36 @@ func attributeNotOutput(a *Area, ps providerSchema, r Resource, base *Resource) 
 			return nil // an output returns the whole block
 		}
 	}
+	isRead := func(p string) bool {
+		for q := range read {
+			if q == p || strings.HasPrefix(p, q+".") || strings.HasPrefix(q, p+".") {
+				return true
+			}
+		}
+		return false
+	}
 	var out []schemaItem
-	for _, name := range slices.Sorted(maps.Keys(f.Block.Attributes)) {
-		at := f.Block.Attributes[name]
-		if at.Computed && !at.Deprecated && !read[name] {
-			out = append(out, ps.item(coverageBlockAddr(r)+"."+name, r.File, []string{name}, r.Line))
+	var walk func(attrs map[string]*tfjson.SchemaAttribute, blocks map[string]*tfjson.SchemaBlockType, path []string)
+	walk = func(attrs map[string]*tfjson.SchemaAttribute, blocks map[string]*tfjson.SchemaBlockType, path []string) {
+		for _, name := range slices.Sorted(maps.Keys(attrs)) {
+			at, p := attrs[name], append(slices.Clone(path), name)
+			switch {
+			case at.Deprecated:
+			case at.Computed:
+				if !isRead(strings.Join(p, ".")) {
+					out = append(out, ps.item(coverageBlockAddr(r)+"."+strings.Join(p, "."), r.File, p, r.Line))
+				}
+			case at.AttributeNestedType != nil:
+				walk(at.AttributeNestedType.Attributes, nil, p)
+			}
+		}
+		for _, name := range slices.Sorted(maps.Keys(blocks)) {
+			if bt := blocks[name]; bt.Block != nil && !bt.Block.Deprecated {
+				walk(bt.Block.Attributes, bt.Block.NestedBlocks, append(slices.Clone(path), name))
+			}
 		}
 	}
+	walk(f.Block.Attributes, f.Block.NestedBlocks, nil)
 	return out
 }
 
@@ -438,8 +463,9 @@ func unparen(e hclsyntax.Expression) hclsyntax.Expression {
 	return e
 }
 
-// outputAttrs adds to read the attributes of resource r that an output value
-// reads by name, and reports whether the value is the block itself.
+// outputAttrs adds to read the attribute paths of resource r that an output
+// value reads by name, the names past indexes and splats joined by dots, and
+// reports whether the value is the block itself.
 func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole bool) {
 	e, diags := hclsyntax.ParseExpression([]byte(v.Text), file, hcl.Pos{Line: v.Range.Start.Line, Column: v.Range.Start.Column})
 	if diags.HasErrors() {
@@ -458,13 +484,13 @@ func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole b
 			}
 		case *hclsyntax.RelativeTraversalExpr: // r[expr].attr
 			if resourceRoot(x.Source, r) {
-				if attr := firstAttr(x.Traversal); attr != "" {
+				if attr := attrPath(x.Traversal); attr != "" {
 					read[attr] = true
 				}
 			}
 		case *hclsyntax.SplatExpr: // r[*].attr
 			if each, ok := x.Each.(*hclsyntax.RelativeTraversalExpr); ok && resourceRoot(x.Source, r) {
-				if attr := firstAttr(each.Traversal); attr != "" {
+				if attr := attrPath(each.Traversal); attr != "" {
 					read[attr] = true
 				}
 			}
@@ -474,8 +500,8 @@ func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole b
 	return false
 }
 
-// attrOf returns the attribute a traversal reads of resource r, "" when it
-// reads the block itself; of is false when it reads anything else.
+// attrOf returns the attribute path a traversal reads of resource r, "" when
+// it reads the block itself; of is false when it reads anything else.
 func attrOf(t hcl.Traversal, r Resource) (attr string, of bool) {
 	if len(t) < 2 || t.RootName() != r.Type {
 		return "", false
@@ -483,7 +509,7 @@ func attrOf(t hcl.Traversal, r Resource) (attr string, of bool) {
 	if n, ok := t[1].(hcl.TraverseAttr); !ok || n.Name != r.Name {
 		return "", false
 	}
-	return firstAttr(t[2:]), true
+	return attrPath(t[2:]), true
 }
 
 // resourceRoot reports whether e is resource r itself, through indexes and
@@ -501,15 +527,16 @@ func resourceRoot(e hclsyntax.Expression, r Resource) bool {
 	return false
 }
 
-// firstAttr returns the first attribute name of a traversal, past indexes and
-// splats, or "".
-func firstAttr(t hcl.Traversal) string {
+// attrPath returns the attribute names of a traversal, past indexes and
+// splats, joined by dots, or "".
+func attrPath(t hcl.Traversal) string {
+	var names []string
 	for _, s := range t {
 		if a, ok := s.(hcl.TraverseAttr); ok {
-			return a.Name
+			names = append(names, a.Name)
 		}
 	}
-	return ""
+	return strings.Join(names, ".")
 }
 
 // baseArg is the base value of a top-level argument, as evidence.
