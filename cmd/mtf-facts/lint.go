@@ -34,8 +34,11 @@ func lint(args []string, stdout, stderr io.Writer) int {
 	fs.StringVar(&o.RegistryFile, "registry", "", "rule-facts.md to hash into the output")
 	fs.StringVar(&o.HeadSHA, "head-sha", "", "commit the tree was extracted from")
 	fs.StringVar(&o.MergeBaseSHA, "merge-base-sha", "", "commit the base tree was extracted from")
-	fs.StringVar(&o.SchemaHandoff, "schema-handoff", "", "schema handoff file (accepted, no effect yet)")
-	fs.StringVar(&o.SchemaFiles, "schema-files", "", "directory of provider schema files (accepted, no effect yet)")
+	fs.StringVar(&o.SchemaHandoff, "schema-handoff", "", "schema handoff file from the schema job, gzipped or not")
+	fs.Func("schema-files", "a terraform providers schema -json file; repeat for more", func(p string) error {
+		o.SchemaFiles = append(o.SchemaFiles, p)
+		return nil
+	})
 	fs.StringVar(&o.ProfileDir, "profile-dir", "", "module profile directory (accepted, no effect yet)")
 	timeout := fs.Duration("timeout", 60*time.Second, "stop with an error after this long")
 	var dirs []string

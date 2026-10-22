@@ -5,6 +5,8 @@ import (
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/modulestf/facts/internal/schema"
 )
 
 // Area kinds, from the path classes of the reviewer's large-changes reference.
@@ -31,12 +33,12 @@ type Area struct {
 	// issueCode is the reason code of Issue.
 	issueCode string
 
-	// Schema and profile inputs of the area, for the hooks in schema_hook.go
-	// and profile_hook.go to set. Those hooks are no-ops today, so these
-	// stay empty and no rule reads them.
-	SchemaHandoff string
-	SchemaFiles   string
-	ProfileDir    string
+	// Schema is the run's schema input, set by applySchema; nil without one.
+	// Its lookups answer for the area's directory, Path.
+	Schema *schema.Set
+	// ProfileDir is for the hook in profile_hook.go to set. That hook is a
+	// no-op today, so it stays empty and no rule reads it.
+	ProfileDir string
 
 	headTree *Tree
 }

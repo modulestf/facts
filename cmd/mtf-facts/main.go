@@ -12,7 +12,7 @@ import (
 const usage = `usage:
   mtf-facts lint <dir> [--base <dir>] [--json] [--registry <rule-facts.md>]
                  [--head-sha <sha>] [--merge-base-sha <sha>]
-                 [--schema-handoff <file>] [--schema-files <dir>]
+                 [--schema-handoff <file>] [--schema-files <file>]...
                  [--profile-dir <dir>]
                                   check a module tree; with --base, only the
                                   areas the change touched
