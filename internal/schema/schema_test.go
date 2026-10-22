@@ -528,7 +528,7 @@ func TestRawSchemaFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Handoff != nil || len(s.SchemaFiles) != 1 || s.SchemaFiles[0].Path != p || len(s.SchemaFiles[0].SHA256) != 64 {
+	if s.Handoff != nil || len(s.SchemaFiles) != 1 || s.SchemaFiles[0].Path != "aws.json" || len(s.SchemaFiles[0].SHA256) != 64 {
 		t.Errorf("load %+v", s)
 	}
 	q := Query{Source: aws, Type: "aws_demo_widget", Path: []string{"secret"}}
@@ -571,6 +571,11 @@ func TestRawSchemaFilesRefused(t *testing.T) {
 		if _, err := Load("", files); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+	// Two files with one base name, and no other fault: refused for the name.
+	empty := writeFile(t, "aws.json", []byte(`{"format_version": "1.0", "provider_schemas": {}}`))
+	if _, err := Load("", []string{good, empty}); err == nil || !strings.Contains(err.Error(), "base name aws.json") {
+		t.Errorf("same base name: %v", err)
 	}
 	defer func(n int64) { maxSchemaFileBytes = n }(maxSchemaFileBytes)
 	maxSchemaFileBytes = int64(len(rawSchema)) - 1

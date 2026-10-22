@@ -146,7 +146,7 @@ func TestSchemaInputsInTheEnvelope(t *testing.T) {
 		t.Fatal(err)
 	}
 	in := r.Envelope.SchemaInputs
-	if in == nil || len(in.SchemaFiles) != 1 || in.SchemaFiles[0].Path != raw || len(in.SchemaFiles[0].SHA256) != 64 {
+	if in == nil || len(in.SchemaFiles) != 1 || in.SchemaFiles[0].Path != "aws.json" || len(in.SchemaFiles[0].SHA256) != 64 {
 		t.Fatalf("schema_inputs %+v", in)
 	}
 	data, err := json.Marshal(r.Envelope)
@@ -183,18 +183,23 @@ func TestRawSchemaFilesInTheEnvelope(t *testing.T) {
 	if len(in.SchemaFiles) != len(raws) {
 		t.Fatalf("schema_files %+v", in.SchemaFiles)
 	}
+	// The files are read by absolute path; only the base name is recorded.
 	for i, f := range in.SchemaFiles {
 		data, err := os.ReadFile(raws[i])
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := fmt.Sprintf("%x", sha256.Sum256(data)); f.Path != raws[i] || f.SHA256 != want {
-			t.Errorf("schema_files[%d] = %+v, want %s %s", i, f, raws[i], want)
+		name := filepath.Base(raws[i])
+		if want := fmt.Sprintf("%x", sha256.Sum256(data)); !filepath.IsAbs(raws[i]) || f.Path != name || f.SHA256 != want {
+			t.Errorf("schema_files[%d] = %+v, want %s %s", i, f, name, want)
 		}
 	}
 	data, err := json.Marshal(r.Envelope)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if strings.Contains(string(data), dir) {
+		t.Errorf("envelope holds the host path %s:\n%s", dir, data)
 	}
 	set := loadSchemas(t)
 	if errs := set.validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
@@ -205,8 +210,11 @@ func TestRawSchemaFilesInTheEnvelope(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	for name, mutate := range map[string]func(*SchemaInputs){
 		"no schema files":         func(s *SchemaInputs) { s.SchemaFiles = []FileHash{} },
+		"path with a directory":   func(s *SchemaInputs) { s.SchemaFiles = []FileHash{{Path: "dir/aws.json", SHA256: sum}} },
 		"handoff hash only":       func(s *SchemaInputs) { s.HandoffSHA256 = &sum },
 		"commits only":            func(s *SchemaInputs) { s.HeadSHA, s.MergeBaseSHA = &sha, &sha },
+		"head only":               func(s *SchemaInputs) { s.HeadSHA = &sha },
+		"merge base only":         func(s *SchemaInputs) { s.MergeBaseSHA = &sha },
 		"tree hashes only":        func(s *SchemaInputs) { s.TreeHashes = &TreeHashes{Head: sum, MergeBase: sum} },
 		"handoff, no tree hashes": func(s *SchemaInputs) { s.HandoffSHA256, s.HeadSHA, s.MergeBaseSHA = &sum, &sha, &sha },
 	} {
