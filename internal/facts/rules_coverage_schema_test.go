@@ -91,3 +91,28 @@ func TestCoverageSchemaRawFilesOnly(t *testing.T) {
 		}
 	}
 }
+
+// The reports of the coverage-schema golden cases, flag facts included,
+// validate against the lint schema, whose candidate evidence is the bundle's.
+func TestCoverageSchemaReportsMatchLintSchema(t *testing.T) {
+	set := loadSchemas(t)
+	dirs, err := filepath.Glob("../../testdata/coverage-schema-*")
+	if err != nil || len(dirs) == 0 {
+		t.Fatalf("no coverage-schema cases: %v", err)
+	}
+	for _, dir := range dirs {
+		o := Options{Head: filepath.Join(dir, "head"), Base: filepath.Join(dir, "base"), HeadSHA: oracleHeadSHA, MergeBaseSHA: oracleBaseSHA,
+			SchemaHandoff: filepath.Join(dir, "schema-handoff.json"), Limits: DefaultLimits,
+			Version: "test", BinarySHA256: strings.Repeat("0", 64)}
+		r, err := Run(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(r.Candidates) == 0 && filepath.Base(dir) != "coverage-schema-negative" {
+			t.Errorf("%s: no candidates", dir)
+		}
+		if errs := set.validate("lint.schema.json", decodeJSON(t, mustJSON(t, r))); len(errs) > 0 {
+			t.Errorf("%s: lint schema: %v", dir, errs)
+		}
+	}
+}

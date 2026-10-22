@@ -1,13 +1,14 @@
 resource "aws_demo_widget" "edited" {
   provider = demo
 
-  name = "e"
+  name  = "e"
+  bogus = 2
 
-  rules {
+  listener {
     port = 0
   }
 
-  rules {
+  listener {
     port  = 1
     weird = 2
   }
@@ -52,6 +53,11 @@ resource "aws_demo_widget" "blocks" {
   provider = demo
 
   name = "b"
+
+  listener {
+    port  = 1
+    weird = 2
+  }
 
   rules {
     port  = 1

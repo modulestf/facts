@@ -3,11 +3,11 @@
   "merge_base_sha": "2222222222222222222222222222222222222222",
   "inputs": {
     "head": {
-      "tree_hash": "aec4c082aeccc7d753ad0553744138d122a9f96ded491d4504d65cc5e5dfa4e2",
+      "tree_hash": "1b308ba36c9cc8ac5b7193a6566e436246b9e61ee2f63cc483af5a049bcee9da",
       "files": [
         {
           "path": "main.tf",
-          "sha256": "281c8951f559ba5cd28b5ef909c7a8be10654be409515ae6e1de08267e510db7"
+          "sha256": "dd54142dca62582d79ba9258e1d179aa0168ed91ed6c984d4f33ec84cb6c61a8"
         },
         {
           "path": "versions.tf",
@@ -16,11 +16,11 @@
       ]
     },
     "merge_base": {
-      "tree_hash": "7899b8d43fa12812918807c4028354515dce0a69a78e6e337868ad86310a1b8c",
+      "tree_hash": "c126ca31e2daee296935941f99150761b41ecd8812d7d4a7121bb9bcecf98729",
       "files": [
         {
           "path": "main.tf",
-          "sha256": "babad4d85a31c7a514420c5170dba2b289e8e4966a91c26960eb0bf48556ef0b"
+          "sha256": "8761cccaf15b8335cdb09111031396ca246ce13b5f5edf8f48f61736ec79ae2c"
         },
         {
           "path": "versions.tf",
@@ -118,6 +118,16 @@
                     }
                   }
                 }
+              },
+              "listener": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "port": {
+                      "required": true
+                    }
+                  }
+                }
               }
             }
           }
@@ -199,6 +209,16 @@
                   "attributes": {
                     "value": {
                       "optional": true
+                    }
+                  }
+                }
+              },
+              "listener": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "port": {
+                      "required": true
                     }
                   }
                 }

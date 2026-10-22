@@ -198,6 +198,13 @@
             "type": "aws_demo_widget",
             "path": "setting",
             "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "setting:max_items_exceeded:1",
+            "state": "present"
           }
         ]
       },

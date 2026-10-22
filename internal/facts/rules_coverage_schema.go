@@ -38,12 +38,15 @@ func coverageSchemaRule(id, scope string, needsMinimum bool, defect func(schemaI
 	}
 }
 
-// Flags of an item that only coverage.unknown-argument reports.
+// Flags of an item that only coverage.unknown-argument reports. The
+// candidate carries the flag as an extra schema fact whose path is the
+// item's path, a colon and the flag, since the evidence has no other field
+// for it; see flagFact.
 const (
-	flagOverMax      = "past max_items"
-	flagCountUnknown = "dynamic block count unknown"
-	flagBlockForAttr = "block syntax for an attribute"
-	flagComputedKey  = "computed key"
+	flagOverMax      = "max_items_exceeded"
+	flagCountUnknown = "dynamic_count_unknown"
+	flagBlockForAttr = "block_syntax_for_attribute"
+	flagComputedKey  = "computed_key"
 )
 
 // unknownArgument: an argument, block or object key the latest schema lacks,
@@ -90,6 +93,7 @@ type schemaItem struct {
 	value *string // source text of a value; nil for a block
 	block bool    // written as a block
 	flag  string  // one of the flag constants, or ""
+	max   uint64  // the max_items of a flagged block
 	// inNewBlock is set inside a block absent at the minimum, which is
 	// reported alone.
 	inNewBlock bool
@@ -99,15 +103,10 @@ type schemaItem struct {
 	minimal    schema.Field // at the declared minimum
 }
 
-// key identifies an item's defect without nested block indices, so a block
-// inserted before another does not make the base's defects new.
-func (it schemaItem) key() string {
-	v := ""
-	if it.value != nil {
-		v = *it.value
-	}
-	return strings.Join(it.path, ".") + "\x00" + it.flag + "\x00" + v
-}
+// key identifies an item's defect by schema path and flag, without nested
+// block indices or the value, so neither a block inserted before another nor
+// a changed value makes a defect the base had new.
+func (it schemaItem) key() string { return strings.Join(it.path, ".") + "\x00" + it.flag }
 
 // providerSchema is what a resource block's lookups need.
 type providerSchema struct {
@@ -165,14 +164,14 @@ func checkSchemaCoverage(a *Area, id string, needsMinimum bool, defect func(sche
 // resourceItems lists the items of a resource block. A type absent at the
 // declared minimum is one item on the block, with every other item inside it.
 func resourceItems(ps providerSchema, r Resource) []schemaItem {
-	items := collectItems(ps, resourceAddr(r), r.File, r.Body, nil, true)
+	items := collectItems(ps, coverageBlockAddr(r), r.File, r.Body, nil, true)
 	if ps.typeAtMinimum != schema.AbsentFromSchema {
 		return items
 	}
 	for i := range items {
 		items[i].inNewBlock = true
 	}
-	typ := schemaItem{addr: resourceAddr(r), file: r.File, line: r.Line, block: true, minimum: schema.AbsentFromSchema}
+	typ := schemaItem{addr: coverageBlockAddr(r), file: r.File, line: r.Line, block: true, minimum: schema.AbsentFromSchema}
 	typ.latest, typ.field = ps.lookup(ps.latest, nil)
 	return append([]schemaItem{typ}, items...)
 }
@@ -190,7 +189,7 @@ func baseResource(a *Area, r Resource) *Resource {
 	return nil
 }
 
-func resourceAddr(r Resource) string {
+func coverageBlockAddr(r Resource) string {
 	if r.Mode == "data" {
 		return "data." + r.Type + "." + r.Name
 	}
@@ -201,7 +200,7 @@ func resourceAddr(r Resource) string {
 // type's prefix, and checks the latest schema, and with needsMinimum the
 // declared minimum's, has its type. It returns why not otherwise.
 func resolveSchema(a *Area, r Resource, needsMinimum bool) (providerSchema, string) {
-	addr := resourceAddr(r)
+	addr := coverageBlockAddr(r)
 	if a.Schema != nil && a.Schema.Handoff == nil {
 		// shortcut: raw schema files have no versions, so they are not read; upgrade when the follow-up reads them.
 		return providerSchema{}, fmt.Sprintf("%s: the rule needs the schema handoff, and the run has raw schema files only", short(addr))
@@ -274,16 +273,18 @@ func collectItems(ps providerSchema, addr, file string, b Body, path []string, t
 				n, known = dynamicCount(nb.ForEach)
 			}
 			count[nb.Type] += n
-			switch limit := it.field.BlockType.MaxItems; {
-			case limit == 0:
+			it.max = it.field.BlockType.MaxItems
+			switch {
+			case it.max == 0:
 			case !known:
 				it.flag = flagCountUnknown
-			case uint64(count[nb.Type]) > limit: //nolint:gosec // G115: count is a block count
+			case uint64(count[nb.Type]) > it.max: //nolint:gosec // G115: count is a block count
 				it.flag = flagOverMax
 			}
-		case nestedType(it) != nil && (nestedType(it).NestingMode == "list" || nestedType(it).NestingMode == "set"):
-			inside = true
 		case it.field.Attribute != nil:
+			// Terraform takes block syntax only for an attribute typed a list
+			// or set of object. A nested-type attribute never takes it, and the
+			// handoff has no attribute type, so a plain one is a candidate too.
 			it.flag = flagBlockForAttr
 		}
 		out = append(out, it)
@@ -349,37 +350,34 @@ func valueItems(ps providerSchema, parent schemaItem, nt *nestedAttrType, v Expr
 	if diags.HasErrors() {
 		return nil
 	}
-	var objs []*hclsyntax.ObjectConsExpr
+	var elems []element
 	if nt.NestingMode == "single" {
-		objs = objects(e)
+		elems = []element{{e, ""}}
 	} else {
-		for _, el := range elements(e, nt.NestingMode == "map") {
-			objs = append(objs, objects(el)...)
-		}
+		elems = elements(e, nt.NestingMode == "map")
 	}
 	var out []schemaItem
-	for i, o := range objs {
-		addr := parent.addr
-		if nt.NestingMode != "single" {
-			addr += "[" + strconv.Itoa(i) + "]"
-		}
-		for _, kv := range o.Items {
-			text := string(kv.ValueExpr.Range().SliceBytes(src))
-			line := kv.KeyExpr.Range().Start.Line
-			name := keyName(kv.KeyExpr)
-			if name == "" {
-				// The key is known only at plan: flagged on the attribute.
-				it := schemaItem{addr: addr, path: parent.path, file: parent.file, line: line, value: &text, flag: flagComputedKey,
-					latest: schema.Present, minimum: parent.minimum, minimal: parent.minimal, inNewBlock: true}
+	for _, el := range elems {
+		addr := parent.addr + el.index
+		for _, o := range objects(el.expr) {
+			for _, kv := range o.Items {
+				text := string(kv.ValueExpr.Range().SliceBytes(src))
+				line := kv.KeyExpr.Range().Start.Line
+				name := keyName(kv.KeyExpr)
+				if name == "" {
+					// The key is known only at plan: flagged on the attribute.
+					it := schemaItem{addr: addr, path: parent.path, file: parent.file, line: line, value: &text, flag: flagComputedKey,
+						latest: schema.Present, minimum: parent.minimum, minimal: parent.minimal, inNewBlock: true}
+					out = append(out, it)
+					continue
+				}
+				it := ps.item(addr+"."+name, parent.file, append(slices.Clone(parent.path), name), line)
+				it.value = &text
+				it.inNewBlock = parent.inNewBlock || parent.minimum == schema.AbsentFromSchema
 				out = append(out, it)
-				continue
-			}
-			it := ps.item(addr+"."+name, parent.file, append(slices.Clone(parent.path), name), line)
-			it.value = &text
-			it.inNewBlock = parent.inNewBlock || parent.minimum == schema.AbsentFromSchema
-			out = append(out, it)
-			if inner := nestedType(it); inner != nil {
-				out = append(out, valueItems(ps, it, inner, Expr{Text: text, Range: kv.ValueExpr.Range()})...)
+				if inner := nestedType(it); inner != nil {
+					out = append(out, valueItems(ps, it, inner, Expr{Text: text, Range: kv.ValueExpr.Range()})...)
+				}
 			}
 		}
 	}
@@ -399,30 +397,43 @@ func objects(e hclsyntax.Expression) []*hclsyntax.ObjectConsExpr {
 	return nil
 }
 
-// elements returns the element expressions of a collection value: tuple
-// elements, map values with asMap, and a for expression's value.
-func elements(e hclsyntax.Expression, asMap bool) []hclsyntax.Expression {
+// element is one element of a collection value, with its index in the
+// subject: [n] for a tuple element, ["key"] for a map entry with a static
+// key, and [*] for a for expression's value or a computed map key.
+type element struct {
+	expr  hclsyntax.Expression
+	index string
+}
+
+// elements returns the elements of a collection value: tuple elements, map
+// values with asMap, and a for expression's value.
+func elements(e hclsyntax.Expression, asMap bool) []element {
+	var out []element
 	switch x := e.(type) {
 	case *hclsyntax.TupleConsExpr:
 		if !asMap {
-			return x.Exprs
+			for i, el := range x.Exprs {
+				out = append(out, element{el, "[" + strconv.Itoa(i) + "]"})
+			}
 		}
 	case *hclsyntax.ObjectConsExpr:
 		if asMap {
-			var out []hclsyntax.Expression
 			for _, kv := range x.Items {
-				out = append(out, kv.ValueExpr)
+				idx := "[*]"
+				if k := keyName(kv.KeyExpr); k != "" {
+					idx = "[" + strconv.Quote(k) + "]"
+				}
+				out = append(out, element{kv.ValueExpr, idx})
 			}
-			return out
 		}
 	case *hclsyntax.ForExpr:
-		return []hclsyntax.Expression{x.ValExpr}
+		out = append(out, element{x.ValExpr, "[*]"})
 	case *hclsyntax.ParenthesesExpr:
 		return elements(x.Expression, asMap)
 	case *hclsyntax.ConditionalExpr:
 		return append(elements(x.TrueResult, asMap), elements(x.FalseResult, asMap)...)
 	}
-	return nil
+	return out
 }
 
 func schemaCandidate(a *Area, id string, ps providerSchema, it schemaItem, base *string) Candidate {
@@ -441,7 +452,7 @@ func schemaCandidate(a *Area, id string, ps providerSchema, it schemaItem, base 
 	file := areaFile(a.Path, it.file)
 	text := ""
 	if e := a.headTree.Entries[file]; e != nil {
-		text = lineOf(e.Data, it.line)
+		text = coverageLineOf(e.Data, it.line)
 	}
 	key := strings.Join(it.path, ".")
 	if key == "" {
@@ -456,8 +467,28 @@ func schemaCandidate(a *Area, id string, ps providerSchema, it schemaItem, base 
 	if ps.minimum != ps.latest {
 		ev.SchemaFacts = append(ev.SchemaFacts, SchemaFact{ProviderSource: ps.source, Version: ps.minimum, Type: ps.typ, Path: key, State: factState(it.minimum, it.minimal)})
 	}
+	if f, ok := flagFact(it, key); ok {
+		ev.SchemaFacts = append(ev.SchemaFacts, SchemaFact{ProviderSource: ps.source, Version: ps.latest, Type: ps.typ, Path: f.Path, State: f.State})
+	}
 	line := it.line
 	return Candidate{RuleID: id, File: file, Line: &line, Subject: subject(a.Path, short(it.addr)), Evidence: ev, EvidenceComplete: complete}
+}
+
+// flagFact is the schema fact that says why a flagged item is a candidate:
+// path "<path>:<flag>", with ":<max_items>" for a block limit. A fact the
+// engine could not decide is unknown; one it read is present.
+func flagFact(it schemaItem, key string) (SchemaFact, bool) {
+	switch it.flag {
+	case flagOverMax:
+		return SchemaFact{Path: key + ":" + it.flag + ":" + strconv.FormatUint(it.max, 10), State: "present"}, true
+	case flagCountUnknown:
+		return SchemaFact{Path: key + ":" + it.flag + ":" + strconv.FormatUint(it.max, 10), State: "unknown"}, true
+	case flagBlockForAttr:
+		return SchemaFact{Path: key + ":" + it.flag, State: "present"}, true
+	case flagComputedKey:
+		return SchemaFact{Path: key + ":" + it.flag, State: "unknown"}, true
+	}
+	return SchemaFact{}, false
 }
 
 // factState is a lookup as a schema fact state.
@@ -473,8 +504,8 @@ func factState(o schema.Outcome, f schema.Field) string {
 	return "present"
 }
 
-// lineOf returns line n, 1-based, of src without its line ending.
-func lineOf(src []byte, n int) string {
+// coverageLineOf returns line n, 1-based, of src without its line ending.
+func coverageLineOf(src []byte, n int) string {
 	for i, l := range strings.Split(string(src), "\n") {
 		if i+1 == n {
 			return strings.TrimRight(l, "\r")

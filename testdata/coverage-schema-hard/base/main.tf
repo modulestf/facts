@@ -1,9 +1,10 @@
 resource "aws_demo_widget" "edited" {
   provider = demo
 
-  name = "e"
+  name  = "e"
+  bogus = 1
 
-  rules {
+  listener {
     port  = 1
     weird = 2
   }
