@@ -1,0 +1,7 @@
+. variables allowed_ids changed
+. variables legacy_mode removed
+. variables options changed
+. variables owner_email added
+. variables owner_name changed
+. variables retention_days changed
+. variables selector changed

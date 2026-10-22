@@ -1,0 +1,14 @@
+. required_version changed
+. variables name changed
+. variables token changed
+. outputs id changed
+. providers aws changed
+. providers null removed
+. providers random added
+. resources aws_demo_thing.this changed
+. resources data.aws_caller_identity.current added
+. moved aws_demo_thing.old changed
+. module_calls child changed
+. module_calls gone removed
+examples/basic module_calls example added
+modules/old variables x removed
