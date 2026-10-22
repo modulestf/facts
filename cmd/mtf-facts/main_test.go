@@ -218,11 +218,11 @@ func TestStubSubcommandsExit2(t *testing.T) {
 	}
 }
 
-// TestLintHookFlagsChangeNoOutput passes a schema handoff and the profile
-// flag, which no implemented rule reads, and checks lint writes the same
+// TestLintHookFlagsChangeNoOutput passes a schema handoff and the test
+// profile, which no implemented rule reads, and checks lint writes the same
 // human output and exit code as without them.
 func TestLintHookFlagsChangeNoOutput(t *testing.T) {
-	hooks := []string{"--schema-handoff", "../../schema/examples/schema-handoff.valid.json", "--profile-dir", "profile"}
+	hooks := []string{"--schema-handoff", "../../schema/examples/schema-handoff.valid.json", "--profile-dir", "../../testdata/profile"}
 	for _, args := range [][]string{
 		{"lint", "../../testdata/variable-untyped-base/head", "--base", "../../testdata/variable-untyped-base/base"},
 		{"lint", "../../testdata/versions-missing-positive/head"},
@@ -263,5 +263,46 @@ func TestLintSchemaFlagsFailClosed(t *testing.T) {
 		if code == exitFindings && !strings.Contains(out.String(), `"handoff_sha256"`) {
 			t.Errorf("%s: no schema_inputs in the report", name)
 		}
+	}
+}
+
+// TestLintProfileDir checks a --profile-dir that is not a directory exits 2
+// with nothing on stdout, and the test profile is read: its hash is in the
+// JSON envelope and the exit code is the one without it.
+func TestLintProfileDir(t *testing.T) {
+	head := "../../testdata/versions-missing-positive/head"
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "file")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	abs, err := filepath.Abs("../../testdata/profile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(tmp, "link")
+	if err := os.Symlink(abs, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{filepath.Join(tmp, "missing"), file, link} {
+		var out, errb bytes.Buffer
+		if code := run([]string{"lint", head, "--profile-dir", dir}, &out, &errb); code != exitError || out.Len() != 0 ||
+			!strings.Contains(errb.String(), "is not a directory") {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q", filepath.Base(dir), code, out.String(), errb.String())
+		}
+	}
+	var plain, out, errb bytes.Buffer
+	want := run([]string{"lint", "--json", head}, &plain, &errb)
+	code := run([]string{"lint", "--json", head, "--profile-dir", "../../testdata/profile"}, &out, &errb)
+	var r struct {
+		Envelope struct {
+			ProfileSHA256 *string `json:"profile_sha256"`
+		} `json:"envelope"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	if code != want || r.Envelope.ProfileSHA256 == nil || len(*r.Envelope.ProfileSHA256) != 64 {
+		t.Errorf("exit %d (want %d), profile_sha256 %v", code, want, r.Envelope.ProfileSHA256)
 	}
 }

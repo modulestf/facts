@@ -31,7 +31,7 @@
       }
     },
     "schema_inputs": {"description": "Null when the run read no schema handoff.", "oneOf": [{"type": "null"}, {"$ref": "#/$defs/schema_inputs"}]},
-    "profile_sha256": {"description": "SHA-256 of the module profile input, null when the run read no profile.", "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+    "profile_sha256": {"description": "SHA-256, lowercase hex, of the module profile input, null when the run read no valid profile. The preimage is one line per file the profile was built from, PROFILE.md and templates/<name> for each template its template-destinations block names, written as <sha256><two spaces><path><LF> with the path relative to the profile directory, the lines sorted by the bytes of path, with no other bytes: the layout of the schema handoff tree_hash.", "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
   },
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
