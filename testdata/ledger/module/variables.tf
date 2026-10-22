@@ -18,7 +18,9 @@ variable "tags" {
 variable "logging" {
   description = "Logging configuration of the bucket"
   type = object({
-    target = string
+    target          = string
+    prefix          = optional(string)
+    filter_suffixes = optional(list(string), [])
   })
   default = null
 }
@@ -27,4 +29,10 @@ variable "replica" {
   description = "Whether to create a replica bucket"
   type        = bool
   default     = false
+}
+
+variable "encryption_algorithm" {
+  description = "Server-side encryption algorithm of the bucket"
+  type        = string
+  default     = "AES256"
 }

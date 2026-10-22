@@ -23,9 +23,10 @@ const (
 	KindBlock     = "block"
 )
 
-// Field is one top-level argument, computed attribute or nested block of a
-// resource or data source type. A nested block or nested attribute is one
-// field: its content goes with the variable that exposes it.
+// Field is one argument, computed attribute or nested block of a resource or
+// data source type, at any depth. Name is its path: the names from the type
+// down, joined by dots, such as "logging.target_bucket". A nested block or
+// nested attribute is a field, and so is each field inside it.
 type Field struct {
 	Name string `json:"name"`
 	Kind string `json:"kind"`
@@ -41,7 +42,15 @@ type Field struct {
 	WriteOnly  bool   `json:"write_only"`
 	// Nesting is the nesting mode of a block or nested attribute, "" otherwise.
 	Nesting string `json:"nesting"`
+	// MinItems and MaxItems are the schema's bounds of a block or nested
+	// attribute, 0 when it states none; nil for any other field.
+	MinItems *uint64 `json:"min_items,omitempty"`
+	MaxItems *uint64 `json:"max_items,omitempty"`
 }
+
+// maxDepth caps how deep fields nest, so a hostile schema file cannot make
+// the walk recurse without bound.
+const maxDepth = 32
 
 // Type is the inventory of one resource or data source type the module uses.
 type Type struct {
@@ -63,7 +72,7 @@ type Inventory struct {
 // Build reads the module in dir, not its submodules or examples, and lists
 // the fields of every resource and data source type it declares, from the
 // raw schema files. A module with a file the parser cannot model, a provider
-// with no schema or a type the schema lacks is an error: an inventory with a
+// with no schema, a type the schema lacks or an ephemeral block is an error: an inventory with a
 // gap would let a ledger pass that misses fields.
 func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, error) {
 	if len(schemaFiles) == 0 {
@@ -77,20 +86,18 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	if err != nil {
 		return nil, fmt.Errorf("module tree: %w", err)
 	}
-	areas, err := facts.FindAreas(tree, nil, lim, false)
+	m, err := facts.ParseDir(tree, ".", lim)
 	if err != nil {
-		return nil, err
-	}
-	i := slices.IndexFunc(areas, func(a *facts.Area) bool { return a.Path == "." })
-	if i < 0 || !areas[i].HeadExists {
-		return nil, errors.New("module tree: no root module")
-	}
-	m := areas[i].Head
-	if areas[i].Issue != "" {
-		return nil, fmt.Errorf("module tree: %s", areas[i].Issue)
+		return nil, fmt.Errorf("module tree: %w", err)
 	}
 	if len(m.Unsupported) > 0 {
 		return nil, fmt.Errorf("module tree: %s", strings.Join(m.Unsupported, "; "))
+	}
+	for _, b := range m.Other {
+		if b.Type == "ephemeral" {
+			// shortcut: ephemeral resource schemas are not read; upgrade when the schema package reads them.
+			return nil, fmt.Errorf("%s:%d: ephemeral resources are not inventoried", b.File, b.Line)
+		}
 	}
 	inv := &Inventory{Types: []Type{}, SchemaFiles: set.SchemaFiles, variables: map[string]bool{}, outputs: map[string]bool{}}
 	for _, v := range m.Variables {
@@ -116,11 +123,7 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 }
 
 func typeInventory(set *schema.Set, m *facts.Module, r facts.Resource) (Type, error) {
-	local, _, _ := strings.Cut(r.Type, "_")
-	if e := r.Body.Arg("provider"); e != nil {
-		local, _, _ = strings.Cut(strings.TrimSpace(e.Text), ".")
-	}
-	source := providerSource(m, local)
+	source := providerSource(m, r)
 	out, f := set.Lookup(schema.Query{Source: source, DataSource: r.Mode == "data", Type: r.Type})
 	switch out {
 	case schema.Unavailable:
@@ -128,19 +131,30 @@ func typeInventory(set *schema.Set, m *facts.Module, r facts.Resource) (Type, er
 	case schema.AbsentFromSchema:
 		return Type{}, fmt.Errorf("%s %s: provider %s has no such type", r.Mode, r.Type, source)
 	}
-	return Type{Mode: r.Mode, Type: r.Type, Provider: source, Fields: fields(f.Block)}, nil
+	fs, err := blockFields(nil, "", f.Block, 0)
+	if err != nil {
+		return Type{}, fmt.Errorf("%s %s: %w", r.Mode, r.Type, err)
+	}
+	slices.SortFunc(fs, func(a, b Field) int { return cmp.Compare(a.Name, b.Name) })
+	return Type{Mode: r.Mode, Type: r.Type, Provider: source, Fields: fs}, nil
 }
 
-// providerSource is the schema file key of the provider a module names by
-// local: its required_providers source, or hashicorp/<local> as Terraform
-// assumes, with the default registry host added to a two-part address.
-func providerSource(m *facts.Module, local string) string {
+// providerSource is the schema file key of r's provider: the local name of
+// its provider argument or its type prefix, looked up in the module's
+// required_providers (the first entry wins), else hashicorp/<local> as
+// Terraform assumes; lower case, with the default registry host added to a
+// two-part address.
+// shortcut: duplicates facts.ResourceProviderSource of the schema-diff change; use that helper once it is on master.
+func providerSource(m *facts.Module, r facts.Resource) string {
+	local, _, _ := strings.Cut(r.Type, "_")
+	if e := r.Body.Arg("provider"); e != nil {
+		local, _, _ = strings.Cut(strings.TrimSpace(e.Text), ".")
+	}
 	src := "hashicorp/" + local
 	for _, t := range m.Terraform {
-		for _, rp := range t.RequiredProviders {
-			if rp.Name == local && rp.Source != "" {
-				src = rp.Source
-			}
+		if i := slices.IndexFunc(t.RequiredProviders, func(rp facts.RequiredProvider) bool { return rp.Name == local && rp.Source != "" }); i >= 0 {
+			src = t.RequiredProviders[i].Source
+			break
 		}
 	}
 	src = strings.ToLower(src)
@@ -150,26 +164,54 @@ func providerSource(m *facts.Module, local string) string {
 	return src
 }
 
-func fields(b *tfjson.SchemaBlock) []Field {
-	out := []Field{}
-	for name, a := range b.Attributes {
-		f := Field{Name: name, Kind: KindAttribute, Required: a.Required, Optional: a.Optional, Computed: a.Computed,
-			Deprecated: a.Deprecated, Sensitive: a.Sensitive, WriteOnly: a.WriteOnly}
-		switch {
-		case a.AttributeNestedType != nil:
-			f.Type, f.Nesting = "nested", string(a.AttributeNestedType.NestingMode)
-		case a.AttributeType != cty.NilType:
-			f.Type = a.AttributeType.FriendlyName()
-		}
-		out = append(out, f)
+// blockFields appends the fields of b under prefix, and every field inside them.
+func blockFields(out []Field, prefix string, b *tfjson.SchemaBlock, depth int) ([]Field, error) {
+	if depth > maxDepth {
+		return nil, fmt.Errorf("fields nest deeper than %d", maxDepth)
+	}
+	out, err := attributeFields(out, prefix, b.Attributes, depth)
+	if err != nil {
+		return nil, err
 	}
 	for name, bt := range b.NestedBlocks {
-		f := Field{Name: name, Kind: KindBlock, Type: "block", Nesting: string(bt.NestingMode), Required: bt.MinItems > 0, Optional: bt.MinItems == 0}
+		minItems, maxItems := bt.MinItems, bt.MaxItems
+		f := Field{Name: prefix + name, Kind: KindBlock, Type: "block", Nesting: string(bt.NestingMode),
+			Required: minItems > 0, Optional: minItems == 0, MinItems: &minItems, MaxItems: &maxItems}
 		if bt.Block != nil {
 			f.Deprecated = bt.Block.Deprecated
 		}
 		out = append(out, f)
+		if bt.Block != nil {
+			if out, err = blockFields(out, f.Name+".", bt.Block, depth+1); err != nil {
+				return nil, err
+			}
+		}
 	}
-	slices.SortFunc(out, func(a, b Field) int { return cmp.Compare(a.Name, b.Name) })
-	return out
+	return out, nil
+}
+
+func attributeFields(out []Field, prefix string, attrs map[string]*tfjson.SchemaAttribute, depth int) ([]Field, error) {
+	if depth > maxDepth {
+		return nil, fmt.Errorf("fields nest deeper than %d", maxDepth)
+	}
+	for name, a := range attrs {
+		f := Field{Name: prefix + name, Kind: KindAttribute, Required: a.Required, Optional: a.Optional, Computed: a.Computed,
+			Deprecated: a.Deprecated, Sensitive: a.Sensitive, WriteOnly: a.WriteOnly}
+		nt := a.AttributeNestedType
+		switch {
+		case nt != nil:
+			minItems, maxItems := nt.MinItems, nt.MaxItems
+			f.Type, f.Nesting, f.MinItems, f.MaxItems = "nested", string(nt.NestingMode), &minItems, &maxItems
+		case a.AttributeType != cty.NilType:
+			f.Type = a.AttributeType.FriendlyName()
+		}
+		out = append(out, f)
+		if nt != nil {
+			var err error
+			if out, err = attributeFields(out, f.Name+".", nt.Attributes, depth+1); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return out, nil
 }

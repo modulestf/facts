@@ -1,0 +1,1 @@
+{"ledger_version": 1, "types": [{"mode": "resource", "type": "aws_example_bucket", "fields": [{"name": "logging.target", "disposition": "input", "variable": "logging.target"}]}]}

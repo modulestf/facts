@@ -1,108 +1,5 @@
 package ledger
 
-import (
-	"bytes"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"regexp"
-)
-
-// Version is the ledger format version in schema/ledger.schema.json.
-const Version = 1
-
-// Dispositions of a field, the categories of the maintainer skill's coverage
-// ledger.
-const (
-	DispInput               = "input"
-	DispOutput              = "output"
-	DispSensitiveOmission   = "sensitive_omission"
-	DispIntentionalOmission = "intentional_omission"
-	DispNotApplicable       = "not_applicable"
-)
-
-var namePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
-
-// Ledger is the author's coverage ledger: one disposition per field of each
-// type the module uses.
-type Ledger struct {
-	LedgerVersion int          `json:"ledger_version"`
-	Types         []LedgerType `json:"types"`
-}
-
-// LedgerType holds the dispositions of one type's fields.
-type LedgerType struct {
-	Mode   string        `json:"mode"`
-	Type   string        `json:"type"`
-	Fields []Disposition `json:"fields"`
-}
-
-// Disposition maps one field: Variable is set for an input, Output for an
-// output, Reason for every omission.
-type Disposition struct {
-	Name        string `json:"name"`
-	Disposition string `json:"disposition"`
-	Variable    string `json:"variable,omitempty"`
-	Output      string `json:"output,omitempty"`
-	Reason      string `json:"reason,omitempty"`
-}
-
-// Parse decodes a ledger strictly: one JSON value, no unknown key, and every
-// entry in the shape the schema states. Completeness is Check's job.
-func Parse(data []byte) (*Ledger, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	var l Ledger
-	if err := dec.Decode(&l); err != nil {
-		return nil, fmt.Errorf("ledger: %w", err)
-	}
-	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return nil, errors.New("ledger: more than one JSON value")
-	}
-	if l.LedgerVersion != Version {
-		return nil, fmt.Errorf("ledger: ledger_version must be %d", Version)
-	}
-	if l.Types == nil {
-		return nil, errors.New("ledger: types is required")
-	}
-	for _, t := range l.Types {
-		if (t.Mode != "resource" && t.Mode != "data") || !namePattern.MatchString(t.Type) || t.Fields == nil {
-			return nil, fmt.Errorf("ledger: type %q: needs mode resource or data, a type name and fields", t.Type)
-		}
-		for _, d := range t.Fields {
-			if err := d.validate(); err != nil {
-				return nil, fmt.Errorf("ledger: %s %s: field %q: %w", t.Mode, t.Type, d.Name, err)
-			}
-		}
-	}
-	return &l, nil
-}
-
-func (d Disposition) validate() error {
-	if !namePattern.MatchString(d.Name) {
-		return errors.New("bad name")
-	}
-	switch d.Disposition {
-	case DispInput:
-		if !namePattern.MatchString(d.Variable) || d.Output != "" || d.Reason != "" {
-			return errors.New("an input needs a variable name and no output or reason")
-		}
-	case DispOutput:
-		if !namePattern.MatchString(d.Output) || d.Variable != "" || d.Reason != "" {
-			return errors.New("an output needs an output name and no variable or reason")
-		}
-	case DispSensitiveOmission, DispIntentionalOmission, DispNotApplicable:
-		if d.Reason == "" || d.Variable != "" || d.Output != "" {
-			return errors.New("an omission needs a reason and no variable or output")
-		}
-	default:
-		return fmt.Errorf("unknown disposition %q", d.Disposition)
-	}
-	return nil
-}
-
 // Problem is one way a ledger fails the inventory.
 type Problem struct {
 	Mode    string `json:"mode"`
@@ -120,12 +17,24 @@ const (
 	ProblemDuplicateType   = "duplicate type"
 	ProblemMissingVariable = "input: no such variable in the module"
 	ProblemMissingOutput   = "output: no such output in the module"
+	ProblemInputComputed   = "input: the field is computed only, so it takes no input"
+	ProblemContainer       = "a block or nested attribute with fields takes only intentional_omission or not_applicable; map its fields instead"
 )
 
-// Check reports every field of the inventory without exactly one
-// disposition, every ledger entry the inventory lacks, and every input or
-// output the module does not declare. An empty result means the ledger is
-// complete; it says nothing of whether each disposition is right.
+// coversChildren reports whether a disposition on a field with fields of
+// its own covers all of them. Only the two omissions that document a reason
+// for the whole field do: an input, an output or a sensitive omission is a
+// decision about one value, so each field under it takes its own.
+func coversChildren(disp string) bool {
+	return disp == DispIntentionalOmission || disp == DispNotApplicable
+}
+
+// Check reports every leaf field of the inventory that is not covered exactly
+// once, either by its own disposition or by an omission of a block or nested
+// attribute above it; every ledger entry the inventory lacks; and every
+// input or output the module does not declare or the field cannot take. An
+// empty result means the ledger is complete; it says nothing of whether each
+// disposition is right.
 func Check(inv *Inventory, l *Ledger) []Problem {
 	problems := []Problem{}
 	byType := map[string]LedgerType{}
@@ -141,35 +50,7 @@ func Check(inv *Inventory, l *Ledger) []Problem {
 	for _, it := range inv.Types {
 		k := it.Mode + " " + it.Type
 		used[k] = true
-		p := func(field, text string) {
-			problems = append(problems, Problem{Mode: it.Mode, Type: it.Type, Field: field, Problem: text})
-		}
-		known := map[string]bool{}
-		for _, f := range it.Fields {
-			known[f.Name] = true
-		}
-		count := map[string]int{}
-		for _, d := range byType[k].Fields {
-			count[d.Name]++
-			switch {
-			case !known[d.Name]:
-				if count[d.Name] == 1 {
-					p(d.Name, ProblemUnknownField)
-				}
-			case d.Disposition == DispInput && !inv.variables[d.Variable]:
-				p(d.Name, ProblemMissingVariable)
-			case d.Disposition == DispOutput && !inv.outputs[d.Output]:
-				p(d.Name, ProblemMissingOutput)
-			}
-		}
-		for _, f := range it.Fields {
-			switch {
-			case count[f.Name] == 0:
-				p(f.Name, ProblemUnmapped)
-			case count[f.Name] > 1:
-				p(f.Name, ProblemDuplicate)
-			}
-		}
+		problems = append(problems, checkType(inv, it, byType[k].Fields)...)
 	}
 	for _, t := range l.Types {
 		if k := t.Mode + " " + t.Type; !used[k] {
@@ -180,26 +61,52 @@ func Check(inv *Inventory, l *Ledger) []Problem {
 	return problems
 }
 
-// ReadFile reads the regular file at p, refusing a link, a special file and
-// a file over limit bytes.
-func ReadFile(p string, limit int64) ([]byte, error) {
-	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
+func checkType(inv *Inventory, it Type, ds []Disposition) []Problem {
+	var problems []Problem
+	p := func(field, text string) {
+		problems = append(problems, Problem{Mode: it.Mode, Type: it.Type, Field: field, Problem: text})
 	}
-	f, err := os.Open(p)
-	if err != nil {
-		return nil, err
+	known := map[string]Field{}
+	container := map[string]bool{}
+	for _, f := range it.Fields {
+		known[f.Name] = f
+		container[parent(f.Name)] = true
 	}
-	defer f.Close()
-	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
+	count := map[string]int{}  // entries per field
+	covers := map[string]int{} // entries per container that cover its fields
+	for _, d := range ds {
+		count[d.Name]++
+		f, ok := known[d.Name]
+		switch {
+		case !ok:
+			if count[d.Name] == 1 {
+				p(d.Name, ProblemUnknownField)
+			}
+		case container[d.Name]:
+			if !coversChildren(d.Disposition) {
+				p(d.Name, ProblemContainer)
+				continue
+			}
+			covers[d.Name]++
+		case d.Disposition == DispInput && f.Computed && !f.Required && !f.Optional:
+			p(d.Name, ProblemInputComputed)
+		case d.Disposition == DispInput && !inv.variables[d.Variable]:
+			p(d.Name, ProblemMissingVariable)
+		case d.Disposition == DispOutput && !inv.outputs[d.Output]:
+			p(d.Name, ProblemMissingOutput)
+		}
 	}
-	data, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil {
-		return nil, err
+	for _, f := range it.Fields {
+		n := count[f.Name]
+		for a := parent(f.Name); a != ""; a = parent(a) {
+			n += covers[a]
+		}
+		switch {
+		case n > 1:
+			p(f.Name, ProblemDuplicate)
+		case n == 0 && !container[f.Name]:
+			p(f.Name, ProblemUnmapped)
+		}
 	}
-	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%s is over %d bytes", p, limit)
-	}
-	return data, nil
+	return problems
 }

@@ -19,8 +19,10 @@ const usage = `usage:
   mtf-facts ledger <dir> --schema-files <file>... [--check <ledger>]
                    [--registry <rule-facts.md>]
                                   list the provider fields of each type the
-                                  module uses; with --check, exit 1 unless the
-                                  ledger gives each exactly one disposition
+                                  module uses, nested fields included; with
+                                  --check, exit 1 unless the ledger gives each
+                                  leaf field exactly one disposition; the
+                                  registry hash is null without --registry
   mtf-facts rules                 list the implemented rules and their tier
   mtf-facts version               print the binary version
   mtf-facts schema-diff --from <file> --to <file> --types-from <dir>

@@ -13,14 +13,45 @@
               "legacy_acl": {"type": "string", "optional": true, "deprecated": true},
               "name": {"type": "string", "required": true},
               "password": {"type": "string", "optional": true, "sensitive": true},
-              "rules": {"nested_type": {"nesting_mode": "set", "attributes": {"prefix": {"type": "string", "optional": true}}}, "optional": true},
+              "password_wo": {"type": "string", "optional": true, "write_only": true},
+              "rules": {
+                "nested_type": {
+                  "nesting_mode": "set",
+                  "attributes": {
+                    "expiration_days": {"type": "number", "optional": true},
+                    "prefix": {"type": "string", "optional": true}
+                  }
+                },
+                "optional": true
+              },
               "tags": {"type": ["map", "string"], "optional": true}
             },
             "block_types": {
+              "encryption": {
+                "nesting_mode": "list",
+                "min_items": 1,
+                "max_items": 1,
+                "block": {"attributes": {"algorithm": {"type": "string", "required": true}}}
+              },
               "logging": {
                 "nesting_mode": "list",
                 "max_items": 1,
-                "block": {"attributes": {"target": {"type": "string", "required": true}}}
+                "block": {
+                  "attributes": {
+                    "prefix": {"type": "string", "optional": true},
+                    "target": {"type": "string", "required": true}
+                  },
+                  "block_types": {
+                    "filter": {
+                      "nesting_mode": "set",
+                      "block": {"attributes": {"suffix": {"type": "string", "optional": true}}}
+                    }
+                  }
+                }
+              },
+              "website": {
+                "nesting_mode": "single",
+                "block": {"attributes": {"index_document": {"type": "string", "optional": true}}, "deprecated": true}
               }
             }
           }

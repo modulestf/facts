@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ledger.schema.json",
   "title": "mtf-facts coverage ledger",
-  "description": "The module author's coverage ledger that `mtf-facts ledger --check` reads: one disposition per top-level field of each resource and data source type the module declares. A nested block or nested attribute is one field. That each field appears exactly once, that each type is one the module declares, and that each named variable and output exists in the module are checked by the command, not by this schema.",
+  "description": "The module author's coverage ledger that `mtf-facts ledger --check` reads: one disposition per field of each resource and data source type the module declares, named by its path: the names from the type down, joined by dots, such as `logging.target_bucket`. Each leaf field takes exactly one disposition: its own, or an intentional_omission or not_applicable on a nested block or nested attribute above it, which covers every field inside. Any other disposition on a field with fields of its own is refused: input, output and sensitive_omission are decisions about one value. That each leaf is covered exactly once, that each type is one the module declares, and that each named variable and output exists in the module are checked by the command, not by this schema.",
   "type": "object",
   "additionalProperties": false,
   "required": ["ledger_version", "types"],
@@ -23,7 +23,8 @@
     }
   },
   "$defs": {
-    "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"},
+    "name": {"description": "A Terraform identifier: a type, variable or output name.", "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"},
+    "path": {"description": "A field path: names joined by dots, down nested blocks and nested attributes.", "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(\\.[A-Za-z_][A-Za-z0-9_-]*)*$"},
     "field": {
       "description": "An exposed input names its variable, a computed-only output names its output, and every omission gives its reason.",
       "oneOf": [
@@ -32,7 +33,7 @@
           "additionalProperties": false,
           "required": ["name", "disposition", "variable"],
           "properties": {
-            "name": {"$ref": "#/$defs/name"},
+            "name": {"$ref": "#/$defs/path"},
             "disposition": {"const": "input"},
             "variable": {"$ref": "#/$defs/name"}
           }
@@ -42,7 +43,7 @@
           "additionalProperties": false,
           "required": ["name", "disposition", "output"],
           "properties": {
-            "name": {"$ref": "#/$defs/name"},
+            "name": {"$ref": "#/$defs/path"},
             "disposition": {"const": "output"},
             "output": {"$ref": "#/$defs/name"}
           }
@@ -52,7 +53,7 @@
           "additionalProperties": false,
           "required": ["name", "disposition", "reason"],
           "properties": {
-            "name": {"$ref": "#/$defs/name"},
+            "name": {"$ref": "#/$defs/path"},
             "disposition": {"enum": ["sensitive_omission", "intentional_omission", "not_applicable"]},
             "reason": {"type": "string", "minLength": 1}
           }

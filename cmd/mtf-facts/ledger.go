@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -45,6 +46,9 @@ func ledgerCmd(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	var schemaFiles []string
 	fs.Func("schema-files", "a terraform providers schema -json file; repeat for more", func(p string) error {
+		if p == "" {
+			return errors.New("empty path")
+		}
 		schemaFiles = append(schemaFiles, p)
 		return nil
 	})
@@ -62,6 +66,18 @@ func ledgerCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	if len(dirs) != 1 {
 		fmt.Fprint(stderr, usage)
+		return exitError
+	}
+	// A path flag given an empty value is refused, not read as absent.
+	// --schema-files refuses one itself.
+	empty := ""
+	fs.Visit(func(f *flag.Flag) {
+		if (f.Name == "check" || f.Name == "registry") && f.Value.String() == "" {
+			empty = f.Name
+		}
+	})
+	if empty != "" {
+		fmt.Fprintf(stderr, "mtf-facts: --%s needs a path\n", empty)
 		return exitError
 	}
 	rep, err := ledgerWork(dirs[0], schemaFiles, *check, *registry)

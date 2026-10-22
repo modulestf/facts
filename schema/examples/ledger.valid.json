@@ -14,13 +14,18 @@
       "type": "aws_example_bucket",
       "fields": [
         {"name": "arn", "disposition": "output", "output": "bucket_arn"},
+        {"name": "encryption.algorithm", "disposition": "input", "variable": "encryption_algorithm"},
         {"name": "id", "disposition": "output", "output": "bucket_id"},
         {"name": "legacy_acl", "disposition": "intentional_omission", "reason": "deprecated"},
-        {"name": "logging", "disposition": "input", "variable": "logging"},
+        {"name": "logging.filter.suffix", "disposition": "input", "variable": "logging"},
+        {"name": "logging.prefix", "disposition": "input", "variable": "logging"},
+        {"name": "logging.target", "disposition": "input", "variable": "logging"},
         {"name": "name", "disposition": "input", "variable": "name"},
         {"name": "password", "disposition": "sensitive_omission", "reason": "sensitive, set outside the module"},
+        {"name": "password_wo", "disposition": "sensitive_omission", "reason": "write-only"},
         {"name": "rules", "disposition": "intentional_omission", "reason": "not yet requested"},
-        {"name": "tags", "disposition": "input", "variable": "tags"}
+        {"name": "tags", "disposition": "input", "variable": "tags"},
+        {"name": "website", "disposition": "intentional_omission", "reason": "deprecated block"}
       ]
     }
   ]
