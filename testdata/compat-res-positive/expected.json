@@ -1,0 +1,302 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": "modules/child",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.provider-floor-raised",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "no schema handoff versions for provider random",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "compat.provider-floor-raised",
+      "area": "modules/child",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.resource-address-changed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": "modules/child",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.generated-policy-narrowed",
+      "file": "main.tf",
+      "line": null,
+      "subject": ".:data.aws_iam_policy_document.gone",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 40,
+            "text": "data \"aws_iam_policy_document\" \"gone\" {"
+          }
+        ],
+        "base": "data.aws_iam_policy_document.gone",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.generated-policy-narrowed",
+      "file": "main.tf",
+      "line": 2,
+      "subject": ".:local.read_actions",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 2,
+            "text": "  read_actions = [\"demo:GetWidget\", \"demo:ListWidgets\"]"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 2,
+            "text": "  read_actions = [\"demo:GetWidget\"]"
+          }
+        ],
+        "base": "[\"demo:GetWidget\", \"demo:ListWidgets\"]",
+        "head": "[\"demo:GetWidget\"]",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "compat.resource-address-changed",
+      "file": "main.tf",
+      "line": 14,
+      "subject": ".:aws_demo_gadget.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 9,
+            "text": "resource \"aws_demo_gadget\" \"this\" {"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "removed {"
+          }
+        ],
+        "base": "aws_demo_gadget.this",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "compat.resource-address-changed",
+      "file": "main.tf",
+      "line": 23,
+      "subject": ".:aws_demo_thing.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 13,
+            "text": "resource \"aws_demo_thing\" \"this\" {"
+          },
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  count = 2"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 23,
+            "text": "  count = 1"
+          }
+        ],
+        "base": "count = 2",
+        "head": "count = 1",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "compat.resource-address-changed",
+      "file": "main.tf",
+      "line": 29,
+      "subject": ".:aws_demo_bolt.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 19,
+            "text": "resource \"aws_demo_bolt\" \"this\" {"
+          },
+          {
+            "revision": "merge_base",
+            "file": "main.tf",
+            "line": 20,
+            "text": "  for_each = var.bolts"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 29,
+            "text": "  for_each = var.bolt_map"
+          }
+        ],
+        "base": "for_each = var.bolts",
+        "head": "for_each = var.bolt_map",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "compat.generated-policy-narrowed",
+      "file": "main.tf",
+      "line": 37,
+      "subject": ".:data.aws_iam_policy_document.deny.statement[0].actions",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 37,
+            "text": "    actions   = [\"demo:DeleteWidget\", \"demo:PutWidget\"]"
+          }
+        ],
+        "base": "[\"demo:DeleteWidget\"]",
+        "head": "[\"demo:DeleteWidget\", \"demo:PutWidget\"]",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "compat.generated-policy-narrowed",
+      "file": "main.tf",
+      "line": 51,
+      "subject": ".:aws_demo_bucket_policy.this.policy",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 51,
+            "text": "  policy = jsonencode({"
+          }
+        ],
+        "base": "jsonencode({\n    Statement = [{ Effect = \"Allow\", Action = [\"demo:Get\", \"demo:Put\"], Resource = \"*\" }]\n  })",
+        "head": "jsonencode({\n    Statement = [{ Effect = \"Allow\", Action = [\"demo:Get\"], Resource = \"*\" }]\n  })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "compat.resource-address-changed",
+      "file": "modules/child/main.tf",
+      "line": null,
+      "subject": "modules/child:aws_demo_part.old",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "modules/child/main.tf",
+            "line": 1,
+            "text": "resource \"aws_demo_part\" \"old\" {"
+          }
+        ],
+        "base": "aws_demo_part.old",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "compat.version-constraint-raised",
+      "file": "versions.tf",
+      "line": 2,
+      "subject": ".:required_version",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.5.7\""
+          },
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.7.0\""
+          }
+        ],
+        "base": "\u003e= 1.5.7",
+        "head": "\u003e= 1.7.0",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "compat.version-constraint-raised",
+      "file": "versions.tf",
+      "line": 7,
+      "subject": ".:required_providers.aws",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 5.0\""
+          },
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 6.0\""
+          }
+        ],
+        "base": "\u003e= 5.0",
+        "head": "\u003e= 6.0",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}
