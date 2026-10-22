@@ -118,11 +118,16 @@ func TestRulesMatchImplemented(t *testing.T) {
 }
 
 func TestLintExitNotEvaluated(t *testing.T) {
-	var out, errb bytes.Buffer
-	if code := run([]string{"lint", "../../testdata/unparsable-areas/head"}, &out, &errb); code != exitNotEvaluated {
-		t.Errorf("exit %d", code)
+	// A parse error and no findings: the config rules are not evaluated.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("variable \"x\" {\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if code := run([]string{"lint", "--timeout", "1ns", "../../testdata/unparsable-areas/head"}, &out, &errb); code != exitError {
+	var out, errb bytes.Buffer
+	if code := run([]string{"lint", dir}, &out, &errb); code != exitNotEvaluated {
+		t.Errorf("exit %d: %s", code, out.String())
+	}
+	if code := run([]string{"lint", "--timeout", "1ns", dir}, &out, &errb); code != exitError {
 		t.Errorf("timeout exit %d", code)
 	}
 }

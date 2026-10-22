@@ -1,0 +1,30 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.required-file-missing",
+      "area": "modules/new",
+      "status": "finding"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "profile.required-file-missing",
+      "severity": "MEDIUM",
+      "file": "modules/new/README.md",
+      "line": null,
+      "summary": "The new module has no modules/new/README.md, a path the profile requires for a submodule.",
+      "suggested_fix": "Add `modules/new/README.md` from the template the templates map names for it, or, for a missing example or submodule directory, the directory with its files, per Module layout in the profile's PROFILE.md."
+    },
+    {
+      "id": "F-002",
+      "rule_id": "profile.required-file-missing",
+      "severity": "MEDIUM",
+      "file": "modules/new/versions.tf",
+      "line": null,
+      "summary": "The new module has no modules/new/versions.tf, a path the profile requires for a submodule.",
+      "suggested_fix": "Add `modules/new/versions.tf` from the template the templates map names for it, or, for a missing example or submodule directory, the directory with its files, per Module layout in the profile's PROFILE.md."
+    }
+  ],
+  "candidates": []
+}
