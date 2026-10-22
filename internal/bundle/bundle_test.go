@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -505,7 +506,7 @@ func TestPRStringsAreCapped(t *testing.T) {
 	if !strings.HasSuffix(tf[0].File, " [truncated: 6 bytes omitted]") {
 		t.Errorf("finding file %q", tf[0].File)
 	}
-	if !strings.HasSuffix(string(d["interface_diff"]), ` [truncated: 6 bytes omitted]":1}`) {
+	if !regexp.MustCompile(` \[truncated: 6 bytes omitted, sha256 [0-9a-f]{12}\]":1}$`).Match(d["interface_diff"]) {
 		t.Errorf("interface diff key not capped: %.60s", d["interface_diff"])
 	}
 	// A string at the cap is kept whole.
@@ -518,6 +519,28 @@ func TestPRStringsAreCapped(t *testing.T) {
 	}
 	if *c[0].Evidence.Base != at || !c[0].EvidenceComplete {
 		t.Errorf("base at the cap was cut")
+	}
+}
+
+// TestCapStringsKeepsLongKeysApart caps two keys that differ only after the
+// cut: both stay, with their values.
+func TestCapStringsKeepsLongKeysApart(t *testing.T) {
+	a, b := strings.Repeat("k", maxPRString+10)+"a", strings.Repeat("k", maxPRString+10)+"b"
+	out, err := capStrings(json.RawMessage(`{"` + a + `":1,"` + b + `":2}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]int
+	if err := json.Unmarshal(out, &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 2 {
+		t.Errorf("%d keys after the cut, want 2: %v", len(m), m)
+	}
+	for k := range m {
+		if len(k) > maxPRString+64 {
+			t.Errorf("key of %d bytes", len(k))
+		}
 	}
 }
 

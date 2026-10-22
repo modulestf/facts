@@ -3,6 +3,7 @@ package bundle
 import (
 	"bytes"
 	"cmp"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -311,6 +312,17 @@ func capMarked(s string) string {
 	return t
 }
 
+// capKey caps an object key. A cut key carries a hash of the whole key in
+// its marker, so two long keys that differ only after the cut stay two keys.
+func capKey(s string) string {
+	t, cut := capString(s)
+	if !cut {
+		return t
+	}
+	sum := sha256.Sum256([]byte(s))
+	return t + fmt.Sprintf(" [truncated: %d bytes omitted, sha256 %x]", len(s)-len(t), sum[:6])
+}
+
 // capStrings caps every string, object keys included, in a JSON document,
 // keeping its structure and key order.
 func capStrings(raw json.RawMessage) (json.RawMessage, error) {
@@ -355,7 +367,11 @@ func capStrings(raw json.RawMessage) (json.RawMessage, error) {
 			b.WriteString(v.String())
 			stack = append(stack, frame{object: v == '{'})
 		case string:
-			enc, err := json.Marshal(capMarked(v))
+			c := capMarked(v)
+			if key {
+				c = capKey(v)
+			}
+			enc, err := json.Marshal(c)
 			if err != nil {
 				return nil, err
 			}
