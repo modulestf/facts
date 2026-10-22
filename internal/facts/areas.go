@@ -54,11 +54,11 @@ type Area struct {
 // headEntry returns the head entry of a file directly in the area, or nil.
 func (a *Area) headEntry(name string) *Entry { return a.headTree.Entries[path.Join(a.Path, name)] }
 
-// classify maps a path to its area. ok is false for paths that belong to no
-// area: wrappers, tests, and loose files directly under examples/ or
-// modules/. Paths under .github/ and the root profile files count as the
+// Classify maps a path to its area and the area kind. ok is false for
+// paths that belong to no area: wrappers, tests, and loose files directly
+// under examples/ or modules/. Paths under .github/ and the root profile files count as the
 // root, as the rule registry says.
-func classify(p string) (area, kind string, ok bool) {
+func Classify(p string) (area, kind string, ok bool) {
 	parts := strings.Split(p, "/")
 	switch {
 	case parts[0] == "wrappers" || parts[0] == "tests":
@@ -100,7 +100,7 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 				p += "/x"
 			}
 		}
-		if a, k, ok := classify(p); ok {
+		if a, k, ok := Classify(p); ok {
 			set[a] = k
 		}
 	}

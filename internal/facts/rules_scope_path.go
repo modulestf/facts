@@ -407,7 +407,7 @@ func checkTooling(a *Area) Result {
 	tl := a.Profile.Tooling
 	var res Result
 	for _, p := range a.headTree.Paths {
-		area, _, ok := classify(p)
+		area, _, ok := Classify(p)
 		if (ok && area != a.Path) || (!ok && a.Path != rootArea) || a.baseTree.Entries[p] != nil || a.baseTree.Dirs[p] {
 			continue
 		}

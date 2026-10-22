@@ -1,0 +1,1 @@
+Confirm outcomes: confirm on one severity becomes a tool finding and on several a severity_needed entry, both with confirmed_by; escalate, an invalid output, a timeout, incomplete evidence and a lead-class rule leave the candidate for the lead.

@@ -1,0 +1,23 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-002",
+      "decision": "confirm",
+      "reason": "The upgrade note declares the removal.",
+      "severity": "MEDIUM",
+      "summary": "Decoy text: a merge that starts a repair turn for this reply merges it.",
+      "suggested_fix": "Decoy fix: the first reply is valid and is the one merged."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-002",
+      "rule_id": "structure.insecure-default",
+      "severity": "LOW",
+      "file": "variables.tf",
+      "line": 8,
+      "summary": "Variable \"public_access\" defaults to true, so a caller that omits it gets a public queue policy.",
+      "suggested_fix": "Set the default of `variable \"public_access\"` in `variables.tf` to `false`."
+    }
+  ]
+}

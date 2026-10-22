@@ -1,0 +1,182 @@
+{
+  "description": "Registry rows the fixtures use. engine, severities and confirm_class are copied from rule-facts.md, except review.tool-disputed, which the spec names and the registry lacks. The templates are fixture inputs: the spec requires fixed per-rule host templates filled with the subject but gives no text. A fixture's host.json overrides confirm_class.",
+  "rules": {
+    "compat.claim-contradicts-analysis": {
+      "engine": "llm",
+      "severities": [
+        "HIGH"
+      ],
+      "confirm_class": "-"
+    },
+    "compat.default-changed": {
+      "engine": "candidate",
+      "severities": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "The default of {subject} changed, so a caller that does not set it gets different resources.",
+      "suggested_fix_template": "Restore the base default of {subject}, or declare the change as breaking with an upgrade note."
+    },
+    "compat.type-narrowed": {
+      "engine": "candidate",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "The type of {subject} is narrower than at the base, so a value that was valid before is rejected.",
+      "suggested_fix_template": "Restore the base type of {subject}, or declare the change as breaking with an upgrade note."
+    },
+    "compat.variable-now-required": {
+      "engine": "candidate",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} is now required, so a caller that does not set it fails to plan.",
+      "suggested_fix_template": "Restore a default for {subject}, or declare the change as breaking with an upgrade note."
+    },
+    "compat.variable-removed": {
+      "engine": "candidate",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} is removed, so a caller that sets it fails to plan.",
+      "suggested_fix_template": "Restore {subject} with its base type and default, or declare the change as breaking with an upgrade note."
+    },
+    "coverage.unknown-argument": {
+      "engine": "candidate",
+      "severities": [
+        "CRITICAL"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} is not an argument in the provider schema, so the block fails to plan.",
+      "suggested_fix_template": "Remove {subject}, or use the argument name the provider schema has."
+    },
+    "examples.stale-reference": {
+      "engine": "candidate",
+      "severities": [
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "The example refers to {subject}, which the module no longer has, so the example cannot initialize.",
+      "suggested_fix_template": "Update the example to the module's current interface in place of {subject}."
+    },
+    "examples.versions-missing": {
+      "engine": "tool",
+      "severities": [
+        "MEDIUM"
+      ],
+      "confirm_class": "-"
+    },
+    "profile.nonstandard-config-file": {
+      "engine": "tool",
+      "severities": [
+        "HIGH"
+      ],
+      "confirm_class": "-"
+    },
+    "review.check-not-run": {
+      "engine": "llm",
+      "severities": [
+        "MEDIUM"
+      ],
+      "confirm_class": "-",
+      "summary_template": "Rule {rule_id} was not decided for {subject}: the model reply was still invalid after the repair turn.",
+      "suggested_fix_template": "Review {subject} against {rule_id} by hand."
+    },
+    "scope.module-call": {
+      "engine": "candidate",
+      "severities": [
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} calls another module from inside the module.",
+      "suggested_fix_template": "Remove {subject}, or move the composition to the caller."
+    },
+    "structure.argument-order": {
+      "engine": "candidate",
+      "severities": [
+        "LOW"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} does not follow the profile's argument order.",
+      "suggested_fix_template": "Move the meta-arguments of {subject} to the positions the profile gives."
+    },
+    "structure.arn-partition-hardcoded": {
+      "engine": "candidate",
+      "severities": [
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} hardcodes the aws partition in an ARN.",
+      "suggested_fix_template": "Build the ARN in {subject} with local.partition."
+    },
+    "structure.flag-polarity": {
+      "engine": "llm",
+      "severities": [
+        "MEDIUM"
+      ],
+      "confirm_class": "-"
+    },
+    "structure.grouping": {
+      "engine": "llm",
+      "severities": [
+        "LOW"
+      ],
+      "confirm_class": "-"
+    },
+    "structure.insecure-default": {
+      "engine": "llm",
+      "severities": [
+        "CRITICAL"
+      ],
+      "confirm_class": "-"
+    },
+    "structure.missing-description": {
+      "engine": "tool",
+      "severities": [
+        "MEDIUM"
+      ],
+      "confirm_class": "-"
+    },
+    "structure.output-no-try": {
+      "engine": "candidate",
+      "severities": [
+        "HIGH"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} indexes a conditional resource without try, so it fails when the resource is not created.",
+      "suggested_fix_template": "Wrap the value of {subject} in try(..., null)."
+    },
+    "structure.validation-missing": {
+      "engine": "llm",
+      "severities": [
+        "MEDIUM"
+      ],
+      "confirm_class": "-"
+    },
+    "structure.wrong-file": {
+      "engine": "candidate",
+      "severities": [
+        "MEDIUM"
+      ],
+      "confirm_class": "lead",
+      "summary_template": "{subject} is not in the file the profile gives for its kind of block.",
+      "suggested_fix_template": "Move {subject} to the file the profile gives."
+    },
+    "review.tool-disputed": {
+      "engine": "llm",
+      "severities": [
+        "LOW"
+      ],
+      "confirm_class": "-",
+      "note": "Not in rule-facts.md yet. Severity from the spec: LOW, no effect on the verdict ladder."
+    }
+  }
+}

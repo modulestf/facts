@@ -66,6 +66,20 @@ List the implemented rules and their tier:
 mtf-facts rules
 ```
 
+### Merge
+
+`mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
+
+```sh
+mtf-facts merge check bundle.json reply.json
+mtf-facts merge final --registry rule-facts.md [--report lint.json] [--templates templates.json] \
+  bundle.json reply.json [repair.json]
+```
+
+`merge check` prints `{"result":"valid"}` and exits 0, or `{"result":"repair","reasons":[...]}` and exits 1 when the reply needs the repair turn. Its reasons are fixed text and quote nothing from the reply.
+
+`merge final` prints the merged findings, in the shape of [merged-findings.schema.json](schema/merged-findings.schema.json), and exits 0. It merges the first reply when that one is valid, and otherwise the repair reply, which must then be given: an empty file when the repair turn returned nothing. A repair reply that is still invalid keeps only its valid entries; a candidate it leaves undecided becomes `review.check-not-run`. `--report` takes a `lint --json` report, whose index derives the subject a lead finding dedups by. `--templates` takes the per-rule host text for confirmed entries the model gave no text for. Exit code 2 is an error, and stdout is then not output.
+
 ## Status
 
 Early. `mtf-facts rules` lists the implemented rules and their tier.
@@ -74,7 +88,7 @@ Areas are the root module, each `modules/<name>` and each `examples/<name>`, par
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
-Not yet: provider schema input, `bundle`, `merge`, `ledger`, `schema-diff`, and the remaining rules. The four subcommands exist and exit with code 2.
+Not yet: provider schema input and the remaining rules.
 
 ## Releases
 

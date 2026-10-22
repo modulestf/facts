@@ -1,0 +1,35 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "compat.claim-contradicts-analysis",
+    "severity": "HIGH",
+    "file": ".",
+    "line": null,
+    "summary": "The body says the change is backwards compatible, but enable_logging turns on a new resource for every caller.",
+    "suggested_fix": "no code change: state in the body that existing callers get a new log group unless they set enable_logging = false.",
+    "source": "llm"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "compat.default-changed",
+    "severity": "HIGH",
+    "file": "variables.tf",
+    "line": 40,
+    "summary": "New input \"enable_logging\" defaults to true, so every existing caller gets a log group it did not ask for.",
+    "suggested_fix": "Set the default of `variable \"enable_logging\"` in `variables.tf` to `false`.",
+    "source": "tool",
+    "subject": ".:var.enable_logging",
+    "candidate_id": "C-001",
+    "confirmed_by": "mid"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "structure.validation-missing",
+    "severity": "MEDIUM",
+    "file": "variables.tf",
+    "line": 40,
+    "summary": "Variable \"enable_logging\" has no validation for a null value.",
+    "suggested_fix": "Add `nullable = false` to `variable \"enable_logging\"` in `variables.tf`.",
+    "source": "llm"
+  }
+]

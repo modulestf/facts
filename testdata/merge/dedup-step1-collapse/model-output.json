@@ -1,0 +1,13 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-002",
+      "decision": "confirm",
+      "reason": "The queue has count = var.create ? 1 : 0.",
+      "severity": "HIGH",
+      "summary": "output.arn indexes a conditional resource without try, so it fails when the resource is not created.",
+      "suggested_fix": "Wrap the value of output.arn in try(..., null)."
+    }
+  ],
+  "findings": []
+}

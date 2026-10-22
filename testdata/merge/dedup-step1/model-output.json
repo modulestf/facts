@@ -1,0 +1,49 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "max_count is absent from the schema at the latest and the minimum.",
+      "severity": "CRITICAL",
+      "summary": "Argument \"redrive.max_count\" is not in the aws_sqs_queue schema, so the block fails to plan.",
+      "suggested_fix": "Remove `max_count` from the `redrive` block of `resource \"aws_sqs_queue\" \"this\"` in `main.tf`."
+    },
+    {
+      "candidate_id": "C-002",
+      "decision": "confirm",
+      "reason": "dead_letter is absent from the schema at the latest and the minimum.",
+      "severity": "CRITICAL",
+      "summary": "Argument \"redrive.dead_letter\" is not in the aws_sqs_queue schema, so the block fails to plan.",
+      "suggested_fix": "Remove `dead_letter` from the `redrive` block of `resource \"aws_sqs_queue\" \"this\"` in `main.tf`."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-005",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 20,
+      "summary": "The IAM blocks are split around the queue resource.",
+      "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks."
+    },
+    {
+      "id": "F-002",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 20,
+      "summary": "The IAM blocks are split around the queue resource.",
+      "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks."
+    },
+    {
+      "id": "F-003",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 30,
+      "summary": "The KMS blocks are split around the queue policy.",
+      "suggested_fix": "Move `resource \"aws_kms_key\" \"this\"` in `main.tf` next to the other KMS blocks."
+    }
+  ]
+}

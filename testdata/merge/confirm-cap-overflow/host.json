@@ -1,0 +1,7 @@
+{
+  "description": "Host settings this fixture assumes: a cap of 2 confirm calls per step, below the starting value of 10, and the audit's proposed class for the rule.",
+  "confirm_cap": 2,
+  "confirm_class": {
+    "structure.output-no-try": "small"
+  }
+}

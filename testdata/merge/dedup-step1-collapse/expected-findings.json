@@ -1,0 +1,15 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": ".:output.arn indexes a conditional resource without try, so it fails when the resource is not created.",
+    "suggested_fix": "Wrap the value of .:output.arn in try(..., null).",
+    "source": "tool",
+    "subject": ".:output.arn",
+    "candidate_id": "C-001",
+    "confirmed_by": "small"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-003",
+      "decision": "confirm",
+      "reason": "The queue has count = var.create ? 1 : 0.",
+      "severity": "HIGH",
+      "summary": "Output \"name\" indexes the conditional queue without try, so it fails when create is false.",
+      "suggested_fix": "Wrap the value of `output \"name\"` in `outputs.tf` in `try(aws_sqs_queue.this[0].name, null)`."
+    }
+  ],
+  "findings": []
+}

@@ -1,0 +1,18 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "The queue has count = var.create ? 1 : 0.",
+      "severity": "HIGH",
+      "summary": "Output \"arn\" indexes the conditional queue without try.",
+      "suggested_fix": "Wrap the value of `output \"arn\"` in `outputs.tf` in `try(..., null)`."
+    },
+    {
+      "candidate_id": "C-002",
+      "decision": "reject",
+      "reason": "The url output reads a resource that is always created."
+    }
+  ],
+  "findings": []
+}

@@ -28,7 +28,14 @@ const usage = `usage:
   mtf-facts schema-diff --from <file> --to <file> --types-from <dir>
                                   compare two provider schema files for the
                                   types a module tree uses
-  mtf-facts merge                 not implemented yet; exit 2
+  mtf-facts merge check <bundle> <reply>
+  mtf-facts merge final --registry <rule-facts.md> [--report <lint.json>]
+                        [--templates <file>] <bundle> <reply> [<repair-reply>]
+                                  check a model reply, or merge it with the
+                                  bundle into the final findings
+  mtf-facts bundle --report <lint.json> --skills <dir> --out <file>
+                   --injection <file> ...
+                                  build the facts bundle; see mtf-facts bundle -h
 `
 
 func main() {
@@ -66,10 +73,4 @@ func version() string {
 		return bi.Main.Version
 	}
 	return "(devel)"
-}
-
-// notImplemented is the result of a subcommand that has a name but no code yet.
-func notImplemented(name string, stderr io.Writer) int {
-	fmt.Fprintf(stderr, "mtf-facts: %s is not implemented yet\n", name)
-	return exitError
 }

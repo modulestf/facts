@@ -1,0 +1,1 @@
+A severity above the rule's severities is capped down to the highest, for a lead-confirmed candidate and an llm finding; a severity inside the list is kept, and the reply stays valid.

@@ -1,0 +1,1 @@
+A severity_needed entry is answered with confirm only; one unanswered or rejected after the repair turn is materialized once by the host, source host, at the rule's highest permitted severity with template text, never review.check-not-run.

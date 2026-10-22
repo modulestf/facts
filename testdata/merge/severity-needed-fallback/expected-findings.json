@@ -1,0 +1,41 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "compat.type-narrowed",
+    "severity": "CRITICAL",
+    "file": "variables.tf",
+    "line": 44,
+    "summary": "The type of .:var.subnet_ids is narrower than at the base, so a value that was valid before is rejected.",
+    "suggested_fix": "Restore the base type of .:var.subnet_ids, or declare the change as breaking with an upgrade note.",
+    "source": "host",
+    "subject": ".:var.subnet_ids",
+    "candidate_id": "C-002",
+    "confirmed_by": "mid"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "compat.variable-now-required",
+    "severity": "CRITICAL",
+    "file": "variables.tf",
+    "line": 52,
+    "summary": ".:var.name is now required, so a caller that does not set it fails to plan.",
+    "suggested_fix": "Restore a default for .:var.name, or declare the change as breaking with an upgrade note.",
+    "source": "host",
+    "subject": ".:var.name",
+    "candidate_id": "C-003",
+    "confirmed_by": "mid"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "compat.variable-removed",
+    "severity": "HIGH",
+    "file": "variables.tf",
+    "line": null,
+    "summary": ".:var.retention_days is removed, so a caller that sets it fails to plan.",
+    "suggested_fix": "Restore .:var.retention_days with its base type and default, or declare the change as breaking with an upgrade note.",
+    "source": "tool",
+    "subject": ".:var.retention_days",
+    "candidate_id": "C-001",
+    "confirmed_by": "mid"
+  }
+]

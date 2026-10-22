@@ -175,7 +175,24 @@ func TestBundleRefuses(t *testing.T) {
 // TestBundleFromLint runs lint on a golden case with the pinned registry and
 // builds the bundle from its report, with engine text made up for every rule.
 func TestBundleFromLint(t *testing.T) {
-	regFile := os.Getenv(registryEnv)
+	bundleFile, _, _ := bundleFromLint(t)
+	f, err := os.Open(bundleFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	b, err := fb.Decode(f)
+	if err != nil || len(b.Candidates) == 0 || b.Candidates[0].CandidateID != "C-001" {
+		t.Errorf("bundle %+v, %v", b, err)
+	}
+}
+
+// bundleFromLint writes the bundle of a lint run on a golden case with the
+// pinned registry, and returns the bundle file, the lint report and the
+// registry file. It skips without the registry, except in CI.
+func bundleFromLint(t *testing.T) (bundleFile, report, regFile string) {
+	t.Helper()
+	regFile = os.Getenv(registryEnv)
 	if regFile == "" {
 		if os.Getenv("CI") != "" {
 			t.Fatalf("%s is not set", registryEnv)
@@ -215,7 +232,7 @@ func TestBundleFromLint(t *testing.T) {
 	if code == exitError {
 		t.Fatalf("lint: %s", errb.String())
 	}
-	report := filepath.Join(tmp, "report.json")
+	report = filepath.Join(tmp, "report.json")
 	if err := os.WriteFile(report, lintOut.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -230,13 +247,5 @@ func TestBundleFromLint(t *testing.T) {
 	if code != 0 || stdout != "judgment\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
-	f, err := os.Open(filepath.Join(tmp, "bundle.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	b, err := fb.Decode(f)
-	if err != nil || len(b.Candidates) == 0 || b.Candidates[0].CandidateID != "C-001" {
-		t.Errorf("bundle %+v, %v", b, err)
-	}
+	return filepath.Join(tmp, "bundle.txt"), report, regFile
 }

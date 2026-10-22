@@ -1,0 +1,1 @@
+Tool findings are final: a lead-confirmed candidate with the same (rule_id, subject) as a confirmer-confirmed tool finding is dropped, and the tool finding keeps confirmed_by small.

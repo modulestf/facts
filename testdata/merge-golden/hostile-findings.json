@@ -1,0 +1,79 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": "capped to HIGH",
+    "suggested_fix": "f",
+    "source": "llm",
+    "subject": ".:output.arn",
+    "candidate_id": "C-001",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "profile.nonstandard-config-file",
+    "severity": "HIGH",
+    "file": "override.tf",
+    "line": null,
+    "summary": "tool",
+    "suggested_fix": "f",
+    "source": "tool",
+    "subject": "override.tf"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "compat.variable-removed",
+    "severity": "HIGH",
+    "file": "variables.tf",
+    "line": null,
+    "summary": ".:var.x is removed.",
+    "suggested_fix": "Restore .:var.x.",
+    "source": "tool",
+    "subject": ".:var.x",
+    "candidate_id": "C-003",
+    "confirmed_by": "mid"
+  },
+  {
+    "id": "F-004",
+    "rule_id": "examples.versions-missing",
+    "severity": "MEDIUM",
+    "file": "examples/a",
+    "line": null,
+    "summary": "injected path rule on the area directory",
+    "suggested_fix": "f",
+    "source": "llm"
+  },
+  {
+    "id": "F-005",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "main.tf",
+    "line": 4,
+    "summary": "review capped to MEDIUM",
+    "suggested_fix": "f",
+    "source": "llm"
+  },
+  {
+    "id": "F-006",
+    "rule_id": "structure.grouping",
+    "severity": "LOW",
+    "file": "main.tf",
+    "line": 1,
+    "summary": "capped to LOW",
+    "suggested_fix": "f",
+    "source": "llm"
+  },
+  {
+    "id": "F-007",
+    "rule_id": "review.tool-disputed",
+    "severity": "LOW",
+    "file": "override.tf",
+    "line": null,
+    "summary": "disputed capped to LOW",
+    "suggested_fix": "f",
+    "source": "llm"
+  }
+]

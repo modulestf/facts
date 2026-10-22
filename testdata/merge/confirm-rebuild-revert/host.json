@@ -1,0 +1,8 @@
+{
+  "description": "Host settings this fixture assumes. bundle_cap_bytes measures the payload the byte-length header counts: the bundle as compact JSON (no whitespace, keys in file order), embedded as one JSON string value with its quotes and escapes, in UTF-8 bytes. It is set to the payload of bundle.before-confirm.json (698 bytes), so the rebuilt bundle (884 bytes) fails it. The evidence here is shorter than the host templates on purpose, breaking the template bound so the revert safeguard fires.",
+  "confirm_cap": 10,
+  "bundle_cap_bytes": 698,
+  "confirm_class": {
+    "structure.output-no-try": "small"
+  }
+}

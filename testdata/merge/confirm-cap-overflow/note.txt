@@ -1,0 +1,1 @@
+Candidates are sorted by id and a per-step cap limits the confirm calls; a candidate over the cap escalates without a call and the lead answers it.

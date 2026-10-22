@@ -1,0 +1,39 @@
+{
+  "tool_findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 20,
+            "text": "variable \"retention_days\" {"
+          }
+        ],
+        "base": "variable \"retention_days\" { type = number, default = 30 }",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ],
+  "area_rules": [
+    {
+      "area": "modules/worker",
+      "rules": [
+        {
+          "rule_id": "structure.output-no-try",
+          "status": "not_evaluated",
+          "reason": "parse_error"
+        }
+      ]
+    }
+  ],
+  "severity_needed": []
+}

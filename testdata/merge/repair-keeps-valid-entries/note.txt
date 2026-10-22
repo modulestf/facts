@@ -1,0 +1,1 @@
+The repair reply replaces the first reply whole; still invalid, it keeps its valid entries, and only the candidates it answers invalidly or not at all become review.check-not-run.

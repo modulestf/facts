@@ -319,7 +319,7 @@ func checkScopeProvider(a *Area) Result {
 
 // areaOf is the area of a file path in a boundary directory.
 func areaOf(file string) string {
-	a, _, _ := classify(file)
+	a, _, _ := Classify(file)
 	return a
 }
 

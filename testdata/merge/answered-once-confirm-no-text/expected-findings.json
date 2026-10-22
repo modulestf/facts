@@ -1,0 +1,38 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "compat.variable-removed",
+    "severity": "CRITICAL",
+    "file": "variables.tf",
+    "line": null,
+    "summary": "Variable \"retention_days\" is removed and nothing declares the break, so every caller that sets it fails to plan.",
+    "suggested_fix": "Restore `variable \"retention_days\"` in `variables.tf` with type `number` and default `30`.",
+    "source": "llm",
+    "subject": ".:var.retention_days",
+    "candidate_id": "C-002",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": "Output \"arn\" indexes the conditional queue without try, so it fails when create is false.",
+    "suggested_fix": "Wrap the value of `output \"arn\"` in `outputs.tf` in `try(aws_sqs_queue.this[0].arn, null)`.",
+    "source": "llm",
+    "subject": ".:output.arn",
+    "candidate_id": "C-001",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "structure.grouping",
+    "severity": "LOW",
+    "file": "main.tf",
+    "line": 20,
+    "summary": "The IAM blocks are split around the queue resource.",
+    "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks.",
+    "source": "llm"
+  }
+]

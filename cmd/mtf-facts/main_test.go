@@ -228,16 +228,6 @@ func TestLintEngineDeadlineIsTimeout(t *testing.T) {
 	}
 }
 
-func TestStubSubcommandsExit2(t *testing.T) {
-	for _, name := range []string{"merge"} {
-		var out, errb bytes.Buffer
-		if code := run([]string{name, "x"}, &out, &errb); code != exitError || out.Len() != 0 ||
-			!strings.Contains(errb.String(), name+" is not implemented") {
-			t.Errorf("%s: exit %d, stdout %q, stderr %q", name, code, out.String(), errb.String())
-		}
-	}
-}
-
 // TestLintHookFlagsChangeNoOutput passes a schema handoff, which no
 // implemented rule reads, and checks lint writes the same human output and
 // exit code as without it. Both runs pass the test profile, which rules read.

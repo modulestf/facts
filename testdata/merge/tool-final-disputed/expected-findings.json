@@ -1,0 +1,33 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "profile.nonstandard-config-file",
+    "severity": "HIGH",
+    "file": "main.tf",
+    "line": 5,
+    "summary": "main.tf adds an OpenTofu-only encryption block while required_version admits Terraform.",
+    "suggested_fix": "Remove the `encryption` block from the `terraform` block in `main.tf`.",
+    "source": "llm"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "profile.nonstandard-config-file",
+    "severity": "HIGH",
+    "file": "override.tf",
+    "line": null,
+    "summary": "The change adds override.tf, an override file the profile's quality gate cannot read.",
+    "suggested_fix": "Fold the blocks of `override.tf` into the file they override and delete `override.tf`.",
+    "source": "tool",
+    "subject": "override.tf"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "review.tool-disputed",
+    "severity": "LOW",
+    "file": "override.tf",
+    "line": null,
+    "summary": "The tool reports override.tf as an override file, but the change only renames it from override.tf.example.",
+    "suggested_fix": "no code change: a maintainer checks whether `override.tf` is new in this change.",
+    "source": "llm"
+  }
+]
