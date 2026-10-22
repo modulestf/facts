@@ -229,7 +229,7 @@ func TestLintEngineDeadlineIsTimeout(t *testing.T) {
 }
 
 func TestStubSubcommandsExit2(t *testing.T) {
-	for _, name := range []string{"merge", "ledger"} {
+	for _, name := range []string{"merge"} {
 		var out, errb bytes.Buffer
 		if code := run([]string{name, "x"}, &out, &errb); code != exitError || out.Len() != 0 ||
 			!strings.Contains(errb.String(), name+" is not implemented") {

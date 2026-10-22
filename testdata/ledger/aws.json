@@ -1,0 +1,73 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/aws": {
+      "provider": {"version": 0, "block": {}},
+      "resource_schemas": {
+        "aws_example_bucket": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "arn": {"type": "string", "computed": true},
+              "id": {"type": "string", "optional": true, "computed": true},
+              "legacy_acl": {"type": "string", "optional": true, "deprecated": true},
+              "name": {"type": "string", "required": true},
+              "password": {"type": "string", "optional": true, "sensitive": true},
+              "password_wo": {"type": "string", "optional": true, "write_only": true},
+              "rules": {
+                "nested_type": {
+                  "nesting_mode": "set",
+                  "attributes": {
+                    "expiration_days": {"type": "number", "optional": true},
+                    "prefix": {"type": "string", "optional": true}
+                  }
+                },
+                "optional": true
+              },
+              "tags": {"type": ["map", "string"], "optional": true}
+            },
+            "block_types": {
+              "encryption": {
+                "nesting_mode": "list",
+                "min_items": 1,
+                "max_items": 1,
+                "block": {"attributes": {"algorithm": {"type": "string", "required": true}}}
+              },
+              "logging": {
+                "nesting_mode": "list",
+                "max_items": 1,
+                "block": {
+                  "attributes": {
+                    "prefix": {"type": "string", "optional": true},
+                    "target": {"type": "string", "required": true}
+                  },
+                  "block_types": {
+                    "filter": {
+                      "nesting_mode": "set",
+                      "block": {"attributes": {"suffix": {"type": "string", "optional": true}}}
+                    }
+                  }
+                }
+              },
+              "website": {
+                "nesting_mode": "single",
+                "block": {"attributes": {"index_document": {"type": "string", "optional": true}}, "deprecated": true}
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {
+        "aws_example_region": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {"type": "string", "optional": true, "computed": true},
+              "name": {"type": "string", "computed": true}
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -16,13 +16,19 @@ const usage = `usage:
                  [--profile-dir <dir>]
                                   check a module tree; with --base, only the
                                   areas the change touched
+  mtf-facts ledger <dir> --schema-files <file>... [--check <ledger>]
+                   [--registry <rule-facts.md>]
+                                  list the provider fields of each type the
+                                  module uses, nested fields included; with
+                                  --check, exit 1 unless the ledger gives each
+                                  leaf field exactly one disposition; the
+                                  registry hash is null without --registry
   mtf-facts rules                 list the implemented rules and their tier
   mtf-facts version               print the binary version
   mtf-facts schema-diff --from <file> --to <file> --types-from <dir>
                                   compare two provider schema files for the
                                   types a module tree uses
-  mtf-facts bundle | merge | ledger
-                                  not implemented yet; exit 2
+  mtf-facts merge                 not implemented yet; exit 2
 `
 
 func main() {
@@ -47,7 +53,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "merge":
 		return merge(args[1:], stdout, stderr)
 	case "ledger":
-		return ledger(args[1:], stdout, stderr)
+		return ledgerCmd(args[1:], stdout, stderr)
 	case "schema-diff":
 		return schemaDiff(args[1:], stdout, stderr)
 	}
