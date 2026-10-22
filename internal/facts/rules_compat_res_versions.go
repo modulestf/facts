@@ -159,9 +159,9 @@ func exprSource(x Expr, r hcl.Range) string {
 	return x.Text[s:e]
 }
 
-// headLine is the line of the head constraint a candidate names: the first
+// constraintHeadLine is the line of the head constraint a candidate names: the first
 // one-line constraint the base does not have, else none.
-func headLine(base, head []constraint) (file string, line int) {
+func constraintHeadLine(base, head []constraint) (file string, line int) {
 	for _, h := range head {
 		if h.oneLine && !slices.ContainsFunc(base, func(b constraint) bool { return b.text == h.text }) {
 			return h.file, h.line
@@ -212,7 +212,7 @@ func checkVersionConstraintRaised(a *Area) Result {
 		if ok && !hit(raised, major) {
 			return
 		}
-		file, line := headLine(base, head)
+		file, line := constraintHeadLine(base, head)
 		ev := floorEvidence(a, base, head)
 		if line == 0 {
 			file = firstFile(base, head)
@@ -293,7 +293,7 @@ func checkProviderFloorRaised(a *Area) Result {
 		}
 		ev := floorEvidence(a, base, head)
 		schemaFacts(a, ev, name, r.Source, *r.Versions.OldFloor)
-		file, line := headLine(base, head)
+		file, line := constraintHeadLine(base, head)
 		if line == 0 {
 			file = firstFile(base, head)
 		}
