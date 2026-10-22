@@ -312,6 +312,12 @@ func TestBuildInterfaceDiffUnchanged(t *testing.T) {
 			"terraform {\n  required_providers {\n    aws = {\n      source = \"hashicorp/aws\"\n    }\n  }\n}\n"},
 		{"default nullable written", "variable \"x\" {}\n", "variable \"x\" {\n  nullable = true\n}\n"},
 		{"moved between files", "variable \"x\" {}\n", "\n\nvariable \"x\" {}\n"},
+		{"whitespace in a default", "variable \"x\" {\n  default = {a=1}\n}\n", "variable \"x\" {\n  default = { a = 1 }\n}\n"},
+		{"whitespace in a type", "variable \"x\" {\n  type = list(string)\n}\n", "variable \"x\" {\n  type = list( string )\n}\n"},
+		{"comment in an output value", "output \"o\" {\n  value = [1, 2]\n}\n", "output \"o\" {\n  value = [\n    1, # one\n    2\n  ]\n}\n"},
+		{"whitespace in a moved from", "moved {\n  from = a_b.c[0]\n  to   = a_b.d\n}\n", "moved {\n  from = a_b.c[ 0 ]\n  to   = a_b.d\n}\n"},
+		{"whitespace in a moved to", "moved {\n  from = a_b.c\n  to   = a_b.d[0]\n}\n", "moved {\n  from = a_b.c\n  to   = a_b.d[ 0 ]\n}\n"},
+		{"whitespace in a count", "resource \"a_b\" \"c\" {\n  count = var.n>0?1:0\n}\n", "resource \"a_b\" \"c\" {\n  count = var.n > 0 ? 1 : 0\n}\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -320,5 +326,57 @@ func TestBuildInterfaceDiffUnchanged(t *testing.T) {
 				t.Errorf("want no area, got %+v", r.InterfaceDiff)
 			}
 		})
+	}
+}
+
+func TestBuildInterfaceDiffChanged(t *testing.T) {
+	tf := func(versions ...string) string {
+		var b strings.Builder
+		for _, v := range versions {
+			b.WriteString("terraform {\n  required_version = \"" + v + "\"\n}\n")
+		}
+		return b.String()
+	}
+	tests := []struct {
+		name       string
+		base, head string
+		want       []string
+	}{
+		{"second required_version block", tf(">= 1.5.7"), tf(">= 1.5.7", ">= 1.9"), []string{". required_version changed"}},
+		{"string text inside quotes", "variable \"x\" {\n  default = \"a b\"\n}\n", "variable \"x\" {\n  default = \"a  b\"\n}\n",
+			[]string{". variables x changed"}},
+		{"moved to another index", "moved {\n  from = a_b.c[0]\n  to   = a_b.d\n}\n", "moved {\n  from = a_b.c[ 0 ]\n  to   = a_b.e\n}\n",
+			[]string{". moved a_b.c[0] changed"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := runInterfaceDiff(t, writeTree(t, map[string]string{"base/main.tf": tt.base, "head/main.tf": tt.head}))
+			if got := diffKeys(r.InterfaceDiff); !slices.Equal(got, tt.want) {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+	r := runInterfaceDiff(t, writeTree(t, map[string]string{"base/main.tf": tf(">= 1.5.7"), "head/main.tf": tf(">= 1.5.7", ">= 1.9")}))
+	rv := r.InterfaceDiff.Areas[0].RequiredVersion
+	if *rv.Base != ">= 1.5.7" || *rv.Head != ">= 1.5.7, >= 1.9" {
+		t.Errorf("required_version %q -> %q", *rv.Base, *rv.Head)
+	}
+}
+
+func TestNormExpr(t *testing.T) {
+	tests := []struct{ a, b string }{
+		{"{a=1}", "{ a = 1 }"},
+		{"list(string)", "list( string )"},
+		{"[\n  1, # one\n  2,\n]", "[ 1, 2, ]"},
+	}
+	for _, tt := range tests {
+		if normExpr(tt.a) != normExpr(tt.b) {
+			t.Errorf("%q and %q differ: %q, %q", tt.a, tt.b, normExpr(tt.a), normExpr(tt.b))
+		}
+	}
+	for _, d := range [][2]string{{`"a b"`, `"a  b"`}, {"var.a", "var.b"}, {"x", "x.y"}} {
+		if normExpr(d[0]) == normExpr(d[1]) {
+			t.Errorf("%q and %q compare equal", d[0], d[1])
+		}
 	}
 }

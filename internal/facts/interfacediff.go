@@ -7,6 +7,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 // InterfaceDiff is a document of schema/interface-diff.schema.json: per area
@@ -103,6 +106,8 @@ var resourceAddr = regexp.MustCompile(`^(data\.)?[a-z][a-z0-9_]*\.[A-Za-z_][A-Za
 // differs. Of two elements with the same key in one module, which Terraform
 // refuses, the first in file order counts. Version constraints written as
 // plain strings are their value; every other expression is its source text.
+// Expressions are compared by their tokens, so whitespace and comments do
+// not count as a difference.
 func BuildInterfaceDiff(headSHA, mergeBaseSHA *string, areas []*Area) *InterfaceDiff {
 	if headSHA == nil || mergeBaseSHA == nil || slices.ContainsFunc(areas, func(a *Area) bool { return a.Base == nil }) {
 		return nil
@@ -115,12 +120,12 @@ func BuildInterfaceDiff(headSHA, mergeBaseSHA *string, areas []*Area) *Interface
 		ad := areaDiff{
 			Path:        a.Path,
 			Kind:        a.Kind,
-			Variables:   diffElems("name", ifVariables(a.Base), ifVariables(a.Head)),
-			Outputs:     diffElems("name", ifOutputs(a.Base), ifOutputs(a.Head)),
-			Providers:   diffElems("local_name", ifProviders(a.Base), ifProviders(a.Head)),
-			Resources:   diffElems("address", ifResources(a.Base), ifResources(a.Head)),
-			Moved:       diffElems("from", ifMoved(a.Base), ifMoved(a.Head)),
-			ModuleCalls: diffElems("name", ifModuleCalls(a.Base), ifModuleCalls(a.Head)),
+			Variables:   diffElems("name", ifVariables(a.Base), ifVariables(a.Head), variableValue.norm),
+			Outputs:     diffElems("name", ifOutputs(a.Base), ifOutputs(a.Head), outputValue.norm),
+			Providers:   diffElems("local_name", ifProviders(a.Base), ifProviders(a.Head), providerValue.norm),
+			Resources:   diffElems("address", ifResources(a.Base), ifResources(a.Head), resourceValue.norm),
+			Moved:       diffElems("from", ifMoved(a.Base), ifMoved(a.Head), movedValue.norm),
+			ModuleCalls: diffElems("name", ifModuleCalls(a.Base), ifModuleCalls(a.Head), moduleCallValue.norm),
 		}
 		if b, h := ifRequiredVersion(a.Base), ifRequiredVersion(a.Head); !reflect.DeepEqual(b, h) {
 			ad.RequiredVersion = &versionChange{Base: b, Head: h}
@@ -134,8 +139,8 @@ func BuildInterfaceDiff(headSHA, mergeBaseSHA *string, areas []*Area) *Interface
 }
 
 // diffElems pairs the base and head values by key and returns those that
-// differ, sorted by key.
-func diffElems[V any](keyName string, base, head map[string]V) []elemChange[V] {
+// differ, sorted by key. norm puts a value in the form it is compared in.
+func diffElems[V any](keyName string, base, head map[string]V, norm func(V) V) []elemChange[V] {
 	keys := make([]string, 0, len(base)+len(head))
 	for k := range base {
 		keys = append(keys, k)
@@ -156,7 +161,7 @@ func diffElems[V any](keyName string, base, head map[string]V) []elemChange[V] {
 			c.change, c.head = "added", &h
 		case !inHead:
 			c.change, c.base = "removed", &b
-		case reflect.DeepEqual(b, h):
+		case reflect.DeepEqual(norm(b), norm(h)):
 			continue
 		default:
 			c.change, c.base, c.head = "changed", &b, &h
@@ -240,13 +245,14 @@ func ifResources(m *Module) map[string]resourceValue {
 	return out
 }
 
-// ifMoved is keyed by the from address as written. A block with no from or
-// to is one Terraform refuses, so it is left out.
+// ifMoved is keyed by the canonical from address, or by the from address as
+// written when it is not a static address. A block with no from or to is
+// one Terraform refuses, so it is left out.
 func ifMoved(m *Module) map[string]movedValue {
 	out := map[string]movedValue{}
 	for _, mv := range m.Moved {
 		if mv.From != "" && mv.To != "" {
-			ifPut(out, mv.From, movedValue{To: mv.To})
+			ifPut(out, fromAddr(mv.FromAddr, mv.From), movedValue{To: mv.To})
 		}
 	}
 	return out
@@ -270,15 +276,21 @@ func ifModuleCalls(m *Module) map[string]moduleCallValue {
 	return out
 }
 
-// ifRequiredVersion is the first required_version of the module's terraform
-// blocks, or nil.
+// ifRequiredVersion joins every required_version of the module's terraform
+// blocks in file order with ", ", since Terraform enforces each one. It is
+// nil when there is none.
 func ifRequiredVersion(m *Module) *string {
+	var parts []string
 	for _, t := range m.Terraform {
-		if t.RequiredVersion != nil {
-			return ifConstraint(t.RequiredVersion)
+		if c := ifConstraint(t.RequiredVersion); c != nil {
+			parts = append(parts, *c)
 		}
 	}
-	return nil
+	if len(parts) == 0 {
+		return nil
+	}
+	s := strings.Join(parts, ", ")
+	return &s
 }
 
 // ifConstraint returns a version constraint: the value of a plain quoted
@@ -308,4 +320,68 @@ func exprString(e *Expr) string {
 		return ""
 	}
 	return e.Text
+}
+
+// normExpr returns the tokens of an expression joined by one space, with
+// whitespace, newlines and comments left out, or the text itself when it
+// does not lex.
+func normExpr(s string) string {
+	tokens, diags := hclsyntax.LexExpression([]byte(s), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return s
+	}
+	parts := make([]string, 0, len(tokens))
+	for _, tk := range tokens {
+		switch tk.Type {
+		case hclsyntax.TokenComment, hclsyntax.TokenNewline, hclsyntax.TokenEOF:
+		default:
+			parts = append(parts, string(tk.Bytes))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func normPtr(p *string) *string {
+	if p == nil {
+		return nil
+	}
+	s := normExpr(*p)
+	return &s
+}
+
+// norm returns the value with every expression in token form, to compare.
+func (v variableValue) norm() variableValue {
+	v.Type, v.Default, v.Description = normPtr(v.Type), normPtr(v.Default), normPtr(v.Description)
+	vs := make([]validationValue, len(v.Validation))
+	for i, vd := range v.Validation {
+		vs[i] = validationValue{Condition: normExpr(vd.Condition), ErrorMessage: normExpr(vd.ErrorMessage)}
+	}
+	v.Validation = vs
+	return v
+}
+
+func (v outputValue) norm() outputValue {
+	v.Value, v.Description = normPtr(v.Value), normPtr(v.Description)
+	return v
+}
+
+func (v providerValue) norm() providerValue {
+	as := make([]string, len(v.ConfigurationAliases))
+	for i, a := range v.ConfigurationAliases {
+		as[i] = normExpr(a)
+	}
+	v.ConfigurationAliases = as
+	return v
+}
+
+func (v resourceValue) norm() resourceValue {
+	v.Count, v.ForEach, v.Prov = normPtr(v.Count), normPtr(v.ForEach), normPtr(v.Prov)
+	return v
+}
+
+func (v movedValue) norm() movedValue { return movedValue{To: normExpr(v.To)} }
+
+func (v moduleCallValue) norm() moduleCallValue {
+	v.Count, v.ForEach = normPtr(v.Count), normPtr(v.ForEach)
+	return v
 }

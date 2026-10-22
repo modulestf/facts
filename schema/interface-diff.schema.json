@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/modulestf/facts/schema/interface-diff.schema.json",
   "title": "Interface diff",
-  "description": "Per in-scope area, the interface elements that differ between the merge base and the head. Values are Terraform source text, never evaluated. An element with no difference is not listed.",
+  "description": "Per in-scope area, the interface elements that differ between the merge base and the head. Values are Terraform source text, never evaluated; they are compared by their tokens, so whitespace and comments alone are no difference. An element with no difference is not listed, and an area with none is not listed. Areas whose revisions do not both parse in full are left out; see the manifest's not_evaluated entries, so a missing area does not mean no change.",
   "type": "object",
   "additionalProperties": false,
   "required": [
