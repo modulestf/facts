@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -126,14 +124,4 @@ func TestLedgerErrors(t *testing.T) {
 			}
 		})
 	}
-}
-
-func fileSHA256(t *testing.T, p string) string {
-	t.Helper()
-	data, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := sha256.Sum256(data)
-	return hex.EncodeToString(s[:])
 }

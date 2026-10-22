@@ -28,8 +28,7 @@ const usage = `usage:
   mtf-facts schema-diff --from <file> --to <file> --types-from <dir>
                                   compare two provider schema files for the
                                   types a module tree uses
-  mtf-facts bundle | merge
-                                  not implemented yet; exit 2
+  mtf-facts merge                 not implemented yet; exit 2
 `
 
 func main() {

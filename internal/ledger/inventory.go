@@ -97,14 +97,14 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	if !slices.ContainsFunc(tree.DirEntries("."), func(e *facts.Entry) bool { return strings.HasSuffix(e.Path, ".tf") }) {
 		return nil, errors.New("module tree: no .tf file in the module directory")
 	}
-	if len(m.Resources) == 0 {
-		return nil, errors.New("module tree: no resource or data block, so there is nothing to inventory")
-	}
 	for _, b := range m.Other {
 		if b.Type == "ephemeral" {
 			// shortcut: ephemeral resource schemas are not read; upgrade when the schema package reads them.
 			return nil, fmt.Errorf("%s:%d: ephemeral resources are not inventoried", b.File, b.Line)
 		}
+	}
+	if len(m.Resources) == 0 {
+		return nil, errors.New("module tree: no resource or data block, so there is nothing to inventory")
 	}
 	inv := &Inventory{Types: []Type{}, SchemaFiles: set.SchemaFiles, variables: map[string]bool{}, outputs: map[string]bool{}}
 	for _, v := range m.Variables {
