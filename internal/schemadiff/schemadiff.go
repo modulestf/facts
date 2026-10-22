@@ -138,7 +138,7 @@ func Run(o Options) (*Report, error) {
 	}
 	types, err := ModuleTypes(o.TypesFrom, o.Limits)
 	if err != nil {
-		return nil, fmt.Errorf("--types-from: %w", err)
+		return nil, fmt.Errorf("--types-from: %w", baseNamed(err, o.TypesFrom))
 	}
 	r := &Report{
 		SchemaVersion: SchemaVersion,
@@ -166,13 +166,18 @@ func Run(o Options) (*Report, error) {
 func load(flag, p string) (*schema.Set, error) {
 	s, err := schema.Load("", []string{p})
 	if err != nil {
-		msg := err.Error()
-		if p != "" {
-			msg = strings.ReplaceAll(msg, p, filepath.Base(p))
-		}
-		return nil, fmt.Errorf("%s: %w", flag, errors.New(msg))
+		return nil, fmt.Errorf("%s: %w", flag, baseNamed(err, p))
 	}
 	return s, nil
+}
+
+// baseNamed returns err with every occurrence of the path p replaced by its
+// base name, so no host path is printed.
+func baseNamed(err error, p string) error {
+	if p == "" {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(err.Error(), p, filepath.Base(p)))
 }
 
 // block returns the type's schema block, nil when the file has the provider

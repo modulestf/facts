@@ -151,7 +151,7 @@ func TestRunErrors(t *testing.T) {
 	}{
 		{"missing from", filepath.Join(dir, "none.json"), to, module, "--from: schema file: open none.json: "},
 		{"malformed to", from, filepath.Join(module, "main.tf"), module, "--to: schema file main.tf: malformed"},
-		{"missing tree", from, to, filepath.Join(dir, "none"), "--types-from:"},
+		{"missing tree", from, to, filepath.Join(dir, "none"), "--types-from: "},
 		{"override file", from, to, override, "override file"},
 		{"ephemeral block", from, to, ephemeral, "main.tf:1: ephemeral resources are not compared"},
 		{"provider missing from from", noExample, to, module,
@@ -166,7 +166,7 @@ func TestRunErrors(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error %v, want %q", err, tc.want)
 			}
-			if tc.name != "missing tree" && strings.Contains(err.Error(), dir) {
+			if strings.Contains(err.Error(), dir) {
 				t.Errorf("error names a host path: %v", err)
 			}
 		})
@@ -184,6 +184,17 @@ func TestDiffEdges(t *testing.T) {
 	nested := func(minItems uint64) *tfjson.SchemaBlock {
 		return &tfjson.SchemaBlock{NestedBlocks: map[string]*tfjson.SchemaBlockType{
 			"b": {NestingMode: tfjson.SchemaNestingModeList, MinItems: minItems, Block: attrs(opt)},
+		}}
+	}
+	nestedAttr := func(mode tfjson.SchemaNestingMode) *tfjson.SchemaBlock {
+		return attrs(&tfjson.SchemaAttribute{Optional: true, AttributeNestedType: &tfjson.SchemaNestedAttributeType{
+			NestingMode: mode,
+			Attributes:  map[string]*tfjson.SchemaAttribute{"c": opt},
+		}})
+	}
+	maxItems := func(n uint64) *tfjson.SchemaBlock {
+		return &tfjson.SchemaBlock{NestedBlocks: map[string]*tfjson.SchemaBlockType{
+			"b": {NestingMode: tfjson.SchemaNestingModeList, MaxItems: n, Block: attrs(opt)},
 		}}
 	}
 	for _, tc := range []struct {
@@ -208,6 +219,9 @@ func TestDiffEdges(t *testing.T) {
 		{"added block contents not listed", &tfjson.SchemaBlock{}, nested(0), []string{"b:block:added"}},
 		{"already deprecated is no row", &tfjson.SchemaBlock{Deprecated: true}, &tfjson.SchemaBlock{Deprecated: true}, nil},
 		{"type in neither file", nil, nil, []string{":type:absent"}},
+		{"nested list to set, same attributes", nestedAttr(tfjson.SchemaNestingModeList), nestedAttr(tfjson.SchemaNestingModeSet),
+			[]string{"a:argument:type_changed"}},
+		{"block max_items 1 to 0, same nesting mode", maxItems(1), maxItems(0), []string{"b:block:nesting_changed"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
