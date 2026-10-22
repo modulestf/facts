@@ -32,7 +32,10 @@ func TestCompareTypes(t *testing.T) {
 		{name: "base any", base: "any", head: "string", narrowed: true},
 		{name: "base untyped", base: "", head: "string", narrowed: true},
 		{name: "primitive changed", base: "number", head: "string", narrowed: true},
-		{name: "element widened to any", base: "map(string)", head: "map(any)", narrowed: false},
+		{name: "any inside a map", base: "map(string)", head: "map(any)", narrowed: true},
+		{name: "any inside a list of objects", base: "list(object({a = string}))", head: "list(object({a = any}))", narrowed: true},
+		{name: "any as an object attribute", base: "object({a = string})", head: "object({a = any})", narrowed: false},
+		{name: "any as a tuple element", base: "tuple([string, number])", head: "tuple([any, number])", narrowed: false},
 		{name: "collection kind changed", base: "list(string)", head: "set(string)", narrowed: true},
 		{name: "tuple shortened", base: "tuple([string, number])", head: "tuple([string])", narrowed: true},
 		{name: "optional attribute added", base: "object({a = string})", head: "object({a = string, b = optional(number)})", narrowed: false},
@@ -127,10 +130,14 @@ func TestCompatEvidenceCapSubject(t *testing.T) {
 func TestCompatDuplicateNames(t *testing.T) {
 	t.Parallel()
 	r := runCompat(t,
-		map[string]string{"variables.tf": "variable \"v\" {}\nvariable \"v\" {}\n"},
-		map[string]string{"variables.tf": "\n"})
-	if len(r.Candidates) != 1 || r.Candidates[0].Subject != ".:var.v" {
-		t.Errorf("candidates %+v", r.Candidates)
+		map[string]string{"main.tf": "variable \"v\" {}\nvariable \"v\" {}\noutput \"o\" {\n  value = 1\n}\noutput \"o\" {\n  value = 2\n}\n"},
+		map[string]string{"main.tf": "\n"})
+	var got []string
+	for _, c := range r.Candidates {
+		got = append(got, c.Subject)
+	}
+	if !slices.Equal(got, []string{".:var.v", ".:output.o"}) {
+		t.Errorf("subjects %q", got)
 	}
 }
 

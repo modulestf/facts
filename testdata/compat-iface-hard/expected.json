@@ -25,6 +25,27 @@
   "candidates": [
     {
       "candidate_id": "C-001",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.profile",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 71,
+            "text": "  type = object({"
+          }
+        ],
+        "base": "object({\n    tier = optional(string, \"basic\")\n  })",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
       "rule_id": "compat.variable-removed",
       "file": "variables.tf",
       "line": null,
@@ -45,7 +66,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-002",
+      "candidate_id": "C-003",
       "rule_id": "compat.type-narrowed",
       "file": "variables.tf",
       "line": 6,
@@ -72,7 +93,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-003",
+      "candidate_id": "C-004",
       "rule_id": "compat.type-narrowed",
       "file": "variables.tf",
       "line": 14,
@@ -105,7 +126,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-004",
+      "candidate_id": "C-005",
       "rule_id": "compat.default-changed",
       "file": "variables.tf",
       "line": 15,
@@ -132,7 +153,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-005",
+      "candidate_id": "C-006",
       "rule_id": "compat.default-changed",
       "file": "variables.tf",
       "line": 27,
@@ -159,13 +180,25 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-006",
+      "candidate_id": "C-007",
       "rule_id": "compat.default-changed",
       "file": "variables.tf",
-      "line": 35,
+      "line": 36,
       "subject": ".:var.tuning",
       "evidence": {
         "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 33,
+            "text": "  default = {}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 36,
+            "text": "  default     = { level = 1 }"
+          },
           {
             "revision": "merge_base",
             "file": "variables.tf",
@@ -179,14 +212,14 @@
             "text": "  type        = any"
           }
         ],
-        "base": "object({\n    level = optional(number, 3)\n  })",
-        "head": "any",
+        "base": "{}",
+        "head": "{ level = 1 }",
         "schema_facts": []
       },
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-007",
+      "candidate_id": "C-008",
       "rule_id": "compat.type-narrowed",
       "file": "variables.tf",
       "line": 41,
@@ -213,7 +246,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-008",
+      "candidate_id": "C-009",
       "rule_id": "compat.type-narrowed",
       "file": "variables.tf",
       "line": 50,
@@ -240,7 +273,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-009",
+      "candidate_id": "C-010",
       "rule_id": "compat.variable-now-required",
       "file": "variables.tf",
       "line": 54,
@@ -267,7 +300,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-010",
+      "candidate_id": "C-011",
       "rule_id": "compat.variable-now-required",
       "file": "variables.tf",
       "line": 59,
@@ -283,6 +316,54 @@
         ],
         "base": null,
         "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-012",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 72,
+      "subject": ".:var.labels",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 65,
+            "text": "  type        = map(string)"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 72,
+            "text": "  type        = map(any)"
+          }
+        ],
+        "base": "map(string)",
+        "head": "map(any)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-013",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 86,
+      "subject": ".:var.window",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 87,
+            "text": "    condition     = var.window \u003c= local.max_window"
+          }
+        ],
+        "base": null,
+        "head": "var.window \u003c= local.max_window",
         "schema_facts": []
       },
       "evidence_complete": true

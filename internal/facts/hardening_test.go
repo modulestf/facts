@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -131,14 +132,15 @@ func TestManyVariablesAreLinear(t *testing.T) {
 	if ratio := float64(large) / float64(small); ratio > 8 {
 		t.Errorf("40 files took %v, 10 files %v: ratio %.1f, want at most 8", large, small, ratio)
 	}
-	// Every candidate is about the one new variable, whichever rules report it.
-	if len(r.Candidates) == 0 || len(r.Findings) != 1 {
-		t.Errorf("candidates %d findings %d %+v", len(r.Candidates), len(r.Findings), r.Manifest)
-	}
+	// The one new variable, untyped and with no default, is the only candidate
+	// subject: once for each of the two rules that report it.
+	var got []string
 	for _, c := range r.Candidates {
-		if c.Subject != ".:var.new" {
-			t.Errorf("candidate %+v", c)
-		}
+		got = append(got, c.RuleID+" "+c.Subject)
+	}
+	slices.Sort(got)
+	if want := []string{"compat.variable-now-required .:var.new", "structure.variable-untyped .:var.new"}; !slices.Equal(got, want) || len(r.Findings) != 1 {
+		t.Errorf("candidates %q findings %d %+v", got, len(r.Findings), r.Manifest)
 	}
 }
 

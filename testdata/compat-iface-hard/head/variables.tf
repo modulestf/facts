@@ -33,7 +33,7 @@ variable "rules" {
 variable "tuning" {
   description = "Tuning of the widget"
   type        = any
-  default     = {}
+  default     = { level = 1 }
 }
 
 variable "limits" {
@@ -65,4 +65,26 @@ variable "kept" {
   description = "A variable the change moves to another file unchanged"
   type        = string
   default     = "same"
+}
+
+variable "labels" {
+  description = "Labels of the widget"
+  type        = map(any)
+  default     = {}
+}
+
+variable "profile" {
+  description = "Profile of the widget"
+  default     = {}
+}
+
+variable "window" {
+  description = "Window of the widget, in hours"
+  type        = number
+  default     = 4
+
+  validation {
+    condition     = var.window <= local.max_window
+    error_message = "Too wide."
+  }
 }

@@ -12,7 +12,7 @@ variable "zones" {
 
 variable "labels" {
   description = "Labels of the widget"
-  type        = map(any) # any value is accepted
+  type        = map(string) # any string value
   default     = {}
 }
 

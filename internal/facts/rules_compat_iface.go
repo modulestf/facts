@@ -24,9 +24,6 @@ var compatIfaceRules = []Rule{
 
 var compatKinds = []string{AreaRoot, AreaSubmodule}
 
-// maxEvidenceLines caps the source lines of one compat candidate.
-const maxEvidenceLines = 8
-
 const (
 	revHead      = "head"
 	revMergeBase = "merge_base"
@@ -110,11 +107,24 @@ func checkDefaultChanged(a *Area) Result {
 	const id = "compat.default-changed"
 	base := variablesByName(a.Base)
 	var res Result
-	seen := map[string]bool{}
+	seen := map[string]int{}
+	// add keeps one candidate per subject, the dedup key. A second reason
+	// for the same subject adds its source lines to the first.
 	add := func(c Candidate) {
-		if !seen[c.Subject] {
-			seen[c.Subject] = true
+		i, ok := seen[c.Subject]
+		if !ok {
+			seen[c.Subject] = len(res.Candidates)
 			res.Candidates = append(res.Candidates, c)
+			return
+		}
+		k := &res.Candidates[i]
+		k.EvidenceComplete = k.EvidenceComplete && c.EvidenceComplete
+		for _, sl := range c.Evidence.SourceLines {
+			if len(k.Evidence.SourceLines) == maxEvidenceLines {
+				k.EvidenceComplete = false
+				break
+			}
+			k.Evidence.SourceLines = append(k.Evidence.SourceLines, sl)
 		}
 	}
 	for _, v := range firstVariables(a.Head) {
@@ -133,13 +143,16 @@ func checkDefaultChanged(a *Area) Result {
 		for _, d := range compareTypes(b, v).defaults {
 			e := newCompatEvidence(a)
 			e.line(revMergeBase, b.File, d.baseLine)
-			e.line(revHead, v.File, d.headLine)
-			e.ev.Base = e.ptr(d.base)
+			// With no head type the default is gone with the type line, so
+			// the candidate has no head line and is judged by its file.
+			var line *int
 			if d.head != nil {
+				e.line(revHead, v.File, d.headLine)
 				e.ev.Head = e.ptr(*d.head)
+				line = &d.headLine
 			}
-			line := d.headLine
-			add(e.candidate(id, v.File, &line, joinPath("var."+v.Name, d.path)))
+			e.ev.Base = e.ptr(d.base)
+			add(e.candidate(id, v.File, line, joinPath("var."+v.Name, d.path)))
 		}
 	}
 	head := map[string]bool{}
@@ -206,7 +219,7 @@ func checkTypeNarrowed(a *Area) Result {
 }
 
 // validationPair is a head validation whose condition the base does not
-// have, with the base validation at the same position when its condition is
+// have, or that reads more than the variable itself, with the base validation at the same position when its condition is
 // gone from the head, as the one it most likely tightens.
 type validationPair struct{ base, head *Validation }
 
@@ -224,8 +237,10 @@ func newValidations(b, v *Variable) []validationPair {
 	var out []validationPair
 	for i := range v.Validations {
 		h := &v.Validations[i]
-		// A validation with no condition is one Terraform refuses.
-		if h.Condition == nil || baseConds[normExpr(h.Condition.Text)] {
+		// A validation with no condition is one Terraform refuses. One that
+		// reads anything but the variable itself, as Terraform 1.9 allows,
+		// can reject more with the same text, so text alone cannot clear it.
+		if h.Condition == nil || (baseConds[normExpr(h.Condition.Text)] && readsOnlySelf(h.Condition.Text, v.Name)) {
 			continue
 		}
 		p := validationPair{head: h}
@@ -237,6 +252,24 @@ func newValidations(b, v *Variable) []validationPair {
 		out = append(out, p)
 	}
 	return out
+}
+
+// readsOnlySelf reports whether an expression reads no value but var.<name>.
+// Text that does not parse reads something unknown.
+func readsOnlySelf(text, name string) bool {
+	x, diags := hclsyntax.ParseExpression([]byte(text), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return false
+	}
+	for _, tr := range x.Variables() {
+		if tr.RootName() != "var" || len(tr) < 2 {
+			return false
+		}
+		if at, ok := tr[1].(hcl.TraverseAttr); !ok || at.Name != name {
+			return false
+		}
+	}
+	return true
 }
 
 // typeDiff is what compareTypes found: whether the head type may reject a
@@ -270,15 +303,13 @@ func compareTypes(b, v *Variable) typeDiff {
 	if !ok1 || !ok2 {
 		return typeDiff{narrowed: true}
 	}
-	w.headFallback = v.Line
-	w.cmp("", bx, hx)
+	w.cmp("", bx, hx, false)
 	return w.diff
 }
 
 type typeWalk struct {
 	bSrc, hSrc   string
 	bLine, hLine int // absolute line of the first line of each type
-	headFallback int // the line to name when the head has no type
 	diff         typeDiff
 }
 
@@ -306,11 +337,14 @@ func sliceText(src string, x hclsyntax.Expression) string {
 	return src[r.Start.Byte:r.End.Byte]
 }
 
-func (w *typeWalk) cmp(path string, b, h hclsyntax.Expression) {
+// cmp compares the types at path. inColl is set below a list, set or map,
+// whose elements must share one type, so `any` there rejects mixed elements
+// the base accepted and is not a widening.
+func (w *typeWalk) cmp(path string, b, h hclsyntax.Expression, inColl bool) {
 	if normExpr(sliceText(w.bSrc, b)) == normExpr(sliceText(w.hSrc, h)) {
 		return
 	}
-	if isAny(h) {
+	if isAny(h) && !inColl {
 		w.dropped(path, b, h)
 		return
 	}
@@ -319,14 +353,14 @@ func (w *typeWalk) cmp(path string, b, h hclsyntax.Expression) {
 	if ok1 && ok2 && bc.Name == hc.Name && len(bc.Args) == 1 && len(hc.Args) == 1 {
 		switch bc.Name {
 		case "list", "set", "map":
-			w.cmp(path, bc.Args[0], hc.Args[0])
+			w.cmp(path, bc.Args[0], hc.Args[0], true)
 			return
 		case "tuple":
 			bt, ok1 := bc.Args[0].(*hclsyntax.TupleConsExpr)
 			ht, ok2 := hc.Args[0].(*hclsyntax.TupleConsExpr)
 			if ok1 && ok2 && len(bt.Exprs) == len(ht.Exprs) {
 				for i := range bt.Exprs {
-					w.cmp(path, bt.Exprs[i], ht.Exprs[i])
+					w.cmp(path, bt.Exprs[i], ht.Exprs[i], inColl)
 				}
 				return
 			}
@@ -334,7 +368,7 @@ func (w *typeWalk) cmp(path string, b, h hclsyntax.Expression) {
 			bo, ok1 := bc.Args[0].(*hclsyntax.ObjectConsExpr)
 			ho, ok2 := hc.Args[0].(*hclsyntax.ObjectConsExpr)
 			if ok1 && ok2 {
-				w.object(path, bo, ho)
+				w.object(path, bo, ho, inColl)
 				return
 			}
 		}
@@ -344,7 +378,7 @@ func (w *typeWalk) cmp(path string, b, h hclsyntax.Expression) {
 }
 
 // object compares the attributes of two object types.
-func (w *typeWalk) object(path string, b, h *hclsyntax.ObjectConsExpr) {
+func (w *typeWalk) object(path string, b, h *hclsyntax.ObjectConsExpr, inColl bool) {
 	base := map[string]hclsyntax.ObjectConsItem{}
 	for _, it := range b.Items {
 		if k := keyName(it.KeyExpr); k != "" {
@@ -376,7 +410,7 @@ func (w *typeWalk) object(path string, b, h *hclsyntax.ObjectConsExpr) {
 		if bOpt && !hOpt {
 			w.diff.narrowed = true
 		}
-		w.cmp(p, bInner, hInner)
+		w.cmp(p, bInner, hInner, inColl)
 		if bOpt && hOpt && defaultTokens(w.bSrc, bDef) != defaultTokens(w.hSrc, hDef) {
 			ht := sliceText(w.hSrc, it.ValueExpr)
 			w.diff.defaults = append(w.diff.defaults, typeDefault{path: p,
@@ -398,7 +432,7 @@ func (w *typeWalk) dropped(path string, b, h hclsyntax.Expression) {
 	if b == nil || !hasOptionalDefault(b) {
 		return
 	}
-	d := typeDefault{path: path, base: sliceText(w.bSrc, b), baseLine: w.bLine + b.Range().Start.Line - 1, headLine: w.headFallback}
+	d := typeDefault{path: path, base: sliceText(w.bSrc, b), baseLine: w.bLine + b.Range().Start.Line - 1}
 	if h != nil {
 		ht := sliceText(w.hSrc, h)
 		d.head, d.headLine = &ht, w.hLine+h.Range().Start.Line-1
@@ -515,7 +549,7 @@ func (e *compatEvidence) line(rev, file string, n int) {
 		t = e.a.baseTree
 	}
 	f := areaFile(e.a.Path, file)
-	e.ev.SourceLines = append(e.ev.SourceLines, SourceLine{Revision: rev, File: f, Line: n, Text: e.cap(treeLine(t, f, n))})
+	e.ev.SourceLines = append(e.ev.SourceLines, SourceLine{Revision: rev, File: f, Line: n, Text: e.cap(ifaceTreeLine(t, f, n))})
 }
 
 func (e *compatEvidence) candidate(rule, file string, line *int, address string) Candidate {
@@ -524,9 +558,9 @@ func (e *compatEvidence) candidate(rule, file string, line *int, address string)
 		Evidence: e.ev, EvidenceComplete: e.complete}
 }
 
-// treeLine returns line n of a file of a tree, without its line ending, or
+// ifaceTreeLine returns line n of a file of a tree, without its line ending, or
 // "" when the tree has no such file or line.
-func treeLine(t *Tree, file string, n int) string {
+func ifaceTreeLine(t *Tree, file string, n int) string {
 	if t == nil {
 		return ""
 	}

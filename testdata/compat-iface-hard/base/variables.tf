@@ -59,3 +59,28 @@ variable "old_name" {
   type        = string
   default     = "demo"
 }
+
+variable "labels" {
+  description = "Labels of the widget"
+  type        = map(string)
+  default     = {}
+}
+
+variable "profile" {
+  description = "Profile of the widget"
+  type = object({
+    tier = optional(string, "basic")
+  })
+  default = {}
+}
+
+variable "window" {
+  description = "Window of the widget"
+  type        = number
+  default     = 4
+
+  validation {
+    condition     = var.window <= local.max_window
+    error_message = "Too wide."
+  }
+}

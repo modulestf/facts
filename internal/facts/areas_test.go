@@ -2,6 +2,7 @@ package facts
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -136,12 +137,12 @@ func TestSubmoduleOnlyChangeHasNoRootEntries(t *testing.T) {
 			t.Errorf("entry outside the changed submodule: %+v", e)
 		}
 	}
-	if len(r.Candidates) == 0 {
-		t.Error("no candidate")
-	}
+	var got []string
 	for _, c := range r.Candidates {
-		if c.Subject != "modules/a:var.y" {
-			t.Errorf("candidate %+v", c)
-		}
+		got = append(got, c.RuleID+" "+c.Subject)
+	}
+	slices.Sort(got)
+	if want := []string{"compat.variable-now-required modules/a:var.y", "structure.variable-untyped modules/a:var.y"}; !slices.Equal(got, want) {
+		t.Errorf("candidates %q", got)
 	}
 }
