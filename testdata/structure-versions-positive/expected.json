@@ -1,0 +1,236 @@
+{
+  "manifest": [
+    {
+      "rule_id": "structure.feature-above-version-floor",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.feature-above-version-floor",
+      "area": "examples/basic",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.passthrough-default-drift",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.passthrough-field-drift",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.version-floor-understated",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.version-floor-understated",
+      "file": "examples/basic/versions.tf",
+      "line": 2,
+      "subject": "examples/basic:required_version",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/basic/versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.0\""
+          },
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.3\""
+          },
+          {
+            "revision": "head",
+            "file": "examples/basic/main.tf",
+            "line": 2,
+            "text": "  source = \"../../\""
+          }
+        ],
+        "base": "\u003e= 1.3",
+        "head": "\u003e= 1.0",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "structure.feature-above-version-floor",
+      "file": "main.tf",
+      "line": 3,
+      "subject": ".:local.has_dash",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 3,
+            "text": "  has_dash = strcontains(var.name, \"-\")"
+          },
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.3\""
+          }
+        ],
+        "base": null,
+        "head": "strcontains(var.name, \"-\")",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "structure.version-floor-understated",
+      "file": "main.tf",
+      "line": 7,
+      "subject": ".:required_version",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.3\""
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.5.7\""
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 7,
+            "text": "  source = \"./modules/child\""
+          }
+        ],
+        "base": "\u003e= 1.3",
+        "head": "\u003e= 1.3",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "structure.passthrough-default-drift",
+      "file": "variables.tf",
+      "line": 7,
+      "subject": ".:var.child_size",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 7,
+            "text": "variable \"child_size\" {"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 10,
+            "text": "  default     = 10"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 9,
+            "text": "  size     = var.child_size"
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/variables.tf",
+            "line": 4,
+            "text": "  default     = 20"
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/variables.tf",
+            "line": 1,
+            "text": "variable \"size\" {"
+          }
+        ],
+        "base": null,
+        "head": "10",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "structure.passthrough-field-drift",
+      "file": "variables.tf",
+      "line": 15,
+      "subject": ".:var.child_settings",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 15,
+            "text": "  type = object({"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 10,
+            "text": "  settings = var.child_settings"
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/variables.tf",
+            "line": 11,
+            "text": "    retries = optional(number, 3)"
+          }
+        ],
+        "base": null,
+        "head": "object({\n    mode = optional(string, \"fast\")\n  })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "structure.passthrough-default-drift",
+      "file": "variables.tf",
+      "line": 16,
+      "subject": ".:var.child_settings.mode",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 16,
+            "text": "    mode = optional(string, \"fast\")"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 10,
+            "text": "  settings = var.child_settings"
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/variables.tf",
+            "line": 10,
+            "text": "    mode    = optional(string, \"slow\")"
+          }
+        ],
+        "base": null,
+        "head": "\"fast\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

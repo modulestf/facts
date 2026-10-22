@@ -1,0 +1,31 @@
+{
+  "manifest": [
+    {
+      "rule_id": "structure.feature-above-version-floor",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.feature-above-version-floor",
+      "area": "examples/basic",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "structure.passthrough-default-drift",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.passthrough-field-drift",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.version-floor-understated",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
