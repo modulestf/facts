@@ -34,7 +34,9 @@ func TestRules(t *testing.T) {
 	if code := run([]string{"rules"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	want := "examples.versions-missing\ttool\nstructure.missing-description\ttool\nstructure.variable-untyped\tcandidate\n"
+	want := "examples.versions-missing\ttool\nprofile.region-not-allowed\tcandidate\nprofile.template-drift\tcandidate\n" +
+		"scope.pre-commit-hook\tcandidate\nscope.profile-file\tcandidate\nscope.readme-banner\tcandidate\nscope.tooling\tcandidate\n" +
+		"structure.missing-description\ttool\nstructure.variable-untyped\tcandidate\n"
 	if out.String() != want {
 		t.Errorf("got %q", out.String())
 	}
@@ -50,7 +52,7 @@ func TestUsage(t *testing.T) {
 func TestLint(t *testing.T) {
 	head, base := "../../testdata/variable-untyped-base/head", "../../testdata/variable-untyped-base/base"
 	var out, errb bytes.Buffer
-	if code := run([]string{"lint", head, "--base", base}, &out, &errb); code != 0 {
+	if code := run([]string{"lint", head, "--base", base, "--profile-dir", "../../testdata/profile"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
 	if !strings.Contains(out.String(), `variables.tf:5: unconfirmed structure.variable-untyped: .:var.added`) ||
@@ -218,15 +220,16 @@ func TestStubSubcommandsExit2(t *testing.T) {
 	}
 }
 
-// TestLintHookFlagsChangeNoOutput passes a schema handoff and the test
-// profile, which no implemented rule reads, and checks lint writes the same
-// human output and exit code as without them.
+// TestLintHookFlagsChangeNoOutput passes a schema handoff, which no
+// implemented rule reads, and checks lint writes the same human output and
+// exit code as without it. Both runs pass the test profile, which rules read.
 func TestLintHookFlagsChangeNoOutput(t *testing.T) {
-	hooks := []string{"--schema-handoff", "../../schema/examples/schema-handoff.valid.json", "--profile-dir", "../../testdata/profile"}
+	hooks := []string{"--schema-handoff", "../../schema/examples/schema-handoff.valid.json"}
+	profile := []string{"--profile-dir", "../../testdata/profile"}
 	for _, args := range [][]string{
-		{"lint", "../../testdata/variable-untyped-base/head", "--base", "../../testdata/variable-untyped-base/base"},
-		{"lint", "../../testdata/versions-missing-positive/head"},
-		{"lint", "../../testdata/unparsable-areas/head"},
+		append([]string{"lint", "../../testdata/variable-untyped-base/head", "--base", "../../testdata/variable-untyped-base/base"}, profile...),
+		append([]string{"lint", "../../testdata/versions-missing-positive/head"}, profile...),
+		append([]string{"lint", "../../testdata/unparsable-areas/head"}, profile...),
 	} {
 		var out, errb bytes.Buffer
 		code := run(args, &out, &errb)

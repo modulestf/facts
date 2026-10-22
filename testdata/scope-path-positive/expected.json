@@ -1,0 +1,339 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.region-not-allowed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "profile.region-not-allowed",
+      "area": "examples/complete",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "profile.template-drift",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "profile.template-drift",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.pre-commit-hook",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.pre-commit-hook",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.profile-file",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.profile-file",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.readme-banner",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.readme-banner",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.tooling",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.tooling",
+      "area": "examples/complete",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "profile.template-drift",
+      "file": ".editorconfig",
+      "line": null,
+      "subject": ".editorconfig",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": ".editorconfig",
+            "line": 7,
+            "text": "trim_trailing_whitespace = true"
+          }
+        ],
+        "base": "trim_trailing_whitespace = true",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "profile.template-drift",
+      "file": ".github/workflows/pre-commit.yml",
+      "line": 69,
+      "subject": ".github/workflows/pre-commit.yml",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": ".github/workflows/pre-commit.yml",
+            "line": 69,
+            "text": "      - name: Scan"
+          },
+          {
+            "revision": "head",
+            "file": ".github/workflows/pre-commit.yml",
+            "line": 70,
+            "text": "        uses: example-org/scanner-action@v1"
+          },
+          {
+            "revision": "head",
+            "file": ".github/workflows/pre-commit.yml",
+            "line": 71,
+            "text": ""
+          }
+        ],
+        "base": null,
+        "head": "      - name: Scan",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "scope.profile-file",
+      "file": ".github/workflows/pre-commit.yml",
+      "line": 69,
+      "subject": ".github/workflows/pre-commit.yml",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": ".github/workflows/pre-commit.yml",
+            "line": 69,
+            "text": "      - name: Scan"
+          },
+          {
+            "revision": "head",
+            "file": ".github/workflows/pre-commit.yml",
+            "line": 70,
+            "text": "        uses: example-org/scanner-action@v1"
+          }
+        ],
+        "base": null,
+        "head": "step preCommitMinVersions name Scan",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "scope.profile-file",
+      "file": ".github/workflows/stale-actions.yaml",
+      "line": null,
+      "subject": ".github/workflows/stale-actions.yaml",
+      "evidence": {
+        "source_lines": [],
+        "base": ".github/workflows/stale-actions.yaml",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "scope.pre-commit-hook",
+      "file": ".pre-commit-config.yaml",
+      "line": 26,
+      "subject": ".pre-commit-config.yaml",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": ".pre-commit-config.yaml",
+            "line": 29,
+            "text": "      - id: check-merge-conflict"
+          },
+          {
+            "revision": "head",
+            "file": ".pre-commit-config.yaml",
+            "line": 30,
+            "text": "      - id: end-of-file-fixer"
+          },
+          {
+            "revision": "head",
+            "file": ".pre-commit-config.yaml",
+            "line": 31,
+            "text": "      - id: trailing-whitespace"
+          },
+          {
+            "revision": "merge_base",
+            "file": ".pre-commit-config.yaml",
+            "line": 29,
+            "text": "      - id: check-merge-conflict"
+          },
+          {
+            "revision": "merge_base",
+            "file": ".pre-commit-config.yaml",
+            "line": 30,
+            "text": "      - id: end-of-file-fixer"
+          },
+          {
+            "revision": "merge_base",
+            "file": ".pre-commit-config.yaml",
+            "line": 31,
+            "text": "      - id: trailing-whitespace"
+          }
+        ],
+        "base": "check-merge-conflict",
+        "head": "check-merge-conflict",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "profile.template-drift",
+      "file": ".releaserc.json",
+      "line": 8,
+      "subject": ".releaserc.json",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": ".releaserc.json",
+            "line": 8,
+            "text": "    \"@semantic-release/npm\","
+          }
+        ],
+        "base": null,
+        "head": "    \"@semantic-release/npm\",",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "scope.profile-file",
+      "file": ".releaserc.json",
+      "line": 8,
+      "subject": ".releaserc.json",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": ".releaserc.json",
+            "line": 8,
+            "text": "    \"@semantic-release/npm\","
+          }
+        ],
+        "base": null,
+        "head": "plugin @semantic-release/npm",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "scope.readme-banner",
+      "file": "README.md",
+      "line": null,
+      "subject": "README.md",
+      "evidence": {
+        "source_lines": [],
+        "base": null,
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "scope.tooling",
+      "file": "examples/complete/.tfsec/config.yml",
+      "line": null,
+      "subject": "examples/complete/.tfsec/config.yml",
+      "evidence": {
+        "source_lines": [],
+        "base": null,
+        "head": "examples/complete/.tfsec/config.yml",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "profile.region-not-allowed",
+      "file": "examples/complete/main.tf",
+      "line": 2,
+      "subject": "examples/complete:provider.aws.region",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/complete/main.tf",
+            "line": 2,
+            "text": "  region = \"us-west-2\""
+          }
+        ],
+        "base": "\"eu-west-1\"",
+        "head": "\"us-west-2\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-011",
+      "rule_id": "profile.region-not-allowed",
+      "file": "examples/complete/main.tf",
+      "line": 6,
+      "subject": "examples/complete:local.backup_region",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/complete/main.tf",
+            "line": 6,
+            "text": "  backup_region = var.dr ? \"ap-southeast-1\" : \"eu-west-1\""
+          }
+        ],
+        "base": null,
+        "head": "\"ap-southeast-1\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-012",
+      "rule_id": "scope.tooling",
+      "file": "tests/.checkov.yaml",
+      "line": null,
+      "subject": "tests/.checkov.yaml",
+      "evidence": {
+        "source_lines": [],
+        "base": null,
+        "head": "tests/.checkov.yaml",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

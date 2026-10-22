@@ -1,0 +1,66 @@
+{
+  "manifest": [
+    {
+      "rule_id": "profile.region-not-allowed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "profile.region-not-allowed",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "profile.template-drift",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "profile.template-drift",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.pre-commit-hook",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.pre-commit-hook",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.profile-file",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.profile-file",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.readme-banner",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.readme-banner",
+      "area": "examples/complete",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.tooling",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.tooling",
+      "area": "examples/complete",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

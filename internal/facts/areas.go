@@ -45,6 +45,7 @@ type Area struct {
 	profileIssue string
 
 	headTree *Tree
+	baseTree *Tree // nil without a base tree
 }
 
 // headEntry returns the head entry of a file directly in the area, or nil.
@@ -136,7 +137,7 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	var out []*Area
 	for p, k := range all {
 		_, touched := inScope[p]
-		a := &Area{Path: p, Kind: k, Untouched: !touched, headTree: head, Head: &Module{Dir: p}}
+		a := &Area{Path: p, Kind: k, Untouched: !touched, headTree: head, baseTree: base, Head: &Module{Dir: p}}
 		var err error
 		a.HeadExists, a.Issue, a.issueCode = dirState(head, p)
 		if a.HeadExists && a.Issue == "" {
