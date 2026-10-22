@@ -118,16 +118,24 @@ func TestRulesMatchImplemented(t *testing.T) {
 }
 
 func TestLintExitNotEvaluated(t *testing.T) {
-	// A parse error and no findings: the config rules are not evaluated.
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("variable \"x\" {\n"), 0o644); err != nil {
-		t.Fatal(err)
+	// The same base, profile and module with a parse error and without: the
+	// valid head exits 0, so the parse error alone gives the exit code.
+	base, good, dir := t.TempDir(), t.TempDir(), t.TempDir()
+	for d, body := range map[string]string{base: "# a\n", good: "# b\n", dir: "variable \"x\" {\n"} {
+		if err := os.WriteFile(filepath.Join(d, "main.tf"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
+	flags := []string{"--base", base, "--profile-dir", "../../testdata/profile"}
 	var out, errb bytes.Buffer
-	if code := run([]string{"lint", dir}, &out, &errb); code != exitNotEvaluated {
+	if code := run(append([]string{"lint", good}, flags...), &out, &errb); code != 0 {
+		t.Fatalf("valid tree: exit %d: %s", code, out.String())
+	}
+	out.Reset()
+	if code := run(append([]string{"lint", dir}, flags...), &out, &errb); code != exitNotEvaluated {
 		t.Errorf("exit %d: %s", code, out.String())
 	}
-	if code := run([]string{"lint", "--timeout", "1ns", dir}, &out, &errb); code != exitError {
+	if code := run(append([]string{"lint", "--timeout", "1ns", dir}, flags...), &out, &errb); code != exitError {
 		t.Errorf("timeout exit %d", code)
 	}
 }

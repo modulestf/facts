@@ -37,20 +37,47 @@ func TestTofuOnlyLines(t *testing.T) {
 		src  string
 		want []int
 	}{
-		"encryption":          {"terraform {\n  encryption {\n  }\n}\n", []int{2}},
-		"provider for_each":   {"provider \"aws\" {\n  alias = \"x\"\n  for_each = toset([])\n}\n", []int{3}},
-		"one-line provider":   {"provider \"aws\" { for_each = toset([]) }\n", []int{1}},
-		"unterminated file":   {"terraform {\n  encryption {\n", []int{2}},
-		"resource for_each":   {"resource \"a\" \"b\" {\n  for_each = x\n}\n", nil},
-		"nested encryption":   {"resource \"a\" \"b\" {\n  encryption {\n  }\n}\n", nil},
-		"deeper in terraform": {"terraform {\n  backend \"s3\" {\n    encryption {\n    }\n  }\n}\n", nil},
-		"heredoc and comment": {"locals {\n  x = <<EOT\nprovider \"aws\" {\n  for_each = y\n}\nEOT\n}\n# terraform {\n#   encryption {\n", nil},
-		"object key":          {"provider \"aws\" {\n  default_tags {\n    tags = { for_each = \"x\" }\n  }\n}\n", nil},
-		"encryption argument": {"terraform {\n  encryption = {}\n}\n", nil},
+		"encryption":           {"terraform {\n  encryption {\n  }\n}\n", []int{2}},
+		"provider for_each":    {"provider \"aws\" {\n  alias = \"x\"\n  for_each = toset([])\n}\n", []int{3}},
+		"one-line provider":    {"provider \"aws\" { for_each = toset([]) }\n", []int{1}},
+		"unterminated file":    {"terraform {\n  encryption {\n", []int{2}},
+		"resource for_each":    {"resource \"a\" \"b\" {\n  for_each = x\n}\n", nil},
+		"nested encryption":    {"resource \"a\" \"b\" {\n  encryption {\n  }\n}\n", nil},
+		"deeper in terraform":  {"terraform {\n  backend \"s3\" {\n    encryption {\n    }\n  }\n}\n", nil},
+		"heredoc and comment":  {"locals {\n  x = <<EOT\nprovider \"aws\" {\n  for_each = y\n}\nEOT\n}\n# terraform {\n#   encryption {\n", nil},
+		"object key":           {"provider \"aws\" {\n  default_tags {\n    tags = { for_each = \"x\" }\n  }\n}\n", nil},
+		"encryption argument":  {"terraform {\n  encryption = {}\n}\n", nil},
+		"comment before file":  {"# top\nterraform {\n encryption {\n }\n}\n", []int{3}},
+		"comment in terraform": {"terraform {\n # c\n encryption {\n }\n}\n", []int{3}},
+		"hash after alias":     {"provider \"aws\" {\n  alias = \"x\" # c\n  for_each = toset([])\n}\n", []int{3}},
+		"slashes after alias":  {"provider \"aws\" {\n  alias = \"x\" // c\n  for_each = toset([])\n}\n", []int{3}},
+		"slashes before file":  {"// top\nterraform {\n // c\n encryption {\n }\n}\n", []int{4}},
+		"block comment inline": {"terraform { /* c */\n  encryption {\n  }\n}\n", []int{2}},
 	} {
-		if got := tofuOnlyLines([]byte(c.src)); !slices.Equal(got, c.want) {
-			t.Errorf("%s: %v, want %v", name, got, c.want)
+		got, ok := tofuOnlyLines([]byte(c.src))
+		if !ok || !slices.Equal(got, c.want) {
+			t.Errorf("%s: %v %v, want %v", name, got, ok, c.want)
 		}
+	}
+	if _, ok := tofuOnlyLines([]byte("locals {\n  x = \"open\n}\n")); ok {
+		t.Error("an unterminated string lexed without an error")
+	}
+}
+
+// TestNonstandardLexError checks a file in the change the lexer cannot read
+// leaves the rule undecided, and an untouched one does not.
+func TestNonstandardLexError(t *testing.T) {
+	const id = "profile.nonstandard-config-file"
+	bad := "locals {\n  x = \"open\n}\n"
+	if s := statusOf(runProfileTool(t, map[string]string{"main.tf": ""}, map[string]string{"main.tf": bad}).Manifest, id, "."); s != "not_evaluated: main.tf cannot be lexed, so its blocks are not read" {
+		t.Errorf("edited file: %s", s)
+	}
+	if s := statusOf(runProfileTool(t, map[string]string{"main.tf": bad, "a.tf": ""}, map[string]string{"main.tf": bad, "a.tf": "#\n"}).Manifest, id, "."); s != StatusClean {
+		t.Errorf("untouched file: %s", s)
+	}
+	r := runProfileTool(t, map[string]string{"main.tf": ""}, map[string]string{"main.tf": "", "a.tofu.json": "{}", "b.tofu": ""})
+	if got := findingSpots(r, id); !slices.Equal(got, []string{"a.tofu.json", "b.tofu"}) {
+		t.Errorf("tofu files: %q", got)
 	}
 }
 
@@ -102,6 +129,37 @@ func TestNewModule(t *testing.T) {
 	head["main.tf"] = "locals {\n  create = var.create && var.putin_khuylo\n}\n\nresource \"a\" \"b\" {\n  count = local.create ? 1 : 0\n}\n"
 	if s := statusOf(runProfileTool(t, map[string]string{}, head).Manifest, "profile.putin-khuylo-missing", "."); s != StatusClean {
 		t.Errorf("gated new root: %s", s)
+	}
+	// With no variables.tf the finding names the root, which the change adds.
+	delete(head, "variables.tf")
+	if got := findingSpots(runProfileTool(t, map[string]string{}, head), "profile.putin-khuylo-missing"); !slices.Equal(got, []string{"."}) {
+		t.Errorf("no variables.tf: %q", got)
+	}
+}
+
+// TestPutinGateLostInBaseInput checks a creation input named only by the
+// base: the change drops the gate from the create_<x> local, and the
+// untouched block that reads it is reported at that local.
+func TestPutinGateLostInBaseInput(t *testing.T) {
+	block := "\nresource \"a\" \"b\" {\n  count = local.create_bucket ? 1 : 0\n}\n"
+	base := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket && var.putin_khuylo\n}\n" + block}
+	head := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket\n}\n" + block}
+	if got := findingSpots(runProfileTool(t, base, head), "profile.putin-khuylo-missing"); !slices.Equal(got, []string{"main.tf:2"}) {
+		t.Errorf("findings %q", got)
+	}
+}
+
+// TestPutinGateThroughLocals checks a gate read through a local counts, and
+// only create and create_<x> variables are creation inputs.
+func TestPutinGateThroughLocals(t *testing.T) {
+	locals := "locals {\n  gate          = var.putin_khuylo\n  create_bucket = var.create_bucket && local.gate\n  subnets       = length(var.subnets) > 0 && local.gate\n}\n"
+	base := map[string]string{"main.tf": locals}
+	head := map[string]string{"main.tf": locals +
+		"\nresource \"a\" \"gated\" {\n  count = local.create_bucket ? 1 : 0\n}\n" +
+		"\nresource \"a\" \"bypass\" {\n  count = var.create_bucket ? 1 : 0\n}\n" +
+		"\nresource \"a\" \"subnets\" {\n  count = length(var.subnets)\n}\n"}
+	if got := findingSpots(runProfileTool(t, base, head), "profile.putin-khuylo-missing"); !slices.Equal(got, []string{"main.tf:12"}) {
+		t.Errorf("findings %q", got)
 	}
 }
 

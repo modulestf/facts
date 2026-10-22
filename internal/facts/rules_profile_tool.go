@@ -89,16 +89,17 @@ func checkRequiredFileMissing(a *Area) Result {
 func nonstandardName(name string) bool {
 	n := strings.TrimSuffix(name, ".json")
 	return strings.HasSuffix(name, ".tf.json") || n == "override.tf" || strings.HasSuffix(n, "_override.tf") ||
-		strings.HasSuffix(name, ".tofu")
+		strings.HasSuffix(n, ".tofu")
 }
 
 // profile.nonstandard-config-file: a file the change adds or edits is
-// *.tf.json, an override file or a .tofu file, or a .tf file holds a block
+// *.tf.json, an override file or a .tofu or .tofu.json file, or a .tf file holds a block
 // only OpenTofu has, an encryption block in the terraform block or for_each
 // on a provider block. The block case reads every byte through the HCL
 // lexer, so it is exhaustive even where the file does not parse. A .tf file
-// in the change whose bytes are not read, a link included, leaves it
-// undecided. Every required_version is read as admitting Terraform: telling a
+// in the change whose bytes are not read, a link included, or that the lexer
+// cannot read, leaves it undecided. Such an area loses its file-name findings
+// too: a result is either not evaluated or has findings. Every required_version is read as admitting Terraform: telling a
 // constraint that only OpenTofu releases meet needs a release list.
 func checkNonstandardConfigFile(a *Area) Result {
 	const id = "profile.nonstandard-config-file"
@@ -124,7 +125,11 @@ func checkNonstandardConfigFile(a *Area) Result {
 				return Result{NotEvaluated: fmt.Sprintf("%s is %s, so its blocks are not read", e.Path, kindText(e.Kind)), Code: kindCode(e.Kind)}
 			}
 		default:
-			for _, line := range tofuOnlyLines(e.Data) {
+			lines, ok := tofuOnlyLines(e.Data)
+			if !ok && inChange(a, e) {
+				return Result{NotEvaluated: e.Path + " cannot be lexed, so its blocks are not read", Code: ReasonParseError}
+			}
+			for _, line := range lines {
 				l := line
 				out = append(out, Finding{RuleID: id, Severity: "HIGH", File: e.Path, Line: &l,
 					Summary:      fmt.Sprintf("%s line %d is a block only OpenTofu has, which Terraform and the profile's quality gate cannot read.", e.Path, l),
@@ -138,19 +143,27 @@ func checkNonstandardConfigFile(a *Area) Result {
 // tofuOnlyLines returns the lines of the OpenTofu-only blocks of a .tf file:
 // an encryption block directly in a terraform block, and a for_each argument
 // directly in a provider block. It follows the token stream, so a file that
-// does not parse is still read in full.
-func tofuOnlyLines(src []byte) []int {
-	toks, _ := hclsyntax.LexConfig(src, "", hcl.InitialPos)
+// does not parse is still read in full. ok is false when the lexer reports
+// an error, such as an unterminated string, and the lines are then unknown.
+func tofuOnlyLines(src []byte) (lines []int, ok bool) {
+	toks, diags := hclsyntax.LexConfig(src, "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, false
+	}
 	var (
 		stack []string // the statement head of each open brace
 		head  string   // first name of the current statement
-		lines []int
 	)
 	start := true
 	for i, t := range toks {
 		switch t.Type {
 		case hclsyntax.TokenNewline:
 			start = true
+			continue
+		case hclsyntax.TokenComment:
+			// A line comment carries the newline that ends it; a /* */ comment
+			// is skipped like space.
+			start = start || strings.HasSuffix(string(t.Bytes), "\n")
 			continue
 		case hclsyntax.TokenOBrace:
 			if head == "encryption" && toks[i-1].Type == hclsyntax.TokenIdent && slices.Equal(stack, []string{"terraform"}) {
@@ -174,14 +187,15 @@ func tofuOnlyLines(src []byte) []int {
 		}
 		start = false
 	}
-	return lines
+	return lines, true
 }
 
 // gateNode is what one expression, a count, a for_each or a local, reads on
 // its way to a creation input.
 type gateNode struct {
+	gate    bool     // it reads var.putin_khuylo, directly or through locals
 	reaches bool     // some path reaches a creation input
-	open    bool     // some path reaches one without reading var.putin_khuylo
+	open    bool     // some path reaches one and the expression reads no gate
 	via     []string // edited locals on a path that reaches one
 	openVia []string // edited locals on an open path
 }
@@ -207,24 +221,60 @@ func exprRefs(e *Expr) []string {
 	return refs
 }
 
+// isCreationVar reports a variable named like a creation input: create or
+// create_<x>.
+func isCreationVar(ref string) bool {
+	return ref == "var.create" || strings.HasPrefix(ref, "var.create_")
+}
+
+// localRefs returns the references of each local, by name.
+func localRefs(ls []Local) map[string][]string {
+	out := map[string][]string{}
+	for _, l := range ls {
+		out[l.Name] = exprRefs(&l.Value)
+	}
+	return out
+}
+
+// addCreationInputs adds to set the creation inputs of one revision's locals:
+// the create and create_<x> variables a local reads alongside the gate, where
+// the gate is var.putin_khuylo or a local that reads it, at any depth.
+func addCreationInputs(refs map[string][]string, set map[string]bool) {
+	gate := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for name, rs := range refs {
+			if !gate[name] && slices.ContainsFunc(rs, func(r string) bool {
+				l, ok := strings.CutPrefix(r, "local.")
+				return r == "var.putin_khuylo" || (ok && gate[l])
+			}) {
+				gate[name], changed = true, true
+			}
+		}
+	}
+	for name := range gate {
+		for _, r := range refs[name] {
+			if isCreationVar(r) {
+				set[r] = true
+			}
+		}
+	}
+}
+
+// newGateGraph builds the graph of a root. Creation inputs come from the
+// base and the head locals together, so a gate a change removes from a
+// create_<x> local still names its input.
 func newGateGraph(a *Area) *gateGraph {
-	g := &gateGraph{creation: map[string]bool{}, refs: map[string][]string{}, edited: map[string]bool{}, memo: map[string]*gateNode{}}
+	g := &gateGraph{creation: map[string]bool{}, refs: localRefs(a.Head.Locals), edited: map[string]bool{}, memo: map[string]*gateNode{}}
+	addCreationInputs(g.refs, g.creation)
+	addCreationInputs(localRefs(a.Base.Locals), g.creation)
 	base := map[string]string{}
 	for _, l := range a.Base.Locals {
 		base[l.Name] = l.Value.Text
 	}
 	for _, l := range a.Head.Locals {
-		r := exprRefs(&l.Value)
-		g.refs[l.Name] = r
 		if t, ok := base[l.Name]; !ok || t != l.Value.Text {
 			g.edited[l.Name] = true
-		}
-		if slices.Contains(r, "var.putin_khuylo") {
-			for _, v := range r {
-				if strings.HasPrefix(v, "var.") && v != "var.putin_khuylo" {
-					g.creation[v] = true
-				}
-			}
 		}
 	}
 	if len(g.creation) == 0 {
@@ -233,14 +283,15 @@ func newGateGraph(a *Area) *gateGraph {
 	return g
 }
 
-// node walks refs. A node that reads var.putin_khuylo itself gates every
-// path through it. A local met again on the current walk adds nothing.
+// node walks refs. An expression that reads the gate, directly or through
+// a local, gates every path through it. A local met again on the current
+// walk adds nothing.
 func (g *gateGraph) node(refs []string, walking map[string]bool) gateNode {
 	var n gateNode
-	gated := slices.Contains(refs, "var.putin_khuylo")
+	n.gate = slices.Contains(refs, "var.putin_khuylo")
 	for _, r := range refs {
 		if g.creation[r] {
-			n.reaches, n.open = true, !gated
+			n.reaches, n.open = true, true
 			continue
 		}
 		name, ok := strings.CutPrefix(r, "local.")
@@ -248,6 +299,7 @@ func (g *gateGraph) node(refs []string, walking map[string]bool) gateNode {
 			continue
 		}
 		l := g.local(name, walking)
+		n.gate = n.gate || l.gate
 		if !l.reaches {
 			continue
 		}
@@ -256,13 +308,16 @@ func (g *gateGraph) node(refs []string, walking map[string]bool) gateNode {
 		if g.edited[name] {
 			n.via = append(n.via, name)
 		}
-		if l.open && !gated {
+		if l.open {
 			n.open = true
 			n.openVia = append(n.openVia, l.openVia...)
 			if g.edited[name] {
 				n.openVia = append(n.openVia, name)
 			}
 		}
+	}
+	if n.gate {
+		n.open, n.openVia = false, nil
 	}
 	return n
 }
@@ -363,7 +418,13 @@ func checkPutinKhuyloMissing(a *Area) Result {
 		if declared && !open {
 			return Result{}
 		}
-		f := Finding{RuleID: id, Severity: "MEDIUM", File: areaFile(a.Path, "variables.tf"),
+		// With no variables.tf the finding names the root itself, a path
+		// the change adds, so the scope keeps it.
+		file := areaFile(a.Path, "variables.tf")
+		if a.headTree.Entries[file] == nil {
+			file = a.Path
+		}
+		f := Finding{RuleID: id, Severity: "MEDIUM", File: file,
 			Summary:      "The new root module creates resources without the creation gate the profile requires: no `putin_khuylo` input, or a block whose count or for_each skips it.",
 			SuggestedFix: fix}
 		if first != nil {

@@ -23,5 +23,5 @@ resource "aws_demo_gadget" "b" {
 }
 
 resource "aws_demo_gizmo" "direct" {
-  count = var.create && local.create ? 1 : 0
+  count = var.create ? 1 : 0
 }
