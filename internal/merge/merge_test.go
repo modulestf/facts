@@ -490,7 +490,8 @@ func TestFindingArea(t *testing.T) {
 		{"area directory, config rule", config, "examples/complete", ""},
 		{"area directory, path rule", path, "examples/complete", "examples/complete"},
 		{"submodule directory, path rule", path, "modules/m", "modules/m"},
-		{"wrappers directory, path rule", path, "wrappers/x", ""},
+		{"wrappers directory, path rule", path, "wrappers/x", "."},
+		{"tests file, path rule", path, "tests/.checkov.yaml", "."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -396,9 +396,8 @@ func checkReadmeBanner(a *Area) Result {
 // scope.tooling: a path the change adds that configures a scanner, linter or
 // cost tool on the profile's closed list: its base name is one of the listed
 // files, or a directory on its path is one of the listed directories. A path
-// in no area, such as one under tests/ or wrappers/, is read here only when
-// the change also touches the root: a change to such paths alone puts no area
-// in scope, so they are not reached yet (bead mtf-lcc.2.51).
+// in no area, such as one under tests/ or wrappers/, is read by the root's
+// check: changing such a path brings the root into scope (FindAreas).
 func checkTooling(a *Area) Result {
 	const id = "scope.tooling"
 	if res, ok := needProfile(a); !ok {

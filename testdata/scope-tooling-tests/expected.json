@@ -1,0 +1,26 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.tooling",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "scope.tooling",
+      "file": "tests/.checkov.yaml",
+      "line": null,
+      "subject": "tests/.checkov.yaml",
+      "evidence": {
+        "source_lines": [],
+        "base": null,
+        "head": "tests/.checkov.yaml",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

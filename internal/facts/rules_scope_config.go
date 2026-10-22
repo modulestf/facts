@@ -17,8 +17,9 @@ import (
 //
 // Known gaps, each an unknown the model still owns: a directory more than
 // one level under modules/ is not read, as for every rule (the deep-nesting
-// oracle), and a test helper directory under tests/ is not read, since such
-// paths reach no area (bead mtf-lcc.2.51).
+// oracle), and a test helper directory under tests/ is not read: a change
+// there brings the root into scope for its path rules, but these rules judge
+// only the configuration of the root, submodule and example directories.
 var scopeConfigRules = []Rule{
 	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, Check: checkScopeModuleCall},
 	{ID: "scope.new-submodule", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaSubmodule}, NeedsBase: true, Check: checkNewSubmodule},

@@ -219,7 +219,8 @@ func TestAreasSameInBothModes(t *testing.T) {
 	base := writeTree(t, map[string]string{"main.tf": "", "examples/README.md": "a", "examples/x/main.tf": ""})
 	head := writeTree(t, map[string]string{"main.tf": "", "examples/README.md": "b", "examples/x/main.tf": "", "modules/l": "->../examples/x"})
 	want := `modules/l:submodule:false:false:false:"modules/l is a symbolic link, not a directory"`
-	if got := areaList(FindAreas(mustTree(t, head), mustTree(t, base), DefaultLimits, false)); got != want {
+	// The loose examples/README.md is in no area, so it brings the root in.
+	if got := areaList(FindAreas(mustTree(t, head), mustTree(t, base), DefaultLimits, false)); got != `.:root:false:true:true:"" `+want {
 		t.Errorf("base mode: %s", got)
 	}
 	if got := areaList(FindAreas(mustTree(t, head), nil, DefaultLimits, false)); !strings.Contains(got, want) || strings.Contains(got, "examples:") {

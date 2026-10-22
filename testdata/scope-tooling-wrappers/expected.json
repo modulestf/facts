@@ -1,0 +1,11 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.tooling",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
