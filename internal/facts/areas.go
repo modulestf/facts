@@ -46,6 +46,9 @@ type Area struct {
 
 	headTree *Tree
 	baseTree *Tree // nil without a base tree
+	// peers are every area of the run by path, this one included, set by
+	// Evaluate, so a cross-area rule can read the module an example calls.
+	peers map[string]*Area
 }
 
 // headEntry returns the head entry of a file directly in the area, or nil.

@@ -266,7 +266,7 @@ func TestNeedsUntouched(t *testing.T) {
 		"no rules":            {rules: nil, want: false},
 		"no cross-area rule":  {rules: []Rule{plain}, want: false},
 		"one cross-area rule": {rules: []Rule{plain, crossRule(AreaRoot)}, want: true},
-		"implemented rules":   {rules: Rules, want: false}, // none is cross-area today
+		"implemented rules":   {rules: Rules, want: true}, // examples.submodule-missing is cross-area
 	} {
 		if got := needsUntouched(tc.rules); got != tc.want {
 			t.Errorf("%s: got %v, want %v", name, got, tc.want)

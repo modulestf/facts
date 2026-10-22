@@ -1,0 +1,46 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "examples/basic",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "examples/complete",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "examples/extra",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "modules/extra",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "modules/old",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.stale-reference",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.submodule-missing",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

@@ -120,6 +120,13 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 	if ch == nil {
 		panic("facts: Evaluate needs a change map")
 	}
+	peers := map[string]*Area{}
+	for _, a := range areas {
+		peers[a.Path] = a
+	}
+	for _, a := range areas {
+		a.peers = peers
+	}
 	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
 		if r.CrossArea {
@@ -159,24 +166,22 @@ func evaluate(r Rule, a *Area) Result {
 // the result is never not_applicable. When any area cannot be evaluated, the
 // pass is incomplete: the result is not evaluated, with the reason code of the
 // first such area, and has no findings or candidates. Otherwise it has the
-// findings and candidates of the areas in scope, each with its own file;
-// those of an untouched area are not in the change and are dropped.
-//
-// In the areas in scope, scoped also drops each finding and candidate that is
-// not on a changed line, so only those on lines in the change are kept.
+// findings and candidates of every area that scoped keeps: those on a line in
+// the change, or with no line, those whose path is in the change. A result of
+// an untouched area is kept only when it is anchored at the change that
+// causes it, such as an example that reads an output the change removed.
 func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
+	// Without a base tree no area has base facts. A rule that needs them is
+	// no_base even when no area is of its kinds.
+	if r.NeedsBase && ch.base == nil {
+		return Result{NotEvaluated: ReasonNoBase, Code: ReasonNoBase}
+	}
 	var out Result
 	for _, a := range areas {
-		res := evaluate(r, a)
-		if !a.Untouched {
-			res = scoped(r, res, ch)
-		}
+		res := scoped(r, evaluate(r, a), ch)
 		switch res.NotEvaluated {
 		case StatusNotApplicable:
 		case "":
-			if a.Untouched {
-				continue
-			}
 			out.Findings = append(out.Findings, res.Findings...)
 			out.Candidates = append(out.Candidates, res.Candidates...)
 		default:

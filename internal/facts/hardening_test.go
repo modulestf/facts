@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -177,7 +178,7 @@ func TestSymlinkRetarget(t *testing.T) {
 		t.Error(s)
 	}
 	r, err = Run(Options{Head: same, Base: base, Limits: DefaultLimits})
-	if err != nil || len(r.Manifest) != 0 {
+	if err != nil || slices.ContainsFunc(r.Manifest, func(e ManifestEntry) bool { return !isCrossArea(e.RuleID) }) {
 		t.Errorf("unchanged link put an area in scope: %v %+v", err, r.Manifest)
 	}
 	data, _ := json.Marshal(r)
