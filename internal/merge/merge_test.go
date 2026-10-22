@@ -248,12 +248,14 @@ func TestFinalRefusesBadInputs(t *testing.T) {
 	reg := testRegistry(t)
 	valid := []byte(`{"candidate_decisions":[],"findings":[]}`)
 	tests := []struct {
-		name   string
-		bundle string
-		reg    string // registry text; "" for the test registry
+		name    string
+		bundle  string
+		reg     string // registry text; "" for the test registry
+		wantErr string // a part of the error, when the case names one
 	}{
 		{name: "rule not in the registry", bundle: `{"tool_findings":[],"candidates":[{"candidate_id":"C-001","rule_id":"structure.nope","file":"a.tf","line":1,"subject":".:x","evidence":{},"evidence_complete":true}],"severity_needed":[]}`},
 		{name: "severity_needed severities differ", bundle: `{"tool_findings":[],"candidates":[],"severity_needed":[{"candidate_id":"C-001","rule_id":"compat.variable-removed","file":"a.tf","line":1,"subject":".:x","severities":["HIGH","MEDIUM"],"confirmed_by":"mid"}]}`},
+		{name: "severity_needed rule without severities", bundle: `{"tool_findings":[],"candidates":[],"severity_needed":[{"candidate_id":"C-001","rule_id":"structure.never-emitted","file":"a.tf","line":1,"subject":".:x","severities":["CRITICAL","HIGH"],"confirmed_by":"mid"}]}`, wantErr: "has no severities"},
 		{name: "severity_needed without template", bundle: `{"tool_findings":[],"candidates":[],"severity_needed":[{"candidate_id":"C-001","rule_id":"compat.variable-removed","file":"a.tf","line":1,"subject":".:x","severities":["CRITICAL","HIGH"],"confirmed_by":"mid"}]}`},
 		{name: "unknown overlap row", bundle: oneCandidate, reg: testRegistryText(strings.Replace(testOverlap, "| 2 | The `compat.*` finding for the break |", "| 2 | `compat.default-changed` |", 1))},
 	}
@@ -266,8 +268,9 @@ func TestFinalRefusesBadInputs(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := Final(Inputs{Registry: r, Bundle: testBundle(t, tt.bundle)}, valid, nil); err == nil {
-				t.Error("no error")
+			_, err := Final(Inputs{Registry: r, Bundle: testBundle(t, tt.bundle)}, valid, nil)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error %v, want one containing %q", err, tt.wantErr)
 			}
 		})
 	}

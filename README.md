@@ -88,7 +88,7 @@ Areas are the root module, each `modules/<name>` and each `examples/<name>`, par
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
-Not yet: provider schema input, `ledger`, and the remaining rules. `ledger` exists and exits with code 2.
+Not yet: provider schema input and the remaining rules.
 
 ## Releases
 

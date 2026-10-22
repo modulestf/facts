@@ -119,7 +119,10 @@ func (in Inputs) check() error {
 	}
 	for _, s := range in.Bundle.SeverityNeeded {
 		r, ok := known("severity_needed "+s.CandidateID, s.RuleID)
-		if ok && !sameSet(r.Severities, s.Severities) {
+		switch {
+		case ok && len(r.Severities) == 0:
+			errs = append(errs, fmt.Errorf("severity_needed %s: rule %s has no severities", s.CandidateID, s.RuleID))
+		case ok && !sameSet(r.Severities, s.Severities):
 			errs = append(errs, fmt.Errorf("severity_needed %s: severities %v, registry %v", s.CandidateID, s.Severities, r.Severities))
 		}
 	}
