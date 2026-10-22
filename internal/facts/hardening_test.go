@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -177,8 +178,11 @@ func TestSymlinkRetarget(t *testing.T) {
 		t.Error(s)
 	}
 	r, err = Run(Options{Head: same, Base: base, Limits: DefaultLimits})
-	if err != nil || len(r.Manifest) != 0 {
-		t.Errorf("unchanged link put an area in scope: %v %+v", err, r.Manifest)
+	// Only the cross-area rules keep their one root entry, clean.
+	if err != nil || slices.ContainsFunc(r.Manifest, func(e ManifestEntry) bool {
+		return e.Area != rootArea || e.Status != StatusClean || !isCrossArea(e.RuleID)
+	}) || len(r.Findings) != 0 || len(r.Candidates) != 0 {
+		t.Errorf("unchanged link put an area in scope: %v %+v %+v %+v", err, r.Manifest, r.Findings, r.Candidates)
 	}
 	data, _ := json.Marshal(r)
 	if strings.Contains(string(data), "a.tf\",\"kind\":\"symlink") || strings.Contains(string(data), "->") {

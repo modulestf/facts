@@ -2,6 +2,7 @@ package facts
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -132,11 +133,16 @@ func TestSubmoduleOnlyChangeHasNoRootEntries(t *testing.T) {
 		t.Errorf("want one entry per rule, got %+v", r.Manifest)
 	}
 	for _, e := range r.Manifest {
-		if e.Area != "modules/a" {
+		// A cross-area rule has its one entry under the root.
+		if e.Area != "modules/a" && (e.Area != rootArea || !isCrossArea(e.RuleID)) {
 			t.Errorf("entry outside the changed submodule: %+v", e)
 		}
 	}
 	if len(r.Candidates) != 1 || r.Candidates[0].Subject != "modules/a:var.y" {
 		t.Errorf("candidates %+v", r.Candidates)
 	}
+}
+
+func isCrossArea(id string) bool {
+	return slices.ContainsFunc(Rules, func(r Rule) bool { return r.ID == id && r.CrossArea })
 }

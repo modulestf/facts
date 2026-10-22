@@ -266,7 +266,7 @@ func TestNeedsUntouched(t *testing.T) {
 		"no rules":            {rules: nil, want: false},
 		"no cross-area rule":  {rules: []Rule{plain}, want: false},
 		"one cross-area rule": {rules: []Rule{plain, crossRule(AreaRoot)}, want: true},
-		"implemented rules":   {rules: Rules, want: false}, // none is cross-area today
+		"implemented rules":   {rules: Rules, want: true}, // examples.stale-reference and examples.submodule-missing are cross-area
 	} {
 		if got := needsUntouched(tc.rules); got != tc.want {
 			t.Errorf("%s: got %v, want %v", name, got, tc.want)
@@ -339,6 +339,26 @@ func TestRealRulesSetReasonCodes(t *testing.T) {
 	for _, code := range []string{ReasonParseError, ReasonUnsupportedFile, ReasonSymlink} {
 		if !seen[code] {
 			t.Errorf("no tree produced %s", code)
+		}
+	}
+}
+
+// A line-less result of an untouched area is kept only when its file is
+// itself in the change: never ".", nor a directory above a changed file.
+func TestCrossAreaUntouchedNeedsFileInChange(t *testing.T) {
+	base := writeTree(t, map[string]string{"outputs.tf": "output \"a\" {}\n", "examples/x/main.tf": ""})
+	head := writeTree(t, map[string]string{"outputs.tf": "", "examples/x/main.tf": ""})
+	for file, kept := range map[string]bool{"outputs.tf": true, ".": false, "examples": false, "examples/x/main.tf": false} {
+		r := Rule{ID: "test.anchor", Tier: "candidate", Class: ClassPath, Scope: ScopeAnyFileInArea, Kinds: []string{AreaExample}, CrossArea: true,
+			Check: func(*Area) Result {
+				return Result{Candidates: []Candidate{{RuleID: "test.anchor", File: file}}}
+			}}
+		rep, err := run(Options{Head: head, Base: base, Limits: DefaultLimits}, []Rule{r})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := len(rep.Candidates) == 1; got != kept {
+			t.Errorf("%s: kept %v, want %v", file, got, kept)
 		}
 	}
 }

@@ -186,9 +186,9 @@
     {
       "candidate_id": "C-002",
       "rule_id": "examples.stale-reference",
-      "file": "examples/complete/outputs.tf",
-      "line": 8,
-      "subject": "examples/complete:output.widget_arn",
+      "file": "outputs.tf",
+      "line": null,
+      "subject": ".:output.widget_arn",
       "evidence": {
         "source_lines": [
           {
@@ -204,8 +204,8 @@
             "text": "output \"widget_arn\" {"
           }
         ],
-        "base": "module.this.widget_arn",
-        "head": "module.this.widget_arn",
+        "base": "output.widget_arn",
+        "head": null,
         "schema_facts": []
       },
       "evidence_complete": true

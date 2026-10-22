@@ -1,0 +1,155 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "examples/complete",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "modules/extra",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.stale-reference",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "examples.submodule-missing",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "examples.disabled-call-missing",
+      "file": "examples/complete/main.tf",
+      "line": null,
+      "subject": "examples/complete:module.disabled",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "examples/complete/main.tf",
+            "line": 5,
+            "text": "module \"disabled\" {"
+          }
+        ],
+        "base": "module \"disabled\"",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "examples.stale-reference",
+      "file": "inputs.tf",
+      "line": null,
+      "subject": ".:var.old_input",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "inputs.tf",
+            "line": 1,
+            "text": "variable \"old_input\" {"
+          },
+          {
+            "revision": "head",
+            "file": "examples/complete/main.tf",
+            "line": 4,
+            "text": "  old_input = \"x\""
+          }
+        ],
+        "base": "var.old_input",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "examples.submodule-missing",
+      "file": "modules/extra",
+      "line": null,
+      "subject": "modules/extra",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/complete/extra.tf",
+            "line": 2,
+            "text": "  source = \"../../modules/extra\""
+          }
+        ],
+        "base": null,
+        "head": "modules/extra",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "examples.stale-reference",
+      "file": "outputs.tf",
+      "line": null,
+      "subject": ".:output.gone",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "outputs.tf",
+            "line": 6,
+            "text": "output \"gone\" {"
+          },
+          {
+            "revision": "head",
+            "file": "examples/basic/outputs.tf",
+            "line": 2,
+            "text": "  value = module.this.gone"
+          }
+        ],
+        "base": "output.gone",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "examples.stale-reference",
+      "file": "outputs.tf",
+      "line": 6,
+      "subject": ".:output.old_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "outputs.tf",
+            "line": 11,
+            "text": "output \"old_arn\" {"
+          },
+          {
+            "revision": "head",
+            "file": "examples/complete/outputs.tf",
+            "line": 2,
+            "text": "  value = module.this.old_arn"
+          }
+        ],
+        "base": "output.old_arn",
+        "head": "output.arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

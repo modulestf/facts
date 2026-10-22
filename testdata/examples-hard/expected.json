@@ -1,0 +1,118 @@
+{
+  "manifest": [
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "examples/complete",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "examples/other",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.disabled-call-missing",
+      "area": "modules/gadget",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "examples.stale-reference",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "examples.submodule-missing",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "examples.disabled-call-missing",
+      "file": "examples/complete/main.tf",
+      "line": 5,
+      "subject": "examples/complete:module.disabled",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/complete/main.tf",
+            "line": 5,
+            "text": "module \"disabled\" {"
+          },
+          {
+            "revision": "head",
+            "file": "examples/complete/main.tf",
+            "line": 8,
+            "text": "  create = var.create_disabled"
+          }
+        ],
+        "base": null,
+        "head": "module \"disabled\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "examples.submodule-missing",
+      "file": "modules/gadget",
+      "line": null,
+      "subject": "modules/gadget",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/other/main.tf",
+            "line": 2,
+            "text": "  source = \"../../modules/gadget\""
+          }
+        ],
+        "base": null,
+        "head": "modules/gadget",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "examples.stale-reference",
+      "file": "outputs.tf",
+      "line": null,
+      "subject": ".:output.gone",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "outputs.tf",
+            "line": 6,
+            "text": "output \"gone\" {"
+          },
+          {
+            "revision": "head",
+            "file": "examples/also/main.tf",
+            "line": 6,
+            "text": "  value = module.this.gone # read here too"
+          },
+          {
+            "revision": "head",
+            "file": "examples/whole/main.tf",
+            "line": 6,
+            "text": "  value = module.this"
+          }
+        ],
+        "base": "output.gone",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}
