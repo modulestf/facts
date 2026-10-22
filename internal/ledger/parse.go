@@ -273,9 +273,9 @@ func ReadFile(p string, limit int64) ([]byte, error) {
 
 // parent is the path of the field that holds the field at p, "" at the top.
 func parent(p string) string {
-	i := strings.LastIndexByte(p, '.')
-	if i < 0 {
+	before, _, found := strings.CutLast(p, ".")
+	if !found {
 		return ""
 	}
-	return p[:i]
+	return before
 }

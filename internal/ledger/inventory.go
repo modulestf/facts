@@ -123,7 +123,7 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 }
 
 func typeInventory(set *schema.Set, m *facts.Module, r facts.Resource) (Type, error) {
-	source := providerSource(m, r)
+	source := facts.ResourceProviderSource(m, r)
 	out, f := set.Lookup(schema.Query{Source: source, DataSource: r.Mode == "data", Type: r.Type})
 	switch out {
 	case schema.Unavailable:
@@ -137,31 +137,6 @@ func typeInventory(set *schema.Set, m *facts.Module, r facts.Resource) (Type, er
 	}
 	slices.SortFunc(fs, func(a, b Field) int { return cmp.Compare(a.Name, b.Name) })
 	return Type{Mode: r.Mode, Type: r.Type, Provider: source, Fields: fs}, nil
-}
-
-// providerSource is the schema file key of r's provider: the local name of
-// its provider argument or its type prefix, looked up in the module's
-// required_providers (the first entry wins), else hashicorp/<local> as
-// Terraform assumes; lower case, with the default registry host added to a
-// two-part address.
-// shortcut: duplicates facts.ResourceProviderSource of the schema-diff change; use that helper once it is on master.
-func providerSource(m *facts.Module, r facts.Resource) string {
-	local, _, _ := strings.Cut(r.Type, "_")
-	if e := r.Body.Arg("provider"); e != nil {
-		local, _, _ = strings.Cut(strings.TrimSpace(e.Text), ".")
-	}
-	src := "hashicorp/" + local
-	for _, t := range m.Terraform {
-		if i := slices.IndexFunc(t.RequiredProviders, func(rp facts.RequiredProvider) bool { return rp.Name == local && rp.Source != "" }); i >= 0 {
-			src = t.RequiredProviders[i].Source
-			break
-		}
-	}
-	src = strings.ToLower(src)
-	if strings.Count(src, "/") == 1 {
-		src = "registry.terraform.io/" + src
-	}
-	return src
 }
 
 // blockFields appends the fields of b under prefix, and every field inside them.

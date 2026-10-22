@@ -48,6 +48,7 @@ func TestLedger(t *testing.T) {
 		{name: "inventory only", args: []string{ledgerModule, "--schema-files", schemaFile}, code: exitClean, problems: -1},
 		{name: "valid ledger", args: []string{ledgerModule, "--schema-files", schemaFile, "--check", valid, "--registry", registry}, code: exitClean, ledger: valid},
 		{name: "unmapped field", args: []string{"--check", copyFile("../../testdata/ledger/unmapped.json"), "--schema-files", schemaFile, ledgerModule}, code: exitFindings, problems: 1, ledger: filepath.Join(dir, "unmapped.json")},
+		{name: "half-exposed nested block", args: []string{ledgerModule, "--schema-files", schemaFile, "--check", copyFile("../../testdata/ledger/half-exposed.json")}, code: exitFindings, problems: 1, ledger: filepath.Join(dir, "half-exposed.json")},
 		{name: "duplicate disposition", args: []string{ledgerModule, "--schema-files", schemaFile, "--check", copyFile("../../testdata/ledger/duplicate.json")}, code: exitFindings, problems: 1, ledger: filepath.Join(dir, "duplicate.json")},
 	}
 	for _, tc := range tests {
@@ -108,9 +109,13 @@ func TestLedgerErrors(t *testing.T) {
 		{name: "no directory", args: []string{"--schema-files", ledgerSchema}, want: "usage:"},
 		{name: "two directories", args: []string{ledgerModule, ledgerModule, "--schema-files", ledgerSchema}, want: "usage:"},
 		{name: "no schema", args: []string{ledgerModule}, want: "--schema-files"},
-		{name: "malformed ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", bad}, want: "unknown field"},
+		{name: "malformed ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", bad}, want: "unknown key"},
 		{name: "missing ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", filepath.Join(dir, "none.json")}, want: "not a regular file"},
 		{name: "missing registry", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--registry", filepath.Join(dir, "none.md")}, want: "registry:"},
+		{name: "empty check", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", ""}, want: "--check needs a path"},
+		{name: "empty check with =", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check="}, want: "--check needs a path"},
+		{name: "empty registry", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--registry", ""}, want: "--registry needs a path"},
+		{name: "empty schema file", args: []string{ledgerModule, "--schema-files", ""}, want: "empty path"},
 		{name: "unknown flag", args: []string{ledgerModule, "--schema", ledgerSchema}, want: "flag provided but not defined"},
 	}
 	for _, tc := range tests {
