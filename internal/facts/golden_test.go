@@ -207,13 +207,13 @@ func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 	}
 }
 
-// TestHookInputsChangeOnlyTheEnvelope sets a schema handoff and the profile
-// input on every case. No rule reads either yet, so the manifest, findings
-// and candidates stay the same; only the envelope records the handoff.
+// TestHookInputsChangeOnlyTheEnvelope sets a schema handoff and the test
+// profile on every case. No rule reads either yet, so the manifest, findings
+// and candidates stay the same; only the envelope records the two inputs.
 func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 	for _, dir := range goldenCases(t) {
 		o := Options{Head: filepath.Join(dir, "head"), Limits: DefaultLimits,
-			SchemaHandoff: "../../schema/examples/schema-handoff.valid.json", ProfileDir: "profile"}
+			SchemaHandoff: "../../schema/examples/schema-handoff.valid.json", ProfileDir: testProfile}
 		if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 			o.Base = filepath.Join(dir, "base")
 		}
@@ -228,9 +228,12 @@ func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 		if with.Envelope.SchemaInputs == nil {
 			t.Errorf("%s: no schema_inputs", filepath.Base(dir))
 		}
-		with.Envelope.SchemaInputs = nil
+		if with.Envelope.ProfileSHA256 == nil {
+			t.Errorf("%s: no profile_sha256", filepath.Base(dir))
+		}
+		with.Envelope.SchemaInputs, with.Envelope.ProfileSHA256 = nil, nil
 		if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
-			t.Errorf("%s: schema and profile inputs changed the report", filepath.Base(dir))
+			t.Errorf("%s: schema or profile inputs changed more than the envelope", filepath.Base(dir))
 		}
 	}
 }

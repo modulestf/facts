@@ -29,7 +29,7 @@ MTF_FACTS_REGISTRY=/path/to/rule-facts.md go test ./internal/facts -run 'TestOra
 
 `MTF_FACTS_REGISTRY` names a copy of the reviewer skill's `rule-facts.md`, the one CI fetches at a pinned commit. Without it the registry tests skip, and under CI they fail.
 
-`TestOracle` copies each fixture into a temporary directory and does what the setup script in the repository the fixtures came from did: it creates the links, renames `gitattributes`, creates an empty `base/`, and refuses an unsafe link. It runs the engine on `head/` with `base/`, `schema-handoff.json` and a `profile/` directory when the fixture has them, and compares the results of the implemented rules only, on the keys below. A rule that lands is compared from then on; the oracle files do not change. `TestEveryRuleHasGoldenCases` counts these fixtures as positive and negative cases.
+`TestOracle` copies each fixture into a temporary directory and does what the setup script in the repository the fixtures came from did: it creates the links, renames `gitattributes`, creates an empty `base/`, and refuses an unsafe link. It runs the engine on `head/` with `base/` and `schema-handoff.json` when the fixture has them, and with the fixture's own `profile/` directory or, without one, the profile in `testdata/profile`, and compares the results of the implemented rules only, on the keys below. A rule that lands is compared from then on; the oracle files do not change. `TestEveryRuleHasGoldenCases` counts these fixtures as positive and negative cases.
 
 These tests check the oracle files themselves, for every rule, implemented or not:
 

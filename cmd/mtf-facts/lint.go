@@ -39,7 +39,7 @@ func lint(args []string, stdout, stderr io.Writer) int {
 		o.SchemaFiles = append(o.SchemaFiles, p)
 		return nil
 	})
-	fs.StringVar(&o.ProfileDir, "profile-dir", "", "module profile directory (accepted, no effect yet)")
+	fs.StringVar(&o.ProfileDir, "profile-dir", "", "module profile directory; must exist and not be a link (links in parent components resolve)")
 	timeout := fs.Duration("timeout", 60*time.Second, "stop with an error after this long")
 	var dirs []string
 	for rest := args; ; {

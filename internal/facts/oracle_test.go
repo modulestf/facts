@@ -20,6 +20,10 @@ import (
 // implemented or not. See its README for the layout and the conventions.
 const oracleRoot = "../../testdata/oracle"
 
+// testProfile is the profile every oracle fixture runs with unless it has a
+// profile/ of its own, as a review run always passes one.
+const testProfile = "../../testdata/profile"
+
 // oracleFixtures returns the fixture directories under oracleRoot.
 func oracleFixtures(t *testing.T) []string {
 	t.Helper()
@@ -145,6 +149,7 @@ func runOracle(t *testing.T, dir string) goldenView {
 	if _, err := os.Stat(filepath.Join(dir, "schema-handoff.json")); err == nil {
 		o.SchemaHandoff = filepath.Join(dir, "schema-handoff.json")
 	}
+	o.ProfileDir = testProfile
 	if st, err := os.Stat(filepath.Join(dir, "profile")); err == nil && st.IsDir() {
 		o.ProfileDir = filepath.Join(dir, "profile")
 	}

@@ -28,8 +28,8 @@ type Options struct {
 	MergeBaseSHA string // optional commit the base tree was extracted from
 	RegistryFile string // optional rule-facts.md to hash
 	// SchemaHandoff and SchemaFiles are the optional schema inputs; see
-	// applySchema. ProfileDir is the optional input of the profile hook,
-	// which is a no-op today.
+	// applySchema. ProfileDir is the optional module profile directory; see
+	// applyProfile.
 	SchemaHandoff string   // schema handoff file from the schema job, gzipped or not
 	SchemaFiles   []string // terraform providers schema -json files
 	ProfileDir    string   // module profile directory in a skills checkout
@@ -160,7 +160,7 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if env.SchemaInputs, err = applySchema(o, head, base, areas); err != nil {
 		return nil, err
 	}
-	if err := applyProfile(o, areas); err != nil {
+	if env.ProfileSHA256, err = applyProfile(o, areas); err != nil {
 		return nil, err
 	}
 	manifest, findings, candidates := Evaluate(areas, rules)

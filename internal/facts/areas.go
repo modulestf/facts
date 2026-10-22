@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/modulestf/facts/internal/profile"
 	"github.com/modulestf/facts/internal/schema"
 )
 
@@ -36,9 +37,12 @@ type Area struct {
 	// Schema is the run's schema input, set by applySchema; nil without one.
 	// Its lookups answer for the area's directory, Path.
 	Schema *schema.Set
-	// ProfileDir is for the hook in profile_hook.go to set. That hook is a
-	// no-op today, so it stays empty and no rule reads it.
-	ProfileDir string
+	// Profile is the module profile, set by applyProfile; nil when the run
+	// has none, and profileIssue then says why. Every area shares the one
+	// value, so a rule reads it and never changes it. A rule that reads it
+	// starts with needProfile.
+	Profile      *profile.Profile
+	profileIssue string
 
 	headTree *Tree
 }
