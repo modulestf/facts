@@ -1,0 +1,41 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": "modules/child",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.provider-floor-raised",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.provider-floor-raised",
+      "area": "modules/child",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.resource-address-changed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": "modules/child",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

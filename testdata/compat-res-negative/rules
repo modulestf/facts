@@ -1,0 +1,4 @@
+compat.generated-policy-narrowed
+compat.provider-floor-raised
+compat.resource-address-changed
+compat.version-constraint-raised

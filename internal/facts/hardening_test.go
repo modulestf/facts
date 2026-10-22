@@ -178,9 +178,12 @@ func TestSymlinkRetarget(t *testing.T) {
 		t.Error(s)
 	}
 	r, err = Run(Options{Head: same, Base: base, Limits: DefaultLimits})
-	// Only the cross-area rules keep their one root entry, clean.
+	// Only the cross-area rules keep their one root entry: clean, or for a
+	// config-semantic pass, which reads the untouched root and its linked
+	// main.tf, not_evaluated(symlink).
 	if err != nil || slices.ContainsFunc(r.Manifest, func(e ManifestEntry) bool {
-		return e.Area != rootArea || e.Status != StatusClean || !isCrossArea(e.RuleID)
+		ok := e.Status == StatusClean || e.Status == StatusNotEvaluated && e.ReasonCode == ReasonSymlink
+		return e.Area != rootArea || !ok || !isCrossArea(e.RuleID)
 	}) || len(r.Findings) != 0 || len(r.Candidates) != 0 {
 		t.Errorf("unchanged link put an area in scope: %v %+v %+v %+v", err, r.Manifest, r.Findings, r.Candidates)
 	}
