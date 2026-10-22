@@ -1,0 +1,4 @@
+. outputs widget_id changed
+. resources aws_demo_gadget.main added
+. resources aws_demo_gadget.this removed
+. resources aws_demo_widget.this changed

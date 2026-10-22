@@ -25,7 +25,7 @@ var schemaKeywords = map[string]bool{
 	"$schema": true, "$id": true, "title": true, "description": true, "$defs": true,
 	"type": true, "enum": true, "properties": true, "required": true, "additionalProperties": true,
 	"items": true, "pattern": true, "minLength": true, "minimum": true, "maxItems": true,
-	"oneOf": true, "$ref": true,
+	"oneOf": true, "allOf": true, "$ref": true,
 	// Used by the facts-bundle, finding and schema-handoff schemas the oracle
 	// fixtures are checked against.
 	"const": true, "not": true, "if": true, "then": true, "minItems": true, "uniqueItems": true,
@@ -263,6 +263,11 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 			set.check(doc, then, v, at, errs)
 		}
 	}
+	if all, ok := s["allOf"].([]any); ok {
+		for _, sub := range all {
+			set.check(doc, sub.(map[string]any), v, at, errs)
+		}
+	}
 	if of, ok := s["oneOf"].([]any); ok {
 		n := 0
 		for _, sub := range of {
@@ -432,9 +437,8 @@ func TestReportMatchesSchemas(t *testing.T) {
 			t.Fatal(err)
 		}
 		checkReport(t, set, r)
-		// The keys later inputs and builders fill, filled by hand. InterfaceDiff
-		// stays empty: its schema uses allOf, which this validator
-		// lacks; ajv checks a filled one in schema/examples/lint.valid.json.
+		// The keys later inputs and builders fill, filled by hand. The second
+		// run has a base and both commits, so InterfaceDiff is filled already.
 		sum := strings.Repeat("c", 64)
 		r.Envelope.ProfileSHA256 = &sum
 		r.Envelope.SchemaInputs = &SchemaInputs{HandoffSHA256: sum, HeadSHA: strings.Repeat("a", 40), MergeBaseSHA: strings.Repeat("b", 40),

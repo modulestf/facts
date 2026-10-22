@@ -39,15 +39,14 @@ type Options struct {
 }
 
 // Report is the whole output of one run. Index is left out when no area in
-// scope has a block; InterfaceDiff until its builder fills it.
+// scope has a block; InterfaceDiff without a base tree or both commits.
 type Report struct {
-	Envelope   Envelope        `json:"envelope"`
-	Manifest   []ManifestEntry `json:"manifest"`
-	Findings   []Finding       `json:"findings"`
-	Candidates []Candidate     `json:"candidates"`
-	Index      []IndexEntry    `json:"index,omitempty"`
-	// InterfaceDiff holds a document of schema/interface-diff.schema.json.
-	InterfaceDiff any `json:"interface_diff,omitempty"`
+	Envelope      Envelope        `json:"envelope"`
+	Manifest      []ManifestEntry `json:"manifest"`
+	Findings      []Finding       `json:"findings"`
+	Candidates    []Candidate     `json:"candidates"`
+	Index         []IndexEntry    `json:"index,omitempty"`
+	InterfaceDiff *InterfaceDiff  `json:"interface_diff,omitempty"`
 }
 
 // IndexEntry maps the lines of one block or argument to its area-scoped
@@ -171,7 +170,8 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if err := CheckManifest(manifest, rules, areas); err != nil {
 		return nil, err
 	}
-	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates, Index: BuildIndex(areas)}, nil
+	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates, Index: BuildIndex(areas),
+		InterfaceDiff: BuildInterfaceDiff(env.HeadSHA, env.MergeBaseSHA, areas)}, nil
 }
 
 // needsUntouched reports whether any rule is cross-area. Untouched areas

@@ -1,0 +1,4 @@
+. variables new_input added
+. variables options changed
+. variables owner_name changed
+. variables zones changed
