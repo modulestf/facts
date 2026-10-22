@@ -1,0 +1,10 @@
+name: Extra
+
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo scan

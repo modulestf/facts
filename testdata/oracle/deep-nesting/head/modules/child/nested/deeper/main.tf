@@ -1,0 +1,1 @@
+variable "deep_var" {}
