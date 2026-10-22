@@ -69,20 +69,21 @@ type Envelope struct {
 	RegistrySHA256 *string `json:"registry_sha256"`
 	Inputs         Inputs  `json:"inputs"`
 	// SchemaInputs and ProfileSHA256 are null when the run read no schema
-	// handoff or no profile.
+	// input or no profile.
 	SchemaInputs  *SchemaInputs `json:"schema_inputs"`
 	ProfileSHA256 *string       `json:"profile_sha256"`
 }
 
-// SchemaInputs binds a report to the schema handoff it read: the handoff's
+// SchemaInputs binds a report to the schema input it read: the handoff's
 // own hash, the commits and .tf tree hashes the handoff records, and a hash
-// per raw provider schema file.
+// per raw provider schema file. The handoff keys are nil when the run read
+// raw schema files only.
 type SchemaInputs struct {
-	HandoffSHA256 string     `json:"handoff_sha256"`
-	HeadSHA       string     `json:"head_sha"`
-	MergeBaseSHA  string     `json:"merge_base_sha"`
-	TreeHashes    TreeHashes `json:"tree_hashes"`
-	SchemaFiles   []FileHash `json:"schema_files"`
+	HandoffSHA256 *string     `json:"handoff_sha256"`
+	HeadSHA       *string     `json:"head_sha"`
+	MergeBaseSHA  *string     `json:"merge_base_sha"`
+	TreeHashes    *TreeHashes `json:"tree_hashes"`
+	SchemaFiles   []FileHash  `json:"schema_files"`
 }
 
 // TreeHashes are the handoff's tree_hash per revision.

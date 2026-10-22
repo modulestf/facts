@@ -439,10 +439,10 @@ func TestReportMatchesSchemas(t *testing.T) {
 		checkReport(t, set, r)
 		// The keys later inputs and builders fill, filled by hand. The second
 		// run has a base and both commits, so InterfaceDiff is filled already.
-		sum := strings.Repeat("c", 64)
+		sum, head, base := strings.Repeat("c", 64), strings.Repeat("a", 40), strings.Repeat("b", 40)
 		r.Envelope.ProfileSHA256 = &sum
-		r.Envelope.SchemaInputs = &SchemaInputs{HandoffSHA256: sum, HeadSHA: strings.Repeat("a", 40), MergeBaseSHA: strings.Repeat("b", 40),
-			TreeHashes: TreeHashes{Head: sum, MergeBase: sum}, SchemaFiles: []FileHash{{Path: "aws.json", SHA256: sum}}}
+		r.Envelope.SchemaInputs = &SchemaInputs{HandoffSHA256: &sum, HeadSHA: &head, MergeBaseSHA: &base,
+			TreeHashes: &TreeHashes{Head: sum, MergeBase: sum}, SchemaFiles: []FileHash{{Path: "aws.json", SHA256: sum}}}
 		r.Index = []IndexEntry{{File: "modules/a/main.tf", StartLine: 2, EndLine: 2, Subject: "modules/a:var.x"}}
 		checkReport(t, set, r)
 	}

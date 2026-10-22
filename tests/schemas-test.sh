@@ -3,6 +3,7 @@
 #
 # Every schema/<name>.schema.json except finding.schema.json (shared, referenced
 # by the others) must have schema/examples/<name>.valid.json, which must pass,
+# as must each schema/examples/<name>.valid.<slug>.json,
 # and at least one schema/examples/<name>.invalid.<keyword>[.<slug>].json, each
 # of which must fail with an error whose keyword is <keyword> (for example
 # additionalProperties, oneOf, required) in ajv's --all-errors JSON output.
@@ -48,6 +49,10 @@ for schema in "$schemas"/*.schema.json; do
   run=("${ajv[@]}" test "${opts[@]}")
 
   valid="$examples/$name.valid.json"
+  valids=("$valid")
+  for f in "$examples/$name".valid.*.json; do
+    [ -f "$f" ] && valids+=("$f")
+  done
   invalid=("$examples/$name".invalid.*.json)
   if [ ! -f "$valid" ] || [ ! -f "${invalid[0]}" ]; then
     echo "FAIL $name: needs $name.valid.json and at least one $name.invalid.<keyword>.json"
@@ -55,13 +60,15 @@ for schema in "$schemas"/*.schema.json; do
     continue
   fi
 
-  if "${run[@]}" -d "$valid" --valid >/dev/null 2>&1; then
-    echo "ok   $name.valid.json passes"
-  else
-    echo "FAIL $name.valid.json does not pass:"
-    "${run[@]}" -d "$valid" --valid 2>&1 | sed 's/^/     /' || true
-    fail=1
-  fi
+  for f in "${valids[@]}"; do
+    if "${run[@]}" -d "$f" --valid >/dev/null 2>&1; then
+      echo "ok   $(basename "$f") passes"
+    else
+      echo "FAIL $(basename "$f") does not pass:"
+      "${run[@]}" -d "$f" --valid 2>&1 | sed 's/^/     /' || true
+      fail=1
+    fi
+  done
   # One call per file, so a failure names the file and its expected keyword.
   for f in "${invalid[@]}"; do
     base=$(basename "$f" .json)
