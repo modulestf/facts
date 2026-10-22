@@ -223,3 +223,102 @@ func TestReadmeBannerCases(t *testing.T) {
 		}
 	}
 }
+
+// Each form is valid YAML the subset reader would misread, so it refuses
+// it; the rule is then not_evaluated(unsupported_file). The control parses.
+func TestReadYAMLRefusals(t *testing.T) {
+	const hooks = "    hooks:\n      - id: a\n"
+	for name, c := range map[string]struct {
+		text string
+		ok   bool
+	}{
+		"control":                 {"---\nrepos:\n  - repo: local\n" + hooks, true},
+		"flow item":               {"repos:\n  - {repo: local, hooks: [{id: a}]}\n", false},
+		"flow list item":          {"repos:\n  - repo: local\n    hooks:\n      - [a]\n", false},
+		"flow hooks value":        {"repos:\n  - repo: local\n    hooks: [{id: a}]\n", false},
+		"flow repos value":        {"repos: [{repo: local}]\n", false},
+		"space before colon":      {"repos:\n  - repo: local\n    hooks:\n      - id : a\n", false},
+		"escape in quoted key":    {"repos:\n  - repo: local\n    hooks:\n      - \"i\\u0064\": a\n", false},
+		"escape in quoted value":  {"repos:\n  - repo: local\n    hooks:\n      - id: \"a\\\"b\"\n", false},
+		"doubled single quote":    {"repos:\n  - repo: local\n    hooks:\n      - id: 'it''s'\n", false},
+		"duplicate key":           {"repos:\n  - repo: local\n    repo: https://example.com/x\n" + hooks, false},
+		"duplicate top-level key": {"repos:\n  - repo: a\n" + hooks + "repos:\n  - repo: b\n" + hooks, false},
+		"second document":         {"repos:\n  - repo: local\n" + hooks + "---\nother:\n  x: 1\n", false},
+		"anchor":                  {"repos:\n  - repo: &r local\n" + hooks, false},
+		"alias":                   {"repos:\n  - repo: *r\n" + hooks, false},
+		"nested item on one line": {"repos:\n  - - repo: local\n", false},
+		"tab indent":              {"repos:\n\t- repo: local\n", false},
+		"continued plain scalar":  {"repos:\n  - repo: local\n    rev: v1\n      continued\n" + hooks, false},
+	} {
+		if _, ok := readPreCommit([]byte(c.text)); ok != c.ok {
+			t.Errorf("%s: ok %v, want %v", name, ok, c.ok)
+		}
+	}
+	r := runScopePath(t, map[string]string{".pre-commit-config.yaml": "repos:\n  - repo: local\n" + hooks},
+		map[string]string{".pre-commit-config.yaml": "repos:\n  - repo: local\n    hooks:\n      - {id: a}\n      - {id: b}\n"}, testProfile)
+	if s := statusOf(r.Manifest, "scope.pre-commit-hook", "."); !strings.HasPrefix(s, StatusNotEvaluated) {
+		t.Errorf("flow hooks: %s", s)
+	}
+}
+
+// Flow-style jobs and steps would collapse onto one identity, and a step
+// with a key used twice is ambiguous, so the workflow reader refuses them.
+func TestReadWorkflowRefusals(t *testing.T) {
+	for name, c := range map[string]struct {
+		text string
+		ok   bool
+	}{
+		"control":        {"jobs:\n  a:\n    steps:\n      - name: x\n      - name: y\n", true},
+		"flow steps":     {"jobs:\n  a:\n    steps:\n      - {name: x}\n      - {name: y}\n", false},
+		"flow job":       {"jobs:\n  a: {runs-on: x, steps: [{name: x}]}\n", false},
+		"duplicate key":  {"jobs:\n  a:\n    steps:\n      - name: x\n        name: y\n", false},
+		"duplicate jobs": {"jobs:\n  a:\n    runs-on: x\n  a:\n    runs-on: y\n", false},
+	} {
+		if _, ok := readWorkflow([]byte(c.text)); ok != c.ok {
+			t.Errorf("%s: ok %v, want %v", name, ok, c.ok)
+		}
+	}
+}
+
+// A uses: repository the head no longer names is not a removal of its own:
+// only the new repository is reported, with no base value.
+func TestProfileFileUsesNotARemoval(t *testing.T) {
+	wf := "jobs:\n  a:\n    steps:\n      - name: S\n        uses: %s@v1\n"
+	r := runScopePath(t, map[string]string{".github/workflows/x.yml": strings.Replace(wf, "%s", "old-org/act", 1)},
+		map[string]string{".github/workflows/x.yml": strings.Replace(wf, "%s", "new-org/act", 1)}, testProfile)
+	c := candidatesOf(r, "scope.profile-file")
+	if len(c) != 1 || c[0].Evidence.Base != nil || *c[0].Evidence.Head != "uses new-org/act" {
+		t.Errorf("%+v", c)
+	}
+}
+
+// A plugin written as an empty array names no plugin, so .releaserc.json is
+// not read and the rule is not_evaluated.
+func TestReleasercEmptyPluginTuple(t *testing.T) {
+	if _, ok := readReleaserc([]byte(`{"plugins": [[]]}`)); ok {
+		t.Error("empty plugin tuple read")
+	}
+	tpl := readTemplate(t, ".releaserc.json.template")
+	r := runScopePath(t, map[string]string{".releaserc.json": tpl},
+		map[string]string{".releaserc.json": strings.Replace(tpl, `"plugins": [`, `"plugins": [[],`, 1)}, testProfile)
+	if s := statusOf(r.Manifest, "scope.profile-file", "."); !strings.HasPrefix(s, StatusNotEvaluated) {
+		t.Error(s)
+	}
+}
+
+// Four-letter partitions and escaped literals are regions too; an escaped
+// allowed region is not a candidate.
+func TestRegionForms(t *testing.T) {
+	head := "provider \"aws\" {\n  region = \"eusc-de-east-1\"\n}\n\nlocals {\n  a = \"\\u0075s-west-2\"\n  b = \"\\u0065u-west-1\"\n  c = \"us-isob-east-1\"\n}\n"
+	r := runScopePath(t, map[string]string{"examples/x/main.tf": ""}, map[string]string{"examples/x/main.tf": head}, testProfile)
+	var lines []int
+	for _, c := range candidatesOf(r, "profile.region-not-allowed") {
+		lines = append(lines, *c.Line)
+	}
+	if !slices.Equal(lines, []int{2, 6, 8}) {
+		t.Errorf("candidate lines %v, want [2 6 8]", lines)
+	}
+	if _, ok := decodeQuoted(`"\q"`); ok {
+		t.Error("an invalid escape decoded")
+	}
+}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/modulestf/facts/internal/profile"
 )
@@ -230,21 +231,25 @@ func checkTemplateDrift(a *Area) Result {
 	return res
 }
 
-// regionPattern matches an AWS region name, such as eu-west-1 or
+// regionPattern matches an AWS region name, such as eu-west-1, eusc-de-east-1 or
 // us-gov-east-1, and nothing that only contains one.
-var regionPattern = regexp.MustCompile(`^[a-z]{2}(-gov|-iso[a-z]?)?-(north|south|east|west|central|northeast|northwest|southeast|southwest)-[0-9]+$`)
+var regionPattern = regexp.MustCompile(`^[a-z]{2,4}(-[a-z]{2,4})?-(north|south|east|west|central|northeast|northwest|southeast|southwest)-[0-9]+$`)
 
 // regionLiteral is a quoted string whose whole text is a region name.
 type regionLiteral struct {
 	file string // relative to the area
 	line int
-	text string // with its quotes
+	text string // as written, with its quotes
+	// value is the decoded text, and "" when it cannot be decoded; such a
+	// literal is kept, since the engine cannot tell it is not a region.
+	value string
 }
 
 // regionLiterals lexes the .tf files directly in dir and returns the quoted
 // literals that are a whole region name and choose one: a literal used as an
 // object key does not. A region inside an ARN or a hostname is not a whole
-// literal. Interpolated strings and heredocs are not read.
+// literal. Interpolated strings and heredocs are not read. Escapes, such as
+// \u0065, are decoded before the match.
 func regionLiterals(t *Tree, dir string) []regionLiteral {
 	if t == nil {
 		return nil
@@ -258,13 +263,35 @@ func regionLiterals(t *Tree, dir string) []regionLiteral {
 		toks, _ := hclsyntax.LexConfig(e.Data, name, hcl.InitialPos)
 		for i := 0; i+2 < len(toks); i++ {
 			if toks[i].Type != hclsyntax.TokenOQuote || toks[i+1].Type != hclsyntax.TokenQuotedLit ||
-				toks[i+2].Type != hclsyntax.TokenCQuote || !regionPattern.Match(toks[i+1].Bytes) || objectKey(toks, i) {
+				toks[i+2].Type != hclsyntax.TokenCQuote || objectKey(toks, i) {
 				continue
 			}
-			out = append(out, regionLiteral{file: name, line: toks[i+1].Range.Start.Line, text: `"` + string(toks[i+1].Bytes) + `"`})
+			text := `"` + string(toks[i+1].Bytes) + `"`
+			value, ok := decodeQuoted(text)
+			if ok && !regionPattern.MatchString(value) {
+				continue
+			}
+			out = append(out, regionLiteral{file: name, line: toks[i+1].Range.Start.Line, text: text, value: value})
 		}
 	}
 	return out
+}
+
+// decodeQuoted returns the value of a quoted HCL string with no
+// interpolation, its escapes decoded. ok is false when it cannot be decoded.
+func decodeQuoted(text string) (string, bool) {
+	if !strings.ContainsAny(text, `\$%`) {
+		return text[1 : len(text)-1], true
+	}
+	e, diags := hclsyntax.ParseExpression([]byte(text), "", hcl.InitialPos)
+	if diags.HasErrors() {
+		return "", false
+	}
+	v, diags := e.Value(nil)
+	if diags.HasErrors() || !v.IsKnown() || v.IsNull() || v.Type() != cty.String {
+		return "", false
+	}
+	return v.AsString(), true
 }
 
 // objectKey reports whether the quoted string opening at toks[i] is an object
@@ -306,7 +333,7 @@ func checkRegionNotAllowed(a *Area) Result {
 	headIdx := moduleIndex(nil, a.Head)
 	var res Result
 	for _, l := range regionLiterals(a.headTree, a.Path) {
-		if slices.Contains(allowed, strings.Trim(l.text, `"`)) {
+		if l.value != "" && slices.Contains(allowed, l.value) {
 			continue
 		}
 		file, sub := areaFile(a.Path, l.file), SubjectAt(headIdx, l.file, l.line)
@@ -369,7 +396,9 @@ func checkReadmeBanner(a *Area) Result {
 // scope.tooling: a path the change adds that configures a scanner, linter or
 // cost tool on the profile's closed list: its base name is one of the listed
 // files, or a directory on its path is one of the listed directories. A path
-// in no area, such as one under tests/ or wrappers/, is judged in the root.
+// in no area, such as one under tests/ or wrappers/, is read here only when
+// the change also touches the root: a change to such paths alone puts no area
+// in scope, so they are not reached yet (bead mtf-lcc.2.51).
 func checkTooling(a *Area) Result {
 	const id = "scope.tooling"
 	if res, ok := needProfile(a); !ok {
@@ -482,7 +511,10 @@ func readPreCommit(data []byte) ([]hookPair, bool) {
 			return nil, false
 		}
 		for _, r := range repos {
-			rf := fields(ls, r)
+			rf, ok := fields(ls, r)
+			if !ok {
+				return nil, false
+			}
 			h, has := rf["hooks"]
 			if !has {
 				continue
@@ -494,7 +526,10 @@ func readPreCommit(data []byte) ([]hookPair, bool) {
 			}
 			repo := ls[ri]
 			for _, k := range hooks {
-				hf := fields(ls, k)
+				hf, ok := fields(ls, k)
+				if !ok {
+					return nil, false
+				}
 				if j, ok := hf["id"]; ok {
 					out = append(out, hookPair{repo: repo.val, id: ls[j].val, repoLine: repo.n, idLine: ls[j].n})
 				}
@@ -639,10 +674,21 @@ func readWorkflow(data []byte) ([]profileItem, bool) {
 		if l.val != "" {
 			return nil, false
 		}
-		jobs := fields(ls, i)
+		jobs, ok := fields(ls, i)
+		if !ok {
+			return nil, false
+		}
 		for _, job := range sortedByLine(jobs) {
+			// A job written as a flow mapping hides its steps.
+			if ls[job].val != "" {
+				return nil, false
+			}
 			out = append(out, profileItem{"job " + ls[job].key, ls[job].n})
-			s, has := fields(ls, job)["steps"]
+			jf, ok := fields(ls, job)
+			if !ok {
+				return nil, false
+			}
+			s, has := jf["steps"]
 			if !has {
 				continue
 			}
@@ -651,7 +697,10 @@ func readWorkflow(data []byte) ([]profileItem, bool) {
 				return nil, false
 			}
 			for _, st := range steps {
-				sf := fields(ls, st)
+				sf, ok := fields(ls, st)
+				if !ok {
+					return nil, false
+				}
 				name := ""
 				for _, k := range []string{"name", "uses", "run"} {
 					if j, ok := sf[k]; ok {
@@ -739,15 +788,25 @@ type yamlLine struct {
 	key, val  string
 }
 
-var yamlKey = regexp.MustCompile(`^([A-Za-z0-9_./-]+|"[^"]*"|'[^']*'):(?:\s+(.*))?$`)
+var (
+	yamlKey = regexp.MustCompile(`^([A-Za-z0-9_./-]+|"[^"]*"|'[^']*'):(?:\s+(.*))?$`)
+	// yamlSpacedKey is a plain key with whitespace before its colon, which
+	// YAML reads as a key and yamlKey does not.
+	yamlSpacedKey = regexp.MustCompile(`^[^\s"'#][^:]*?\s+:(?:\s|$)`)
+)
 
 // readYAML reads block-style YAML: mappings and lists by indentation, plain
 // or quoted single-line scalars and block scalars, whose first content line
 // is their value. ok is false for anything else: a tab in the indent, a
 // second document, an anchor, alias or tag, a nested list item on one line,
-// or a scalar continued on the next line. Flow collections are kept as text.
+// a list item that is a flow collection, a key with whitespace before its
+// colon, a quoted key or value with an escape, a scalar continued on the
+// next line, or a top-level key used twice. A flow collection that is a
+// key's value is kept as text; the readers refuse one where they need the
+// structure.
 func readYAML(data []byte) ([]yamlLine, bool) {
 	var out []yamlLine
+	top := map[string]bool{}
 	scalar := -1 // indent of the key whose block scalar is open, or -1
 	for i, raw := range splitLines(data) {
 		s := strings.TrimSuffix(string(raw), "\r")
@@ -776,12 +835,16 @@ func readYAML(data []byte) ([]yamlLine, bool) {
 			rest := strings.TrimLeft(strings.TrimPrefix(body, "-"), " ")
 			l.indent += len(body) - len(rest)
 			body = rest
-			if body == "-" || strings.HasPrefix(body, "- ") {
+			if body == "-" || strings.HasPrefix(body, "- ") || strings.HasPrefix(body, "{") || strings.HasPrefix(body, "[") {
 				return nil, false
 			}
 		}
 		m := yamlKey.FindStringSubmatch(body)
 		switch {
+		case m == nil && yamlSpacedKey.MatchString(body):
+			return nil, false
+		case m != nil && m[1][0] == '"' && strings.Contains(m[1], `\`):
+			return nil, false
 		case m != nil:
 			l.key, l.val = unquote(m[1]), m[2]
 		case l.item:
@@ -797,13 +860,21 @@ func readYAML(data []byte) ([]yamlLine, bool) {
 		if v == "|" || v == ">" || strings.HasPrefix(v, "|") || strings.HasPrefix(v, ">") {
 			l.val, scalar = "", l.indent
 		}
+		if l.indent == 0 && !l.item && l.key != "" {
+			if top[l.key] {
+				return nil, false
+			}
+			top[l.key] = true
+		}
 		out = append(out, l)
 	}
 	return out, true
 }
 
 // yamlScalar strips the comment from a single-line scalar and unquotes it.
-// ok is false for an anchor, alias or tag, or an unclosed quote.
+// ok is false for an anchor, alias or tag, an unclosed quote, an escape in a
+// double-quoted scalar, or text after the closing quote, such as the second
+// half of a doubled single quote.
 func yamlScalar(v string) (string, bool) {
 	switch {
 	case v == "":
@@ -812,7 +883,10 @@ func yamlScalar(v string) (string, bool) {
 		return "", false
 	case v[0] == '"' || v[0] == '\'':
 		end := strings.IndexByte(v[1:], v[0])
-		if end < 0 {
+		if end < 0 || (v[0] == '"' && strings.Contains(v[1:end+1], `\`)) {
+			return "", false
+		}
+		if rest := strings.TrimSpace(v[end+2:]); rest != "" && !strings.HasPrefix(rest, "#") {
 			return "", false
 		}
 		return v[1 : end+1], true
@@ -846,8 +920,9 @@ func under(ls []yamlLine, i int) []int {
 
 // fields returns the keys of the mapping at line i, each with its line
 // index: for a list item, its own key and the keys beside it; for a key, the
-// keys one level under it.
-func fields(ls []yamlLine, i int) map[string]int {
+// keys one level under it. ok is false for a key used twice: YAML parsers
+// differ on which one wins, PyYAML keeps the last.
+func fields(ls []yamlLine, i int) (map[string]int, bool) {
 	out := map[string]int{}
 	at := ls[i].indent
 	if ls[i].item {
@@ -859,12 +934,13 @@ func fields(ls []yamlLine, i int) map[string]int {
 	}
 	for _, j := range under(ls, i) {
 		if ls[j].indent == at && !ls[j].item && ls[j].key != "" {
-			if _, dup := out[ls[j].key]; !dup {
-				out[ls[j].key] = j
+			if _, dup := out[ls[j].key]; dup {
+				return nil, false
 			}
+			out[ls[j].key] = j
 		}
 	}
-	return out
+	return out, true
 }
 
 // listItems returns the items of the block list under the key at line i. ok
