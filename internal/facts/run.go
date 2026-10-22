@@ -52,7 +52,8 @@ type Report struct {
 
 // IndexEntry maps the lines of one block or argument to its area-scoped
 // subject, "<area>:<address>". Entries nest; the innermost range that holds
-// a line names that line's subject.
+// a line names that line's subject, and of entries with the same lines the
+// later one, the inner.
 type IndexEntry struct {
 	File      string `json:"file"`
 	StartLine int    `json:"start_line"`

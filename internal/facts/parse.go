@@ -79,7 +79,10 @@ type NestedBlock struct {
 }
 
 // Span is where a top-level block is, with the SHA-256 of its source bytes.
-// For a Local it is the argument instead.
+// The hashed bytes are those of the block's range: from the block type
+// keyword through the closing brace, with no comment or blank line before
+// it. For a Local they are the argument, from its name through its value.
+// The bytes are hashed as read, so a CRLF and an LF copy of a block differ.
 type Span struct {
 	File  string
 	Line  int

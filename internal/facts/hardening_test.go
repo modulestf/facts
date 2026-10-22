@@ -103,24 +103,33 @@ func TestNestingDepthClamp(t *testing.T) {
 	}
 }
 
+// The run time grows linearly with the number of variables: four times the
+// files take well under the sixteen times a quadratic pass would. A ratio,
+// not a wall-clock limit, so a slow or race-instrumented build still passes.
 func TestManyVariablesAreLinear(t *testing.T) {
-	// 50 files of 2000 variables each stay under the per-file token cap.
-	head, base := map[string]string{"new.tf": "variable \"new\" {}\n"}, map[string]string{}
-	for f := range 50 {
-		var b strings.Builder
-		for i := range 2000 {
-			fmt.Fprintf(&b, "# v%d\nvariable \"v%d_%d\" {}\n", i, f, i)
+	// files of 2000 variables each stay under the per-file token cap.
+	run := func(files int) (*Report, time.Duration) {
+		head, base := map[string]string{"new.tf": "variable \"new\" {}\n"}, map[string]string{}
+		for f := range files {
+			var b strings.Builder
+			for i := range 2000 {
+				fmt.Fprintf(&b, "# v%d\nvariable \"v%d_%d\" {}\n", i, f, i)
+			}
+			name := fmt.Sprintf("v%02d.tf", f)
+			head[name], base[name] = b.String(), b.String()
 		}
-		name := fmt.Sprintf("v%02d.tf", f)
-		head[name], base[name] = b.String(), b.String()
+		h, bs := writeTree(t, head), writeTree(t, base)
+		start := time.Now()
+		r, err := Run(Options{Head: h, Base: bs, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r, time.Since(start)
 	}
-	start := time.Now()
-	r, err := Run(Options{Head: writeTree(t, head), Base: writeTree(t, base), Limits: DefaultLimits})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if el := time.Since(start); el > 20*time.Second {
-		t.Errorf("took %v", el)
+	_, small := run(10)
+	r, large := run(40)
+	if ratio := float64(large) / float64(small); ratio > 8 {
+		t.Errorf("40 files took %v, 10 files %v: ratio %.1f, want at most 8", large, small, ratio)
 	}
 	if len(r.Candidates) != 1 || len(r.Findings) != 1 {
 		t.Errorf("candidates %d findings %d %+v", len(r.Candidates), len(r.Findings), r.Manifest)

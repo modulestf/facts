@@ -31,7 +31,7 @@
       }
     },
     "index_entry": {
-      "description": "The lines of one block or argument and its area-scoped subject. Entries nest; the innermost range that holds a line names that line's subject.",
+      "description": "The lines of one block or argument and its area-scoped subject. Entries nest; the innermost range that holds a line names that line's subject. Entries with the same lines, such as a one-line block and the argument in it, are in nesting order, outer first: the later entry names those lines.",
       "type": "object",
       "additionalProperties": false,
       "required": ["file", "start_line", "end_line", "subject"],

@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -68,6 +69,25 @@ moved {
 output "id" {
   value = aws_x.this
 }
+
+check "health" {
+  assert {
+    condition     = true
+    error_message = "down"
+  }
+}
+
+moved {
+  from = aws_x.this[
+    local.k
+  ]
+  to = aws_x.that
+}
+
+import {
+  to = aws_x.this
+  id = "i-1"
+}
 `
 
 // indexOf builds the index of a tree with no base, so every area is in scope.
@@ -109,6 +129,13 @@ func TestBuildIndex(t *testing.T) {
 		{"main.tf", 47, ".:module.network.source"},
 		{"main.tf", 50, ".:moved.aws_x.old"},
 		{"main.tf", 56, ".:output.id"},
+		{"main.tf", 59, ".:check.health"},
+		{"main.tf", 60, ".:check.health.assert[0]"},
+		{"main.tf", 61, ".:check.health.assert[0].condition"},
+		{"main.tf", 66, ".:moved.aws_x.this[ local.k ]"},
+		{"main.tf", 68, ".:moved.aws_x.this[ local.k ]"},
+		{"main.tf", 73, ".:import"},
+		{"main.tf", 75, ".:import.id"},
 		{"main.tf", 6, ".:required_providers.aws"},
 		{"main.tf", 9, ""},
 		{"main.tf", 999, ""},
@@ -127,6 +154,35 @@ func TestSubjectAtInnerWins(t *testing.T) {
 	idx := indexOf(t, map[string]string{"main.tf": "resource \"aws_x\" \"a\" { name = \"n\" }\n"})
 	if got := SubjectAt(idx, "main.tf", 1); got != ".:aws_x.a.name" {
 		t.Errorf("got %q (index %+v)", got, idx)
+	}
+}
+
+// Entries with the same lines stay in nesting order, outer first, in the
+// emitted index too, not only for SubjectAt. The module adds its variables
+// before its resources, so with the two interleaved in the file the entries
+// reach the sort out of line order, and forty one-line resources, each an
+// outer and an inner entry on one line, are far past the twelve elements an
+// unstable sort.Slice still orders by insertion: a switch away from a stable
+// sort fails here.
+func TestBuildIndexEqualRangesInNestingOrder(t *testing.T) {
+	var b strings.Builder
+	for i := range 40 {
+		fmt.Fprintf(&b, "variable \"v%02d\" {}\nresource \"aws_x\" \"a%02d\" { name = \"n\" }\n", i, i)
+	}
+	idx := indexOf(t, map[string]string{"main.tf": b.String()})
+	if len(idx) != 120 {
+		t.Fatalf("%d entries, want 120", len(idx))
+	}
+	for i := range 40 {
+		v, outer, inner := idx[3*i], idx[3*i+1], idx[3*i+2]
+		want := fmt.Sprintf(".:aws_x.a%02d", i)
+		if v.Subject != fmt.Sprintf(".:var.v%02d", i) || outer.Subject != want || inner.Subject != want+".name" ||
+			outer.StartLine != inner.StartLine || outer.EndLine != inner.EndLine {
+			t.Errorf("entries %d-%d: %+v %+v %+v", 3*i, 3*i+2, v, outer, inner)
+		}
+		if got := SubjectAt(idx, "main.tf", outer.StartLine); got != want+".name" {
+			t.Errorf("line %d: %q", outer.StartLine, got)
+		}
 	}
 }
 

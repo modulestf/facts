@@ -19,10 +19,18 @@ import (
 // local.<name>; provider.<name> or provider.<name>.<alias>; required_version
 // and required_providers.<name>; module.<name>; <type>.<name> or
 // data.<type>.<name> for a resource, with .<arg> for an argument and
-// .<block>[i] for the i-th nested block of that type, or .<block> for a
-// dynamic block. A block with no address of its own is named by its type:
-// terraform, locals; moved and removed add their from address, and any other
-// block, such as check or import, adds its labels and indexes its body.
+// .<block>[i] for the i-th static nested block of that type, or .<block> for a
+// dynamic block. Every dynamic block of one type shares that subject, and the
+// static counter skips dynamic blocks, so a static block keeps its index when
+// a dynamic one is added beside it. A block with no address of its own is
+// named by its type: terraform, locals; moved and removed add their from
+// address, as written with whitespace collapsed when it is not static; any
+// other block, such as check or import, adds its labels and indexes its body.
+//
+// The entries are sorted by file, then start line, then end line descending.
+// Entries with the same lines, such as a one-line block and the argument in
+// it, keep their nesting order, outer first: the later entry is the inner
+// one and names those lines.
 func BuildIndex(areas []*Area) []IndexEntry {
 	var out []IndexEntry
 	for _, a := range areas {
@@ -36,7 +44,7 @@ func BuildIndex(areas []*Area) []IndexEntry {
 			out[i].Subject = subject(a.Path, out[i].Subject)
 		}
 	}
-	// Stable, so of two equal ranges the outer one, added first, stays first.
+	// Stable: of two equal ranges the outer one, added first, stays first.
 	sort.SliceStable(out, func(i, j int) bool {
 		x, y := out[i], out[j]
 		if x.File != y.File {
@@ -124,10 +132,10 @@ func moduleIndex(out []IndexEntry, m *Module) []IndexEntry {
 		out = bodyIndex(out, c.File, c.Body, addr)
 	}
 	for _, mv := range m.Moved {
-		add(mv.File, mv.Range, "moved."+orText(mv.FromAddr, mv.From))
+		add(mv.File, mv.Range, "moved."+fromAddr(mv.FromAddr, mv.From))
 	}
 	for _, rm := range m.Removed {
-		add(rm.File, rm.Range, "removed."+orText(rm.FromAddr, rm.From))
+		add(rm.File, rm.Range, "removed."+fromAddr(rm.FromAddr, rm.From))
 	}
 	return out
 }
@@ -163,9 +171,12 @@ func literalAlias(b Body) (string, bool) {
 	return s, true
 }
 
-func orText(addr, text string) string {
+// fromAddr returns the static address, or else the source text with its
+// whitespace collapsed, so a line break in the expression stays out of the
+// subject.
+func fromAddr(addr, text string) string {
 	if addr != "" {
 		return addr
 	}
-	return text
+	return strings.Join(strings.Fields(text), " ")
 }

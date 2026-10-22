@@ -428,6 +428,34 @@ removed {
 				}
 			},
 		},
+		"crlf line endings": {
+			src: "variable \"x\" {\r\n  default = \"a\"\r\n  # note\r\n}\r\n",
+			check: func(t *testing.T, m *Module) {
+				v := m.Variables[0]
+				if text(v.Default) != `"a"` || v.Default.Range.Start.Line != 2 || v.Range.End.Line != 4 ||
+					!reflect.DeepEqual(v.Comments, []Comment{{Line: 3, Text: "# note"}}) {
+					t.Errorf("%+v", v)
+				}
+				// The bytes are hashed as read: the LF copy differs.
+				if lf := parseOne(t, "variable \"x\" {\n  default = \"a\"\n  # note\n}\n").Variables[0].Hash; lf == v.Hash {
+					t.Error("CRLF and LF copies hash the same")
+				}
+			},
+		},
+		"heredocs": {
+			src: "variable \"x\" {\n  default = <<-EOT\n    hello\n  EOT\n}\n\noutput \"y\" {\n  value = <<EOT\n${var.x} and ${try(local.z, \"\")}\nEOT\n}\n",
+			check: func(t *testing.T, m *Module) {
+				d := m.Variables[0].Default
+				if d == nil || !strings.HasPrefix(d.Text, "<<-EOT\n") || !strings.HasSuffix(d.Text, "  EOT") ||
+					d.Range.Start.Line != 2 || d.Range.End.Line != 4 {
+					t.Errorf("default %+v", d)
+				}
+				o := m.Outputs[0]
+				if !o.UsesTry || !reflect.DeepEqual(o.References, []string{"local.z", "var.x"}) || o.Value.Range.Start.Line != 8 {
+					t.Errorf("output %+v", o)
+				}
+			},
+		},
 		"block hash": {
 			src: "variable \"a\" {\n  type = string\n}\n\nvariable \"b\" {\n  type = string\n}\n\nvariable \"a\" {\n  type  = string\n}\n",
 			check: func(t *testing.T, m *Module) {
