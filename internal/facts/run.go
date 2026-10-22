@@ -38,8 +38,8 @@ type Options struct {
 	Limits        Limits
 }
 
-// Report is the whole output of one run. Index and InterfaceDiff are
-// optional: a run leaves them out until their builders fill them.
+// Report is the whole output of one run. Index is left out when no area in
+// scope has a block; InterfaceDiff until its builder fills it.
 type Report struct {
 	Envelope   Envelope        `json:"envelope"`
 	Manifest   []ManifestEntry `json:"manifest"`
@@ -166,7 +166,7 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if err := CheckManifest(manifest, rules, areas); err != nil {
 		return nil, err
 	}
-	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates}, nil
+	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates, Index: BuildIndex(areas)}, nil
 }
 
 // needsUntouched reports whether any rule is cross-area. Untouched areas
