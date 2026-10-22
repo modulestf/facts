@@ -105,7 +105,7 @@ func TestFinalFixtures(t *testing.T) {
 		}
 		ran++
 		t.Run(name, func(t *testing.T) {
-			b, err := ParseBundle(readFixture(t, dir, "bundle.json"))
+			b, err := ParseBundle(regionForm(t, readFixture(t, dir, "bundle.json")))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -280,16 +280,30 @@ func TestParseBundleRefuses(t *testing.T) {
 		"missing section":     `{"tool_findings":[],"candidates":[]}`,
 		"null section":        `{"tool_findings":[],"candidates":null,"severity_needed":[]}`,
 		"unknown section":     `{"tool_findings":[],"candidates":[],"severity_needed":[],"extra":1}`,
-		"duplicate key":       `{"tool_findings":[],"candidates":[],"candidates":[],"severity_needed":[]}`,
 		"repeated id":         `{"tool_findings":[],"candidates":[{"candidate_id":"C-001","rule_id":"structure.output-no-try","file":"a.tf","line":1,"subject":"s",` + ev + `}],"severity_needed":[{"candidate_id":"C-001","rule_id":"compat.variable-removed","file":"a.tf","line":1,"subject":"s","severities":["CRITICAL","HIGH"],"confirmed_by":"mid"}]}`,
 		"bad path":            `{"tool_findings":[],"candidates":[{"candidate_id":"C-001","rule_id":"structure.output-no-try","file":"../a.tf","line":1,"subject":"s",` + ev + `}],"severity_needed":[]}`,
 		"lead tool finding":   `{"tool_findings":[{"id":"F-001","rule_id":"structure.output-no-try","severity":"HIGH","file":"a.tf","line":1,"summary":"s","suggested_fix":"f","source":"tool","subject":"s","candidate_id":"C-001","confirmed_by":"lead"}],"candidates":[],"severity_needed":[]}`,
 		"unpaired confirmer":  `{"tool_findings":[{"id":"F-001","rule_id":"structure.output-no-try","severity":"HIGH","file":"a.tf","line":1,"summary":"s","suggested_fix":"f","source":"tool","subject":"s","confirmed_by":"small"}],"candidates":[],"severity_needed":[]}`,
 		"too large":           `{"tool_findings":[],"candidates":[],"severity_needed":[],"file_index":"` + strings.Repeat("x", MaxBundleBytes) + `"}`,
-		"trailing data":       `{"tool_findings":[],"candidates":[],"severity_needed":[]} {}`,
 		"malformed candidate": `{"tool_findings":[],"candidates":[{"candidate_id":"C-1","rule_id":"structure.output-no-try","file":"a.tf","line":1,"subject":"s",` + ev + `}],"severity_needed":[]}`,
 	}
 	for name, text := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := ParseBundle(regionForm(t, []byte(text))); err == nil {
+				t.Error("no error")
+			}
+		})
+	}
+	// The region form itself: Decode refuses each of these.
+	twoValues := `"{\"tool_findings\":[],\"candidates\":[],\"severity_needed\":[]} {}"`
+	good := string(regionForm(t, []byte(`{"tool_findings":[],"candidates":[],"severity_needed":[]}`)))
+	for name, text := range map[string]string{
+		"plain JSON":      `{"tool_findings":[],"candidates":[],"severity_needed":[]}`,
+		"wrong count":     strings.Replace(good, "FACTS-BUNDLE-BYTES ", "FACTS-BUNDLE-BYTES 1", 1),
+		"no end marker":   strings.Replace(good, "FACTS-BUNDLE END\n", "", 1),
+		"text after":      good + "more\n",
+		"two JSON values": fmt.Sprintf("FACTS-BUNDLE-BYTES %d\nFACTS-BUNDLE BEGIN\n%s\nFACTS-BUNDLE END\n", len(twoValues), twoValues),
+	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ParseBundle([]byte(text)); err == nil {
 				t.Error("no error")

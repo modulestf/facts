@@ -2,11 +2,12 @@ package merge
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 
+	fb "github.com/modulestf/facts/internal/bundle"
+	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/registry"
 )
 
@@ -41,78 +42,49 @@ type Finding struct {
 	ConfirmedBy  string `json:"confirmed_by,omitempty"`
 }
 
-// Candidate is a bundle candidate, without its evidence, which the merge
-// does not read.
-type Candidate struct {
-	CandidateID      string          `json:"candidate_id"`
-	RuleID           string          `json:"rule_id"`
-	File             string          `json:"file"`
-	Line             *int            `json:"line"`
-	Subject          string          `json:"subject"`
-	Evidence         json.RawMessage `json:"evidence"`
-	EvidenceComplete bool            `json:"evidence_complete"`
-}
+// Candidate, SeverityNeeded and AreaRules are the bundle's own types.
+type (
+	Candidate      = facts.Candidate
+	SeverityNeeded = fb.SeverityNeeded
+	AreaRules      = fb.AreaRules
+)
 
-// SeverityNeeded is a candidate a confirmer confirmed on a rule with several
-// severities; the lead sets its severity.
-type SeverityNeeded struct {
-	CandidateID string   `json:"candidate_id"`
-	RuleID      string   `json:"rule_id"`
-	File        string   `json:"file"`
-	Line        *int     `json:"line"`
-	Subject     string   `json:"subject"`
-	Severities  []string `json:"severities"`
-	ConfirmedBy string   `json:"confirmed_by"`
-}
-
-// AreaRules lists the rules of one area that are not clean or not
-// applicable.
-type AreaRules struct {
-	Area  string `json:"area"`
-	Rules []struct {
-		RuleID string `json:"rule_id"`
-		Status string `json:"status"`
-		Reason string `json:"reason,omitempty"`
-	} `json:"rules"`
-}
-
-// Bundle is the part of the facts bundle the merge reads.
+// Bundle is the part of the facts bundle the merge reads. A shed area_rules
+// section is nil.
 type Bundle struct {
-	ToolFindings   []Finding        `json:"tool_findings"`
-	Candidates     []Candidate      `json:"candidates"`
-	AreaRules      []AreaRules      `json:"area_rules,omitempty"`
-	InterfaceDiff  json.RawMessage  `json:"interface_diff,omitempty"`
-	SchemaCoverage json.RawMessage  `json:"schema_coverage,omitempty"`
-	FileIndex      json.RawMessage  `json:"file_index,omitempty"`
-	SeverityNeeded []SeverityNeeded `json:"severity_needed"`
+	ToolFindings   []Finding
+	Candidates     []Candidate
+	AreaRules      []AreaRules
+	SeverityNeeded []SeverityNeeded
 }
 
-// ParseBundle reads a bundle and checks what the merge relies on: the three
-// required sections, well-formed candidate ids that appear once across
-// candidates, severity_needed and tool findings, and well-formed paths.
+// ParseBundle reads a bundle file in the region form mtf-facts bundle
+// writes, with bundle.Decode, and checks what the merge relies on:
+// well-formed candidate ids that appear once across candidates,
+// severity_needed and tool findings, and well-formed paths.
 func ParseBundle(data []byte) (*Bundle, error) {
 	if len(data) > MaxBundleBytes {
 		return nil, fmt.Errorf("bundle is larger than %d bytes", MaxBundleBytes)
 	}
-	fields, err := objectFields(data)
+	d, err := fb.Decode(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("bundle: %w", err)
+		return nil, err
 	}
-	for _, k := range []string{"tool_findings", "candidates", "severity_needed"} {
-		if raw, ok := fields[k]; !ok || string(raw) == "null" {
-			return nil, fmt.Errorf("bundle: no %s array", k)
-		}
+	b := &Bundle{Candidates: d.Candidates, SeverityNeeded: d.SeverityNeeded}
+	if d.AreaRules != nil {
+		b.AreaRules = *d.AreaRules
 	}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	var b Bundle
-	if err := dec.Decode(&b); err != nil {
-		return nil, fmt.Errorf("bundle: %w", err)
+	for _, t := range d.ToolFindings {
+		b.ToolFindings = append(b.ToolFindings, Finding{
+			ID: t.ID, RuleID: t.RuleID, Severity: t.Severity, File: t.File, Line: t.Line,
+			Summary: t.Summary, SuggestedFix: t.SuggestedFix,
+			Source: t.Source, Subject: t.Subject, CandidateID: t.CandidateID, ConfirmedBy: t.ConfirmedBy,
+		})
 	}
 	if err := b.check(); err != nil {
 		return nil, fmt.Errorf("bundle: %w", err)
 	}
-	return &b, nil
+	return b, nil
 }
 
 func (b *Bundle) check() error {

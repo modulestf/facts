@@ -68,7 +68,7 @@ mtf-facts rules
 
 ### Merge
 
-`mtf-facts merge` checks a model reviewer's reply to the facts bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
+`mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
 
 ```sh
 mtf-facts merge check bundle.json reply.json
@@ -88,7 +88,7 @@ Areas are the root module, each `modules/<name>` and each `examples/<name>`, par
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
-Not yet: provider schema input, `bundle`, `ledger`, and the remaining rules. The two subcommands exist and exit with code 2.
+Not yet: provider schema input, `ledger`, and the remaining rules. `ledger` exists and exits with code 2.
 
 ## Releases
 

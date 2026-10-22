@@ -1,6 +1,9 @@
 package merge
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -64,9 +67,25 @@ func testRegistry(t *testing.T) *registry.Registry {
 	return reg
 }
 
+// regionForm wraps bundle JSON in the region form mtf-facts bundle writes:
+// the byte-count header line, then one region whose one payload line is
+// the compact JSON as a JSON string.
+func regionForm(t testing.TB, text []byte) []byte {
+	t.Helper()
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, text); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(compact.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Appendf(nil, "FACTS-BUNDLE-BYTES %d\nFACTS-BUNDLE BEGIN\n%s\nFACTS-BUNDLE END\n", len(payload), payload)
+}
+
 func testBundle(t *testing.T, text string) *Bundle {
 	t.Helper()
-	b, err := ParseBundle([]byte(text))
+	b, err := ParseBundle(regionForm(t, []byte(text)))
 	if err != nil {
 		t.Fatal(err)
 	}

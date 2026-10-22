@@ -33,6 +33,9 @@ const usage = `usage:
                         [--templates <file>] <bundle> <reply> [<repair-reply>]
                                   check a model reply, or merge it with the
                                   bundle into the final findings
+  mtf-facts bundle --report <lint.json> --skills <dir> --out <file>
+                   --injection <file> ...
+                                  build the facts bundle; see mtf-facts bundle -h
 `
 
 func main() {

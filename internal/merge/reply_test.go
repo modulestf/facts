@@ -138,7 +138,7 @@ func FuzzParseReply(f *testing.F) {
 	f.Add([]byte(validReply))
 	f.Add([]byte(`{"candidate_decisions":[{"candidate_id":"C-001"}],"findings":[{}]}`))
 	f.Add([]byte(`{"a":{"b":[1,2,{"c":null}]}}`))
-	b, err := ParseBundle([]byte(twoAnswersBundle))
+	b, err := ParseBundle(regionForm(f, []byte(twoAnswersBundle)))
 	if err != nil {
 		f.Fatal(err)
 	}

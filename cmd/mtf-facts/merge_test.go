@@ -3,13 +3,40 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	fb "github.com/modulestf/facts/internal/bundle"
 )
 
 const mergeFixtures = "../../testdata/merge"
+
+// regionFile writes a fixture's bundle.json in the region form mtf-facts
+// bundle writes, and returns its path.
+func regionFile(t *testing.T, fixture string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(mergeFixtures, fixture, "bundle.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(compact.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(t.TempDir(), "bundle.txt")
+	region := fmt.Appendf(nil, "FACTS-BUNDLE-BYTES %d\nFACTS-BUNDLE BEGIN\n%s\nFACTS-BUNDLE END\n", len(payload), payload)
+	if err := os.WriteFile(p, region, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
 
 func TestMergeCheck(t *testing.T) {
 	dir := filepath.Join(mergeFixtures, "answered-once-duplicate")
@@ -26,7 +53,7 @@ func TestMergeCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out, errb bytes.Buffer
-			code := run([]string{"merge", "check", filepath.Join(dir, "bundle.json"), filepath.Join(dir, tt.reply)}, &out, &errb)
+			code := run([]string{"merge", "check", regionFile(t, "answered-once-duplicate"), filepath.Join(dir, tt.reply)}, &out, &errb)
 			if code != tt.wantCode || out.String() != tt.wantOut || errb.Len() != 0 {
 				t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
 			}
@@ -36,13 +63,14 @@ func TestMergeCheck(t *testing.T) {
 
 func TestMergeRefusesUsage(t *testing.T) {
 	dir := filepath.Join(mergeFixtures, "dedup-step1")
-	bundle, reply := filepath.Join(dir, "bundle.json"), filepath.Join(dir, "model-output.json")
+	bundle, reply := regionFile(t, "dedup-step1"), filepath.Join(dir, "model-output.json")
 	for name, args := range map[string][]string{
 		"no verb":              {"merge"},
 		"unknown verb":         {"merge", "apply"},
 		"check one file":       {"merge", "check", bundle},
 		"check a directory":    {"merge", "check", bundle, dir},
 		"check broken bundle":  {"merge", "check", reply, reply},
+		"check plain JSON":     {"merge", "check", filepath.Join(dir, "bundle.json"), reply},
 		"final no registry":    {"merge", "final", bundle, reply},
 		"final one file":       {"merge", "final", "--registry", reply, bundle},
 		"final four files":     {"merge", "final", "--registry", reply, bundle, reply, reply, reply},
@@ -73,7 +101,7 @@ func TestMergeFinal(t *testing.T) {
 	var out, errb bytes.Buffer
 	code := run([]string{
 		"merge", "final",
-		filepath.Join(dir, "bundle.json"), filepath.Join(dir, "model-output.json"), filepath.Join(dir, "model-output.repair.json"),
+		regionFile(t, "repair-still-invalid"), filepath.Join(dir, "model-output.json"), filepath.Join(dir, "model-output.repair.json"),
 		"--registry", reg, "--templates", filepath.Join(mergeFixtures, "registry.json"),
 	}, &out, &errb)
 	if code != 0 || errb.Len() != 0 {
@@ -98,4 +126,90 @@ func TestMergeFinal(t *testing.T) {
 	if !strings.HasSuffix(out.String(), "]\n") {
 		t.Errorf("output does not end with a newline")
 	}
+}
+
+// TestMergeOnRealBundle runs the bundle mtf-facts bundle writes from a lint
+// report through merge check and merge final, with that report's index.
+func TestMergeOnRealBundle(t *testing.T) {
+	bundleFile, report, regFile := bundleFromLint(t)
+	f, err := os.Open(bundleFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	b, err := fb.Decode(f)
+	if err != nil || len(b.Candidates) == 0 {
+		t.Fatalf("bundle %+v, %v", b, err)
+	}
+	tmp := t.TempDir()
+	reply := func(name, decision string) string {
+		var ds []string
+		for _, c := range b.Candidates {
+			ds = append(ds, fmt.Sprintf(`{"candidate_id":%q,%s}`, c.CandidateID, decision))
+		}
+		p := filepath.Join(tmp, name)
+		text := `{"candidate_decisions":[` + strings.Join(ds, ",") + `],"findings":[]}`
+		if err := os.WriteFile(p, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	confirm := reply("confirm.json", `"decision":"confirm","reason":"r","severity":"CRITICAL","summary":"s","suggested_fix":"f"`)
+	reject := reply("reject.json", `"decision":"reject","reason":"r"`)
+	empty := filepath.Join(tmp, "empty.json")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, tc := range map[string]struct {
+		reply string
+		code  int
+	}{"confirm": {confirm, exitReplyValid}, "reject": {reject, exitReplyValid}, "empty": {empty, exitReplyRepair}} {
+		t.Run("check "+name, func(t *testing.T) {
+			var out, errb bytes.Buffer
+			if code := run([]string{"merge", "check", bundleFile, tc.reply}, &out, &errb); code != tc.code || errb.Len() != 0 {
+				t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
+			}
+		})
+	}
+
+	final := func(t *testing.T, replies ...string) []map[string]any {
+		t.Helper()
+		var out, errb bytes.Buffer
+		args := append([]string{"merge", "final", "--registry", regFile, "--report", report, bundleFile}, replies...)
+		if code := run(args, &out, &errb); code != 0 || errb.Len() != 0 {
+			t.Fatalf("exit %d, stderr %q", code, errb.String())
+		}
+		var got []map[string]any
+		if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	count := func(fs []map[string]any, source, rule string) int {
+		n := 0
+		for _, f := range fs {
+			if f["source"] == source && (rule == "" || f["rule_id"] == rule) {
+				n++
+			}
+		}
+		return n
+	}
+	t.Run("final confirm", func(t *testing.T) {
+		got := final(t, confirm)
+		if n := count(got, "llm", ""); n == 0 || n > len(b.Candidates) || count(got, "tool", "") != len(b.ToolFindings) {
+			t.Errorf("got %d llm and %d tool findings for %d candidates and %d tool findings",
+				n, count(got, "tool", ""), len(b.Candidates), len(b.ToolFindings))
+		}
+	})
+	t.Run("final reject", func(t *testing.T) {
+		if got := final(t, reject); count(got, "llm", "") != 0 {
+			t.Errorf("rejected candidates came back: %v", got)
+		}
+	})
+	t.Run("final repair empty", func(t *testing.T) {
+		if got := final(t, empty, empty); count(got, "host", "review.check-not-run") != len(b.Candidates) {
+			t.Errorf("got %v, want one review.check-not-run per candidate", got)
+		}
+	})
 }
