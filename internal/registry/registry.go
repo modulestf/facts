@@ -5,6 +5,10 @@
 // so a line that starts with a pipe but does not end with one is refused, and
 // so is a table with no line after it. Every registry column value must come
 // from its column's list.
+//
+// The skills-side policy checks of the registry, such as lead on every
+// candidate rule and no small confirm class on a rule that allows CRITICAL,
+// live in the skills repository's tests, not here.
 package registry
 
 import (
@@ -23,6 +27,28 @@ const (
 	EngineLLM       = "llm"
 )
 
+// Severities, in rank order: CRITICAL ranks first.
+const (
+	SeverityCritical = "CRITICAL"
+	SeverityHigh     = "HIGH"
+	SeverityMedium   = "MEDIUM"
+	SeverityLow      = "LOW"
+)
+
+// Bundle section names, the bundle_sections column, in the spec's order.
+const (
+	SectionToolFindings   = "tool-findings"
+	SectionCandidates     = "candidates"
+	SectionAreaRules      = "area-rules"
+	SectionInterfaceDiff  = "interface-diff"
+	SectionSchemaCoverage = "schema-coverage"
+	SectionFileIndex      = "file-index"
+)
+
+// SeverityRank returns the rank of a severity, 0 for CRITICAL up to 3 for
+// LOW, and -1 for a value that is not a severity.
+func SeverityRank(severity string) int { return slices.Index(severities, severity) }
+
 // overlapHeading is the heading of the section that holds the overlap table.
 const overlapHeading = "## Dedup Overlap"
 
@@ -32,8 +58,8 @@ var (
 	classes        = []string{"path", "config-semantic"}
 	scopes         = []string{"touched-block", "touched-expression", "newly-introduced", "any-file-in-area"}
 	areaKinds      = []string{"root", "submodule", "example"}
-	bundleSections = []string{"tool-findings", "candidates", "area-rules", "interface-diff", "schema-coverage", "file-index"}
-	severities     = []string{"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+	bundleSections = []string{SectionToolFindings, SectionCandidates, SectionAreaRules, SectionInterfaceDiff, SectionSchemaCoverage, SectionFileIndex}
+	severities     = []string{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow}
 	confirmClasses = []string{"small", "mid", "lead"}
 )
 
@@ -61,18 +87,26 @@ type Rule struct {
 
 // Overlap is one row of the Dedup Overlap table: when both findings are the
 // same defect, the Kept finding stays and the Dropped one goes. Kept and
-// Dropped are each a rule id or a family pattern such as "compat.*"; see Match.
+// Dropped are each the one code span of their cell: a rule id or a family
+// pattern such as "compat.*"; see Match. A family pattern can be wider than
+// its row's prose, so the merge must read KeptCell, DroppedCell and When, not
+// the pattern alone. Pair 2's "The `compat.*` finding for the break" matches
+// compat.claim-contradicts-analysis and compat.break-unexplained too, which
+// the code-over-description rule excludes.
 type Overlap struct {
-	Pair    int
-	Kept    string
-	Dropped string
-	When    string // the Same defect when condition, as text
-	From    string
+	Pair        int
+	Kept        string
+	Dropped     string
+	KeptCell    string // the Kept cell as written
+	DroppedCell string // the Dropped cell as written
+	When        string // the Same defect when condition, as text
+	From        string
 }
 
-// Registry is the parsed rule-facts.md.
+// Registry is the parsed rule-facts.md. It is read-only: Parse builds the
+// index that Rule reads, so a change to Rules after Parse is not seen there.
 type Registry struct {
-	Rules    []Rule // in file order
+	Rules    []Rule // in file order; do not modify
 	Overlaps []Overlap
 	byID     map[string]int
 }
@@ -87,7 +121,8 @@ func (r *Registry) Rule(id string) (Rule, bool) {
 }
 
 // Match reports whether a rule id matches an overlap pattern: the id itself,
-// or "<family>.*" for every rule of that family.
+// or "<family>.*" for every rule of that family. A family pattern matches the
+// whole family, which can be wider than its overlap row means; see Overlap.
 func Match(pattern, id string) bool {
 	if family, ok := strings.CutSuffix(pattern, ".*"); ok {
 		return strings.HasPrefix(id, family+".")
@@ -233,8 +268,12 @@ func parseOverlaps(lines []string, reg *Registry) ([]Overlap, error) {
 	out := make([]Overlap, 0, len(t.rows))
 	for i, row := range t.rows {
 		o, err := parseOverlap(t, row, reg)
-		if err == nil && o.Pair != i+1 {
+		switch {
+		case err != nil:
+		case o.Pair != i+1:
 			err = fmt.Errorf("pair %d, want %d", o.Pair, i+1)
+		case slices.ContainsFunc(out, func(p Overlap) bool { return p.Kept == o.Kept && p.Dropped == o.Dropped }):
+			err = fmt.Errorf("kept %q and dropped %q repeat an earlier pair", o.Kept, o.Dropped)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %w", t.lines[i], err)
@@ -262,6 +301,7 @@ func parseOverlap(t *table, row []string, reg *Registry) (Overlap, error) {
 		return o, fmt.Errorf("pair %q is not a positive number", cells["Pair"])
 	}
 	o.Pair, o.When, o.From = pair, cells["Same defect when"], cells["From"]
+	o.KeptCell, o.DroppedCell = cells["Kept"], cells["Dropped"]
 	if o.Kept, err = pattern(cells["Kept"], reg); err != nil {
 		return o, fmt.Errorf("kept: %w", err)
 	}
@@ -325,10 +365,12 @@ func splitCells(line string) []string {
 }
 
 // readTable reads the first table in lines[from:to] whose header satisfies
-// match. The table must end with a line that is not a row before to.
+// match. The separator row must follow the header, and no other row may be
+// empty or dashes only. The table must end with a line that is not a row
+// before to.
 func readTable(lines []string, from, to int, match func([]string) bool) (*table, error) {
 	t := &table{}
-	closed := false
+	closed, sepSeen := false, false
 	for i := from; i < to; i++ {
 		trimmed := strings.TrimSpace(lines[i])
 		startsRow := strings.HasPrefix(trimmed, "|")
@@ -352,8 +394,15 @@ func readTable(lines []string, from, to int, match func([]string) bool) (*table,
 			break
 		}
 		cells := splitCells(trimmed)
-		if strings.Trim(strings.Join(cells, ""), "-:") == "" {
-			continue // the separator row
+		isSep := strings.Trim(strings.Join(cells, ""), "-:") == ""
+		switch {
+		case !sepSeen && !isSep:
+			return nil, fmt.Errorf("line %d: no separator row after the header", i+1)
+		case !sepSeen:
+			sepSeen = true
+			continue
+		case isSep:
+			return nil, fmt.Errorf("line %d: empty row", i+1)
 		}
 		if len(cells) != len(t.header) {
 			return nil, fmt.Errorf("line %d: %d cells, header has %d", i+1, len(cells), len(t.header))

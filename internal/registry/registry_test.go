@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -56,8 +57,8 @@ func TestParseFixture(t *testing.T) {
 		t.Error("unknown rule found")
 	}
 	wantOv := []Overlap{
-		{Pair: 1, Kept: "b.candidate", Dropped: "c.llm-two", When: "Both on one subject.", From: "Final Step"},
-		{Pair: 2, Kept: "b.*", Dropped: "a.tool", When: "The title misreports it.", From: "owner decision"},
+		{Pair: 1, Kept: "b.candidate", Dropped: "c.llm-two", KeptCell: "`b.candidate`", DroppedCell: "`c.llm-two`", When: "Both on one subject.", From: "Final Step"},
+		{Pair: 2, Kept: "b.*", Dropped: "a.tool", KeptCell: "The `b.*` finding for the break", DroppedCell: "`a.tool`", When: "The title misreports it.", From: "owner decision"},
 	}
 	if !slices.Equal(reg.Overlaps, wantOv) {
 		t.Errorf("overlaps = %+v, want %+v", reg.Overlaps, wantOv)
@@ -68,6 +69,19 @@ func equalRule(a, b Rule) bool {
 	return a.ID == b.ID && a.Engine == b.Engine && a.Class == b.Class && a.Scope == b.Scope && a.CrossArea == b.CrossArea &&
 		slices.Equal(a.AreaKinds, b.AreaKinds) && slices.Equal(a.BundleSections, b.BundleSections) &&
 		slices.Equal(a.Severities, b.Severities) && a.ConfirmClass == b.ConfirmClass && a.ProposedConfirmClass == b.ProposedConfirmClass
+}
+
+func TestSeverityRank(t *testing.T) {
+	for i, s := range []string{SeverityCritical, SeverityHigh, SeverityMedium, SeverityLow} {
+		if got := SeverityRank(s); got != i {
+			t.Errorf("SeverityRank(%q) = %d, want %d", s, got, i)
+		}
+	}
+	for _, s := range []string{"", "none", "high", "INFO"} {
+		if got := SeverityRank(s); got != -1 {
+			t.Errorf("SeverityRank(%q) = %d, want -1", s, got)
+		}
+	}
 }
 
 func TestMatch(t *testing.T) {
@@ -145,7 +159,13 @@ func overlapMutations(t *testing.T, text string) map[string]string {
 			rowsGone = append(rowsGone, l)
 		}
 	}
-	return map[string]string{
+	header := lineOf(t, text, "| Pair |")
+	sep, _, _ := strings.Cut(text[strings.Index(text, header)+len(header)+1:], "\n")
+	m := map[string]string{
+		"separator gone":       strings.Replace(text, header+"\n"+sep+"\n", header+"\n", 1),
+		"separator after row":  strings.Replace(strings.Replace(text, header+"\n"+sep+"\n", header+"\n", 1), row1, row1+"\n"+sep, 1),
+		"empty row":            strings.Replace(text, row1, row1+"\n| | | | | |", 1),
+		"dash row":             strings.Replace(text, row1, row1+"\n"+sep, 1),
 		"heading gone":         strings.Replace(text, "## Dedup Overlap\n", "## Dedup\n", 1),
 		"second heading":       strings.Replace(text, "## Dedup Overlap\n", "## Dedup Overlap\n\n## Dedup Overlap\n", 1),
 		"table after section":  strings.Replace(text, "## Dedup Overlap\n", "## Dedup Overlap\n\n## Other\n", 1),
@@ -171,6 +191,12 @@ func overlapMutations(t *testing.T, text string) map[string]string {
 		"cut after row 1, nl":  cut + "\n",
 		"cut inside row 2":     cut + "\n| 2 | `compat",
 	}
+	if n := len(reg.Overlaps); n > 1 {
+		last := fmt.Sprintf("| %d |", n)
+		first := reg.Overlaps[0]
+		m["pair repeated"] = setCell(t, setCell(t, text, last, "Kept", "`"+first.Kept+"`"), last, "Dropped", "`"+first.Dropped+"`")
+	}
+	return m
 }
 
 func checkFails(t *testing.T, name, text string) {
@@ -221,7 +247,10 @@ func TestParseRefusesMutations(t *testing.T) {
 		"no rule table":       "# Rules\n",
 		"rule rows gone":      "# Rules\n\n" + ruleHeader + fixture[strings.Index(fixture, "\ntext between"):],
 		"rule row short":      strings.Replace(fixture, row, row[:strings.LastIndex(row[:len(row)-1], "|")+1], 1),
-		"rule row cut":        strings.Replace(fixture, row, row[:20], 1),
+		"rule row cut":        strings.Replace(fixture, row, row[:len(row)-2], 1),
+		"rule empty row":      strings.Replace(fixture, row, row+"\n| | | | | | | | | | | |", 1),
+		"rule dash row":       strings.Replace(fixture, row, row+"\n|---|---|---|---|---|---|---|---|---|---|---|", 1),
+		"rule separator gone": strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "", 1),
 		"rule table cut":      cut,
 		"rule table cut, nl":  cut + "\n",
 		"empty":               "",
