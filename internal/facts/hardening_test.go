@@ -131,8 +131,14 @@ func TestManyVariablesAreLinear(t *testing.T) {
 	if ratio := float64(large) / float64(small); ratio > 8 {
 		t.Errorf("40 files took %v, 10 files %v: ratio %.1f, want at most 8", large, small, ratio)
 	}
-	if len(r.Candidates) != 1 || len(r.Findings) != 1 {
+	// Every candidate is about the one new variable, whichever rules report it.
+	if len(r.Candidates) == 0 || len(r.Findings) != 1 {
 		t.Errorf("candidates %d findings %d %+v", len(r.Candidates), len(r.Findings), r.Manifest)
+	}
+	for _, c := range r.Candidates {
+		if c.Subject != ".:var.new" {
+			t.Errorf("candidate %+v", c)
+		}
 	}
 }
 

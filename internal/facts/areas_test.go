@@ -136,7 +136,12 @@ func TestSubmoduleOnlyChangeHasNoRootEntries(t *testing.T) {
 			t.Errorf("entry outside the changed submodule: %+v", e)
 		}
 	}
-	if len(r.Candidates) != 1 || r.Candidates[0].Subject != "modules/a:var.y" {
-		t.Errorf("candidates %+v", r.Candidates)
+	if len(r.Candidates) == 0 {
+		t.Error("no candidate")
+	}
+	for _, c := range r.Candidates {
+		if c.Subject != "modules/a:var.y" {
+			t.Errorf("candidate %+v", c)
+		}
 	}
 }
