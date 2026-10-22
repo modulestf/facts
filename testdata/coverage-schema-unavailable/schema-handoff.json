@@ -1,0 +1,263 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "inputs": {
+    "head": {
+      "tree_hash": "f390cfeb9ffe893a889b5c2657d28d50bf7d2a88346e7c72765c9b1027928d11",
+      "files": [
+        {
+          "path": "examples/x/main.tf",
+          "sha256": "4c3093a6704a5a4ffbf9d0c45605710338dcaacfecd7689473a4d54344266051"
+        },
+        {
+          "path": "modules/a/main.tf",
+          "sha256": "09c8005218038539a331eb43d6e9f57cbc339716262272edb0e966b87c24f48f"
+        },
+        {
+          "path": "modules/b/main.tf",
+          "sha256": "41063189c6c57e2ae52c1a05a55b495158d50886416ac0caae654456007cf29c"
+        },
+        {
+          "path": "modules/c/main.tf",
+          "sha256": "f70d40e40a39e8ea9a61e0370e07bac094e1c83772d666266b8a1e745cf51ef7"
+        },
+        {
+          "path": "modules/d/main.tf",
+          "sha256": "aaf7cd50707f63313d467758db8b987e8aacc2bb589e02e1e2b3710730daea3b"
+        },
+        {
+          "path": "modules/d/variables.tf",
+          "sha256": "32fce9925d7a4f8f2ba1fcd298453e4187fdcc36055d6a6a2572f2d5398ba4c3"
+        }
+      ]
+    },
+    "merge_base": {
+      "tree_hash": "8faeae19a9e498cd25899bf00e16a23c159daf2915ebf5a2b0e2fdb7284894e1",
+      "files": [
+        {
+          "path": "examples/x/main.tf",
+          "sha256": "1ee3f1534bb609785b47818b2637315312c647bd180bae081d967b43d7a358a5"
+        },
+        {
+          "path": "modules/a/main.tf",
+          "sha256": "aaf7cd50707f63313d467758db8b987e8aacc2bb589e02e1e2b3710730daea3b"
+        },
+        {
+          "path": "modules/b/main.tf",
+          "sha256": "aaf7cd50707f63313d467758db8b987e8aacc2bb589e02e1e2b3710730daea3b"
+        },
+        {
+          "path": "modules/c/main.tf",
+          "sha256": "aaf7cd50707f63313d467758db8b987e8aacc2bb589e02e1e2b3710730daea3b"
+        },
+        {
+          "path": "modules/d/main.tf",
+          "sha256": "aaf7cd50707f63313d467758db8b987e8aacc2bb589e02e1e2b3710730daea3b"
+        }
+      ]
+    }
+  },
+  "caps": {
+    "compressed_bytes": 2097152,
+    "uncompressed_bytes": 33554432
+  },
+  "directories": [
+    {
+      "path": "modules/a",
+      "providers": [
+        {
+          "local_name": "aws",
+          "source": "registry.terraform.io/hashicorp/aws",
+          "unresolved_reason": "no_matching_version"
+        }
+      ]
+    },
+    {
+      "path": "modules/b",
+      "providers": [
+        {
+          "local_name": "aws",
+          "source": "registry.terraform.io/hashicorp/aws",
+          "versions": {
+            "latest": "6.2.0",
+            "declared_minimum": "5.9.0",
+            "old_floor": "5.9.0"
+          }
+        }
+      ]
+    },
+    {
+      "path": "modules/c",
+      "providers": [
+        {
+          "local_name": "aws",
+          "source": "registry.terraform.io/hashicorp/aws",
+          "versions": {
+            "latest": "6.2.0",
+            "declared_minimum": "6.0.0",
+            "old_floor": "6.0.0"
+          }
+        }
+      ]
+    },
+    {
+      "path": "examples/x",
+      "providers": [
+        {
+          "local_name": "aws",
+          "source": "registry.terraform.io/hashicorp/aws",
+          "versions": {
+            "latest": "6.2.0",
+            "declared_minimum": "6.0.0",
+            "old_floor": "6.0.0"
+          }
+        }
+      ]
+    }
+  ],
+  "provider_schemas": [
+    {
+      "source": "registry.terraform.io/hashicorp/aws",
+      "version": "6.2.0",
+      "resource_schemas": {
+        "aws_demo_widget": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "typo_free": {
+                "optional": true
+              },
+              "legacy_mode": {
+                "optional": true,
+                "deprecated": true
+              },
+              "fast_path": {
+                "optional": true
+              },
+              "tags": {
+                "optional": true
+              },
+              "id": {
+                "computed": true
+              }
+            },
+            "block_types": {
+              "setting": {
+                "nesting_mode": "list",
+                "max_items": 1,
+                "block": {
+                  "attributes": {
+                    "value": {
+                      "optional": true
+                    },
+                    "mode": {
+                      "optional": true
+                    }
+                  }
+                }
+              },
+              "rule": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "port": {
+                      "required": true
+                    }
+                  }
+                }
+              },
+              "old_rule": {
+                "nesting_mode": "list",
+                "block": {
+                  "deprecated": true,
+                  "attributes": {
+                    "port": {
+                      "optional": true
+                    }
+                  }
+                }
+              },
+              "turbo": {
+                "nesting_mode": "list",
+                "max_items": 1,
+                "block": {
+                  "attributes": {
+                    "level": {
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {}
+    },
+    {
+      "source": "registry.terraform.io/hashicorp/aws",
+      "version": "6.0.0",
+      "resource_schemas": {
+        "aws_demo_widget": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "typo_free": {
+                "optional": true
+              },
+              "legacy_mode": {
+                "optional": true,
+                "deprecated": true
+              },
+              "tags": {
+                "optional": true
+              },
+              "id": {
+                "computed": true
+              }
+            },
+            "block_types": {
+              "setting": {
+                "nesting_mode": "list",
+                "max_items": 1,
+                "block": {
+                  "attributes": {
+                    "value": {
+                      "optional": true
+                    }
+                  }
+                }
+              },
+              "rule": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "port": {
+                      "required": true
+                    }
+                  }
+                }
+              },
+              "old_rule": {
+                "nesting_mode": "list",
+                "block": {
+                  "deprecated": true,
+                  "attributes": {
+                    "port": {
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {}
+    }
+  ]
+}

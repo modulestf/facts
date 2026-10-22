@@ -1,0 +1,26 @@
+{
+  "manifest": [
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

@@ -59,6 +59,9 @@ func goldenOutput(t *testing.T, dir string, rules []Rule) []byte {
 	if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 		o.Base = filepath.Join(dir, "base")
 	}
+	if _, err := os.Stat(filepath.Join(dir, "schema-handoff.json")); err == nil {
+		o.SchemaHandoff, o.HeadSHA, o.MergeBaseSHA = filepath.Join(dir, "schema-handoff.json"), oracleHeadSHA, oracleBaseSHA
+	}
 	r, err := run(o, rules)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +87,8 @@ func readExpected(t *testing.T, dir string) []byte {
 }
 
 // TestGolden runs every case under testdata/. A case has head/, an optional
-// base/, a rules file naming the rules it compares, and expected.json with
+// base/, an optional schema-handoff.json recording the oracle's placeholder
+// commits, a rules file naming the rules it compares, and expected.json with
 // the manifest, findings and candidates a person checked for those rules.
 func TestGolden(t *testing.T) {
 	for _, dir := range goldenCases(t) {

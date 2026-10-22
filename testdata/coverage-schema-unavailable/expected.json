@@ -1,0 +1,161 @@
+{
+  "manifest": [
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": "examples/x",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": "modules/a",
+      "status": "not_evaluated",
+      "reason": "aws_demo_widget.this: provider \"aws\" has no resolved schema: no_matching_version",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": "modules/b",
+      "status": "not_evaluated",
+      "reason": "aws_demo_widget.this: no schema at the declared minimum registry.terraform.io/hashicorp/aws 5.9.0",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": "modules/c",
+      "status": "not_evaluated",
+      "reason": "aws_demo_unknown.this: no schema of the type at registry.terraform.io/hashicorp/aws 6.2.0",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.argument-above-min-version",
+      "area": "modules/d",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": "examples/x",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": "modules/a",
+      "status": "not_evaluated",
+      "reason": "aws_demo_widget.this: provider \"aws\" has no resolved schema: no_matching_version",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": "modules/b",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": "modules/c",
+      "status": "not_evaluated",
+      "reason": "aws_demo_unknown.this: no schema of the type at registry.terraform.io/hashicorp/aws 6.2.0",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.block-attribute-mismatch",
+      "area": "modules/d",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": "examples/x",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": "modules/a",
+      "status": "not_evaluated",
+      "reason": "aws_demo_widget.this: provider \"aws\" has no resolved schema: no_matching_version",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": "modules/b",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": "modules/c",
+      "status": "not_evaluated",
+      "reason": "aws_demo_unknown.this: no schema of the type at registry.terraform.io/hashicorp/aws 6.2.0",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.deprecated-argument",
+      "area": "modules/d",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": "examples/x",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": "modules/a",
+      "status": "not_evaluated",
+      "reason": "aws_demo_widget.this: provider \"aws\" has no resolved schema: no_matching_version",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": "modules/b",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": "modules/c",
+      "status": "not_evaluated",
+      "reason": "aws_demo_unknown.this: no schema of the type at registry.terraform.io/hashicorp/aws 6.2.0",
+      "reason_code": "schema_unavailable"
+    },
+    {
+      "rule_id": "coverage.unknown-argument",
+      "area": "modules/d",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "coverage.unknown-argument",
+      "file": "modules/b/main.tf",
+      "line": 3,
+      "subject": "modules/b:aws_demo_widget.this.bogus",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "modules/b/main.tf",
+            "line": 3,
+            "text": "  bogus     = 1"
+          }
+        ],
+        "base": null,
+        "head": "1",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "bogus",
+            "state": "absent"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "5.9.0",
+            "type": "aws_demo_widget",
+            "path": "bogus",
+            "state": "unknown"
+          }
+        ]
+      },
+      "evidence_complete": true
+    }
+  ]
+}

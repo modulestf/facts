@@ -1,0 +1,4 @@
+resource "aws_demo_widget" "this" {
+  name  = "a"
+  bogus = 1
+}
