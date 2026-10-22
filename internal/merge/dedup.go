@@ -79,7 +79,8 @@ func classRank(c string) int { return slices.Index(confirmClasses, c) }
 // overlapRule is how the merge reads one row of the registry's Dedup
 // Overlap table. Kept and Dropped come from the row's patterns; a family
 // pattern is wider than the row's prose, so notKept lists the rules the row
-// excludes from it, and sameDefect is the row's "Same defect when".
+// excludes from it, and sameDefect is the row's "Same defect when". A row
+// with no sameDefect is recognised but inert: the merge keeps both findings.
 type overlapRule struct {
 	notKept    []string
 	sameDefect func(kept, dropped *item) bool
@@ -95,16 +96,12 @@ var knownOverlaps = map[[2]string]overlapRule{
 	{"`compat.default-changed`", "`structure.flag-polarity`"}: {
 		sameDefect: func(k, d *item) bool { return flagSubject.MatchString(k.subject) && sameLocus(k, d) },
 	},
-	// Pair 2: the code's break over the title that misreports it. The row's
-	// "finding for the break" excludes the two Check A rules that judge the
-	// description, which are never deduplicated against a break. Whether the
-	// title misreports that same break is not in the findings, so the merge
-	// reads it only where the lead says so by place: the same subject, or the
-	// same file and line.
-	{"The `compat.*` finding for the break", "`profile.commit-type-mismatch`"}: {
-		notKept:    []string{"compat.claim-contradicts-analysis", "compat.break-unexplained"},
-		sameDefect: sameLocus,
-	},
+	// Pair 2: the code's break over the title that misreports it. Owner
+	// decision of 2026-10-22: the host merge does not apply pair 2, so both
+	// findings are kept. Whether the title misreports that same break is
+	// not in the findings. The row stays recognised, so a new or reworded
+	// row still fails closed.
+	{"The `compat.*` finding for the break", "`profile.commit-type-mismatch`"}: {},
 }
 
 // flagSubject is a subject naming an enable_* or attach_* variable.
@@ -126,6 +123,9 @@ func (in Inputs) dedupStep2(items []*item) []*item {
 	drop := map[*item]bool{}
 	for _, o := range in.Registry.Overlaps {
 		row := knownOverlaps[[2]string{o.KeptCell, o.DroppedCell}] // in.check refused unknown rows
+		if row.sameDefect == nil {
+			continue
+		}
 		for _, d := range items {
 			if drop[d] || !registry.Match(o.Dropped, d.f.RuleID) {
 				continue

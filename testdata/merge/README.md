@@ -4,6 +4,8 @@ Inputs and expected outputs of `mtf-facts merge`. `TestFinalFixtures` in `intern
 
 Every file here is a byte-identical copy of the merge fixtures the facts engine spec was written against, except this README.
 
+`../merge-golden/` holds the merged findings `TestHostileGolden` in `internal/merge/golden_test.go` writes from hostile replies; `go test ./internal/merge -run TestHostileGolden -update` rewrites them. `TestMergedFindingsSchema` in `internal/facts` validates them, and every `expected-findings.json`, against `merged-findings.schema.json`.
+
 ## Layout
 
 Each fixture is a directory:

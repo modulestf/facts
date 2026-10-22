@@ -1,0 +1,48 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "compat.variable-removed",
+    "severity": "CRITICAL",
+    "file": "variables.tf",
+    "line": null,
+    "summary": ".:var.x is removed.",
+    "suggested_fix": "Restore .:var.x.",
+    "source": "host",
+    "subject": ".:var.x",
+    "candidate_id": "C-003",
+    "confirmed_by": "mid"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "profile.nonstandard-config-file",
+    "severity": "HIGH",
+    "file": "override.tf",
+    "line": null,
+    "summary": "tool",
+    "suggested_fix": "f",
+    "source": "tool",
+    "subject": "override.tf"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "examples/a/main.tf",
+    "line": 7,
+    "summary": "Rule structure.wrong-file was not decided for examples/a:output.url: the model reply was still invalid after the repair turn.",
+    "suggested_fix": "Review examples/a:output.url against structure.wrong-file by hand.",
+    "source": "host",
+    "subject": "structure.wrong-file@examples/a:output.url"
+  },
+  {
+    "id": "F-004",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": "Rule structure.output-no-try was not decided for .:output.arn: the model reply was still invalid after the repair turn.",
+    "suggested_fix": "Review .:output.arn against structure.output-no-try by hand.",
+    "source": "host",
+    "subject": "structure.output-no-try@.:output.arn"
+  }
+]

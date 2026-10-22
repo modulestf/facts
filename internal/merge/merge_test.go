@@ -365,7 +365,9 @@ func TestFinalLeadFindings(t *testing.T) {
 	}
 }
 
-// TestFinalDedup covers step 1 merges and both step 2 pairs.
+// TestFinalDedup covers step 1 merges and both step 2 pairs. Pair 2 is
+// inert by the owner's decision of 2026-10-22: a title finding on the
+// break's own line stays beside the break.
 func TestFinalDedup(t *testing.T) {
 	b := testBundle(t, `{"tool_findings":[],"candidates":[
  {"candidate_id":"C-001","rule_id":"compat.default-changed","file":"variables.tf","line":10,"subject":".:var.enable_x","evidence":{},"evidence_complete":true},
@@ -387,7 +389,7 @@ func TestFinalDedup(t *testing.T) {
  "findings":[` + strings.Join([]string{
 		finding("structure.flag-polarity", "MEDIUM", "variables.tf", "11", "polarity enable_x, dropped by pair 1"),
 		finding("structure.flag-polarity", "MEDIUM", "variables.tf", "21", "polarity on a non-flag subject, kept"),
-		finding("profile.commit-type-mismatch", "MEDIUM", "variables.tf", "30", "title on the break line, dropped by pair 2"),
+		finding("profile.commit-type-mismatch", "MEDIUM", "variables.tf", "30", "title on the break line, kept: pair 2 is inert"),
 		finding("profile.commit-type-mismatch", "LOW", ".", "null", "title elsewhere, kept"),
 		finding("compat.claim-contradicts-analysis", "HIGH", ".", "null", "claim, never kept over a title"),
 		finding("structure.grouping", "LOW", "main.tf", "40", "second in arrival"),
@@ -407,8 +409,9 @@ func TestFinalDedup(t *testing.T) {
 		"F-003 MEDIUM compat.default-changed default enable_x",
 		"F-004 MEDIUM compat.default-changed default retention",
 		"F-005 MEDIUM structure.flag-polarity polarity on a non-flag subject, kept",
-		"F-006 LOW profile.commit-type-mismatch title elsewhere, kept",
-		"F-007 LOW structure.grouping second in arrival",
+		"F-006 MEDIUM profile.commit-type-mismatch title on the break line, kept: pair 2 is inert",
+		"F-007 LOW profile.commit-type-mismatch title elsewhere, kept",
+		"F-008 LOW structure.grouping second in arrival",
 	}
 	if !slices.Equal(lines, want) {
 		t.Errorf("got\n%s\nwant\n%s", strings.Join(lines, "\n"), strings.Join(want, "\n"))
@@ -450,17 +453,35 @@ func TestClamp(t *testing.T) {
 	}
 }
 
-func TestAreaOf(t *testing.T) {
-	tests := map[string]string{
-		".": ".", "main.tf": ".", ".github/workflows/x.yml": ".", "modules/m/main.tf": "modules/m",
-		"examples/a/b/c.tf": "examples/a", "examples/x.tf": "", "wrappers/main.tf": "", "tests/a.tftest.hcl": "",
-		"x.tftest.hcl": "",
+func TestFindingArea(t *testing.T) {
+	path := registry.Rule{Class: classPath}
+	config := registry.Rule{Class: "config-semantic"}
+	tests := []struct {
+		name string
+		rule registry.Rule
+		file string
+		want string // "" for no area
+	}{
+		{"root dot", config, ".", "."},
+		{"root file", config, "main.tf", "."},
+		{"github", config, ".github/workflows/x.yml", "."},
+		{"submodule file", config, "modules/m/main.tf", "modules/m"},
+		{"nested example file", config, "examples/a/b/c.tf", "examples/a"},
+		{"loose example file", config, "examples/x.tf", ""},
+		{"wrappers", config, "wrappers/main.tf", ""},
+		{"test file", config, "x.tftest.hcl", ""},
+		{"area directory, config rule", config, "examples/complete", ""},
+		{"area directory, path rule", path, "examples/complete", "examples/complete"},
+		{"submodule directory, path rule", path, "modules/m", "modules/m"},
+		{"wrappers directory, path rule", path, "wrappers/x", ""},
 	}
-	for p, want := range tests {
-		got, ok := areaOf(p)
-		if got != want || ok != (want != "") {
-			t.Errorf("areaOf(%q) = %q, %v; want %q", p, got, ok, want)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := findingArea(tt.rule, tt.file)
+			if got != tt.want || ok != (tt.want != "") {
+				t.Errorf("findingArea(%q) = %q, %v; want %q", tt.file, got, ok, tt.want)
+			}
+		})
 	}
 }
 
@@ -476,6 +497,12 @@ func TestCheckMerged(t *testing.T) {
 		"host fallback no id":    func(f *Finding) { f.Source, f.Subject = SourceHost, ".:x" },
 		"llm prefixed subject":   func(f *Finding) { f.Subject = "structure.grouping@.:x" },
 		"bad path":               func(f *Finding) { f.File = "a\nb" },
+		"line separator path":    func(f *Finding) { f.File = "a\u2028b" },
+		"C1 control path":        func(f *Finding) { f.File = "a\u0085b" },
+		"file subject elsewhere": func(f *Finding) { f.Source, f.Subject = SourceTool, "other.tf" },
+		"check subject elsewhere": func(f *Finding) {
+			f.Source, f.RuleID, f.Severity, f.Subject = SourceHost, ruleCheckNotRun, "MEDIUM", "structure.x@other.tf"
+		},
 	}
 	if err := checkMerged(good); err != nil {
 		t.Fatal(err)
@@ -504,5 +531,54 @@ func TestParseTemplatesAndIndex(t *testing.T) {
 	}
 	if _, err := ParseIndex([]byte(`[`)); err == nil {
 		t.Error("a broken report is accepted")
+	}
+}
+
+// TestFinalCheckNotRunPerRule keeps two lead review.check-not-run findings
+// for different rules in one file: review.* findings dedup by rule, file
+// and line, never by the file as a path rule's subject.
+func TestFinalCheckNotRunPerRule(t *testing.T) {
+	b := testBundle(t, `{"tool_findings":[],"candidates":[],"severity_needed":[]}`)
+	reply := `{"candidate_decisions":[],"findings":[
+ {"id":"F-001","rule_id":"review.check-not-run","severity":"MEDIUM","file":"main.tf","line":3,"summary":"rule A did not run","suggested_fix":"f"},
+ {"id":"F-002","rule_id":"review.check-not-run","severity":"MEDIUM","file":"main.tf","line":9,"summary":"rule B did not run","suggested_fix":"f"},
+ {"id":"F-003","rule_id":"review.tool-disputed","severity":"LOW","file":"main.tf","line":null,"summary":"dispute one","suggested_fix":"f"},
+ {"id":"F-004","rule_id":"review.tool-disputed","severity":"LOW","file":"main.tf","line":2,"summary":"dispute two","suggested_fix":"f"}]}`
+	got, err := Final(Inputs{Registry: testRegistry(t), Bundle: b}, []byte(reply), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 {
+		t.Errorf("got %d findings, want 4: %+v", len(got), got)
+	}
+}
+
+// TestFinalRefusesEmptySeverities refuses a bundle whose rule has no
+// severities, so clamp never sees an empty list.
+func TestFinalRefusesEmptySeverities(t *testing.T) {
+	b := testBundle(t, `{"tool_findings":[],"candidates":[
+ {"candidate_id":"C-001","rule_id":"structure.never-emitted","file":"a.tf","line":1,"subject":".:x","evidence":{},"evidence_complete":true}],
+ "severity_needed":[]}`)
+	reply := `{"candidate_decisions":[{"candidate_id":"C-001","decision":"confirm","reason":"r","severity":"HIGH","summary":"s","suggested_fix":"f"}],"findings":[]}`
+	if _, err := Final(Inputs{Registry: testRegistry(t), Bundle: b}, []byte(reply), nil); err == nil {
+		t.Error("no error")
+	}
+	if got := clamp("HIGH", nil); got != "HIGH" {
+		t.Errorf("clamp on an empty list = %s", got)
+	}
+}
+
+// TestFinalSeverityNeededOnce fails a merge that would lose a
+// severity_needed entry, here to a tool finding on the same rule and
+// subject.
+func TestFinalSeverityNeededOnce(t *testing.T) {
+	b := testBundle(t, `{"tool_findings":[
+ {"id":"F-001","rule_id":"compat.variable-removed","severity":"CRITICAL","file":"variables.tf","line":null,"summary":"s","suggested_fix":"f","source":"tool","subject":".:var.x","candidate_id":"C-001","confirmed_by":"small"}],
+ "candidates":[],
+ "severity_needed":[{"candidate_id":"C-002","rule_id":"compat.variable-removed","file":"variables.tf","line":null,"subject":".:var.x","severities":["CRITICAL","HIGH"],"confirmed_by":"mid"}]}`)
+	reply := `{"candidate_decisions":[{"candidate_id":"C-002","decision":"confirm","reason":"r","severity":"HIGH","summary":"s","suggested_fix":"f"}],"findings":[]}`
+	_, err := Final(Inputs{Registry: testRegistry(t), Bundle: b}, []byte(reply), nil)
+	if err == nil || !strings.Contains(err.Error(), "C-002 is materialized 0 times") {
+		t.Errorf("error %v", err)
 	}
 }

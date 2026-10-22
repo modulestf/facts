@@ -27,7 +27,7 @@ func TestClassify(t *testing.T) {
 		"examples/complete/.gitignore": "examples/complete example",
 	}
 	for p, want := range cases {
-		a, k, ok := classify(p)
+		a, k, ok := Classify(p)
 		got := "none"
 		if ok {
 			got = a + " " + k

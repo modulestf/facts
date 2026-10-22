@@ -35,6 +35,7 @@ var testRows = [][5]string{
 	{"structure.grouping", "llm", "config-semantic", "no", "LOW"},
 	{"structure.output-no-try", "candidate", "config-semantic", "no", "HIGH"},
 	{"structure.wrong-file", "candidate", "config-semantic", "no", "MEDIUM"},
+	{"structure.never-emitted", "candidate", "config-semantic", "no", "none"},
 }
 
 // testRegistryText builds a rule-facts.md with testRows and the overlap

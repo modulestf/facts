@@ -235,14 +235,15 @@ func parseLine(raw json.RawMessage) (*int, bool) {
 }
 
 // validPath is the finding schema's path: "." or a relative path with
-// forward slashes, no backslash, no ".." segment and no line break or other
-// control character, which the schema's "." does not match.
+// forward slashes, no backslash and no ".." segment. It also refuses the
+// line terminators the schema's "." does not match (line feed, carriage
+// return, U+2028 and U+2029) and, stricter than the schema, every other C0
+// and C1 control.
 func validPath(p string) bool {
 	if p == "." {
 		return true
 	}
-	if p == "" || strings.HasPrefix(p, "/") || strings.ContainsRune(p, '\\') ||
-		strings.ContainsFunc(p, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+	if p == "" || strings.HasPrefix(p, "/") || strings.ContainsRune(p, '\\') || strings.ContainsFunc(p, badPathRune) {
 		return false
 	}
 	return !slices.Contains(strings.Split(p, "/"), "..")
@@ -339,4 +340,10 @@ func stateProblem(st answerState) string {
 		return "is confirmed without both summary and suggested_fix"
 	}
 	return ""
+}
+
+// badPathRune reports a control character or a Unicode line or paragraph
+// separator.
+func badPathRune(r rune) bool {
+	return r < 0x20 || (r >= 0x7f && r <= 0x9f) || r == '\u2028' || r == '\u2029'
 }

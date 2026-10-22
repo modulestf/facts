@@ -18,10 +18,14 @@ const (
 	ruleToolDisputed = "review.tool-disputed"
 )
 
-// toolDisputed stands in for review.tool-disputed while the registry has no
-// row for it: the spec makes it an llm rule at LOW.
+// classPath is the registry class of a path rule.
+const classPath = "path"
+
+// toolDisputed stands in for review.tool-disputed while the pinned registry
+// has no row for it: an llm path rule at LOW, as the row on the skills
+// default branch has it.
 var toolDisputed = registry.Rule{
-	ID: ruleToolDisputed, Engine: registry.EngineLLM, Class: "config-semantic",
+	ID: ruleToolDisputed, Engine: registry.EngineLLM, Class: classPath,
 	Severities: []string{registry.SeverityLow},
 }
 
@@ -77,6 +81,9 @@ func Final(in Inputs, first, repair []byte) ([]Finding, error) {
 		return nil, err
 	}
 	items = in.dedupStep2(dedupStep1(items))
+	if err := in.checkSeverityNeeded(items); err != nil {
+		return nil, err
+	}
 	slices.SortStableFunc(items, func(a, b *item) int { return finalCmp(&a.f, &b.f) })
 	out := make([]Finding, len(items))
 	for i, it := range items {
@@ -101,7 +108,9 @@ func (in Inputs) check() error {
 		return r, ok
 	}
 	for _, f := range in.Bundle.ToolFindings {
-		known("tool finding", f.RuleID)
+		if r, ok := known("tool finding", f.RuleID); ok && len(r.Severities) == 0 {
+			errs = append(errs, fmt.Errorf("tool finding: rule %s has no severities", f.RuleID))
+		}
 	}
 	for _, c := range in.Bundle.Candidates {
 		if r, ok := known("candidate "+c.CandidateID, c.RuleID); ok && len(r.Severities) == 0 {
@@ -120,6 +129,22 @@ func (in Inputs) check() error {
 	for _, o := range in.Registry.Overlaps {
 		if _, ok := knownOverlaps[[2]string{o.KeptCell, o.DroppedCell}]; !ok {
 			errs = append(errs, fmt.Errorf("dedup overlap pair %d is not one the merge implements", o.Pair))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// checkSeverityNeeded checks that each severity_needed id is materialized
+// exactly once after dedup.
+func (in Inputs) checkSeverityNeeded(items []*item) error {
+	count := map[string]int{}
+	for _, it := range items {
+		count[it.f.CandidateID]++
+	}
+	var errs []error
+	for _, s := range in.Bundle.SeverityNeeded {
+		if n := count[s.CandidateID]; n != 1 {
+			errs = append(errs, fmt.Errorf("severity_needed %s is materialized %d times", s.CandidateID, n))
 		}
 	}
 	return errors.Join(errs...)
@@ -266,7 +291,7 @@ func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
 	if r.Engine == registry.EngineLLM {
 		return r, true
 	}
-	area, ok := areaOf(f.File)
+	area, ok := findingArea(r, f.File)
 	if !ok {
 		return r, false
 	}
@@ -283,28 +308,32 @@ func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
 	return r, false
 }
 
-// areaOf maps a file to its area as the facts engine does: wrappers, tests
-// and loose files directly under examples/ or modules/ have none, and
-// everything outside examples/ and modules/ is the root.
-func areaOf(p string) (string, bool) {
-	parts := strings.Split(p, "/")
-	switch {
-	case parts[0] == "wrappers" || parts[0] == "tests" || strings.HasSuffix(p, ".tftest.hcl"):
-		return "", false
-	case parts[0] == "examples" || parts[0] == "modules":
-		if len(parts) < 3 {
-			return "", false
-		}
-		return parts[0] + "/" + parts[1], true
+// findingArea is the area of a finding's file, as the facts engine maps a
+// path. A path rule's subject may be an area directory itself, such as
+// examples/complete, which facts.Classify reads as a loose file under
+// examples/; for a path rule that directory is its own area.
+func findingArea(r registry.Rule, file string) (string, bool) {
+	if area, _, ok := facts.Classify(file); ok {
+		return area, true
 	}
-	return ".", true
+	if parts := strings.Split(file, "/"); r.Class == classPath && len(parts) == 2 &&
+		(parts[0] == "examples" || parts[0] == "modules") && parts[1] != "" {
+		return file, true
+	}
+	return "", false
 }
 
 // derivedSubject is the dedup subject of a lead finding: the file for a
 // path rule, before the index is read, else the subject the index gives its
-// line. It is "" when neither applies.
+// line. It is "" when neither applies, and always for a review.* finding,
+// which dedups by rule, file and line: two review.check-not-run findings
+// for different rules in one file are two findings, though the registry
+// makes the rule a path rule.
 func (in Inputs) derivedSubject(r registry.Rule, f Finding) string {
-	if r.Class == "path" {
+	if strings.HasPrefix(f.RuleID, "review.") {
+		return ""
+	}
+	if r.Class == classPath {
 		return f.File
 	}
 	if f.Line == nil {
@@ -336,6 +365,9 @@ func finalCmp(a, b *Finding) int {
 // clamp caps a severity above the permitted list down to the highest
 // permitted one at or below it, and raises one below the list to the lowest.
 func clamp(sev string, permitted []string) string {
+	if len(permitted) == 0 { // Inputs.check refuses such a rule; never index an empty list
+		return sev
+	}
 	ranked := slices.SortedFunc(slices.Values(permitted), func(a, b string) int {
 		return cmp.Compare(registry.SeverityRank(a), registry.SeverityRank(b))
 	})

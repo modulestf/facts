@@ -36,6 +36,13 @@ func checkMerged(f Finding) error {
 	bad((f.CandidateID == "") != (f.ConfirmedBy == ""), "candidate_id and confirmed_by are not a pair")
 	bad(f.CandidateID != "" && !candidateIDPattern.MatchString(f.CandidateID), "candidate_id is malformed")
 	plain := f.Subject == "" || !prefixedSubject.MatchString(f.Subject)
+	// A file-level subject, one with no "<area>:" scope, is the finding's
+	// file; a review.check-not-run carries it after "<rule_id>@".
+	bare := f.Subject
+	if !plain {
+		_, bare, _ = strings.Cut(f.Subject, "@")
+	}
+	bad(bare != "" && !strings.Contains(bare, ":") && bare != f.File, "a file-level subject is not the finding's file")
 	switch {
 	case f.Source == SourceTool:
 		bad(f.Subject == "" || !plain, "a tool finding has no plain subject")
