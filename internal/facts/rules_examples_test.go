@@ -89,7 +89,10 @@ func TestSubmoduleMissingCases(t *testing.T) {
 		head map[string]string
 		want string
 	}{
-		"own example":              {map[string]string{"modules/new/main.tf": sub, "examples/new/main.tf": ""}, "clean"},
+		"own example":              {map[string]string{"modules/new/main.tf": sub, "examples/new/main.tf": "module \"new\" {\n  source = \"../../modules/new\"\n}\n"}, "clean"},
+		"README only":              {map[string]string{"modules/new/main.tf": sub, "examples/new/README.md": "../../modules/new\n"}, "candidate"},
+		"calls the root":           {map[string]string{"modules/new/main.tf": sub, "examples/new/main.tf": "module \"this\" {\n  source = \"../../\"\n}\n"}, "candidate"},
+		"named in a subdirectory":  {map[string]string{"modules/new/main.tf": sub, "examples/new/sub/main.tf": "source = \"../../../modules/new\"\n"}, "candidate"},
 		"no example":               {map[string]string{"modules/new/main.tf": sub}, "candidate"},
 		"example is a file":        {map[string]string{"modules/new/main.tf": sub, "examples/new": ""}, "candidate"},
 		"example is a link":        {map[string]string{"modules/new/main.tf": sub, "examples/x/main.tf": "", "examples/new": "->x"}, "candidate"},
@@ -153,7 +156,9 @@ func TestReferencesPath(t *testing.T) {
 		`source = "../../modules/x/sub"`: true,
 		`../../modules/x`:                true,
 		`source = "../../modules/xy"`:    false,
-		`modules/xy and modules/x"`:      true,
+		`modules/xy and "modules/x"`:     true,
+		`mymodules/x`:                    false,
+		`source = "../../mymodules/x"`:   false,
 		`modules/xy and modules/xz`:      false,
 		``:                               false,
 	} {
@@ -231,4 +236,58 @@ func TestStaleReferenceEvidenceCap(t *testing.T) {
 	if len(cs) != 1 || cs[0].EvidenceComplete || len(cs[0].Evidence.SourceLines) != 1+maxEvidenceComments || cs[0].Evidence.SourceLines[0].Revision != "merge_base" {
 		t.Fatalf("candidates %+v", cs)
 	}
+}
+
+// An input the called module does not declare at head, and never did, is
+// anchored at the example's argument line; one it declared at base is
+// anchored at the module. Meta-arguments are not inputs.
+func TestStaleReferenceUndeclaredInput(t *testing.T) {
+	base := map[string]string{"variables.tf": "variable \"kept\" {}\nvariable \"old\" {}\n",
+		"examples/e/main.tf": "module \"this\" {\n  source = \"../../\"\n}\n"}
+	head := maps.Clone(base)
+	head["variables.tf"] = "variable \"kept\" {}\n"
+	head["examples/e/main.tf"] = "module \"this\" {\n  source     = \"../../\"\n  count      = 1\n  for_each   = {}\n  providers  = {}\n  depends_on = []\n  version    = \"1\"\n  kept       = 1\n  old        = 2\n  invented   = 3\n}\n"
+	cs := candidatesOf(runBase(t, base, head), staleRule)
+	if len(cs) != 2 {
+		t.Fatalf("candidates %+v", cs)
+	}
+	inv, old := cs[0], cs[1]
+	if inv.File != "examples/e/main.tf" || inv.Line == nil || *inv.Line != 10 || inv.Subject != "examples/e:module.this.invented" || inv.Evidence.Base != nil {
+		t.Errorf("invented input %+v", inv)
+	}
+	if old.File != "variables.tf" || old.Line != nil || old.Subject != ".:var.old" {
+		t.Errorf("removed input %+v", old)
+	}
+	// An undeclared input on a line the change does not touch is not in it.
+	base["examples/e/main.tf"] = head["examples/e/main.tf"]
+	if cs := candidatesOf(runBase(t, base, head), staleRule); len(cs) != 1 || cs[0].Subject != ".:var.old" {
+		t.Errorf("unchanged line kept: %+v", cs)
+	}
+}
+
+// A rename is one-to-one: two removed outputs with one value, or two new
+// outputs with it, are removals.
+func TestStaleReferenceRenameOneToOne(t *testing.T) {
+	ex := "module \"this\" {\n  source = \"../../\"\n}\noutput \"x\" {\n  value = module.this.a\n}\n"
+	for name, tc := range map[string]struct{ base, head string }{
+		"two removed": {"output \"a\" {\n  value = 1\n}\noutput \"b\" {\n  value = 1\n}\n", "output \"c\" {\n  value = 1\n}\n"},
+		"two added":   {"output \"a\" {\n  value = 1\n}\n", "output \"c\" {\n  value = 1\n}\noutput \"d\" {\n  value = 1\n}\n"},
+	} {
+		base := map[string]string{"outputs.tf": tc.base, "examples/e/main.tf": ex}
+		head := maps.Clone(base)
+		head["outputs.tf"] = tc.head
+		cs := candidatesOf(runBase(t, base, head), staleRule)
+		if len(cs) != 1 || cs[0].Line != nil || cs[0].Evidence.Head != nil {
+			t.Errorf("%s: %+v", name, cs)
+		}
+	}
+}
+
+func TestStaleReferenceNeedsPeers(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("no panic without peers")
+		}
+	}()
+	checkStaleReference(&Area{Path: "examples/e", Kind: AreaExample, HeadExists: true})
 }

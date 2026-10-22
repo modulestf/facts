@@ -169,7 +169,9 @@ func evaluate(r Rule, a *Area) Result {
 // findings and candidates of every area that scoped keeps: those on a line in
 // the change, or with no line, those whose path is in the change. A result of
 // an untouched area is kept only when it is anchored at the change that
-// causes it, such as an example that reads an output the change removed.
+// causes it, such as an example that reads an output the change removed:
+// its file must itself be in the change, never "." or a directory above a
+// changed file.
 func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
 	// Without a base tree no area has base facts. A rule that needs them is
 	// no_base even when no area is of its kinds.
@@ -179,6 +181,10 @@ func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
 	var out Result
 	for _, a := range areas {
 		res := scoped(r, evaluate(r, a), ch)
+		if a.Untouched && res.NotEvaluated == "" {
+			res.Findings = slices.DeleteFunc(res.Findings, func(f Finding) bool { return !ch.paths[f.File] })
+			res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { return !ch.paths[c.File] })
+		}
 		switch res.NotEvaluated {
 		case StatusNotApplicable:
 		case "":

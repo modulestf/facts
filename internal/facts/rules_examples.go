@@ -123,18 +123,18 @@ func treeLine(t *Tree, p string, n int) (string, bool) {
 }
 
 // examples.submodule-missing: a submodule the change adds has no example of
-// its own. An example directory of the same name, examples/<name>, is its
-// own example and the rule is clean; with none the submodule is a candidate,
-// since another example may still call it. A submodule that is not new, or
-// that the change removes, is clean. The rule reads paths only, and the
-// evidence: the submodule path as head, null base, and the lines of example
-// .tf files that name modules/<name>, at most maxEvidenceComments of them.
+// its own. The rule is clean only when a regular .tf file directly in
+// examples/<name> names modules/<name>; anything else is a candidate, since
+// the confirmer may still find an example that calls it. A submodule that is
+// not new, or that the change removes, is clean. The rule reads file text,
+// never the parse. Its evidence is the submodule path as head, null base, and
+// the lines of example .tf files that name modules/<name>, at most
+// maxEvidenceComments of them.
 func checkSubmoduleMissing(a *Area) Result {
 	if a.BaseExists || !a.HeadExists {
 		return Result{}
 	}
-	name := path.Base(a.Path)
-	if a.headTree.Dirs[path.Join("examples", name)] {
+	if ownExample(a) {
 		return Result{}
 	}
 	head := a.Path
@@ -166,13 +166,32 @@ func checkSubmoduleMissing(a *Area) Result {
 	return Result{Candidates: []Candidate{c}}
 }
 
+// ownExample reports whether a regular .tf file directly in
+// examples/<name> names the submodule modules/<name>.
+func ownExample(a *Area) bool {
+	dir := path.Join("examples", path.Base(a.Path))
+	for _, e := range a.headTree.DirEntries(dir) {
+		if e.Kind != KindFile || !strings.HasSuffix(e.Path, ".tf") {
+			continue
+		}
+		for _, l := range splitLines(e.Data) {
+			if referencesPath(l, []byte(a.Path)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // referencesPath reports whether a line names the module path p whole: p
-// followed by a quote, a slash or the end of the line, so modules/extra does
-// not match modules/extra2.
+// after the start of the line, a slash or a quote, and before a quote, a
+// slash or the end of the line, so modules/extra matches neither
+// modules/extra2 nor mymodules/extra.
 func referencesPath(l, p []byte) bool {
 	for i := bytes.Index(l, p); i >= 0; {
 		end := i + len(p)
-		if end == len(l) || l[end] == '"' || l[end] == '/' {
+		left := i == 0 || l[i-1] == '/' || l[i-1] == '"'
+		if left && (end == len(l) || l[end] == '"' || l[end] == '/') {
 			return true
 		}
 		j := bytes.Index(l[end:], p)
@@ -190,7 +209,7 @@ type staleRef struct {
 	subject string // "<callee>:output.<name>" or "<callee>:var.<name>"
 	file    string // the file the change edits
 	line    *int   // the renamed block's head line; nil for a removal
-	base    string // the address at base
+	base    string // the address at base; "" for an input never declared
 	// baseFile and baseLine are where the block was at base.
 	baseFile string
 	baseLine int
@@ -214,6 +233,9 @@ type staleRef struct {
 // comments counts too; the confirmer rejects it. A call whose source is not
 // a local path to a module area calls no code of this change.
 func checkStaleReference(a *Area) Result {
+	if a.peers == nil {
+		panic("facts: examples.stale-reference needs the areas from Evaluate")
+	}
 	if !a.HeadExists {
 		return Result{}
 	}
@@ -229,6 +251,7 @@ func checkStaleReference(a *Area) Result {
 	slices.Sort(paths)
 	for _, p := range paths {
 		ex := a.peers[p]
+		files := exampleFiles(ex)
 		for _, call := range ex.Head.ModuleCalls {
 			callee := calledArea(ex, call)
 			if callee == nil {
@@ -237,7 +260,7 @@ func checkStaleReference(a *Area) Result {
 			if reason, code := moduleIssue(callee); reason != "" {
 				return Result{NotEvaluated: reason, Code: code}
 			}
-			for _, r := range staleReads(ex, call, callee) {
+			for _, r := range staleReads(ex, files, call, callee) {
 				if _, ok := first[r.ref.subject]; !ok {
 					first[r.ref.subject] = p
 				}
@@ -252,10 +275,13 @@ func checkStaleReference(a *Area) Result {
 			continue
 		}
 		ref := refs[subj]
-		base := ref.base
 		c := Candidate{
 			RuleID: "examples.stale-reference", File: ref.file, Line: ref.line, Subject: subj, EvidenceComplete: true,
-			Evidence: Evidence{SourceLines: []SourceLine{}, Base: &base, Head: ref.head, SchemaFacts: []SchemaFact{}},
+			Evidence: Evidence{SourceLines: []SourceLine{}, Head: ref.head, SchemaFacts: []SchemaFact{}},
+		}
+		if ref.base != "" {
+			base := ref.base
+			c.Evidence.Base = &base
 		}
 		// The block at base first, then the example lines that read it.
 		c.addLine("merge_base", a.baseTree, ref.baseFile, ref.baseLine)
@@ -306,24 +332,58 @@ type staleRead struct {
 	line SourceLine
 }
 
+// exampleFile is one regular .tf file directly in an example, split into
+// lines.
+type exampleFile struct {
+	path  string
+	lines [][]byte
+}
+
+// exampleFiles reads the regular .tf files directly in an example once.
+func exampleFiles(ex *Area) []exampleFile {
+	var out []exampleFile
+	for _, e := range ex.headTree.DirEntries(ex.Path) {
+		if e.Kind == KindFile && strings.HasSuffix(e.Path, ".tf") {
+			out = append(out, exampleFile{path: e.Path, lines: splitLines(e.Data)})
+		}
+	}
+	return out
+}
+
+// moduleCallMeta are the module call arguments that are not inputs.
+var moduleCallMeta = map[string]bool{"source": true, "version": true, "count": true, "for_each": true, "providers": true, "depends_on": true}
+
 // staleReads returns the reads by one example's call of the inputs and
-// outputs the change removed or renamed in the called module.
-func staleReads(ex *Area, call ModuleCall, callee *Area) []staleRead {
+// outputs the change removed or renamed in the called module, and the inputs
+// the call sets that the called module does not declare at head. A removed
+// input is anchored at the called module, like a removed output. An input
+// the module never declared is anchored at the example's argument, with the
+// subject <example>:module.<call>.<input>.
+func staleReads(ex *Area, files []exampleFile, call ModuleCall, callee *Area) []staleRead {
 	if callee.Base == nil {
 		return nil
 	}
 	var out []staleRead
 	for _, at := range call.Body.Attributes {
-		if at.Name == "source" || at.Name == "version" || !removedVariable(callee, at.Name) {
+		if moduleCallMeta[at.Name] || callee.Head.varNames[at.Name] {
 			continue
 		}
-		v := callee.Base.Variables[slices.IndexFunc(callee.Base.Variables, func(v Variable) bool { return v.Name == at.Name })]
-		file := areaFile(ex.Path, call.File)
-		text, _ := headLine(ex, call.File, at.Range.Start.Line)
+		file, line := areaFile(ex.Path, call.File), at.Range.Start.Line
+		text, _ := headLine(ex, call.File, line)
+		read := SourceLine{Revision: "head", File: file, Line: line, Text: text}
+		if i := slices.IndexFunc(callee.Base.Variables, func(v Variable) bool { return v.Name == at.Name }); i >= 0 {
+			v := callee.Base.Variables[i]
+			out = append(out, staleRead{
+				ref: staleRef{subject: subject(callee.Path, "var."+v.Name), file: areaFile(callee.Path, v.File), base: "var." + v.Name,
+					baseFile: areaFile(callee.Path, v.File), baseLine: v.Line},
+				line: read,
+			})
+			continue
+		}
+		l := line
 		out = append(out, staleRead{
-			ref: staleRef{subject: subject(callee.Path, "var."+v.Name), file: areaFile(callee.Path, v.File), base: "var." + v.Name,
-				baseFile: areaFile(callee.Path, v.File), baseLine: v.Line},
-			line: SourceLine{Revision: "head", File: file, Line: at.Range.Start.Line, Text: text},
+			ref:  staleRef{subject: subject(ex.Path, "module."+call.Name+"."+at.Name), file: file, line: &l},
+			line: read,
 		})
 	}
 	removed := removedOutputs(callee)
@@ -331,25 +391,17 @@ func staleReads(ex *Area, call ModuleCall, callee *Area) []staleRead {
 		return out
 	}
 	prefix := []byte("module." + call.Name)
-	for _, p := range ex.headTree.Paths {
-		e := ex.headTree.Entries[p]
-		if path.Dir(p) != ex.Path || !strings.HasSuffix(p, ".tf") || e.Kind != KindFile {
-			continue
-		}
-		for i, l := range splitLines(e.Data) {
+	for _, f := range files {
+		for i, l := range f.lines {
 			for _, o := range outputsRead(l, prefix, removed) {
 				out = append(out, staleRead{
 					ref:  outputRef(callee, o),
-					line: SourceLine{Revision: "head", File: p, Line: i + 1, Text: string(bytes.TrimRight(l, "\r"))},
+					line: SourceLine{Revision: "head", File: f.path, Line: i + 1, Text: string(bytes.TrimRight(l, "\r"))},
 				})
 			}
 		}
 	}
 	return out
-}
-
-func removedVariable(m *Area, name string) bool {
-	return m.Base.varNames[name] && !m.Head.varNames[name]
 }
 
 // removedOutputs are the base outputs with no head output of their name.
@@ -363,18 +415,33 @@ func removedOutputs(m *Area) []Output {
 	return out
 }
 
-// outputRef anchors a removed output: on the head line of a new output with
-// the same value as written, a rename, and otherwise on the file that held
-// it, with no line.
+// outputRef anchors a removed output: on the head line of the new output it
+// was renamed to, and otherwise on the file that held it, with no line. It
+// is a rename only when exactly one new output has the removed one's value
+// as written and no other removed output has that value.
 func outputRef(m *Area, o Output) staleRef {
 	ref := staleRef{subject: subject(m.Path, "output."+o.Name), file: areaFile(m.Path, o.File), base: "output." + o.Name,
 		baseFile: areaFile(m.Path, o.File), baseLine: o.Line}
+	if o.Value == nil {
+		return ref
+	}
+	same := func(x Output) bool { return x.Value != nil && x.Value.Text == o.Value.Text }
+	var added []Output
 	for _, h := range m.Head.Outputs {
-		if !m.Base.outNames[h.Name] && h.Value != nil && o.Value != nil && h.Value.Text == o.Value.Text {
-			line, head := h.Line, "output."+h.Name
-			ref.file, ref.line, ref.head = areaFile(m.Path, h.File), &line, &head
-			break
+		if !m.Base.outNames[h.Name] && same(h) {
+			added = append(added, h)
 		}
+	}
+	removedSame := 0
+	for _, b := range removedOutputs(m) {
+		if same(b) {
+			removedSame++
+		}
+	}
+	if len(added) == 1 && removedSame == 1 {
+		h := added[0]
+		line, head := h.Line, "output."+h.Name
+		ref.file, ref.line, ref.head = areaFile(m.Path, h.File), &line, &head
 	}
 	return ref
 }
