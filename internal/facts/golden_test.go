@@ -104,9 +104,8 @@ func TestGolden(t *testing.T) {
 
 // addedRule stands for a rule a family file adds: it reports a HIGH finding
 // in every area of every kind, so it sorts ahead of every MEDIUM finding and
-// shifts their positional ids.
-func addedRule(crossArea bool) Rule {
-	const id = "structure.zz-added-for-test"
+// shifts their positional ids. id sets where it sorts among the other rules.
+func addedRule(id string, crossArea bool) Rule {
 	return Rule{
 		ID: id, Tier: "tool", Class: ClassPath, Scope: ScopeAnyFileInArea, CrossArea: crossArea,
 		Kinds: []string{AreaRoot, AreaSubmodule, AreaExample},
@@ -161,7 +160,9 @@ func mustJSON(t *testing.T, v any) []byte {
 // family file would, runs every case with the full rule set, as Run does,
 // and checks that the results of the rules each case lists still match its
 // expected.json. The new rule runs alongside them, per area and as a
-// cross-area pass, and its HIGH findings sort ahead of theirs.
+// cross-area pass, and its HIGH findings sort ahead of theirs. Its id sorts
+// once after every rule and once before every rule, so a rule that mutates a
+// shared Area breaks a rule evaluated after it in one of the two.
 //
 // Finding and candidate ids are positional: F-NNN and C-NNN number the whole
 // report in sort order, so a rule that adds findings renumbers the ids of
@@ -170,8 +171,16 @@ func mustJSON(t *testing.T, v any) []byte {
 // case lists.
 func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 	cases := goldenCases(t)
-	for _, cross := range []bool{false, true} {
-		added := addedRule(cross)
+	for _, v := range []struct {
+		id    string
+		cross bool
+	}{
+		{"structure.zz-added-for-test", false},
+		{"structure.zz-added-for-test", true},
+		{"aaa.added-for-test", false},
+		{"aaa.added-for-test", true},
+	} {
+		added := addedRule(v.id, v.cross)
 		rules := joinRules(Rules, []Rule{added})
 		for _, dir := range cases {
 			listed := caseRules(t, dir, Rules)
@@ -187,12 +196,12 @@ func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 				t.Fatalf("%s: the added rule did not run", filepath.Base(dir))
 			}
 			if !bytes.Equal(mustJSON(t, listedOnly(full, listed)), mustJSON(t, listedOnly(want, listed))) {
-				t.Errorf("cross-area %v: %s changed after a rule it does not list was added", cross, filepath.Base(dir))
+				t.Errorf("%s cross-area %v: %s changed after a rule it does not list was added", v.id, v.cross, filepath.Base(dir))
 			}
 		}
 	}
 	// Control: a comparison that keeps the added rule does see it.
-	listed := append(caseRules(t, cases[0], Rules), addedRule(false))
+	listed := append(caseRules(t, cases[0], Rules), addedRule("structure.zz-added-for-test", false))
 	if bytes.Equal(goldenOutput(t, cases[0], listed), readExpected(t, cases[0])) {
 		t.Errorf("%s did not change with the added rule listed", filepath.Base(cases[0]))
 	}
