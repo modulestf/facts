@@ -122,7 +122,7 @@ func (s *Set) Resolve(dir, local string) Resolution {
 	case p == nil:
 		return unavailable
 	case p.Versions == nil:
-		return Resolution{Outcome: Unavailable, Reason: p.UnresolvedReason}
+		return Resolution{Outcome: Unavailable, Reason: *p.UnresolvedReason}
 	}
 	return Resolution{Outcome: Present, Source: p.Source, Versions: *p.Versions}
 }
@@ -232,7 +232,7 @@ func (s *Set) index() {
 func toSchemas(in map[string]*TypeSchema) map[string]*tfjson.Schema {
 	out := make(map[string]*tfjson.Schema, len(in))
 	for name, t := range in {
-		out[name] = &tfjson.Schema{Block: t.Block}
+		out[name] = &tfjson.Schema{Block: t.Block.toTF()}
 	}
 	return out
 }

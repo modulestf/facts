@@ -103,6 +103,31 @@ func TestHandoffForOtherInputsIsUnavailable(t *testing.T) {
 	}
 }
 
+// TestSymlinksAreLeftOutOfTheTreeHash adds .tf links to an oracle head: the
+// tree hash stays the one the handoff records, so the handoff still binds.
+func TestSymlinksAreLeftOutOfTheTreeHash(t *testing.T) {
+	dir := filepath.Join("..", "..", "testdata", "oracle", "coverage-positive")
+	head := copyTree(t, filepath.Join(dir, "head"))
+	want := tfTreeHash(mustTree(t, head))
+	for link, target := range map[string]string{"link.tf": "main.tf", "dangling.tf": "missing.tf", "outside.tf": "../outside.tf"} {
+		if err := os.Symlink(target, filepath.Join(head, link)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tree := mustTree(t, head)
+	if tree.Entries["link.tf"] == nil || tree.Entries["link.tf"].Kind != KindSymlink {
+		t.Fatal("link.tf is not a link entry")
+	}
+	if got := tfTreeHash(tree); got != want {
+		t.Errorf("tree hash with links %s, want %s", got, want)
+	}
+	o := oracleSchemaOptions(dir)
+	o.Head = head
+	if _, s := runSchema(t, o); s.Mismatch != "" {
+		t.Errorf("not bound: %s", s.Mismatch)
+	}
+}
+
 // TestSchemaInputsInTheEnvelope runs the engine with a handoff and a raw
 // schema file and validates the envelope against its schema.
 func TestSchemaInputsInTheEnvelope(t *testing.T) {

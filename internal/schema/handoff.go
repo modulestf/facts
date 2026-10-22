@@ -9,12 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
-	"github.com/zclconf/go-cty/cty"
 )
 
 // Caps of the handoff, the producer's own: 16 MiB gzipped and 128 MiB of
@@ -28,8 +29,16 @@ var (
 // producer's own limit of 32.
 const maxBlockDepth = 64
 
+// The decoder below refuses what schema/schema-handoff.schema.json refuses,
+// with these differences, all of them stricter than the schema:
+//   - declared_minimum above latest is refused; both satisfy the head
+//     constraints and the minimum is the lowest that does.
+//   - an integer above 2^53 is refused.
+//   - nesting deeper than maxBlockDepth is refused.
+
 // Handoff is schema/schema-handoff.schema.json. Pointers and slices mark
-// required members: a nil one was missing or null.
+// required members: a nil one was missing. A null is refused before decoding
+// everywhere but old_floor, so nil never means null.
 type Handoff struct {
 	HeadSHA         string           `json:"head_sha"`
 	MergeBaseSHA    string           `json:"merge_base_sha"`
@@ -59,8 +68,8 @@ type InputFile struct {
 
 // Caps are the size caps the handoff was written under.
 type Caps struct {
-	CompressedBytes   int64 `json:"compressed_bytes"`
-	UncompressedBytes int64 `json:"uncompressed_bytes"`
+	CompressedBytes   count `json:"compressed_bytes"`
+	UncompressedBytes count `json:"uncompressed_bytes"`
 }
 
 // Directory is one module directory and the providers it names.
@@ -70,12 +79,13 @@ type Directory struct {
 }
 
 // Provider is one local name of a directory: its source and either the
-// resolved versions or the reason they are unresolved.
+// resolved versions or the reason they are unresolved. Both are pointers so
+// a present empty value is told from an absent one.
 type Provider struct {
 	LocalName        string    `json:"local_name"`
 	Source           string    `json:"source"`
 	Versions         *Versions `json:"versions"`
-	UnresolvedReason string    `json:"unresolved_reason"`
+	UnresolvedReason *string   `json:"unresolved_reason"`
 }
 
 // Versions are the resolved versions of one provider in one directory.
@@ -113,12 +123,59 @@ type ProviderSchema struct {
 	DataSourceSchemas map[string]*TypeSchema `json:"data_source_schemas"`
 }
 
-// TypeSchema is one resource or data source type. The block is decoded into
-// the terraform-json type, and validate refuses every field of it that the
-// handoff does not carry.
+// TypeSchema is one resource or data source type.
 type TypeSchema struct {
-	Block *tfjson.SchemaBlock `json:"block"`
+	Block *Block `json:"block"`
 }
+
+// Block, BlockType, Attribute and NestedType hold exactly the members the
+// handoff schema allows, so decoding with unknown fields refused also refuses
+// a member such as description or sensitive, even with a zero value.
+type Block struct {
+	Attributes map[string]*Attribute `json:"attributes"`
+	BlockTypes map[string]*BlockType `json:"block_types"`
+	Deprecated bool                  `json:"deprecated"`
+}
+
+// BlockType is a nested block of a Block.
+type BlockType struct {
+	NestingMode string `json:"nesting_mode"`
+	MinItems    count  `json:"min_items"`
+	MaxItems    count  `json:"max_items"`
+	Block       *Block `json:"block"`
+}
+
+// Attribute is one attribute of a Block or a NestedType.
+type Attribute struct {
+	Required   bool        `json:"required"`
+	Optional   bool        `json:"optional"`
+	Computed   bool        `json:"computed"`
+	Deprecated bool        `json:"deprecated"`
+	NestedType *NestedType `json:"nested_type"`
+}
+
+// NestedType is a protocol 6 nested attribute type.
+type NestedType struct {
+	Attributes  map[string]*Attribute `json:"attributes"`
+	NestingMode string                `json:"nesting_mode"`
+	MinItems    count                 `json:"min_items"`
+	MaxItems    count                 `json:"max_items"`
+}
+
+// count is a non-negative JSON integer. Like the schema's integer type it
+// takes a number with a zero fraction, such as 1.0.
+type count int64
+
+func (c *count) UnmarshalJSON(b []byte) error {
+	f, err := strconv.ParseFloat(string(b), 64)
+	if err != nil || f < 0 || f != math.Trunc(f) || f > 1<<53 {
+		return fmt.Errorf("%s is not a non-negative integer", b)
+	}
+	*c = count(f)
+	return nil
+}
+
+func (c count) uint64() uint64 { return uint64(c) } //nolint:gosec // G115: UnmarshalJSON keeps c in 0..2^53
 
 // loadHandoff reads, decompresses when gzipped, decodes and validates the
 // handoff, and returns it with the SHA-256 of the file as read.
@@ -138,6 +195,9 @@ func loadHandoff(p string) (*Handoff, string, error) {
 	if int64(len(doc)) > maxHandoffBytes {
 		return nil, "", fmt.Errorf("over %d bytes", maxHandoffBytes)
 	}
+	if err := nullsOnlyAtOldFloor(doc); err != nil {
+		return nil, "", fmt.Errorf("malformed: %w", err)
+	}
 	var h Handoff
 	dec := json.NewDecoder(bytes.NewReader(doc))
 	dec.DisallowUnknownFields()
@@ -151,9 +211,9 @@ func loadHandoff(p string) (*Handoff, string, error) {
 		return nil, "", fmt.Errorf("malformed: %w", err)
 	}
 	switch {
-	case int64(len(doc)) > h.Caps.UncompressedBytes:
+	case count(len(doc)) > h.Caps.UncompressedBytes:
 		return nil, "", fmt.Errorf("over its own cap of %d bytes", h.Caps.UncompressedBytes)
-	case compressed && int64(len(data)) > h.Caps.CompressedBytes:
+	case compressed && count(len(data)) > h.Caps.CompressedBytes:
 		return nil, "", fmt.Errorf("over its own cap of %d compressed bytes", h.Caps.CompressedBytes)
 	}
 	return &h, hex.EncodeToString(sum[:]), nil
@@ -174,11 +234,59 @@ func gunzip(data []byte) ([]byte, error) {
 	return doc, nil
 }
 
-// Patterns of schema/schema-handoff.schema.json.
+// nullsOnlyAtOldFloor refuses a JSON null anywhere but as the value of
+// old_floor, the one member the schema lets be null. Decoding alone would
+// read a null as the zero value.
+func nullsOnlyAtOldFloor(doc []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(doc))
+	// One frame per open container: 'k' an object at a key, 'v' an object
+	// at a value, 'a' an array.
+	var st []byte
+	key := ""
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		top := byte(0)
+		if len(st) > 0 {
+			top = st[len(st)-1]
+		}
+		if top == 'k' {
+			if tok == json.Delim('}') {
+				st = st[:len(st)-1]
+				continue
+			}
+			key, st[len(st)-1] = tok.(string), 'v'
+			continue
+		}
+		if top == 'v' {
+			st[len(st)-1] = 'k'
+		}
+		switch tok {
+		case json.Delim('{'):
+			st = append(st, 'k')
+		case json.Delim('['):
+			st = append(st, 'a')
+		case json.Delim(']'):
+			st = st[:len(st)-1]
+		case nil:
+			if top != 'v' || key != "old_floor" {
+				return errors.New("null where the schema allows none")
+			}
+		}
+	}
+}
+
+// Patterns of schema/schema-handoff.schema.json. Go's $ matches only at the
+// end of the text, as the schema's ECMAScript $ does without the m flag.
 var (
 	commitRe  = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 	sha256Re  = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	versionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`)
+	versionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?$`)
 	sourceRe  = regexp.MustCompile(`^[a-z0-9.-]+/[a-z0-9_-]+/[a-z0-9_-]+$`)
 	reasonRe  = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	localRe   = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
@@ -230,7 +338,7 @@ func (h *Handoff) validate() error {
 		seen[key] = true
 		for _, types := range []map[string]*TypeSchema{p.ResourceSchemas, p.DataSourceSchemas} {
 			for name, t := range types {
-				if !typeRe.MatchString(name) || t == nil || t.Block == nil {
+				if !typeRe.MatchString(name) || t.Block == nil {
 					return fmt.Errorf("provider schema %q type %q: bad name or no block", key, name)
 				}
 				if err := checkBlock(t.Block, 0); err != nil {
@@ -260,10 +368,10 @@ func (p Provider) validate() error {
 	switch {
 	case !localRe.MatchString(p.LocalName) || !sourceRe.MatchString(p.Source):
 		return errors.New("bad local_name or source")
-	case (p.Versions == nil) == (p.UnresolvedReason == ""):
+	case (p.Versions == nil) == (p.UnresolvedReason == nil):
 		return errors.New("needs exactly one of versions and unresolved_reason")
 	case p.Versions == nil:
-		if !reasonRe.MatchString(p.UnresolvedReason) {
+		if !reasonRe.MatchString(*p.UnresolvedReason) {
 			return errors.New("bad unresolved_reason")
 		}
 		return nil
@@ -273,33 +381,35 @@ func (p Provider) validate() error {
 		v.OldFloor != nil && !versionRe.MatchString(*v.OldFloor) {
 		return errors.New("bad version")
 	}
-	// The minimum and the latest both satisfy the head constraints, the
-	// minimum being the lowest that does.
-	if version.Must(version.NewVersion(v.DeclaredMinimum)).GreaterThan(version.Must(version.NewVersion(v.Latest))) {
+	minimum, err := version.NewVersion(v.DeclaredMinimum)
+	if err != nil {
+		return fmt.Errorf("declared_minimum: %w", err)
+	}
+	latest, err := version.NewVersion(v.Latest)
+	if err != nil {
+		return fmt.Errorf("latest: %w", err)
+	}
+	if minimum.GreaterThan(latest) {
 		return errors.New("declared_minimum is above latest")
 	}
 	return nil
 }
 
 var (
-	blockModes  = map[tfjson.SchemaNestingMode]bool{"single": true, "group": true, "list": true, "set": true, "map": true}
-	nestedModes = map[tfjson.SchemaNestingMode]bool{"single": true, "list": true, "set": true, "map": true}
+	blockModes  = map[string]bool{"single": true, "group": true, "list": true, "set": true, "map": true}
+	nestedModes = map[string]bool{"single": true, "list": true, "set": true, "map": true}
 )
 
-// checkBlock refuses the terraform-json fields the handoff never carries,
-// and checks the nesting modes and required members.
-func checkBlock(b *tfjson.SchemaBlock, depth int) error {
+// checkBlock checks the nesting modes, the required members and the depth.
+func checkBlock(b *Block, depth int) error {
 	if depth > maxBlockDepth {
 		return errors.New("nested too deep")
-	}
-	if b.Description != "" || b.DescriptionKind != "" {
-		return errors.New("a block has a description")
 	}
 	if err := checkAttributes(b.Attributes, depth); err != nil {
 		return err
 	}
-	for name, bt := range b.NestedBlocks {
-		if bt == nil || bt.Block == nil || !blockModes[bt.NestingMode] {
+	for name, bt := range b.BlockTypes {
+		if bt.Block == nil || !blockModes[bt.NestingMode] {
 			return fmt.Errorf("block type %q: no block or a bad nesting_mode", name)
 		}
 		if err := checkBlock(bt.Block, depth+1); err != nil {
@@ -309,17 +419,12 @@ func checkBlock(b *tfjson.SchemaBlock, depth int) error {
 	return nil
 }
 
-func checkAttributes(attrs map[string]*tfjson.SchemaAttribute, depth int) error {
+func checkAttributes(attrs map[string]*Attribute, depth int) error {
 	for name, a := range attrs {
-		switch {
-		case a == nil:
-			return fmt.Errorf("attribute %q is null", name)
-		case a.AttributeType != cty.NilType || a.Description != "" || a.DescriptionKind != "" || a.Sensitive || a.WriteOnly:
-			return fmt.Errorf("attribute %q has a field the handoff does not carry", name)
-		case a.AttributeNestedType == nil:
+		nt := a.NestedType
+		if nt == nil {
 			continue
 		}
-		nt := a.AttributeNestedType
 		if nt.Attributes == nil || !nestedModes[nt.NestingMode] {
 			return fmt.Errorf("attribute %q: nested_type with no attributes or a bad nesting_mode", name)
 		}
@@ -334,9 +439,10 @@ func checkAttributes(attrs map[string]*tfjson.SchemaAttribute, depth int) error 
 }
 
 // relPath reports whether p is a relative path with no backslash, no ..
-// segment and no trailing slash, as the handoff schema's path patterns say.
+// segment, no trailing slash and no line terminator, as the handoff schema's
+// path patterns say: their ECMAScript . matches no line terminator.
 func relPath(p string) bool {
-	if p == "" || strings.HasPrefix(p, "/") || strings.HasSuffix(p, "/") || strings.Contains(p, `\`) {
+	if p == "" || strings.HasPrefix(p, "/") || strings.HasSuffix(p, "/") || strings.ContainsAny(p, "\\\n\r\u2028\u2029") {
 		return false
 	}
 	for seg := range strings.SplitSeq(p, "/") {
@@ -345,4 +451,39 @@ func relPath(p string) bool {
 		}
 	}
 	return true
+}
+
+// toTF converts a validated block to the terraform-json type lookups walk.
+func (b *Block) toTF() *tfjson.SchemaBlock {
+	out := &tfjson.SchemaBlock{Deprecated: b.Deprecated, Attributes: toTFAttributes(b.Attributes)}
+	if b.BlockTypes != nil {
+		out.NestedBlocks = map[string]*tfjson.SchemaBlockType{}
+		for name, bt := range b.BlockTypes {
+			out.NestedBlocks[name] = &tfjson.SchemaBlockType{
+				NestingMode: tfjson.SchemaNestingMode(bt.NestingMode),
+				MinItems:    bt.MinItems.uint64(), MaxItems: bt.MaxItems.uint64(),
+				Block: bt.Block.toTF(),
+			}
+		}
+	}
+	return out
+}
+
+func toTFAttributes(in map[string]*Attribute) map[string]*tfjson.SchemaAttribute {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]*tfjson.SchemaAttribute, len(in))
+	for name, a := range in {
+		t := &tfjson.SchemaAttribute{Required: a.Required, Optional: a.Optional, Computed: a.Computed, Deprecated: a.Deprecated}
+		if nt := a.NestedType; nt != nil {
+			t.AttributeNestedType = &tfjson.SchemaNestedAttributeType{
+				Attributes:  toTFAttributes(nt.Attributes),
+				NestingMode: tfjson.SchemaNestingMode(nt.NestingMode),
+				MinItems:    nt.MinItems.uint64(), MaxItems: nt.MaxItems.uint64(),
+			}
+		}
+		out[name] = t
+	}
+	return out
 }

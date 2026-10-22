@@ -43,7 +43,7 @@
       "additionalProperties": false,
       "required": ["handoff_sha256", "head_sha", "merge_base_sha", "tree_hashes", "schema_files"],
       "properties": {
-        "handoff_sha256": {"$ref": "#/$defs/sha256"},
+        "handoff_sha256": {"description": "SHA-256 of the handoff file as read, gzipped or not: a gzipped and a plain copy of the same document hash differently, so the host hashes the form it passes.", "$ref": "#/$defs/sha256"},
         "head_sha": {"$ref": "#/$defs/commit_sha"},
         "merge_base_sha": {"$ref": "#/$defs/commit_sha"},
         "tree_hashes": {

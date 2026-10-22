@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -305,6 +306,26 @@ func TestMalformedHandoffs(t *testing.T) {
 		"no block in block type": func(s string) string {
 			return edit(s, func(d map[string]any) { delete(obj(thing(d), "block_types", "setting"), "block") })
 		},
+		"prerelease dot":             rep(`"latest": "6.20.0"`, `"latest": "6.20.0-."`),
+		"prerelease empty part":      rep(`"latest": "6.20.0"`, `"latest": "6.20.0-a..b"`),
+		"minimum prerelease":         rep(`"declared_minimum": "6.0.0"`, `"declared_minimum": "6.0.0-01"`),
+		"old floor prerelease":       rep(`"old_floor": "5.95.0"`, `"old_floor": "5.95.0-."`),
+		"schema prerelease":          rep(`"version": "6.20.0"`, `"version": "6.20.0-a..b"`),
+		"empty description":          rep(`"name": {"required": true}`, `"name": {"required": true, "description": ""}`),
+		"empty description kind":     rep(`"name": {"required": true}`, `"name": {"required": true, "description_kind": ""}`),
+		"sensitive false":            rep(`"name": {"required": true}`, `"name": {"required": true, "sensitive": false}`),
+		"write_only false":           rep(`"name": {"required": true}`, `"name": {"required": true, "write_only": false}`),
+		"block description":          rep(`"block": {"attributes": {"value"`, `"block": {"description": "", "attributes": {"value"`),
+		"null flag":                  rep(`"name": {"required": true}`, `"name": {"required": null}`),
+		"null attributes":            rep(`"block": {"attributes": {"value": {"optional": true}}}`, `"block": {"attributes": null}`),
+		"null version string":        rep(`"latest": "6.20.0"`, `"latest": null`),
+		"empty reason with versions": rep(`"old_floor": "5.95.0"}`, `"old_floor": "5.95.0"}, "unresolved_reason": ""`),
+		"null versions with reason":  rep(`"unresolved_reason": "constraint_unparsable"`, `"unresolved_reason": "constraint_unparsable", "versions": null`),
+		"newline in directory":       rep(`"examples/complete"`, `"examples/com\nplete"`),
+		"newline in file":            rep(`"path": "main.tf"`, `"path": "ma\nin.tf"`),
+		"carriage return in file":    rep(`"path": "main.tf"`, `"path": "ma\rin.tf"`),
+		"line separator in file":     rep(`"path": "main.tf"`, `"path": "ma\u2028in.tf"`),
+		"string count":               rep(`"max_items": 1,`, `"max_items": "1",`),
 		"nested deprecated": func(s string) string {
 			return strings.Replace(s, `"nested_type": {"nesting_mode"`, `"nested_type": {"deprecated": true, "nesting_mode"`, 1)
 		},
@@ -318,6 +339,11 @@ func TestMalformedHandoffs(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+}
+
+// rep returns a mutation that replaces the first from with to.
+func rep(from, to string) func(string) string {
+	return func(s string) string { return strings.Replace(s, from, to, 1) }
 }
 
 // edit decodes the document s, applies f and encodes it again.
@@ -362,6 +388,56 @@ func schemaEntry(s string) string {
 	return string(h.ProviderSchemas[0])
 }
 
+// TestHandoffAcceptsWhatTheSchemaAllows checks forms the schema allows that a
+// naive decoder would refuse: integers written with a zero fraction, null
+// old_floor, and semver prereleases.
+func TestHandoffAcceptsWhatTheSchemaAllows(t *testing.T) {
+	data, err := os.ReadFile("../../schema/examples/schema-handoff.valid.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(string) string{
+		"integer as 1.0":     rep(`"max_items": 1,`, `"max_items": 1.0,`),
+		"cap as 2097152.0":   rep(`"compressed_bytes": 2097152`, `"compressed_bytes": 2097152.0`),
+		"null old_floor":     rep(`"old_floor": "5.95.0"`, `"old_floor": null`),
+		"prerelease":         rep(`"latest": "6.20.0"`, `"latest": "6.20.0-alpha.1"`),
+		"numeric prerelease": rep(`"latest": "6.20.0"`, `"latest": "6.20.0-0.3.7"`),
+		"hyphen prerelease":  rep(`"latest": "6.20.0"`, `"latest": "6.20.0-x-y-z.--"`),
+		"false flag":         rep(`"name": {"required": true}`, `"name": {"required": true, "deprecated": false}`),
+	} {
+		mutated := mutate(string(data))
+		if mutated == string(data) {
+			t.Errorf("%s: mutation changed nothing", name)
+			continue
+		}
+		if _, err := Load(writeFile(t, "h.json", []byte(mutated)), nil); err != nil {
+			t.Errorf("%s: refused: %v", name, err)
+		}
+	}
+}
+
+// TestBlockDepth nests block types to the depth cap and one past it.
+func TestBlockDepth(t *testing.T) {
+	data, err := os.ReadFile("../../schema/examples/schema-handoff.valid.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := func(n int) string {
+		b := `{"attributes": {"x": {"optional": true}}}`
+		for range n {
+			b = `{"block_types": {"inner": {"nesting_mode": "list", "block": ` + b + `}}}`
+		}
+		return b
+	}
+	for n, ok := range map[int]bool{maxBlockDepth: true, maxBlockDepth + 1: false} {
+		doc := strings.Replace(string(data), `"data_source_schemas": {}`, `"data_source_schemas": {"aws_deep": {"block": `+nested(n)+`}}`, 1)
+		_, err := Load(writeFile(t, "h.json", []byte(doc)), nil)
+		if (err == nil) != ok {
+			t.Errorf("depth %d: %v", n, err)
+		}
+	}
+}
+
 func TestHandoffCaps(t *testing.T) {
 	data, err := os.ReadFile(oracleHandoff("coverage-positive"))
 	if err != nil {
@@ -386,6 +462,19 @@ func TestHandoffCaps(t *testing.T) {
 	if _, err := Load(writeFile(t, "h.json.gz", gz), nil); err == nil || !strings.Contains(err.Error(), "over") {
 		t.Errorf("over the compressed cap: %v", err)
 	}
+
+	// The handoff's own recorded compressed cap, under the package caps.
+	maxCompressedBytes, maxHandoffBytes = 16<<20, 128<<20
+	own := strings.Replace(string(data), `"compressed_bytes": 2097152`, `"compressed_bytes": 10`, 1)
+	if own == string(data) {
+		t.Fatal("caps not found")
+	}
+	if _, err := Load(writeFile(t, "h.json", []byte(own)), nil); err != nil {
+		t.Errorf("plain copy under a small compressed cap: %v", err)
+	}
+	if _, err := Load(writeFile(t, "h.json.gz", gzipped(t, []byte(own))), nil); err == nil || !strings.Contains(err.Error(), "own cap") {
+		t.Errorf("over its own compressed cap: %v", err)
+	}
 }
 
 func TestHandoffMustBeARegularFile(t *testing.T) {
@@ -398,7 +487,11 @@ func TestHandoffMustBeARegularFile(t *testing.T) {
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{filepath.Join(dir, "missing.json"), dir, link} {
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{filepath.Join(dir, "missing.json"), dir, link, fifo} {
 		if _, err := Load(p, nil); err == nil {
 			t.Errorf("%s: accepted", p)
 		}

@@ -1,3 +1,5 @@
+//go:build unix
+
 package schema
 
 import (
@@ -7,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 
 	tfjson "github.com/hashicorp/terraform-json"
 )
@@ -51,19 +54,16 @@ func loadRaw(files []string) (map[string]*tfjson.ProviderSchema, []FileHash, err
 }
 
 // readCapped reads the regular file at p, refusing a link, a special file,
-// a directory and anything over limit bytes.
+// a directory and anything over limit bytes. The open itself refuses a final
+// link, and the check is on the file opened, so a path swapped between a
+// check and the open cannot slip through. O_NONBLOCK keeps a fifo from
+// blocking the open.
 func readCapped(p string, limit int64) ([]byte, error) {
-	if st, err := os.Lstat(p); err != nil {
-		return nil, err
-	} else if !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
-	}
-	f, err := os.Open(p)
+	f, err := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	// The path may have been swapped since the Lstat; check what was opened.
 	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
 		return nil, errors.Join(fmt.Errorf("%s is not a regular file", p), err)
 	}

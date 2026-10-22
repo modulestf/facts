@@ -49,23 +49,18 @@ func applySchema(o Options, head, base *Tree, areas []*Area) (*SchemaInputs, err
 }
 
 // tfTreeHash is the handoff's tree_hash of t: SHA-256 of one
-// "<sha256>  <path>\n" line per .tf entry, sorted by path bytes. A link
-// counts with the hash of its target text, as a git blob does. An oversize
-// file is left out, as the gate leaves out a blob over 1 MiB; an unreadable
-// one has no hash either, so its tree does not match.
+// "<sha256>  <path>\n" line per regular .tf file, sorted by path bytes.
+// Symbolic links are left out on both sides: the hosted extraction never
+// writes them, so the tree here cannot hold them. The gate is to leave them
+// out of the handoff's inputs as well; until it does, a tree with a .tf
+// link at the gate never binds, which fails closed. An oversize file is left out, as the gate
+// leaves out a blob over 1 MiB; an unreadable one has no hash, so its tree
+// does not match.
 func tfTreeHash(t *Tree) string {
 	h := sha256.New()
 	for _, p := range t.Paths { // sorted by bytes
-		e := t.Entries[p]
-		if !strings.HasSuffix(p, ".tf") {
-			continue
-		}
-		sum := e.SHA256
-		if e.Kind == KindSymlink {
-			sum = e.linkSHA256
-		}
-		if sum != "" {
-			fmt.Fprintf(h, "%s  %s\n", sum, p)
+		if e := t.Entries[p]; e.Kind == KindFile && strings.HasSuffix(p, ".tf") {
+			fmt.Fprintf(h, "%s  %s\n", e.SHA256, p)
 		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
