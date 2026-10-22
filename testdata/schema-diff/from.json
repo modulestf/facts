@@ -1,0 +1,93 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/aws": {
+      "provider": {"version": 0, "block": {}},
+      "resource_schemas": {
+        "aws_s3_bucket": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "acl": {"type": "string", "optional": true},
+              "arn": {"type": "string", "computed": true},
+              "bucket": {"type": "string", "optional": true},
+              "cors": {
+                "nested_type": {
+                  "nesting_mode": "list",
+                  "attributes": {
+                    "origins": {"type": ["list", "string"], "optional": true}
+                  }
+                },
+                "optional": true
+              },
+              "policy": {"type": "string", "optional": true},
+              "tags": {"type": ["map", "string"], "optional": true}
+            },
+            "block_types": {
+              "logging": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "target_bucket": {"type": "string", "required": true}
+                  }
+                },
+                "max_items": 1
+              },
+              "versioning": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "enabled": {"type": "bool", "optional": true}
+                  }
+                },
+                "max_items": 1
+              }
+            }
+          }
+        },
+        "aws_gone_thing": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": {"type": "string", "required": true}
+            }
+          }
+        }
+      },
+      "data_source_schemas": {
+        "aws_iam_policy_document": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "json": {"type": "string", "computed": true},
+              "version": {"type": "string", "optional": true}
+            },
+            "block_types": {
+              "statement": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "sid": {"type": "string", "optional": true}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "registry.terraform.io/acme/example": {
+      "provider": {"version": 0, "block": {}},
+      "resource_schemas": {
+        "example_widget": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "size": {"type": "number", "optional": true}
+            }
+          }
+        }
+      }
+    }
+  }
+}

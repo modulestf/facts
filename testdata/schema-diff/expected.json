@@ -1,0 +1,190 @@
+{
+  "types": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_gone_thing",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_new_thing",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_nowhere",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    },
+    {
+      "mode": "resource",
+      "type": "example_widget",
+      "provider_source": "registry.terraform.io/acme/example"
+    }
+  ],
+  "changes": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "deprecated"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_gone_thing",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "removed"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_new_thing",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "added"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_nowhere",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "absent"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "acl"
+      ],
+      "element": "argument",
+      "change": "deprecated"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "bucket_domain"
+      ],
+      "element": "attribute",
+      "change": "added"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "cors",
+        "max_age"
+      ],
+      "element": "argument",
+      "change": "added"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "policy"
+      ],
+      "element": "argument",
+      "change": "removed"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "region"
+      ],
+      "element": "argument",
+      "change": "added"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "tags"
+      ],
+      "element": "argument",
+      "change": "newly_required"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "lifecycle_rule"
+      ],
+      "element": "block",
+      "change": "added"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "lifecycle_rule"
+      ],
+      "element": "block",
+      "change": "newly_required"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "logging"
+      ],
+      "element": "block",
+      "change": "removed"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "versioning"
+      ],
+      "element": "block",
+      "change": "deprecated"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "versioning",
+        "enabled"
+      ],
+      "element": "argument",
+      "change": "newly_required"
+    },
+    {
+      "mode": "resource",
+      "type": "example_widget",
+      "provider_source": "registry.terraform.io/acme/example",
+      "path": [
+        "size"
+      ],
+      "element": "argument",
+      "change": "newly_required"
+    }
+  ]
+}

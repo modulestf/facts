@@ -18,7 +18,10 @@ const usage = `usage:
                                   areas the change touched
   mtf-facts rules                 list the implemented rules and their tier
   mtf-facts version               print the binary version
-  mtf-facts bundle | merge | ledger | schema-diff
+  mtf-facts schema-diff --from <file> --to <file> --types-from <dir>
+                                  compare two provider schema files for the
+                                  types a module tree uses
+  mtf-facts bundle | merge | ledger
                                   not implemented yet; exit 2
 `
 

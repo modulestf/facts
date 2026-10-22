@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "tool": {
+    "name": "mtf-facts",
+    "version": "v0.3.0",
+    "binary_sha256": "2967a0e2142bbf18507684ef74f689ebb5c9be3bdbed0aaa9708e761312a863a"
+  },
+  "from": {
+    "path": "from.json",
+    "sha256": "39247f686fecd3e3d9b47b730298f1dbade81e4461cd557b690ee4fadf35d6dc"
+  },
+  "to": {
+    "path": "to.json",
+    "sha256": "a358667d5d64f571cb148ca6b676f69f7f93a2621a990374241c6e8dde22ee7a"
+  },
+  "types": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_gone_thing",
+      "provider_source": "registry.terraform.io/hashicorp/aws"
+    }
+  ],
+  "changes": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "deprecated"
+    },
+    {
+      "mode": "resource",
+      "type": "aws_gone_thing",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "renamed"
+    }
+  ]
+}
