@@ -147,7 +147,8 @@ func runOracle(t *testing.T, dir string) goldenView {
 		o.Base = filepath.Join(dir, "base")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "schema-handoff.json")); err == nil {
-		o.SchemaHandoff = filepath.Join(dir, "schema-handoff.json")
+		// The handoff records the placeholder commits; the run must match them to read it.
+		o.SchemaHandoff, o.HeadSHA, o.MergeBaseSHA = filepath.Join(dir, "schema-handoff.json"), oracleHeadSHA, oracleBaseSHA
 	}
 	o.ProfileDir = testProfile
 	if st, err := os.Stat(filepath.Join(dir, "profile")); err == nil && st.IsDir() {

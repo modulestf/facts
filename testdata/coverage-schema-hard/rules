@@ -1,0 +1,4 @@
+coverage.argument-above-min-version
+coverage.block-attribute-mismatch
+coverage.deprecated-argument
+coverage.unknown-argument

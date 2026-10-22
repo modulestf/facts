@@ -34,10 +34,15 @@ func TestRules(t *testing.T) {
 	if code := run([]string{"rules"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	want := "examples.versions-missing\ttool\nprofile.region-not-allowed\tcandidate\nprofile.template-drift\tcandidate\n" +
-		"scope.pre-commit-hook\tcandidate\nscope.profile-file\tcandidate\nscope.readme-banner\tcandidate\nscope.tooling\tcandidate\n" +
-		"structure.missing-description\ttool\nstructure.variable-untyped\tcandidate\n"
-	if out.String() != want {
+	// The listing is every implemented rule in id order, with its tier.
+	var want strings.Builder
+	for _, r := range facts.Rules {
+		want.WriteString(r.ID + "\t" + r.Tier + "\n")
+	}
+	if !slices.IsSortedFunc(facts.Rules, func(a, b facts.Rule) int { return strings.Compare(a.ID, b.ID) }) {
+		t.Error("facts.Rules is not sorted by id")
+	}
+	if out.String() != want.String() {
 		t.Errorf("got %q", out.String())
 	}
 }
