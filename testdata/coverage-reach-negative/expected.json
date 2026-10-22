@@ -1,0 +1,21 @@
+{
+  "manifest": [
+    {
+      "rule_id": "coverage.attribute-not-output",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.optional-argument-unexposed",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "coverage.required-argument-unreachable",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

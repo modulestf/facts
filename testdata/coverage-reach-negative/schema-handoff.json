@@ -1,0 +1,240 @@
+{
+  "head_sha": "1111111111111111111111111111111111111111",
+  "merge_base_sha": "2222222222222222222222222222222222222222",
+  "inputs": {
+    "head": {
+      "tree_hash": "404adf4793ebdbf550fc5c18738d3b6f4741eadebaa3dec571211cb3a981c873",
+      "files": [
+        {
+          "path": "main.tf",
+          "sha256": "81a97282389aa3b422b1030665fdf0060ff706b7db9d3a9810cb2778699ad995"
+        },
+        {
+          "path": "outputs.tf",
+          "sha256": "c6d510b0a961a4f3ae4c9ea7d22a9397a553a29124a0ed2b03cbbdfad1508d83"
+        },
+        {
+          "path": "versions.tf",
+          "sha256": "68f4aeae9ab491a4a9a31c68ef0d408378dff13f51878f35ce5acf996c7b1a31"
+        }
+      ]
+    },
+    "merge_base": {
+      "tree_hash": "b99c498fb9aeb5e84fd786b8fc2c6f763d36d484700cce1b9ea3f6dba42cb951",
+      "files": [
+        {
+          "path": "main.tf",
+          "sha256": "604f7ddf3b7e3d18c0a06fd6b266886037d52d6e9483ded101f16974c726f2c0"
+        },
+        {
+          "path": "versions.tf",
+          "sha256": "68f4aeae9ab491a4a9a31c68ef0d408378dff13f51878f35ce5acf996c7b1a31"
+        }
+      ]
+    }
+  },
+  "caps": {
+    "compressed_bytes": 2097152,
+    "uncompressed_bytes": 33554432
+  },
+  "directories": [
+    {
+      "path": ".",
+      "providers": [
+        {
+          "local_name": "aws",
+          "source": "registry.terraform.io/hashicorp/aws",
+          "versions": {
+            "latest": "6.2.0",
+            "declared_minimum": "6.0.0",
+            "old_floor": "6.0.0"
+          }
+        }
+      ]
+    }
+  ],
+  "provider_schemas": [
+    {
+      "source": "registry.terraform.io/hashicorp/aws",
+      "version": "6.2.0",
+      "resource_schemas": {
+        "aws_demo_widget": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "description": {
+                "optional": true
+              },
+              "legacy": {
+                "optional": true,
+                "deprecated": true
+              },
+              "id": {
+                "optional": true,
+                "computed": true
+              },
+              "arn": {
+                "computed": true
+              },
+              "old_arn": {
+                "computed": true,
+                "deprecated": true
+              },
+              "config": {
+                "optional": true,
+                "nested_type": {
+                  "nesting_mode": "single",
+                  "attributes": {
+                    "mode": {
+                      "required": true
+                    },
+                    "level": {
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            },
+            "block_types": {
+              "listener": {
+                "nesting_mode": "list",
+                "min_items": 1,
+                "block": {
+                  "attributes": {
+                    "port": {
+                      "required": true
+                    },
+                    "proto": {
+                      "optional": true
+                    }
+                  }
+                }
+              },
+              "extra": {
+                "nesting_mode": "list",
+                "max_items": 1,
+                "block": {
+                  "attributes": {
+                    "value": {
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {
+        "aws_demo_lookup": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "filter": {
+                "optional": true
+              },
+              "arn": {
+                "computed": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "source": "registry.terraform.io/hashicorp/aws",
+      "version": "6.0.0",
+      "resource_schemas": {
+        "aws_demo_widget": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "description": {
+                "optional": true
+              },
+              "legacy": {
+                "optional": true,
+                "deprecated": true
+              },
+              "id": {
+                "optional": true,
+                "computed": true
+              },
+              "arn": {
+                "computed": true
+              },
+              "old_arn": {
+                "computed": true,
+                "deprecated": true
+              },
+              "config": {
+                "optional": true,
+                "nested_type": {
+                  "nesting_mode": "single",
+                  "attributes": {
+                    "mode": {
+                      "required": true
+                    },
+                    "level": {
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            },
+            "block_types": {
+              "listener": {
+                "nesting_mode": "list",
+                "min_items": 1,
+                "block": {
+                  "attributes": {
+                    "port": {
+                      "required": true
+                    },
+                    "proto": {
+                      "optional": true
+                    }
+                  }
+                }
+              },
+              "extra": {
+                "nesting_mode": "list",
+                "max_items": 1,
+                "block": {
+                  "attributes": {
+                    "value": {
+                      "optional": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "data_source_schemas": {
+        "aws_demo_lookup": {
+          "block": {
+            "attributes": {
+              "name": {
+                "required": true
+              },
+              "filter": {
+                "optional": true
+              },
+              "arn": {
+                "computed": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
