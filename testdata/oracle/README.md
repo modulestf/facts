@@ -62,6 +62,7 @@ The engine's text leaves some outcomes to the reader. These fixtures read them t
 7. `profile.required-file-missing` fires for a module the change adds. A directory the change adds inside an existing module is held to its own file set, and an existing module missing a file it never had is no finding of this change.
 8. A new variable with no default, in a module that exists at the base, is `compat.variable-now-required`: every existing caller must now set it.
 9. For `compat.provider-floor-raised`, `schema_facts` are the arguments set in the `resource` and `data` blocks of the area, looked up at the old floor. Attributes the area reads, such as an `id` in an output, are not included.
+10. An output the change adds or touches in a module with a mode switch is an attribute-not-output candidate (owner decision). A mode switch is a create flag, or `count` or `for_each` on a resource the output reads. Whether the output is wrong in one mode is the confirmer's to judge, so the candidate's evidence carries the output's source lines and the `count`, `for_each` or create flag lines.
 10. A new variable with a non-null default in an existing module is a `compat.default-changed` candidate.
 11. An added object attribute is a `compat.type-narrowed` candidate, `optional()` with a default included.
 

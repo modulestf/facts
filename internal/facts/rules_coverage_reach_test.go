@@ -106,3 +106,38 @@ func TestNullLiteral(t *testing.T) {
 		}
 	}
 }
+
+// An output the change adds or edits that reads a block with count or
+// for_each is a candidate with that line in its evidence; an untouched one,
+// or one reading a block with no mode switch, is not. A long output cuts the
+// evidence at its cap.
+func TestCoverageReachModeOutputs(t *testing.T) {
+	main := "resource \"aws_demo_widget\" \"this\" {\n  count = 1\n}\n\nresource \"aws_demo_widget\" \"one\" {\n}\n"
+	same := "output \"same\" {\n  value = aws_demo_widget.this[0].arn\n}\n"
+	head := map[string]string{"main.tf": main, "outputs.tf": same +
+		"output \"new\" {\n  value = aws_demo_widget.this[0].id\n}\n" +
+		"output \"one\" {\n  value = aws_demo_widget.one.id\n}\n" +
+		"output \"long\" {\n  value = [\n" + strings.Repeat("    aws_demo_widget.this[0].id,\n", 10) + "  ]\n}\n"}
+	r := runCoverageReach(t, head, map[string]string{"main.tf": main, "outputs.tf": same})
+	var got []string
+	for _, c := range r.Candidates {
+		if !strings.HasPrefix(c.Subject, ".:output.") {
+			continue
+		}
+		got = append(got, c.Subject)
+		last := c.Evidence.SourceLines[len(c.Evidence.SourceLines)-1]
+		switch c.Subject {
+		case ".:output.new":
+			if !c.EvidenceComplete || last.File != "main.tf" || last.Line != 2 {
+				t.Errorf("new: evidence %+v", c.Evidence.SourceLines)
+			}
+		case ".:output.long":
+			if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxEvidenceLines {
+				t.Errorf("long: cap did not bite")
+			}
+		}
+	}
+	if !slices.Equal(got, []string{".:output.new", ".:output.long"}) {
+		t.Errorf("output candidates %v", got)
+	}
+}

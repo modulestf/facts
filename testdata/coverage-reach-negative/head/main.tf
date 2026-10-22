@@ -22,9 +22,7 @@ resource "aws_demo_widget" "new" {
   }
 }
 
-resource "aws_demo_widget" "counted" {
-  count = var.create ? 1 : 0
-
+resource "aws_demo_widget" "plain" {
   name        = var.name
   description = var.description
 

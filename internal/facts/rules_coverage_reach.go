@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -21,7 +22,16 @@ import (
 // is documented, or an attribute is worth an output, is prose the engine
 // does not judge: each gap is a candidate, never clean.
 var coverageReachRules = []Rule{
-	coverageReachRule("coverage.attribute-not-output", ScopeTouchedBlock, attributeNotOutput),
+	{
+		ID: "coverage.attribute-not-output", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule},
+		Check: func(a *Area) Result {
+			res := checkReach(a, "coverage.attribute-not-output", attributeNotOutput)
+			if res.NotEvaluated == "" {
+				res.Candidates = append(res.Candidates, modeOutputs(a)...)
+			}
+			return res
+		},
+	},
 	coverageReachRule("coverage.optional-argument-unexposed", ScopeNewlyIntroduced, optionalUnexposed),
 	coverageReachRule("coverage.required-argument-unreachable", ScopeTouchedBlock, requiredUnreachable),
 }
@@ -110,12 +120,98 @@ func optionalUnexposed(_ *Area, ps providerSchema, r Resource, base *Resource) [
 	return out
 }
 
+// modeOutputs: an output the change adds or edits, in a module with a mode
+// switch, may be wrong in one of its modes, which only the confirmer can
+// judge (owner decision). A module has a mode switch when it declares a
+// create flag, a variable named create or create_*, or when a resource or
+// data block the output reads has count or for_each. The evidence is the
+// output's lines, then each count or for_each line of the blocks it reads
+// and each create flag's line.
+func modeOutputs(a *Area) []Candidate {
+	var flags []Variable
+	for _, v := range a.Head.Variables {
+		if v.Name == "create" || strings.HasPrefix(v.Name, "create_") {
+			flags = append(flags, v)
+		}
+	}
+	var out []Candidate
+	for _, o := range a.Head.Outputs {
+		var base *Output
+		if a.Base != nil {
+			if i := slices.IndexFunc(a.Base.Outputs, func(b Output) bool { return b.Name == o.Name }); i >= 0 {
+				base = &a.Base.Outputs[i]
+			}
+		}
+		if base != nil && base.Hash == o.Hash {
+			continue // untouched
+		}
+		type line struct {
+			file string
+			n    int
+		}
+		var lines []line
+		for n := o.Range.Start.Line; n <= o.Range.End.Line; n++ {
+			lines = append(lines, line{o.File, n})
+		}
+		switched := len(flags) > 0
+		for _, r := range a.Head.Resources {
+			if !slices.Contains(o.References, coverageBlockAddr(r)) {
+				continue
+			}
+			for _, m := range []string{"count", "for_each"} {
+				if e := r.Body.Arg(m); e != nil {
+					switched = true
+					lines = append(lines, line{r.File, e.Range.Start.Line})
+				}
+			}
+		}
+		if !switched {
+			continue
+		}
+		for _, v := range flags {
+			lines = append(lines, line{v.File, v.Line})
+		}
+		complete := true
+		capText := func(s string) string {
+			if len(s) > maxEvidenceText {
+				complete = false
+				return s[:maxEvidenceText]
+			}
+			return s
+		}
+		ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
+		for _, l := range lines {
+			if len(ev.SourceLines) == maxEvidenceLines {
+				complete = false
+				break
+			}
+			file := areaFile(a.Path, l.file)
+			text := ""
+			if e := a.headTree.Entries[file]; e != nil {
+				text = coverageLineOf(e.Data, l.n)
+			}
+			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: l.n, Text: capText(text)})
+		}
+		if o.Value != nil {
+			h := capText(o.Value.Text)
+			ev.Head = &h
+		}
+		if base != nil && base.Value != nil {
+			b := capText(base.Value.Text)
+			ev.Base = &b
+		}
+		n := o.Line
+		out = append(out, Candidate{RuleID: "coverage.attribute-not-output", File: areaFile(a.Path, o.File), Line: &n,
+			Subject: subject(a.Path, "output."+short(o.Name)), Evidence: ev, EvidenceComplete: complete})
+	}
+	return out
+}
+
 // attributeNotOutput: a computed, not deprecated, top-level attribute of a
 // resource block the change adds that no output of the area reads. An output
 // reads it when its value names the attribute on the block, through indexes
 // or a splat, or is the block itself. A read through a local or a for
-// expression is not traced, so it stays a candidate. Whether an output the
-// change touches is wrong in some mode is prose the schema does not carry.
+// expression is not traced, so it stays a candidate.
 func attributeNotOutput(a *Area, ps providerSchema, r Resource, base *Resource) []schemaItem {
 	if base != nil || r.Mode == "data" {
 		return nil

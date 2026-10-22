@@ -3,12 +3,12 @@ output "new" {
   value       = aws_demo_widget.new
 }
 
-output "counted_arns" {
-  description = "ARNs of the counted widgets"
-  value       = aws_demo_widget.counted[*].arn
+output "plain_arns" {
+  description = "ARNs of the plain widget, as a list"
+  value       = aws_demo_widget.plain[*].arn
 }
 
-output "counted_id" {
-  description = "ID of the counted widget"
-  value       = try(aws_demo_widget.counted[0].id, null)
+output "plain_id" {
+  description = "ID of the plain widget"
+  value       = try(aws_demo_widget.plain.id, null)
 }
