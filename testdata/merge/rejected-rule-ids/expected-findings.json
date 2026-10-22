@@ -1,0 +1,22 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "modules/worker/outputs.tf",
+    "line": 5,
+    "summary": "Output \"queue_arn\" indexes a conditional resource without try, so it fails when the queue is not created.",
+    "suggested_fix": "Wrap the value of `output \"queue_arn\"` in `modules/worker/outputs.tf` in `try(..., null)`.",
+    "source": "llm"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "structure.grouping",
+    "severity": "LOW",
+    "file": "main.tf",
+    "line": 20,
+    "summary": "The IAM blocks are split around the queue resource.",
+    "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks.",
+    "source": "llm"
+  }
+]

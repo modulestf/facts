@@ -1,0 +1,19 @@
+{
+  "tool_findings": [],
+  "candidates": [],
+  "severity_needed": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 40,
+      "subject": ".:var.enable_logging",
+      "severities": [
+        "CRITICAL",
+        "HIGH",
+        "MEDIUM"
+      ],
+      "confirmed_by": "mid"
+    }
+  ]
+}

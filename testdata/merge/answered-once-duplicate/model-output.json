@@ -1,0 +1,41 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "Draft answer replaced by the repair turn.",
+      "severity": "HIGH",
+      "summary": "Draft text the repair turn replaces.",
+      "suggested_fix": "Draft fix the repair turn replaces."
+    },
+    {
+      "candidate_id": "C-001",
+      "decision": "reject",
+      "reason": "Second answer for the same id."
+    },
+    {
+      "candidate_id": "C-002",
+      "decision": "confirm",
+      "reason": "The variable is removed and nothing declares the break.",
+      "severity": "CRITICAL",
+      "summary": "Variable \"retention_days\" is removed and nothing declares the break, so every caller that sets it fails to plan.",
+      "suggested_fix": "Restore `variable \"retention_days\"` in `variables.tf` with type `number` and default `30`."
+    },
+    {
+      "candidate_id": "C-003",
+      "decision": "reject",
+      "reason": "tags is last in the block at the head; the line is a lifecycle argument."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-005",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 20,
+      "summary": "The IAM blocks are split around the queue resource.",
+      "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks."
+    }
+  ]
+}

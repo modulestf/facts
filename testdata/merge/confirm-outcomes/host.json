@@ -1,0 +1,12 @@
+{
+  "description": "Host settings this fixture assumes. confirm_class overrides the registry's lead with the class the audit proposes, so the confirm step has candidates to send.",
+  "confirm_cap": 10,
+  "confirm_class": {
+    "compat.variable-removed": "mid",
+    "structure.output-no-try": "small",
+    "structure.argument-order": "small",
+    "structure.wrong-file": "small",
+    "examples.stale-reference": "small",
+    "structure.arn-partition-hardcoded": "small"
+  }
+}

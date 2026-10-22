@@ -1,0 +1,1 @@
+findings may use only llm rule ids plus rules injected as not_evaluated for the finding's area; a finding with any other rule_id is dropped, alone, and the reply stays valid, so a rejected candidate cannot come back under its own rule.

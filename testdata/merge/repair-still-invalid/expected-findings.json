@@ -1,0 +1,24 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": "Rule structure.output-no-try was not decided for .:output.arn: the model reply was still invalid after the repair turn.",
+    "suggested_fix": "Review .:output.arn against structure.output-no-try by hand.",
+    "source": "host",
+    "subject": "structure.output-no-try@.:output.arn"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "variables.tf",
+    "line": null,
+    "summary": "Rule compat.variable-removed was not decided for .:var.retention_days: the model reply was still invalid after the repair turn.",
+    "suggested_fix": "Review .:var.retention_days against compat.variable-removed by hand.",
+    "source": "host",
+    "subject": "compat.variable-removed@.:var.retention_days"
+  }
+]

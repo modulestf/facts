@@ -1,0 +1,29 @@
+{
+  "tool_findings": [
+    {
+      "id": "F-001",
+      "rule_id": "profile.nonstandard-config-file",
+      "severity": "HIGH",
+      "file": "override.tf",
+      "line": null,
+      "summary": "The change adds override.tf, an override file the profile's quality gate cannot read.",
+      "suggested_fix": "Fold the blocks of `override.tf` into the file they override and delete `override.tf`.",
+      "source": "tool",
+      "subject": "override.tf"
+    }
+  ],
+  "candidates": [],
+  "area_rules": [
+    {
+      "area": ".",
+      "rules": [
+        {
+          "rule_id": "profile.nonstandard-config-file",
+          "status": "not_evaluated",
+          "reason": "file_index_shed"
+        }
+      ]
+    }
+  ],
+  "severity_needed": []
+}

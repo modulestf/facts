@@ -1,0 +1,1 @@
+A repair reply that is still invalid keeps its valid entries; here it has none, so each candidate becomes a host review.check-not-run with the candidate's file and line and the subject <rule_id>@<area>:<address>.

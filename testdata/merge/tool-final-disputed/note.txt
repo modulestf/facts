@@ -1,0 +1,1 @@
+Tool findings are final: a model restatement of a tool finding with the same (rule_id, subject) is dropped even though the rule is injected in that area; review.tool-disputed is kept at LOW beside it.

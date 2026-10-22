@@ -1,0 +1,1 @@
+A severity below the rule's lowest permitted one is raised to it, for a lead-confirmed candidate and an llm finding, and the reply stays valid: the decoy repair reply is never merged.

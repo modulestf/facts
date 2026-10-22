@@ -1,0 +1,16 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "The upgrade note declares the removal but gives no replacement.",
+      "severity": "HIGH"
+    },
+    {
+      "candidate_id": "C-003",
+      "decision": "reject",
+      "reason": "The model may not reject a confirmed defect."
+    }
+  ],
+  "findings": []
+}

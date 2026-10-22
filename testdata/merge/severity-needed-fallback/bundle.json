@@ -1,0 +1,42 @@
+{
+  "tool_findings": [],
+  "candidates": [],
+  "severity_needed": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.retention_days",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirmed_by": "mid"
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 44,
+      "subject": ".:var.subnet_ids",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirmed_by": "mid"
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "compat.variable-now-required",
+      "file": "variables.tf",
+      "line": 52,
+      "subject": ".:var.name",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirmed_by": "mid"
+    }
+  ]
+}

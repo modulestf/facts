@@ -1,0 +1,1 @@
+Every candidate id answered exactly once with no unknown ids: a second answer for one id makes the reply invalid; the repair reply is valid and is the one merged.

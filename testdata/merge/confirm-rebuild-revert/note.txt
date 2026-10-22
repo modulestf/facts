@@ -1,0 +1,1 @@
+If the rebuilt bundle fails the cap, measured on the payload the byte-length header counts, the confirmations revert to candidates and the lead answers them; no finding carries a cheaper confirmed_by.

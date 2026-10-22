@@ -1,0 +1,1 @@
+Dedup step 2: the SKILL.md Final Step pair keeps the Check A finding and drops structure.flag-polarity, the Check A carve-out keeps compat.claim-contradicts-analysis, other rules are not deduplicated, and the survivor keeps confirmed_by.

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "structure.insecure-default",
+    "severity": "CRITICAL",
+    "file": "variables.tf",
+    "line": 8,
+    "summary": "Variable \"public_access\" defaults to true, so a caller that omits it gets a public queue policy.",
+    "suggested_fix": "Set the default of `variable \"public_access\"` in `variables.tf` to `false`.",
+    "source": "llm"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "compat.variable-removed",
+    "severity": "HIGH",
+    "file": "variables.tf",
+    "line": null,
+    "summary": "Variable \"retention_days\" is removed, so every caller that sets it fails to plan.",
+    "suggested_fix": "Restore `variable \"retention_days\"` in `variables.tf` with type `number` and default `30`.",
+    "source": "llm",
+    "subject": ".:var.retention_days",
+    "candidate_id": "C-002",
+    "confirmed_by": "lead"
+  }
+]

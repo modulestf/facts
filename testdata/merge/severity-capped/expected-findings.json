@@ -1,0 +1,38 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": "Output \"arn\" indexes the conditional queue without try, so it fails when create is false.",
+    "suggested_fix": "Wrap the value of `output \"arn\"` in `outputs.tf` in `try(aws_sqs_queue.this[0].arn, null)`.",
+    "source": "llm",
+    "subject": ".:output.arn",
+    "candidate_id": "C-001",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "compat.default-changed",
+    "severity": "MEDIUM",
+    "file": "variables.tf",
+    "line": 30,
+    "summary": "The default of \"log_format\" changes from text to json, which only changes the log line layout.",
+    "suggested_fix": "Name the new default of `variable \"log_format\"` in `variables.tf` in the upgrade notes.",
+    "source": "llm",
+    "subject": ".:var.log_format",
+    "candidate_id": "C-002",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "structure.grouping",
+    "severity": "LOW",
+    "file": "main.tf",
+    "line": 20,
+    "summary": "The IAM blocks are split around the queue resource.",
+    "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks.",
+    "source": "llm"
+  }
+]

@@ -1,0 +1,1 @@
+Every candidate id answered exactly once with no unknown ids: a confirm without summary and suggested_fix for a candidate not in severity_needed makes the reply invalid; the repair reply is valid and is the one merged.

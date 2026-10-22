@@ -1,0 +1,47 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": "Output \"arn\" indexes the conditional queue without try, so it fails when create is false.",
+    "suggested_fix": "Wrap the value of `output \"arn\"` in `outputs.tf` in `try(aws_sqs_queue.this[0].arn, null)`.",
+    "source": "llm",
+    "subject": ".:output.arn",
+    "candidate_id": "C-001",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "main.tf",
+    "line": 10,
+    "summary": "Rule structure.argument-order was not decided for .:aws_sqs_queue.this: the model reply was still invalid after the repair turn.",
+    "suggested_fix": "Review .:aws_sqs_queue.this against structure.argument-order by hand.",
+    "source": "host",
+    "subject": "structure.argument-order@.:aws_sqs_queue.this"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "review.check-not-run",
+    "severity": "MEDIUM",
+    "file": "variables.tf",
+    "line": null,
+    "summary": "Rule compat.variable-removed was not decided for .:var.retention_days: the model reply was still invalid after the repair turn.",
+    "suggested_fix": "Review .:var.retention_days against compat.variable-removed by hand.",
+    "source": "host",
+    "subject": "compat.variable-removed@.:var.retention_days"
+  },
+  {
+    "id": "F-004",
+    "rule_id": "structure.grouping",
+    "severity": "LOW",
+    "file": "main.tf",
+    "line": 20,
+    "summary": "The IAM blocks are split around the queue resource.",
+    "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks.",
+    "source": "llm"
+  }
+]

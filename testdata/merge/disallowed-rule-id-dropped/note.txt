@@ -1,0 +1,1 @@
+A finding with a disallowed rule_id is dropped alone and the reply stays valid: no repair turn starts, so the decoy repair reply is never merged.

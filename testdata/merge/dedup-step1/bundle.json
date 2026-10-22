@@ -1,0 +1,48 @@
+{
+  "tool_findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 14,
+      "subject": ".:aws_sqs_queue.this.redrive.max_count",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  redrive { max_count = 5, dead_letter = true }"
+          }
+        ],
+        "base": null,
+        "head": "redrive { max_count = 5, dead_letter = true }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "coverage.unknown-argument",
+      "file": "main.tf",
+      "line": 14,
+      "subject": ".:aws_sqs_queue.this.redrive.dead_letter",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  redrive { max_count = 5, dead_letter = true }"
+          }
+        ],
+        "base": null,
+        "head": "redrive { max_count = 5, dead_letter = true }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ],
+  "severity_needed": []
+}

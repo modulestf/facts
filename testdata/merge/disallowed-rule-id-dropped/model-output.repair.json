@@ -1,0 +1,23 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "The queue has count = var.create ? 1 : 0.",
+      "severity": "HIGH",
+      "summary": "Decoy text: a merge that starts a repair turn for this reply merges it.",
+      "suggested_fix": "Decoy fix: the first reply is valid and is the one merged."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-005",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 20,
+      "summary": "The IAM blocks are split around the queue resource.",
+      "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks."
+    }
+  ]
+}

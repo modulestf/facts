@@ -1,0 +1,138 @@
+{
+  "tool_findings": [
+    {
+      "id": "F-001",
+      "rule_id": "structure.output-no-try",
+      "severity": "HIGH",
+      "file": "outputs.tf",
+      "line": 3,
+      "summary": ".:output.arn indexes a conditional resource without try, so it fails when the resource is not created.",
+      "suggested_fix": "Wrap the value of .:output.arn in try(..., null).",
+      "source": "tool",
+      "subject": ".:output.arn",
+      "candidate_id": "C-002",
+      "confirmed_by": "small"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "C-003",
+      "rule_id": "structure.argument-order",
+      "file": "main.tf",
+      "line": 10,
+      "subject": ".:aws_sqs_queue.this",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 10,
+            "text": "  tags = var.tags"
+          }
+        ],
+        "base": null,
+        "head": "tags before for_each",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "structure.wrong-file",
+      "file": "main.tf",
+      "line": 60,
+      "subject": ".:output.queue_url",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 60,
+            "text": "output \"queue_url\" {"
+          }
+        ],
+        "base": null,
+        "head": "output \"queue_url\" { value = aws_sqs_queue.this[0].url }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "examples.stale-reference",
+      "file": "examples/complete/main.tf",
+      "line": 12,
+      "subject": "examples/complete:module.queue.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/complete/main.tf",
+            "line": 12,
+            "text": "  retention_days = 7"
+          }
+        ],
+        "base": null,
+        "head": "retention_days = 7",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "structure.arn-partition-hardcoded",
+      "file": "main.tf",
+      "line": 80,
+      "subject": ".:aws_iam_policy_document.this.resources",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 80,
+            "text": "    resources = [\"arn:aws:s3:::example-bucket\"]"
+          }
+        ],
+        "base": null,
+        "head": "[\"arn:aws:s3:::example-bucket\"]",
+        "schema_facts": []
+      },
+      "evidence_complete": false
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "scope.module-call",
+      "file": "main.tf",
+      "line": 90,
+      "subject": ".:module.labels",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 90,
+            "text": "module \"labels\" {"
+          }
+        ],
+        "base": null,
+        "head": "module \"labels\" { source = \"../labels\" }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ],
+  "severity_needed": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": ".:var.retention_days",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirmed_by": "mid"
+    }
+  ]
+}

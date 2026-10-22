@@ -1,0 +1,27 @@
+{
+  "tool_findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 3,
+      "subject": ".:output.arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 3,
+            "text": "  value = aws_sqs_queue.this[0].arn"
+          }
+        ],
+        "base": null,
+        "head": "aws_sqs_queue.this[0].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ],
+  "severity_needed": []
+}

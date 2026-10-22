@@ -1,0 +1,45 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "Nothing declares the removal.",
+      "severity": "CRITICAL"
+    },
+    {
+      "candidate_id": "C-003",
+      "decision": "reject",
+      "reason": "tags is last in the block at the head; the line is a lifecycle argument."
+    },
+    {
+      "candidate_id": "C-004",
+      "decision": "confirm",
+      "reason": "The output block sits between two resources in main.tf.",
+      "severity": "MEDIUM",
+      "summary": "Output \"queue_url\" is in main.tf, not in outputs.tf.",
+      "suggested_fix": "Move `output \"queue_url\"` from `main.tf` to `outputs.tf`."
+    },
+    {
+      "candidate_id": "C-005",
+      "decision": "confirm",
+      "reason": "The module no longer declares retention_days.",
+      "severity": "HIGH",
+      "summary": "The complete example still sets retention_days, which the module no longer has, so it cannot initialize.",
+      "suggested_fix": "Remove `retention_days = 7` from `module \"queue\"` in `examples/complete/main.tf`."
+    },
+    {
+      "candidate_id": "C-006",
+      "decision": "reject",
+      "reason": "A comment above the ARN names the partitions it is right for, with a source and date."
+    },
+    {
+      "candidate_id": "C-007",
+      "decision": "confirm",
+      "reason": "The called directory is a module of its own.",
+      "severity": "HIGH",
+      "summary": "The module calls ../labels, another module, from inside the module.",
+      "suggested_fix": "Remove `module \"labels\"` from `main.tf` and pass the labels in as `var.tags`."
+    }
+  ],
+  "findings": []
+}

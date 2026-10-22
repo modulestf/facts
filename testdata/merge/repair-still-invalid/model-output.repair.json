@@ -1,0 +1,10 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-009",
+      "decision": "reject",
+      "reason": "An id the bundle does not have."
+    }
+  ],
+  "findings": []
+}

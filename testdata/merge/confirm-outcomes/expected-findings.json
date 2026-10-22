@@ -1,0 +1,67 @@
+[
+  {
+    "id": "F-001",
+    "rule_id": "compat.variable-removed",
+    "severity": "CRITICAL",
+    "file": "variables.tf",
+    "line": null,
+    "summary": ".:var.retention_days is removed, so a caller that sets it fails to plan.",
+    "suggested_fix": "Restore .:var.retention_days with its base type and default, or declare the change as breaking with an upgrade note.",
+    "source": "tool",
+    "subject": ".:var.retention_days",
+    "candidate_id": "C-001",
+    "confirmed_by": "mid"
+  },
+  {
+    "id": "F-002",
+    "rule_id": "examples.stale-reference",
+    "severity": "HIGH",
+    "file": "examples/complete/main.tf",
+    "line": 12,
+    "summary": "The complete example still sets retention_days, which the module no longer has, so it cannot initialize.",
+    "suggested_fix": "Remove `retention_days = 7` from `module \"queue\"` in `examples/complete/main.tf`.",
+    "source": "llm",
+    "subject": "examples/complete:module.queue.retention_days",
+    "candidate_id": "C-005",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-003",
+    "rule_id": "scope.module-call",
+    "severity": "HIGH",
+    "file": "main.tf",
+    "line": 90,
+    "summary": "The module calls ../labels, another module, from inside the module.",
+    "suggested_fix": "Remove `module \"labels\"` from `main.tf` and pass the labels in as `var.tags`.",
+    "source": "llm",
+    "subject": ".:module.labels",
+    "candidate_id": "C-007",
+    "confirmed_by": "lead"
+  },
+  {
+    "id": "F-004",
+    "rule_id": "structure.output-no-try",
+    "severity": "HIGH",
+    "file": "outputs.tf",
+    "line": 3,
+    "summary": ".:output.arn indexes a conditional resource without try, so it fails when the resource is not created.",
+    "suggested_fix": "Wrap the value of .:output.arn in try(..., null).",
+    "source": "tool",
+    "subject": ".:output.arn",
+    "candidate_id": "C-002",
+    "confirmed_by": "small"
+  },
+  {
+    "id": "F-005",
+    "rule_id": "structure.wrong-file",
+    "severity": "MEDIUM",
+    "file": "main.tf",
+    "line": 60,
+    "summary": "Output \"queue_url\" is in main.tf, not in outputs.tf.",
+    "suggested_fix": "Move `output \"queue_url\"` from `main.tf` to `outputs.tf`.",
+    "source": "llm",
+    "subject": ".:output.queue_url",
+    "candidate_id": "C-004",
+    "confirmed_by": "lead"
+  }
+]

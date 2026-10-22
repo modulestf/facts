@@ -1,0 +1,7 @@
+{
+  "description": "Host settings this fixture assumes: the audit's proposed class for the rule.",
+  "confirm_cap": 10,
+  "confirm_class": {
+    "structure.output-no-try": "small"
+  }
+}

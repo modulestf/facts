@@ -1,0 +1,41 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "Draft answer replaced by the repair turn.",
+      "severity": "HIGH",
+      "summary": "Draft text the repair turn replaces.",
+      "suggested_fix": "Draft fix the repair turn replaces."
+    },
+    {
+      "candidate_id": "C-001",
+      "decision": "reject",
+      "reason": "Second answer for the same id."
+    },
+    {
+      "candidate_id": "C-002",
+      "decision": "confirm",
+      "reason": "Valid in the first reply, which the repair reply replaces whole.",
+      "severity": "CRITICAL",
+      "summary": "Variable \"retention_days\" is removed, so every caller that sets it fails to plan.",
+      "suggested_fix": "Restore `variable \"retention_days\"` in `variables.tf` with type `number` and default `30`."
+    },
+    {
+      "candidate_id": "C-003",
+      "decision": "reject",
+      "reason": "Valid in the first reply, which the repair reply replaces whole."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-005",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 30,
+      "summary": "A first-reply finding the repair reply replaces.",
+      "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks."
+    }
+  ]
+}

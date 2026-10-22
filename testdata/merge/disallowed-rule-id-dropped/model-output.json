@@ -1,0 +1,32 @@
+{
+  "candidate_decisions": [
+    {
+      "candidate_id": "C-001",
+      "decision": "confirm",
+      "reason": "The queue has count = var.create ? 1 : 0.",
+      "severity": "HIGH",
+      "summary": "Output \"arn\" indexes the conditional queue without try, so it fails when create is false.",
+      "suggested_fix": "Wrap the value of `output \"arn\"` in `outputs.tf` in `try(aws_sqs_queue.this[0].arn, null)`."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "rule_id": "examples.versions-missing",
+      "severity": "MEDIUM",
+      "file": "examples/basic/main.tf",
+      "line": null,
+      "summary": "The example has no versions.tf.",
+      "suggested_fix": "Add `examples/basic/versions.tf` from the profile template."
+    },
+    {
+      "id": "F-005",
+      "rule_id": "structure.grouping",
+      "severity": "LOW",
+      "file": "main.tf",
+      "line": 20,
+      "summary": "The IAM blocks are split around the queue resource.",
+      "suggested_fix": "Move `resource \"aws_iam_role\" \"this\"` in `main.tf` next to the other IAM blocks."
+    }
+  ]
+}
