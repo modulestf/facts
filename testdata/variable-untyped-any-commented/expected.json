@@ -25,11 +25,17 @@
       "line": 8,
       "subject": ".:var.targets",
       "evidence": {
-        "variable": "targets",
-        "type": "any",
-        "comments": [
-          "# Accepts a string or a list: callers pass both forms."
-        ]
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 7,
+            "text": "# Accepts a string or a list: callers pass both forms."
+          }
+        ],
+        "base": null,
+        "head": "any",
+        "schema_facts": []
       },
       "evidence_complete": true
     },
@@ -40,11 +46,17 @@
       "line": 13,
       "subject": ".:var.policy",
       "evidence": {
-        "variable": "policy",
-        "type": "any",
-        "comments": [
-          "# Any JSON-encodable value."
-        ]
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 15,
+            "text": "# Any JSON-encodable value."
+          }
+        ],
+        "base": null,
+        "head": "any",
+        "schema_facts": []
       },
       "evidence_complete": true
     }

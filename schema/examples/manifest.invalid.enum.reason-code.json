@@ -1,0 +1,9 @@
+[
+  {
+    "rule_id": "structure.variable-untyped",
+    "area": ".",
+    "status": "not_evaluated",
+    "reason": "main.tf: parse error",
+    "reason_code": "skipped"
+  }
+]

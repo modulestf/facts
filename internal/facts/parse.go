@@ -39,10 +39,16 @@ type Variable struct {
 	File           string
 	Line           int
 	HasType        bool
-	TypeText       string   // source text of the type expression
-	TypeUsesAny    bool     // the type expression names `any` anywhere
-	Comments       []string // comments inside the block or on the line above it
-	HasDescription bool     // present and not an empty string literal
+	TypeText       string    // source text of the type expression
+	TypeUsesAny    bool      // the type expression names `any` anywhere
+	Comments       []Comment // comments inside the block or on the line above it
+	HasDescription bool      // present and not an empty string literal
+}
+
+// Comment is one comment token and the line it starts on.
+type Comment struct {
+	Line int
+	Text string
 }
 
 type Output struct {
@@ -157,10 +163,11 @@ func (m *Module) unsupported(code, text string) {
 	m.unsupportedCodes = append(m.unsupportedCodes, code)
 }
 
-// reasonCode is the code of the first Unsupported entry.
+// reasonCode is the code of the first Unsupported entry, or "" for a
+// Module that records none, which CheckManifest refuses.
 func (m *Module) reasonCode() string {
 	if len(m.unsupportedCodes) == 0 {
-		return ReasonUnsupportedFile // shortcut: only a Module built by hand lacks codes
+		return ""
 	}
 	return m.unsupportedCodes[0]
 }
@@ -282,7 +289,7 @@ func collect(m *Module, file string, src []byte, body *hclsyntax.Body, comments 
 			// comments are in source order, so search for the first one in range.
 			i := sort.Search(len(comments), func(i int) bool { return comments[i].Range.Start.Line >= line-1 })
 			for ; i < len(comments) && comments[i].Range.Start.Line <= b.Body.SrcRange.End.Line; i++ {
-				v.Comments = append(v.Comments, strings.TrimRight(string(comments[i].Bytes), "\r\n"))
+				v.Comments = append(v.Comments, Comment{Line: comments[i].Range.Start.Line, Text: strings.TrimRight(string(comments[i].Bytes), "\r\n")})
 			}
 			m.Variables = append(m.Variables, v)
 			m.varNames[v.Name] = true

@@ -19,11 +19,20 @@ const (
 
 // Reason codes, from the closed list of not_evaluated reasons.
 const (
-	ReasonParseError      = "parse_error"
-	ReasonUnsupportedFile = "unsupported_file"
-	ReasonSymlink         = "symlink"
-	ReasonLimitExceeded   = "limit_exceeded"
+	ReasonParseError         = "parse_error"
+	ReasonUnsupportedFile    = "unsupported_file"
+	ReasonSymlink            = "symlink"
+	ReasonLimitExceeded      = "limit_exceeded"
+	ReasonNoBase             = "no_base"
+	ReasonSchemaUnavailable  = "schema_unavailable"
+	ReasonProfileUnavailable = "profile_unavailable"
 )
+
+// reasonCodes is the closed list, as manifest.schema.json has it.
+var reasonCodes = map[string]bool{
+	ReasonParseError: true, ReasonUnsupportedFile: true, ReasonSymlink: true, ReasonLimitExceeded: true,
+	ReasonNoBase: true, ReasonSchemaUnavailable: true, ReasonProfileUnavailable: true,
+}
 
 // Rule classes: a path rule still runs when the configuration cannot be parsed.
 const (
@@ -68,13 +77,13 @@ type Result struct {
 
 // Candidate is a detected defect a model or an author confirms or rejects.
 type Candidate struct {
-	CandidateID      string `json:"candidate_id"`
-	RuleID           string `json:"rule_id"`
-	File             string `json:"file"`
-	Line             *int   `json:"line"`
-	Subject          string `json:"subject"`
-	Evidence         any    `json:"evidence"`
-	EvidenceComplete bool   `json:"evidence_complete"`
+	CandidateID      string   `json:"candidate_id"`
+	RuleID           string   `json:"rule_id"`
+	File             string   `json:"file"`
+	Line             *int     `json:"line"`
+	Subject          string   `json:"subject"`
+	Evidence         Evidence `json:"evidence"`
+	EvidenceComplete bool     `json:"evidence_complete"`
 }
 
 // Finding has the seven fields of the reviewer's findings schema.
@@ -94,6 +103,8 @@ type ManifestEntry struct {
 	Area   string `json:"area"`
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`
+	// ReasonCode is set with Reason: one of the Reason constants.
+	ReasonCode string `json:"reason_code,omitempty"`
 }
 
 // Evaluate runs every rule on every area in scope and returns one manifest
@@ -161,11 +172,12 @@ func evaluateCrossArea(r Rule, areas []*Area) Result {
 			out.Findings = append(out.Findings, res.Findings...)
 			out.Candidates = append(out.Candidates, res.Candidates...)
 		default:
-			code := res.Code
-			if code == "" {
-				code = ReasonUnsupportedFile // shortcut: a rule that sets no code; every rule here sets one
+			// The reason is the code; a result with no code keeps its text
+			// and no code, which CheckManifest refuses.
+			if res.Code == "" {
+				return Result{NotEvaluated: res.NotEvaluated}
 			}
-			return Result{NotEvaluated: code, Code: code}
+			return Result{NotEvaluated: res.Code, Code: res.Code}
 		}
 	}
 	return out
@@ -179,7 +191,7 @@ func manifestEntry(rule, area string, res Result) ManifestEntry {
 	case res.NotEvaluated == StatusNotApplicable:
 		e.Status = StatusNotApplicable
 	case res.NotEvaluated != "":
-		e.Status, e.Reason = StatusNotEvaluated, res.NotEvaluated
+		e.Status, e.Reason, e.ReasonCode = StatusNotEvaluated, res.NotEvaluated, res.Code
 	case len(res.Findings) > 0:
 		e.Status = StatusFinding
 	case len(res.Candidates) > 0:
@@ -270,7 +282,7 @@ func sortStrings(ss ...[]string) {
 
 // CheckManifest is the integrity check: exactly one entry per (rule, area in
 // scope) for every tool and candidate rule, one under the root for a cross-area
-// rule, and no other entry.
+// rule, no other entry, and a reason code on every not_evaluated entry.
 func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 	want := map[[2]string]bool{}
 	for _, r := range rules {
@@ -293,6 +305,9 @@ func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 		k := [2]string{e.RuleID, e.Area}
 		if !want[k] || seen[k] {
 			return fmt.Errorf("integrity: unexpected or duplicate manifest entry %s in %s", e.RuleID, e.Area)
+		}
+		if e.Status == StatusNotEvaluated && !reasonCodes[e.ReasonCode] {
+			return fmt.Errorf("integrity: %s in %s is not evaluated with reason code %q", e.RuleID, e.Area, e.ReasonCode)
 		}
 		seen[k] = true
 	}

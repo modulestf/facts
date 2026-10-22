@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -156,8 +157,8 @@ func TestVariableEvidenceCap(t *testing.T) {
 		t.Fatalf("candidates %+v", r.Candidates)
 	}
 	c := r.Candidates[0]
-	if ev := c.Evidence.(VariableEvidence); c.EvidenceComplete || len(*ev.Type) != maxEvidenceText {
-		t.Errorf("cap did not bite: complete=%v len=%d", c.EvidenceComplete, len(*ev.Type))
+	if ev := c.Evidence; c.EvidenceComplete || len(*ev.Head) != maxEvidenceText || ev.Base != nil {
+		t.Errorf("cap did not bite: complete=%v len=%d base=%v", c.EvidenceComplete, len(*ev.Head), ev.Base)
 	}
 }
 
@@ -180,4 +181,26 @@ func TestJoinRulesRefusesDuplicateID(t *testing.T) {
 		}
 	}()
 	joinRules(p1Rules, p1Rules[:1])
+}
+
+func TestVariableEvidenceSplitsBlockComment(t *testing.T) {
+	r := runHead(t, map[string]string{"variables.tf": "variable \"v\" {\n  /* One,\r\n     two. */\n  type = any\n}\n"})
+	if len(r.Candidates) != 1 {
+		t.Fatalf("candidates %+v", r.Candidates)
+	}
+	want := []SourceLine{
+		{Revision: "head", File: "variables.tf", Line: 2, Text: "/* One,"},
+		{Revision: "head", File: "variables.tf", Line: 3, Text: "     two. */"},
+	}
+	if got := r.Candidates[0].Evidence.SourceLines; !reflect.DeepEqual(got, want) {
+		t.Errorf("source lines\n got %+v\nwant %+v", got, want)
+	}
+}
+
+func TestVariableEvidenceCapsCommentLines(t *testing.T) {
+	r := runHead(t, map[string]string{"variables.tf": "variable \"v\" {\n  /*" + strings.Repeat("\n x", 20) + " */\n  type = any\n}\n"})
+	c := r.Candidates[0]
+	if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxEvidenceComments {
+		t.Errorf("complete=%v lines=%d", c.EvidenceComplete, len(c.Evidence.SourceLines))
+	}
 }

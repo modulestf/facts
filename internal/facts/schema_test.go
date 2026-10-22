@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,6 +25,8 @@ var schemaKeywords = map[string]bool{
 	"oneOf": true, "$ref": true,
 }
 
+// schemaSet holds the schemas by $id. A $ref resolves against the $id of
+// the schema that holds it, as ajv resolves it.
 type schemaSet map[string]map[string]any
 
 func loadSchemas(t *testing.T) schemaSet {
@@ -42,9 +45,42 @@ func loadSchemas(t *testing.T) schemaSet {
 		if err := json.Unmarshal(data, &s); err != nil {
 			t.Fatalf("%s: %v", f, err)
 		}
-		set[filepath.Base(f)] = s
+		set[s["$id"].(string)] = s
 	}
 	return set
+}
+
+// resolve returns the schema a $ref in the schema with $id doc points to,
+// and the $id of the file that holds it.
+func (set schemaSet) resolve(doc, ref string) (string, map[string]any) {
+	// A relative $id, such as lint.schema.json, resolves under a placeholder
+	// base, since url.ResolveReference makes a relative path absolute.
+	const relBase = "https://relative.invalid/"
+	base, err1 := url.Parse(relBase + doc)
+	if strings.Contains(doc, "://") {
+		base, err1 = url.Parse(doc)
+	}
+	r, err2 := url.Parse(ref)
+	if err1 != nil || err2 != nil {
+		return "", nil
+	}
+	u := base.ResolveReference(r)
+	frag := u.Fragment
+	u.Fragment = ""
+	id := strings.TrimPrefix(u.String(), relBase)
+	var cur any = set[id]
+	for tok := range strings.SplitSeq(strings.TrimPrefix(frag, "/"), "/") {
+		if tok == "" {
+			continue
+		}
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return id, nil
+		}
+		cur = m[tok]
+	}
+	target, _ := cur.(map[string]any)
+	return id, target
 }
 
 func decodeJSON(t *testing.T, data []byte) any {
@@ -73,13 +109,7 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 		}
 	}
 	if ref, ok := s["$ref"].(string); ok {
-		var target map[string]any
-		file := doc
-		if name, ok := strings.CutPrefix(ref, "#/$defs/"); ok {
-			target = set[doc]["$defs"].(map[string]any)[name].(map[string]any)
-		} else {
-			file, target = ref, set[ref]
-		}
+		file, target := set.resolve(doc, ref)
 		if target == nil {
 			fail("unresolved $ref %q", ref)
 			return
@@ -129,8 +159,12 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 	}
 	switch x := v.(type) {
 	case string:
-		if p, ok := s["pattern"].(string); ok && !regexp.MustCompile(p).MatchString(x) {
-			fail("%q does not match %s", x, p)
+		// shortcut: a pattern RE2 cannot compile (a lookahead) is left to
+		// ajv in tests/schemas-test.sh; port it here if a Go test needs it.
+		if p, ok := s["pattern"].(string); ok {
+			if re, err := regexp.Compile(p); err == nil && !re.MatchString(x) {
+				fail("%q does not match %s", x, p)
+			}
 		}
 		if m, ok := s["minLength"].(float64); ok && len(x) < int(m) {
 			fail("shorter than %v", m)
@@ -202,7 +236,10 @@ func TestSchemaValidatorRejects(t *testing.T) {
 		"bad status":    `[{"rule_id":"structure.variable-untyped","area":".","status":"ok"}]`,
 		"extra field":   `[{"rule_id":"structure.variable-untyped","area":".","status":"clean","x":1}]`,
 		"bad rule id":   `[{"rule_id":"Structure","area":".","status":"clean"}]`,
-		"empty reason":  `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":""}]`,
+		"empty reason":  `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":"","reason_code":"parse_error"}]`,
+		"no code":       `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":"x"}]`,
+		"open code":     `[{"rule_id":"a.b","area":".","status":"not_evaluated","reason":"x","reason_code":"other"}]`,
+		"code on clean": `[{"rule_id":"a.b","area":".","status":"clean","reason_code":"parse_error"}]`,
 		"not an array":  `{}`,
 	}
 	for name, doc := range bad {
@@ -210,7 +247,7 @@ func TestSchemaValidatorRejects(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
-	good := `[{"rule_id":"a.b-c","area":"modules/x","status":"not_evaluated","reason":"main.tf: parse error"}]`
+	good := `[{"rule_id":"a.b-c","area":"modules/x","status":"not_evaluated","reason":"main.tf: parse error","reason_code":"parse_error"}]`
 	if errs := set.validate("manifest.schema.json", decodeJSON(t, []byte(good))); len(errs) > 0 {
 		t.Error(errs)
 	}
@@ -219,7 +256,7 @@ func TestSchemaValidatorRejects(t *testing.T) {
 func TestReportMatchesSchemas(t *testing.T) {
 	set := loadSchemas(t)
 	base := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": ""})
-	head := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": "variable \"x\" {}\n", "examples/e/x.tf": "->../../main.tf"})
+	head := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": "# Free-form.\nvariable \"x\" { type = any }\n", "modules/b/main.tf": "variable {", "examples/e/x.tf": "->../../main.tf"})
 	reg := filepath.Join(t.TempDir(), "rule-facts.md")
 	if err := os.WriteFile(reg, []byte("# registry\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -233,21 +270,40 @@ func TestReportMatchesSchemas(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		data, err := json.Marshal(r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		v := decodeJSON(t, data)
-		if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
-			t.Errorf("lint schema: %v\n%s", errs, data)
-		}
-		m := v.(map[string]any)
-		if errs := set.validate("envelope.schema.json", m["envelope"]); len(errs) > 0 {
-			t.Errorf("envelope schema: %v", errs)
-		}
-		if errs := set.validate("manifest.schema.json", m["manifest"]); len(errs) > 0 {
-			t.Errorf("manifest schema: %v", errs)
-		}
+		checkReport(t, set, r)
+		// The keys later inputs and builders fill, filled by hand. InterfaceDiff
+		// stays empty: its schema uses allOf, const and not, which this
+		// validator lacks; ajv checks a filled one in schema/examples/lint.valid.json.
+		sum := strings.Repeat("c", 64)
+		r.Envelope.ProfileSHA256 = &sum
+		r.Envelope.SchemaInputs = &SchemaInputs{HandoffSHA256: sum, HeadSHA: strings.Repeat("a", 40), MergeBaseSHA: strings.Repeat("b", 40),
+			TreeHashes: TreeHashes{Head: sum, MergeBase: sum}, SchemaFiles: []FileHash{{Path: "aws.json", SHA256: sum}}}
+		r.Index = []IndexEntry{{File: "modules/a/main.tf", StartLine: 2, EndLine: 2, Subject: "modules/a:var.x"}}
+		checkReport(t, set, r)
+	}
+}
+
+// checkReport validates a report against the lint, envelope and manifest
+// schemas, and requires one not_evaluated entry with a reason code.
+func checkReport(t *testing.T, set schemaSet, r *Report) {
+	t.Helper()
+	data, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := decodeJSON(t, data)
+	if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
+		t.Errorf("lint schema: %v\n%s", errs, data)
+	}
+	m := v.(map[string]any)
+	if errs := set.validate("envelope.schema.json", m["envelope"]); len(errs) > 0 {
+		t.Errorf("envelope schema: %v", errs)
+	}
+	if errs := set.validate("manifest.schema.json", m["manifest"]); len(errs) > 0 {
+		t.Errorf("manifest schema: %v", errs)
+	}
+	if !strings.Contains(string(data), `"reason_code":"parse_error"`) {
+		t.Errorf("no not_evaluated entry with a reason code: %s", data)
 	}
 }
 

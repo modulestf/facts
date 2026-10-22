@@ -25,9 +25,10 @@
       "line": 1,
       "subject": ".:var.name",
       "evidence": {
-        "variable": "name",
-        "type": null,
-        "comments": []
+        "source_lines": [],
+        "base": null,
+        "head": null,
+        "schema_facts": []
       },
       "evidence_complete": true
     },
@@ -38,9 +39,10 @@
       "line": 5,
       "subject": ".:var.settings",
       "evidence": {
-        "variable": "settings",
-        "type": "any",
-        "comments": []
+        "source_lines": [],
+        "base": null,
+        "head": "any",
+        "schema_facts": []
       },
       "evidence_complete": true
     },
@@ -51,9 +53,10 @@
       "line": 10,
       "subject": ".:var.rules",
       "evidence": {
-        "variable": "rules",
-        "type": "map(object({ value = optional(any) }))",
-        "comments": []
+        "source_lines": [],
+        "base": null,
+        "head": "map(object({ value = optional(any) }))",
+        "schema_facts": []
       },
       "evidence_complete": true
     }

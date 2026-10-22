@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "envelope.schema.json",
   "title": "mtf-facts envelope",
-  "description": "Binds a report to the binary, the rule registry and the input trees.",
+  "description": "Binds a report to the binary, the rule registry, the input trees, the schema handoff and the module profile.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "tool", "head_sha", "merge_base_sha", "registry_sha256", "inputs"],
+  "required": ["schema_version", "tool", "head_sha", "merge_base_sha", "registry_sha256", "inputs", "schema_inputs", "profile_sha256"],
   "properties": {
-    "schema_version": {"enum": [1]},
+    "schema_version": {"enum": [2]},
     "tool": {
       "type": "object",
       "additionalProperties": false,
@@ -29,11 +29,47 @@
         "head": {"$ref": "#/$defs/tree"},
         "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}]}
       }
-    }
+    },
+    "schema_inputs": {"description": "Null when the run read no schema handoff.", "oneOf": [{"type": "null"}, {"$ref": "#/$defs/schema_inputs"}]},
+    "profile_sha256": {"description": "SHA-256 of the module profile input, null when the run read no profile.", "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
   },
   "$defs": {
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "commit": {"type": ["string", "null"], "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+    "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+    "schema_inputs": {
+      "description": "The schema handoff the run read: its own hash, the commits and .tf tree hashes it records, and a hash per raw provider schema file.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handoff_sha256", "head_sha", "merge_base_sha", "tree_hashes", "schema_files"],
+      "properties": {
+        "handoff_sha256": {"$ref": "#/$defs/sha256"},
+        "head_sha": {"$ref": "#/$defs/commit_sha"},
+        "merge_base_sha": {"$ref": "#/$defs/commit_sha"},
+        "tree_hashes": {
+          "description": "The handoff's tree_hash per revision.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["head", "merge_base"],
+          "properties": {
+            "head": {"$ref": "#/$defs/sha256"},
+            "merge_base": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "schema_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        }
+      }
+    },
     "tree": {
       "type": "object",
       "additionalProperties": false,

@@ -23,14 +23,14 @@ func TestEvaluateStatuses(t *testing.T) {
 		}}
 	areas := []*Area{
 		{Path: ".", Kind: AreaRoot, Head: &Module{}},
-		{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{Unsupported: []string{"main.tf: parse error"}}},
-		{Path: "modules/old", Kind: AreaSubmodule, Head: &Module{}, Base: &Module{Unsupported: []string{"x.tf.json is a JSON configuration file"}}},
+		{Path: "modules/bad", Kind: AreaSubmodule, Head: &Module{Unsupported: []string{"main.tf: parse error"}, unsupportedCodes: []string{ReasonParseError}}},
+		{Path: "modules/old", Kind: AreaSubmodule, Head: &Module{}, Base: &Module{Unsupported: []string{"x.tf.json is a JSON configuration file"}, unsupportedCodes: []string{ReasonUnsupportedFile}}},
 	}
 	m, fs, cs := Evaluate(areas, []Rule{finding, path})
 	want := []ManifestEntry{
 		{RuleID: "test.finding", Area: ".", Status: StatusFinding},
-		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error"},
-		{RuleID: "test.finding", Area: "modules/old", Status: StatusNotEvaluated, Reason: "at base: x.tf.json is a JSON configuration file"},
+		{RuleID: "test.finding", Area: "modules/bad", Status: StatusNotEvaluated, Reason: "main.tf: parse error", ReasonCode: ReasonParseError},
+		{RuleID: "test.finding", Area: "modules/old", Status: StatusNotEvaluated, Reason: "at base: x.tf.json is a JSON configuration file", ReasonCode: ReasonUnsupportedFile},
 		{RuleID: "test.path", Area: ".", Status: StatusNotApplicable},
 		{RuleID: "test.path", Area: "modules/bad", Status: StatusClean},
 		{RuleID: "test.path", Area: "modules/old", Status: StatusCandidate},
@@ -113,11 +113,11 @@ func TestEvaluateCrossArea(t *testing.T) {
 		},
 		"parse error in one area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modBad},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError},
 		},
 		"unreadable area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modLink},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink, ReasonCode: ReasonSymlink},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -172,7 +172,7 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 		},
 		"untouched root that cannot be parsed": {
 			baseRoot: "variable {", headRoot: "variable {",
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError},
+			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -246,7 +246,7 @@ func TestCrossAreaPassNotEvaluated(t *testing.T) {
 					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
 				}}
 			m, fs, cs := Evaluate(areas, []Rule{rule})
-			want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: tc.want}}
+			want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: tc.want, ReasonCode: tc.want}}
 			if !reflect.DeepEqual(m, want) {
 				t.Errorf("manifest\n got %+v\nwant %+v", m, want)
 			}
@@ -286,8 +286,59 @@ func TestRunReadsUntouchedAreasForCrossAreaRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError}}
+	want := []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError}}
 	if !reflect.DeepEqual(r.Manifest, want) {
 		t.Errorf("manifest\n got %+v\nwant %+v", r.Manifest, want)
+	}
+}
+
+func TestCheckManifestRefusesMissingReasonCode(t *testing.T) {
+	r := Rule{ID: "test.nocode", Tier: "tool", Class: ClassPath, Kinds: []string{AreaRoot},
+		Check: func(*Area) Result { return Result{NotEvaluated: "cannot tell"} }}
+	areas := []*Area{{Path: ".", Kind: AreaRoot, Head: &Module{}}}
+	m, _, _ := Evaluate(areas, []Rule{r})
+	if err := CheckManifest(m, []Rule{r}, areas); err == nil {
+		t.Errorf("accepted a not_evaluated entry with no code: %+v", m)
+	}
+	r.CrossArea = true
+	m, _, _ = Evaluate(areas, []Rule{r})
+	if err := CheckManifest(m, []Rule{r}, areas); err == nil {
+		t.Errorf("cross-area: accepted a not_evaluated entry with no code: %+v", m)
+	}
+}
+
+// TestRealRulesSetReasonCodes runs every implemented rule on trees that make
+// each one not evaluated in each way the engine knows, and requires a code
+// from the closed list on every such entry. Run itself refuses a missing code,
+// so this also fails when Run errors.
+func TestRealRulesSetReasonCodes(t *testing.T) {
+	trees := map[string]map[string]string{
+		"parse error": {"main.tf": "variable {", "examples/e/versions.tf": "x {"},
+		"json file":   {"main.tf": "", "main.tf.json": "{}"},
+		"override":    {"main.tf": "", "override.tf": ""},
+		"link":        {"main.tf": "->other.tf", "other.tf": "", "examples/e/versions.tf": "->../../other.tf"},
+		"link dir":    {"main.tf": "", "examples": "->modules", "modules/a/main.tf": ""},
+	}
+	seen := map[string]bool{}
+	for name, files := range trees {
+		r, err := Run(Options{Head: writeTree(t, files), Limits: DefaultLimits})
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		for _, e := range r.Manifest {
+			if e.Status != StatusNotEvaluated {
+				continue
+			}
+			seen[e.ReasonCode] = true
+			if !reasonCodes[e.ReasonCode] {
+				t.Errorf("%s: %s in %s has code %q", name, e.RuleID, e.Area, e.ReasonCode)
+			}
+		}
+	}
+	for _, code := range []string{ReasonParseError, ReasonUnsupportedFile, ReasonSymlink} {
+		if !seen[code] {
+			t.Errorf("no tree produced %s", code)
+		}
 	}
 }

@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "tool": {
     "name": "mtf-facts",
     "version": "v0.1.0",
@@ -39,5 +39,7 @@
         }
       ]
     }
-  }
+  },
+  "schema_inputs": null,
+  "profile_sha256": null
 }

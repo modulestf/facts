@@ -25,9 +25,10 @@
       "line": 5,
       "subject": ".:var.added",
       "evidence": {
-        "variable": "added",
-        "type": null,
-        "comments": []
+        "source_lines": [],
+        "base": null,
+        "head": null,
+        "schema_facts": []
       },
       "evidence_complete": true
     }
