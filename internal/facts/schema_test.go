@@ -196,8 +196,13 @@ func decodeJSON(t *testing.T, data []byte) any {
 	return v
 }
 
-// validate checks v against schema file name and returns every violation.
+// validate checks v against the schema whose $id is name and returns every
+// violation. A name no loaded schema has is a violation: checking against
+// nothing would pass every value.
 func (set schemaSet) validate(name string, v any) []string {
+	if set[name] == nil {
+		return []string{fmt.Sprintf("no schema with $id %q", name)}
+	}
 	var errs []string
 	set.check(name, set[name], v, "$", &errs)
 	return errs
