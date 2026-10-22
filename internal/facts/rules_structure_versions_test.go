@@ -374,6 +374,12 @@ func TestVersionFloorUnderstatedHardCases(t *testing.T) {
 			want: []string{understateRule + " versions.tf:6 .:required_providers.aws"},
 		},
 		{
+			name: "an example with a required_version that leaves out a provider the callee floors",
+			head: map[string]string{"versions.tf": providers(">= 1.5.7", "\">= 6.0\""), "examples/e/main.tf": call("../../"),
+				"examples/e/versions.tf": requires(">= 1.5.7")},
+			want: []string{understateRule + " versions.tf:10 examples/e:required_providers.random", understateRule + " versions.tf:6 examples/e:required_providers.aws"},
+		},
+		{
 			name: "a root with no required_version calls a submodule with a floor",
 			head: map[string]string{"main.tf": call("./modules/a"), "modules/a/versions.tf": requires(">= 1.3")},
 			want: []string{understateRule + " modules/a/versions.tf:2 .:required_version"},
@@ -458,6 +464,15 @@ func TestPassthroughHardCases(t *testing.T) {
 					"variable \"label\" {\n  type     = string\n  default  = \"c\"\n  nullable = true\n}\n\n" + sub},
 			want: []string{defaultRule + " variables.tf:1 .:var.cfg", defaultRule + " variables.tf:11 .:var.a", defaultRule + " variables.tf:16 .:var.b",
 				defaultRule + " variables.tf:6 .:var.label", fieldRule + " variables.tf:2 .:var.cfg"},
+		},
+		{
+			name: "two types the walk cannot read, and two primitives, which are not compared",
+			head: map[string]string{
+				"variables.tf": "variable \"t\" {\n  type = tuple([object({ a = string })])\n}\n\nvariable \"n\" {\n  type = string\n}\n",
+				"main.tf":      "module \"c\" {\n  source = \"./modules/c\"\n  t      = var.t\n  n      = var.n\n}\n",
+				"modules/c/variables.tf": "variable \"t\" {\n  type = tuple([object({ b = string })])\n}\n\n" +
+					"variable \"n\" {\n  type = number\n}\n"},
+			want: []string{fieldRule + " variables.tf:2 .:var.t"},
 		},
 		{
 			name: "a registry call and a root null into a non-nullable variable are silent",

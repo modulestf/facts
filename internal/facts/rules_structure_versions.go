@@ -280,7 +280,7 @@ func checkVersionFloorUnderstated(a *Area) Result {
 			if cr != nil {
 				cd = cr.d
 			}
-			if !understated(cd, ce.d, a.Kind == AreaExample) {
+			if !understated(cd, ce.d, a.Kind == AreaExample && len(callerFloors) == 0) {
 				continue
 			}
 			f := found[key]
@@ -334,13 +334,13 @@ func joined(parts []string) *string {
 // than its callee's, or no release the callee's admit too. Either side not
 // readable counts. A callee that declares nothing, or declares no floor,
 // admits every release, so it is never understated. A caller that declares
-// nothing against a callee floor is understated, except an example: that
-// case is examples.versions-missing.
-func understated(caller, callee versionDecl, example bool) bool {
+// nothing against a callee floor is understated, except an example that
+// declares no floor of any kind: that case is examples.versions-missing.
+func understated(caller, callee versionDecl, bareExample bool) bool {
 	switch {
 	case len(callee.lines) == 0:
 		return false
-	case len(caller.lines) == 0 && example:
+	case len(caller.lines) == 0 && bareExample:
 		return false
 	case !callee.ok:
 		return true

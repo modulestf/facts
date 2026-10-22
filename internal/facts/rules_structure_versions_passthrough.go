@@ -32,7 +32,8 @@ const (
 	passAny = iota
 	passObject
 	passColl
-	passOther
+	passPrim  // string, number or bool
+	passOther // a type the walk cannot read, such as a tuple
 )
 
 // passType is a type constraint as the procedure walks it: collections are
@@ -90,6 +91,9 @@ func passTypeOf(x Expr, e hclsyntax.Expression) *passType {
 	case *hclsyntax.ScopeTraversalExpr:
 		if len(t.Traversal) == 1 && t.Traversal.RootName() == "any" {
 			return &passType{kind: passAny}
+		}
+		if len(t.Traversal) == 1 && typePrimitives[t.Traversal.RootName()] {
+			return &passType{kind: passPrim}
 		}
 	case *hclsyntax.FunctionCallExpr:
 		switch {
@@ -467,12 +471,12 @@ func (p *passCheck) walk(r, s *passType, addr string, rv, sv *Variable, callee *
 	case r.kind == passColl && s.kind == passColl:
 		p.walk(r.elem, s.elem, addr, rv, sv, callee, arg, rootAt, subAt)
 		return
-	case r.kind != s.kind:
-		// An object or collection on one side only: the shapes differ.
+	case r.kind != s.kind || r.kind == passOther:
+		// The shapes differ, or neither side can be read: undecidable.
 		p.add(field, addr, []anchor{rootAt, arg, subAt}, typeText(rv))
 		return
-	case r.kind != passObject:
-		return
+	case r.kind == passPrim:
+		return // two primitives have no attributes to compare
 	}
 	for _, sa := range s.attrs {
 		if r.attr(sa.name) == nil {
