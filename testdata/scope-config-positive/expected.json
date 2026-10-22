@@ -1,0 +1,185 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.module-call",
+      "area": "modules/gizmo",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.new-submodule",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.new-submodule",
+      "area": "modules/gizmo",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "scope.module-call",
+      "file": "main.tf",
+      "line": 5,
+      "subject": ".:module.label",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  source  = \"git::https://example.com/label.git\""
+          }
+        ],
+        "base": "\"terraform-aws-modules/label/aws\"",
+        "head": "\"git::https://example.com/label.git\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "scope.provider",
+      "file": "main.tf",
+      "line": 10,
+      "subject": ".:provider[\"registry.terraform.io/hashicorp/random\"]",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 10,
+            "text": "resource \"random_id\" \"suffix\" {"
+          }
+        ],
+        "base": null,
+        "head": "hashicorp/random",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "scope.provider",
+      "file": "main.tf",
+      "line": 15,
+      "subject": ".:provider[\"registry.terraform.io/hashicorp/http\"]",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 15,
+            "text": "  data \"http\" \"health\" {"
+          }
+        ],
+        "base": null,
+        "head": "hashicorp/http",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "scope.module-call",
+      "file": "main.tf",
+      "line": 20,
+      "subject": ".:module.escape",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 21,
+            "text": "  source = \"../outside\""
+          }
+        ],
+        "base": null,
+        "head": "\"../outside\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "scope.module-call",
+      "file": "main.tf",
+      "line": 24,
+      "subject": ".:module.double",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 25,
+            "text": "  source = \"./modules/part//sub\""
+          }
+        ],
+        "base": null,
+        "head": "\"./modules/part//sub\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "scope.new-submodule",
+      "file": "modules/gizmo",
+      "line": null,
+      "subject": "modules/gizmo",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "modules/gizmo/main.tf",
+            "line": 5,
+            "text": "resource \"aws_demo_gizmo\" \"this\" {"
+          },
+          {
+            "revision": "head",
+            "file": "modules/gizmo/main.tf",
+            "line": 9,
+            "text": "resource \"aws_demo_gizmo_policy\" \"this\" {"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_gizmo, aws_demo_gizmo_policy",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "scope.module-call",
+      "file": "modules/gizmo/main.tf",
+      "line": 13,
+      "subject": "modules/gizmo:module.remote",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "modules/gizmo/main.tf",
+            "line": 14,
+            "text": "  source = \"example-org/remote/aws\""
+          }
+        ],
+        "base": null,
+        "head": "\"example-org/remote/aws\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

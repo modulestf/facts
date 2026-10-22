@@ -1,0 +1,41 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.module-call",
+      "area": "modules/extra",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.module-call",
+      "area": "modules/part",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.new-submodule",
+      "area": ".",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "scope.new-submodule",
+      "area": "modules/extra",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.new-submodule",
+      "area": "modules/part",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
