@@ -106,6 +106,23 @@
       }
     ]
   },
+  "schema_coverage": [
+    {
+      "file": "main.tf",
+      "line": 1,
+      "address": "aws_example_thing.this",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "outcome": "present",
+      "arguments": [
+        {
+          "path": "new_setting",
+          "change": "added",
+          "at_latest": "present",
+          "at_declared_minimum": "absent"
+        }
+      ]
+    }
+  ],
   "file_index": [
     {
       "path": "examples/complete/main.tf",

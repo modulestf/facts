@@ -47,6 +47,9 @@ type Report struct {
 	Candidates    []Candidate     `json:"candidates"`
 	Index         []IndexEntry    `json:"index,omitempty"`
 	InterfaceDiff *InterfaceDiff  `json:"interface_diff,omitempty"`
+	// SchemaCoverage is left out unless a schema handoff binds to the run,
+	// and is empty when it binds and the change touches no block.
+	SchemaCoverage *[]SchemaCoverage `json:"schema_coverage,omitempty"`
 }
 
 // IndexEntry maps the lines of one block or argument to its area-scoped
@@ -172,7 +175,7 @@ func run(o Options, rules []Rule) (*Report, error) {
 		return nil, err
 	}
 	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates, Index: BuildIndex(areas),
-		InterfaceDiff: BuildInterfaceDiff(env.HeadSHA, env.MergeBaseSHA, areas)}, nil
+		InterfaceDiff: BuildInterfaceDiff(env.HeadSHA, env.MergeBaseSHA, areas), SchemaCoverage: BuildSchemaCoverage(areas)}, nil
 }
 
 // needsUntouched reports whether any rule is cross-area. Untouched areas

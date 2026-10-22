@@ -105,7 +105,8 @@ type Resolution struct {
 	// Reason is set when Outcome is Unavailable: the handoff's unresolved
 	// reason, passed through, or schema_unavailable.
 	Reason string
-	// Source and Versions are set when Outcome is Present.
+	// Source is set when the handoff names the provider, resolved or not.
+	// Versions is set when Outcome is Present.
 	Source   string
 	Versions Versions
 }
@@ -122,7 +123,7 @@ func (s *Set) Resolve(dir, local string) Resolution {
 	case p == nil:
 		return unavailable
 	case p.Versions == nil:
-		return Resolution{Outcome: Unavailable, Reason: *p.UnresolvedReason}
+		return Resolution{Outcome: Unavailable, Reason: *p.UnresolvedReason, Source: p.Source}
 	}
 	return Resolution{Outcome: Present, Source: p.Source, Versions: *p.Versions}
 }

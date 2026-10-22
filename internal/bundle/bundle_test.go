@@ -46,15 +46,21 @@ func testEngine(t *testing.T) EngineText {
 	return text
 }
 
+// testCoverage is the schema coverage of testReport: one edited block.
+const testCoverage = `[{"file":"main.tf","line":1,"address":"aws_example_thing.this","provider_source":"registry.terraform.io/hashicorp/aws","outcome":"present",` +
+	`"arguments":[{"path":"new_setting","change":"added","at_latest":"present","at_declared_minimum":"absent"}]}]`
+
 // testReport is a report with one finding of each tool rule, two candidates,
-// a not_evaluated entry and an interface diff, over a change that adds,
-// modifies and removes a file.
+// a not_evaluated entry, an interface diff and schema coverage from a bound
+// handoff, over a change that adds, modifies and removes a file.
 func testReport() *Report {
 	return &Report{
 		Envelope: facts.Envelope{
 			SchemaVersion: facts.SchemaVersion,
 			Tool:          facts.Tool{Name: "mtf-facts", Version: "v0.0.0", BinarySHA256: strings.Repeat("a", 64)},
 			HeadSHA:       new(headSHA), MergeBaseSHA: new(baseSHA), RegistrySHA256: new(strings.Repeat("b", 64)),
+			SchemaInputs: &facts.SchemaInputs{HandoffSHA256: new(strings.Repeat("c", 64)), HeadSHA: new(headSHA), MergeBaseSHA: new(baseSHA),
+				TreeHashes: &facts.TreeHashes{Head: strings.Repeat("d", 64), MergeBase: strings.Repeat("e", 64)}, SchemaFiles: []facts.FileHash{}},
 			Inputs: facts.Inputs{
 				Head: facts.TreeInput{Files: []facts.FileInput{
 					{Path: "main.tf", Kind: "file", SHA256: strings.Repeat("1", 64)},
@@ -85,8 +91,9 @@ func testReport() *Report {
 				Evidence: facts.Evidence{SourceLines: []facts.SourceLine{{Revision: "merge_base", File: "variables.tf", Line: 1, Text: `variable "retention_days" {`}},
 					Base: new(`variable "retention_days" {}`), SchemaFacts: []facts.SchemaFact{}}, EvidenceComplete: true},
 		},
-		Index:         []facts.IndexEntry{{File: "variables.tf", StartLine: 1, EndLine: 5, Subject: ".:var.name"}},
-		InterfaceDiff: json.RawMessage(`{"head_sha":"` + headSHA + `","merge_base_sha":"` + baseSHA + `","areas":[{"path":".","kind":"root","required_version":null,"variables":[{"base":{"default":null,"description":null,"nullable":true,"sensitive":false,"type":null,"validation":[]},"change":"removed","head":null,"name":"retention_days"}],"outputs":[],"providers":[],"resources":[],"moved":[],"module_calls":[]}]}`),
+		Index:          []facts.IndexEntry{{File: "variables.tf", StartLine: 1, EndLine: 5, Subject: ".:var.name"}},
+		InterfaceDiff:  json.RawMessage(`{"head_sha":"` + headSHA + `","merge_base_sha":"` + baseSHA + `","areas":[{"path":".","kind":"root","required_version":null,"variables":[{"base":{"default":null,"description":null,"nullable":true,"sensitive":false,"type":null,"validation":[]},"change":"removed","head":null,"name":"retention_days"}],"outputs":[],"providers":[],"resources":[],"moved":[],"module_calls":[]}]}`),
+		SchemaCoverage: json.RawMessage(testCoverage),
 	}
 }
 
@@ -162,7 +169,7 @@ func TestBuildJudgment(t *testing.T) {
 		t.Fatalf("mode %s, shed %v, reason %q", res.Mode, res.Shed, res.Reason)
 	}
 	payload, d := parseRegion(t, res.Bundle)
-	want := []string{"tool_findings", "candidates", "area_rules", "interface_diff", "file_index", "severity_needed"}
+	want := []string{"tool_findings", "candidates", "area_rules", "interface_diff", "schema_coverage", "file_index", "severity_needed"}
 	if got := keys(t, payload); !slices.Equal(got, want) {
 		t.Errorf("keys %v, want %v", got, want)
 	}
@@ -176,8 +183,11 @@ func TestBuildJudgment(t *testing.T) {
 	if tf[0]["subject"] != "examples/complete" || tf[1]["subject"] != ".:var.name" || tf[0]["source"] != "tool" {
 		t.Errorf("tool finding subjects %v, %v", tf[0], tf[1])
 	}
-	// schema_coverage is never built, and a clean rule that relies on it
-	// stays clean: only the report's own not_evaluated entry is injected.
+	if got := string(d["schema_coverage"]); got != testCoverage {
+		t.Errorf("schema_coverage %s", got)
+	}
+	// A clean rule that relies on schema_coverage stays clean: only the
+	// report's own not_evaluated entry is injected.
 	ar := string(d["area_rules"])
 	for _, w := range []string{
 		`{"rule_id":"structure.variable-untyped","status":"not_evaluated","reason":"parse_error"}`,
@@ -290,8 +300,9 @@ func TestShedOrder(t *testing.T) {
 	}
 	steps := []step{
 		{[]string{"file-index"}, []string{"file_index"}},
-		{[]string{"file-index", "interface-diff"}, []string{"file_index", "interface_diff"}},
-		{[]string{"file-index", "interface-diff", "area-rules"}, []string{"file_index", "interface_diff", "area_rules"}},
+		{[]string{"file-index", "schema-coverage"}, []string{"file_index", "schema_coverage"}},
+		{[]string{"file-index", "schema-coverage", "interface-diff"}, []string{"file_index", "schema_coverage", "interface_diff"}},
+		{[]string{"file-index", "schema-coverage", "interface-diff", "area-rules"}, []string{"file_index", "schema_coverage", "interface_diff", "area_rules"}},
 	}
 	prev := full
 	for _, s := range steps {
@@ -318,16 +329,18 @@ func TestShedOrder(t *testing.T) {
 	// injection are those of the unshed bundle.
 	whole := build(t, r, big)
 	_, wd := parseRegion(t, whole.Bundle)
-	res := build(t, r, Options{CapBytes: payloadAfter(t, r, 2) - 1, InjectionBudget: big.InjectionBudget})
-	if !slices.Equal(res.Shed, []string{"file-index", "interface-diff", "area-rules"}) || !bytes.Equal(res.Injection, whole.Injection) {
+	res := build(t, r, Options{CapBytes: payloadAfter(t, r, 3) - 1, InjectionBudget: big.InjectionBudget})
+	if !slices.Equal(res.Shed, []string{"file-index", "schema-coverage", "interface-diff", "area-rules"}) || !bytes.Equal(res.Injection, whole.Injection) {
 		t.Errorf("shed %v, injection %q, want %q", res.Shed, res.Injection, whole.Injection)
 	}
-	res = build(t, r, Options{CapBytes: payloadAfter(t, r, 1) - 1, InjectionBudget: big.InjectionBudget})
-	if _, d := parseRegion(t, res.Bundle); !bytes.Equal(d["area_rules"], wd["area_rules"]) || !bytes.Equal(res.Injection, whole.Injection) {
-		t.Errorf("shedding interface-diff changed area_rules %s or the injection", d["area_rules"])
+	for k := 1; k <= 2; k++ {
+		res = build(t, r, Options{CapBytes: payloadAfter(t, r, k) - 1, InjectionBudget: big.InjectionBudget})
+		if _, d := parseRegion(t, res.Bundle); !bytes.Equal(d["area_rules"], wd["area_rules"]) || !bytes.Equal(res.Injection, whole.Injection) {
+			t.Errorf("shedding %v changed area_rules %s or the injection", res.Shed, d["area_rules"])
+		}
 	}
 	// Under the payload of tool findings and candidates alone: full.
-	alone := payloadAfter(t, r, 3)
+	alone := payloadAfter(t, r, 4)
 	if res := build(t, r, Options{CapBytes: alone - 1, InjectionBudget: big.InjectionBudget}); res.Mode != ModeFull || res.Bundle != nil {
 		t.Errorf("cap under sections 1 and 2: mode %s", res.Mode)
 	}
@@ -361,7 +374,7 @@ func TestSectionsOneAndTwoOverCapGiveFull(t *testing.T) {
 	if res.Mode != ModeFull || res.Bundle != nil || res.Injection != nil || !strings.Contains(res.Reason, "over the 49152 byte cap") {
 		t.Errorf("mode %s, reason %q", res.Mode, res.Reason)
 	}
-	if !slices.Equal(res.Shed, []string{"file-index", "interface-diff", "area-rules"}) {
+	if !slices.Equal(res.Shed, []string{"file-index", "schema-coverage", "interface-diff", "area-rules"}) {
 		t.Errorf("shed %v before giving up", res.Shed)
 	}
 }
@@ -509,6 +522,13 @@ func TestPRStringsAreCapped(t *testing.T) {
 	if !regexp.MustCompile(` \[truncated: 6 bytes omitted, sha256 [0-9a-f]{12}\]":1}$`).Match(d["interface_diff"]) {
 		t.Errorf("interface diff key not capped: %.60s", d["interface_diff"])
 	}
+	// Schema coverage strings and keys are capped too.
+	r = testReport()
+	r.SchemaCoverage = json.RawMessage(`[{"address":` + string(mustJSON(t, long)) + `}]`)
+	_, d = parseRegion(t, build(t, r, big).Bundle)
+	if got := string(d["schema_coverage"]); got != `[{"address":"`+strings.Repeat("a", maxPRString-1)+` [truncated: 6 bytes omitted]"}]` {
+		t.Errorf("schema coverage %s", got)
+	}
 	// A string at the cap is kept whole.
 	r = testReport()
 	at := strings.Repeat("b", maxPRString)
@@ -602,8 +622,8 @@ func TestDecodeRoundTrip(t *testing.T) {
 		t.Errorf("decoded %+v", b)
 	}
 	// A shed bundle decodes with its sections left out.
-	shed := build(t, testReport(), Options{CapBytes: payloadAfter(t, testReport(), 3), InjectionBudget: big.InjectionBudget})
-	if b, err := Decode(bytes.NewReader(shed.Bundle)); err != nil || b.AreaRules != nil || b.InterfaceDiff != nil || b.FileIndex != nil {
+	shed := build(t, testReport(), Options{CapBytes: payloadAfter(t, testReport(), 4), InjectionBudget: big.InjectionBudget})
+	if b, err := Decode(bytes.NewReader(shed.Bundle)); err != nil || b.AreaRules != nil || b.InterfaceDiff != nil || b.SchemaCoverage != nil || b.FileIndex != nil {
 		t.Errorf("shed bundle: %+v, %v", b, err)
 	}
 }
@@ -635,5 +655,23 @@ func TestDecodeRefuses(t *testing.T) {
 	}
 	if _, err := Decode(strings.NewReader(inner(`{"tool_findings":[],"candidates":[],"severity_needed":[]}`))); err != nil {
 		t.Errorf("minimal bundle: %v", err)
+	}
+}
+
+// TestSchemaCoverageNeedsHandoff refuses a report with schema coverage that
+// records no schema handoff, and leaves the section out of a report without.
+func TestSchemaCoverageNeedsHandoff(t *testing.T) {
+	r := testReport()
+	r.Envelope.SchemaInputs = nil
+	if _, err := Build(r, testRegistry(t), testEngine(t), big); err == nil || !strings.Contains(err.Error(), "schema coverage") {
+		t.Errorf("err %v", err)
+	}
+	r.Envelope.SchemaInputs = &facts.SchemaInputs{SchemaFiles: []facts.FileHash{{Path: "aws.json", SHA256: strings.Repeat("f", 64)}}}
+	if _, err := Build(r, testRegistry(t), testEngine(t), big); err == nil {
+		t.Error("raw schema files only: no error")
+	}
+	r.SchemaCoverage = nil
+	if _, d := parseRegion(t, build(t, r, big).Bundle); d["schema_coverage"] != nil {
+		t.Errorf("schema_coverage %s without one in the report", d["schema_coverage"])
 	}
 }
