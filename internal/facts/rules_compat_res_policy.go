@@ -14,13 +14,38 @@ import (
 
 const policyDocType = "aws_iam_policy_document"
 
-// policyAttr reports an argument that holds a policy document the module
-// produces, such as policy or assume_role_policy.
-func policyAttr(name string) bool { return name == "policy" || strings.HasSuffix(name, "_policy") }
+// policyAttr reports an argument that may hold a policy document the module
+// produces: any name with "polic" in it, such as policy, assume_role_policy,
+// managed_policies or policy_document. No list of names is exhaustive, so
+// the match is wide: an edit to such an argument is a candidate.
+func policyAttr(name string) bool { return strings.Contains(name, "polic") }
 
-// widening are the policy document arguments whose literal list only
-// widens an allow statement when it gains entries.
-var widening = map[string]bool{"actions": true, "resources": true, "identifiers": true, "values": true}
+// widensIn reports an aws_iam_policy_document argument whose literal list
+// only widens an allow statement when it gains entries, inside a block of
+// type blockType of the base and head bodies b and h: actions and resources
+// of a statement, identifiers of principals (never not_principals), and
+// values of a condition whose test is the same literal at both, with no Not
+// in it. A test such as StringNotEquals narrows as its values grow.
+func widensIn(name, blockType string, b, h Body) bool {
+	switch {
+	case blockType == "statement":
+		return name == "actions" || name == "resources"
+	case blockType == "principals":
+		return name == "identifiers"
+	case blockType == "condition" && name == "values":
+		bt, ht := bodyAttr(b, "test"), bodyAttr(h, "test")
+		if bt == nil || ht == nil || bt.Value.Text != ht.Value.Text {
+			return false
+		}
+		e, ok := parseExprAt(ht.Value)
+		if !ok {
+			return false
+		}
+		v, ok := literalValue(e)
+		return ok && !v.IsNull() && v.Type() == cty.String && !strings.Contains(v.AsString(), "Not")
+	}
+	return false
+}
 
 type policyChange struct {
 	line       int // 0: the line of the enclosing head block
@@ -30,9 +55,9 @@ type policyChange struct {
 
 // checkPolicyNarrowed: a policy document the module produces that may
 // permit less at the head. An aws_iam_policy_document is compared argument
-// by argument: an allow statement that only gains literal actions,
-// resources, identifiers or condition values, or a new allow statement, is
-// a widening; any other edit is a candidate. Any other policy argument,
+// by argument: an allow statement that only gains literal entries where
+// widensIn allows it, or a new allow statement, is a widening; any other
+// edit is a candidate. Any other policy argument,
 // such as a jsonencode() document, is a candidate when its text changes. A
 // local the policy text reads, directly or through other locals, is a
 // candidate when the change edits it. A removed document data block is a
@@ -47,7 +72,7 @@ func checkPolicyNarrowed(a *Area) Result {
 	baseBlocks := map[string]*Resource{}
 	for i := range a.Base.Resources {
 		r := &a.Base.Resources[i]
-		if k := resKey(r); baseBlocks[k] == nil {
+		if k := coverageBlockAddr(*r); baseBlocks[k] == nil {
 			baseBlocks[k] = r
 		}
 	}
@@ -55,7 +80,7 @@ func checkPolicyNarrowed(a *Area) Result {
 	var policyText []string
 	for i := range a.Head.Resources {
 		h := &a.Head.Resources[i]
-		k := resKey(h)
+		k := coverageBlockAddr(*h)
 		if h.Mode == "data" && h.Type == policyDocType {
 			policyText = append(policyText, bodyText(h.Body)...)
 		} else {
@@ -71,7 +96,7 @@ func checkPolicyNarrowed(a *Area) Result {
 		}
 		var changes []policyChange
 		if h.Mode == "data" && h.Type == policyDocType {
-			docDiff(b.Body, h.Body, "", h.Line, true, &changes)
+			docDiff(b.Body, h.Body, "", "", h.Line, true, &changes)
 		} else {
 			policyArgDiff(b.Body, h.Body, "", h.Line, &changes)
 		}
@@ -97,13 +122,6 @@ func checkPolicyNarrowed(a *Area) Result {
 	}
 	res.Candidates = append(res.Candidates, policyLocals(a, id, policyText)...)
 	return res
-}
-
-func resKey(r *Resource) string {
-	if r.Mode == "data" {
-		return "data." + r.Type + "." + r.Name
-	}
-	return r.Type + "." + r.Name
 }
 
 var localRef = regexp.MustCompile(`\blocal\.([A-Za-z_][A-Za-z0-9_-]*)`)
@@ -320,10 +338,11 @@ func widens(b, h Expr) bool {
 	return true
 }
 
-// docDiff compares two bodies of an aws_iam_policy_document. allow is set
+// docDiff compares two bodies of an aws_iam_policy_document, inside a
+// nested block of type blockType, or "" at the document level. allow is set
 // inside an allow statement, or at the document level, where a new allow
 // statement only widens the document.
-func docDiff(base, head Body, path string, line int, allow bool, out *[]policyChange) {
+func docDiff(base, head Body, blockType, path string, line int, allow bool, out *[]policyChange) {
 	for _, h := range head.Attributes {
 		if h.Name == "sid" {
 			continue
@@ -331,7 +350,7 @@ func docDiff(base, head Body, path string, line int, allow bool, out *[]policyCh
 		b := bodyAttr(base, h.Name)
 		switch {
 		case b != nil && b.Value.Text == h.Value.Text:
-		case b != nil && allow && path != "" && widening[h.Name] && widens(b.Value, h.Value):
+		case b != nil && allow && widensIn(h.Name, blockType, base, head) && widens(b.Value, h.Value):
 		default:
 			c := policyChange{line: h.Range.Start.Line, path: path + "." + h.Name, head: new(h.Value.Text)}
 			if b != nil {
@@ -360,7 +379,7 @@ func docDiff(base, head Body, path string, line int, allow bool, out *[]policyCh
 			if t == "statement" {
 				inner = allow && allowEffect(bs[t][i].Body) && allowEffect(h.Body)
 			}
-			docDiff(bs[t][i].Body, h.Body, sub, h.Range.Start.Line, inner, out)
+			docDiff(bs[t][i].Body, h.Body, t, sub, h.Range.Start.Line, inner, out)
 		}
 	}
 	for _, t := range resSortedKeys(bs) {

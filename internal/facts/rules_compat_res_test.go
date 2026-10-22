@@ -51,7 +51,7 @@ func TestInstanceKeys(t *testing.T) {
 			t.Fatal(err)
 		}
 		got := "unknown"
-		if keys, ok := instanceKeys(&m.Resources[0]); ok {
+		if keys, ok := instanceKeys(m.Resources[0].Body); ok {
 			got = fmt.Sprintf("%q", keys)
 		}
 		if got != want {
@@ -137,6 +137,61 @@ func TestResourceAddressCases(t *testing.T) {
 			base: "resource \"aws_a\" \"x\" {}\n",
 			head: "removed {\n  from = aws_a.x\n}\n",
 			want: []string{"main.tf:1 .:aws_a.x"},
+		},
+		"whole move to other keys": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 1\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  for_each = toset([\"a\"])\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
+		"whole move to fewer keys": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 1\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
+		"whole move keeps the implicit key": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 1\n}\n",
+			head: "resource \"aws_a\" \"y\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+		},
+		"moved target missing": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "moved {\n  from = aws_a.x\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:1 .:aws_a.x"},
+		},
+		"moved chain followed": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\nmoved {\n  from = aws_a.y\n  to   = aws_a.z\n}\n",
+		},
+		"whole move into a module call": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+		},
+		"instance move into a module call": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 1\n}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nmoved {\n  from = aws_a.x[0]\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
+		"module call renamed": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\n",
+			head: "module \"b\" {\n  source = \"./m\"\n}\n",
+			want: []string{"main.tf:1 .:module.b"},
+		},
+		"module call renamed with moved": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\n",
+			head: "module \"b\" {\n  source = \"./m\"\n}\nmoved {\n  from = module.a\n  to   = module.b\n}\n",
+		},
+		"module call removed": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\nresource \"aws_b\" \"x\" {}\n",
+			head: "resource \"aws_b\" \"x\" {}\n",
+			want: []string{"main.tf:null .:module.a"},
+		},
+		"module call gains for_each": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\n",
+			head: "module \"a\" {\n  source   = \"./m\"\n  for_each = toset([\"k\"])\n}\n",
+			want: []string{"main.tf:3 .:module.a"},
+		},
+		"module call gains for_each with moved": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\n",
+			head: "module \"a\" {\n  source   = \"./m\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = module.a\n  to   = module.a[\"k\"]\n}\n",
 		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
@@ -291,6 +346,14 @@ func TestPolicyCases(t *testing.T) {
 		"dynamic statement edited": {doc("  dynamic \"statement\" {\n    for_each = var.s\n    content {\n      actions = statement.value\n    }\n  }\n"),
 			doc("  dynamic \"statement\" {\n    for_each = var.t\n    content {\n      actions = statement.value\n    }\n  }\n"),
 			[]string{"main.tf:2 .:data.aws_iam_policy_document.p.statement"}},
+		"condition values grow": {doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"y\"]\n    }\n  }\n"), doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"y\", \"z\"]\n    }\n  }\n"), nil},
+		"negated condition values grow": {doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringNotEquals\"\n      variable = \"a:x\"\n      values   = [\"y\"]\n    }\n  }\n"), doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringNotEquals\"\n      variable = \"a:x\"\n      values   = [\"y\", \"z\"]\n    }\n  }\n"),
+			[]string{"main.tf:8 .:data.aws_iam_policy_document.p.statement[0].condition[0].values"}},
+		"principals grow": {doc("  statement {\n    actions = [\"a:Get\"]\n    principals {\n      type        = \"AWS\"\n      identifiers = [\"a\"]\n    }\n  }\n"), doc("  statement {\n    actions = [\"a:Get\"]\n    principals {\n      type        = \"AWS\"\n      identifiers = [\"a\", \"b\"]\n    }\n  }\n"), nil},
+		"not_principals grow": {doc("  statement {\n    actions = [\"a:Get\"]\n    not_principals {\n      type        = \"AWS\"\n      identifiers = [\"a\"]\n    }\n  }\n"), doc("  statement {\n    actions = [\"a:Get\"]\n    not_principals {\n      type        = \"AWS\"\n      identifiers = [\"a\", \"b\"]\n    }\n  }\n"),
+			[]string{"main.tf:6 .:data.aws_iam_policy_document.p.statement[0].not_principals[0].identifiers"}},
+		"policy_document and _policies arguments": {"resource \"aws_r\" \"x\" {\n  policy_document  = \"a\"\n  managed_policies = [\"a\"]\n}\n", "resource \"aws_r\" \"x\" {\n  policy_document  = \"b\"\n  managed_policies = [\"b\"]\n}\n",
+			[]string{"main.tf:2 .:aws_r.x.policy_document", "main.tf:3 .:aws_r.x.managed_policies"}},
 		"inline policy in a nested block": {"resource \"aws_r\" \"x\" {\n  inline_policy {\n    policy = \"a\"\n  }\n}\n", "resource \"aws_r\" \"x\" {\n  inline_policy {\n    policy = \"b\"\n  }\n}\n",
 			[]string{"main.tf:3 .:aws_r.x.inline_policy[0].policy"}},
 		"policy removed from a block": {"resource \"aws_r\" \"x\" {\n  assume_role_policy = \"a\"\n}\n", "resource \"aws_r\" \"x\" {\n}\n",
@@ -317,10 +380,10 @@ func TestResEvidenceCaps(t *testing.T) {
 		t.Errorf("%+v", c)
 	}
 	e := newResEvidence(&Area{Path: ".", headTree: mustTree(t, writeTree(t, map[string]string{"a.tf": strings.Repeat("l\n", 20)}))})
-	for i := 1; i <= maxResSourceLines+1; i++ {
+	for i := 1; i <= maxEvidenceLines+1; i++ {
 		e.line("head", "a.tf", i)
 	}
-	if len(e.ev.SourceLines) != maxResSourceLines || e.complete {
+	if len(e.ev.SourceLines) != maxEvidenceLines || e.complete {
 		t.Errorf("source lines %d complete %v", len(e.ev.SourceLines), e.complete)
 	}
 }

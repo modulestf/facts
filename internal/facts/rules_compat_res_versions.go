@@ -271,6 +271,10 @@ func checkProviderFloorRaised(a *Area) Result {
 		if ok && (!raised || major) {
 			continue
 		}
+		// One provider without versions makes the area's entry
+		// not_evaluated, and Evaluate keeps no candidate of a not_evaluated
+		// entry, so evaluating the other providers first would find nothing
+		// that is kept; the model evaluates the rule for the whole area.
 		r := a.Schema.Resolve(a.Path, name)
 		if r.Outcome != schema.Present || r.Versions.OldFloor == nil {
 			reason := "no schema handoff versions for provider " + name
@@ -331,17 +335,4 @@ func schemaFacts(a *Area, ev *resEvidence, local, source, ver string) {
 			ev.ev.SchemaFacts = append(ev.ev.SchemaFacts, SchemaFact{ProviderSource: source, Version: ver, Type: r.Type, Path: n, State: factState(out, f)})
 		}
 	}
-}
-
-func factState(o schema.Outcome, f schema.Field) string {
-	switch o {
-	case schema.Present:
-		if (f.Attribute != nil && f.Attribute.Deprecated) || (f.Attribute == nil && f.Block != nil && f.Block.Deprecated) {
-			return "deprecated"
-		}
-		return "present"
-	case schema.AbsentFromSchema:
-		return "absent"
-	}
-	return "unknown"
 }

@@ -22,12 +22,9 @@ var compatResRules = []Rule{
 
 var compatResKinds = []string{AreaRoot, AreaSubmodule}
 
-// Caps on one candidate's evidence. A cap that bites sets evidence_complete
-// to false.
-const (
-	maxResSourceLines = 8
-	maxResSchemaFacts = 64
-)
+// maxResSchemaFacts caps the schema facts of one candidate; with
+// maxEvidenceLines, a cap that bites sets evidence_complete to false.
+const maxResSchemaFacts = 64
 
 // resEvidence builds one candidate's evidence under the caps.
 type resEvidence struct {
@@ -67,7 +64,7 @@ func (e *resEvidence) line(rev, file string, n int) {
 	if n > len(ls) {
 		return
 	}
-	if len(e.ev.SourceLines) == maxResSourceLines {
+	if len(e.ev.SourceLines) == maxEvidenceLines {
 		e.complete = false
 		return
 	}
