@@ -1,0 +1,265 @@
+{
+  "manifest": [
+    {
+      "rule_id": "structure.argument-order",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "no profile input",
+      "reason_code": "profile_unavailable"
+    },
+    {
+      "rule_id": "structure.arn-partition-hardcoded",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.multi-provider",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.output-no-try",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.wrong-file",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.multi-provider",
+      "file": "main.tf",
+      "line": 5,
+      "subject": ".:provider.aws.replica",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  alias  = \"replica\""
+          }
+        ],
+        "base": null,
+        "head": "replica",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "structure.wrong-file",
+      "file": "main.tf",
+      "line": 11,
+      "subject": ".:local.bucket_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 11,
+            "text": "  bucket_arn = \"arn:${local.partition}:s3:::${var.name}\""
+          }
+        ],
+        "base": null,
+        "head": "locals.tf",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "structure.wrong-file",
+      "file": "main.tf",
+      "line": 14,
+      "subject": ".:data.aws_iam_policy_document.extra",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "data \"aws_iam_policy_document\" \"extra\" {"
+          }
+        ],
+        "base": null,
+        "head": "iam.tf",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "structure.arn-partition-hardcoded",
+      "file": "main.tf",
+      "line": 16,
+      "subject": ".:data.aws_iam_policy_document.extra.statement[0].resources",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 16,
+            "text": "    resources = [\"arn:aws:s3:::${var.name}/*\"]"
+          }
+        ],
+        "base": null,
+        "head": "\"arn:aws:s3:::${var.name}/*\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "structure.multi-provider",
+      "file": "main.tf",
+      "line": 21,
+      "subject": ".:aws_demo_gadget.this.provider",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 21,
+            "text": "  provider = aws.replica"
+          }
+        ],
+        "base": null,
+        "head": "aws.replica",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "structure.arn-partition-hardcoded",
+      "file": "main.tf",
+      "line": 24,
+      "subject": ".:aws_demo_gadget.this.target_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 24,
+            "text": "  target_arn = \"arn:${local.partition}:sns:eu-west-1:${local.account_id}:topic\""
+          }
+        ],
+        "base": null,
+        "head": "\"arn:${local.partition}:sns:eu-west-1:${local.account_id}:topic\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "structure.arn-partition-hardcoded",
+      "file": "main.tf",
+      "line": 25,
+      "subject": ".:aws_demo_gadget.this.policy",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 25,
+            "text": "  policy     = \u003c\u003c-EOT"
+          }
+        ],
+        "base": null,
+        "head": "\u003c\u003c-EOT\n    {\"Resource\": \"arn:${local.partition}:sqs:${local.region}:123456789012:queue\"}\n  EOT",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "structure.multi-provider",
+      "file": "main.tf",
+      "line": 35,
+      "subject": ".:module.child.providers",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 35,
+            "text": "  providers = {"
+          }
+        ],
+        "base": null,
+        "head": "{\n    aws = aws.replica\n  }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 1,
+      "subject": ".:output.gadget_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 3,
+            "text": "  value       = aws_demo_gadget.this.arn"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_gadget.this.arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 6,
+      "subject": ".:output.gadget_name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 8,
+            "text": "  value       = try(aws_demo_gadget.this.name, \"\")"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_gadget.this.name, \"\")",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-011",
+      "rule_id": "structure.arn-partition-hardcoded",
+      "file": "variables.tf",
+      "line": 4,
+      "subject": ".:var.boundary_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 4,
+            "text": "  default     = \"arn:aws-us-gov:iam::aws:policy/boundary\""
+          }
+        ],
+        "base": null,
+        "head": "\"arn:aws-us-gov:iam::aws:policy/boundary\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

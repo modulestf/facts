@@ -1,0 +1,33 @@
+{
+  "manifest": [
+    {
+      "rule_id": "structure.argument-order",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "no profile input",
+      "reason_code": "profile_unavailable"
+    },
+    {
+      "rule_id": "structure.arn-partition-hardcoded",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.multi-provider",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.output-no-try",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "structure.wrong-file",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
