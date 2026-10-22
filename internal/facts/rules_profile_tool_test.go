@@ -176,3 +176,34 @@ func TestPutinCreationInputs(t *testing.T) {
 		t.Errorf("findings %q", got)
 	}
 }
+
+// TestPutinGateFromSyntax checks the gate decides a count only as an operand
+// of the && chain, as a gated condition or true branch beside a branch that
+// creates nothing, or as a gated for filter.
+func TestPutinGateFromSyntax(t *testing.T) {
+	locals := "locals {\n  create = var.create && var.putin_khuylo\n  gate   = var.putin_khuylo\n  c2     = var.create || var.putin_khuylo\n}\n"
+	for name, c := range map[string]struct {
+		meta string
+		want bool
+	}{
+		"or":                {"count = var.create || var.putin_khuylo ? 1 : 0", true},
+		"or local":          {"count = var.create || local.gate ? 1 : 0", true},
+		"or in local":       {"count = local.c2 ? 1 : 0", true},
+		"gate in false":     {"count = var.create ? 1 : (var.putin_khuylo ? 1 : 0)", true},
+		"gate creates both": {"count = var.create ? (var.putin_khuylo ? 1 : 1) : 0", true},
+		"not":               {"count = var.create && !var.putin_khuylo ? 1 : 0", true},
+		"function argument": {"for_each = { for k, v in var.m : k => v if var.create && length(tostring(var.putin_khuylo)) > 0 }", true},
+		"and local":         {"count = var.create && local.create ? 1 : 0", false},
+		"gate outside":      {"count = var.putin_khuylo ? (var.create ? 1 : 0) : 0", false},
+		"gate in true":      {"count = var.create ? (var.putin_khuylo ? 1 : 0) : 0", false},
+		"parentheses":       {"count = (var.create && (local.gate)) ? 1 : 0", false},
+		"empty for_each":    {"for_each = local.create ? var.m : toset([])", false},
+		"for filter":        {"for_each = { for k, v in var.m : k => v if local.create }", false},
+	} {
+		head := map[string]string{"main.tf": locals + "\nresource \"a\" \"b\" {\n  " + c.meta + "\n}\n"}
+		got := findingSpots(runProfileTool(t, map[string]string{"main.tf": locals}, head), "profile.putin-khuylo-missing")
+		if want := map[bool][]string{true: {"main.tf:8"}}[c.want]; !slices.Equal(got, want) {
+			t.Errorf("%s: %q, want %q", name, got, want)
+		}
+	}
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // profileToolRules is the profile_tool rule family. Rule work for this family adds its rules and
@@ -193,32 +194,108 @@ func tofuOnlyLines(src []byte) (lines []int, ok bool) {
 // gateNode is what one expression, a count, a for_each or a local, reads on
 // its way to a creation input.
 type gateNode struct {
-	gate    bool     // it reads var.putin_khuylo, directly or through locals
-	reaches bool     // some path reaches a creation input
-	open    bool     // some path reaches one and the expression reads no gate
+	reaches bool     // it reads a creation input, directly or through locals
+	open    bool     // it reaches one and the gate does not decide it
 	via     []string // edited locals on a path that reaches one
-	openVia []string // edited locals on an open path
+	lostVia []string // edited locals that reach one and are not gated
 }
 
 // gateGraph answers gateNode for the expressions of a root module.
 type gateGraph struct {
-	creation map[string]bool     // creation inputs, as var.<name>
-	refs     map[string][]string // references of each head local, by name
-	edited   map[string]bool     // locals the change adds or edits
+	creation map[string]bool                 // creation inputs, as var.<name>
+	refs     map[string][]string             // references of each head local, by name
+	exprs    map[string]hclsyntax.Expression // each head local's value
+	edited   map[string]bool                 // locals the change adds or edits
 	memo     map[string]*gateNode
+	guarded  map[string]bool // memo of gates, per local
+	walking  map[string]bool // locals on the current walk
 }
 
-func exprRefs(e *Expr) []string {
+// parseExpr parses an expression's text again, nil for none. The text came
+// from a parse that succeeded, so it parses.
+func parseExpr(e *Expr) hclsyntax.Expression {
 	if e == nil {
 		return nil
 	}
-	// The text came from a parse that succeeded, so it parses again.
 	x, diags := hclsyntax.ParseExpression([]byte(e.Text), "", hcl.InitialPos)
 	if diags.HasErrors() {
 		return nil
 	}
+	return x
+}
+
+func exprRefs(e *Expr) []string {
+	x := parseExpr(e)
+	if x == nil {
+		return nil
+	}
 	refs, _ := references(x)
 	return refs
+}
+
+// createsNothing reports an expression that gives a count of 0 or an empty
+// for_each: 0, null, [], {}, or toset, tolist or tomap of one of those.
+func createsNothing(e hclsyntax.Expression) bool {
+	switch x := e.(type) {
+	case *hclsyntax.ParenthesesExpr:
+		return createsNothing(x.Expression)
+	case *hclsyntax.LiteralValueExpr:
+		v := x.Val
+		return v.IsNull() || (v.Type() == cty.Number && v.IsKnown() && v.Equals(cty.Zero).True())
+	case *hclsyntax.TupleConsExpr:
+		return len(x.Exprs) == 0
+	case *hclsyntax.ObjectConsExpr:
+		return len(x.Items) == 0
+	case *hclsyntax.FunctionCallExpr:
+		return (x.Name == "toset" || x.Name == "tolist" || x.Name == "tomap") && len(x.Args) == 1 && createsNothing(x.Args[0])
+	}
+	return false
+}
+
+// guards reports whether the gate decides an expression, read from its
+// syntax: the expression is var.putin_khuylo or a local the gate decides, an
+// && chain with such an operand, a conditional whose condition is gated, or
+// whose true branch is, and whose false branch creates nothing, or a for
+// expression whose filter is gated. The gate under || or !, in a branch
+// beside one that creates something, or only in a function argument does
+// not decide it.
+func (g *gateGraph) guards(e hclsyntax.Expression) bool {
+	switch x := e.(type) {
+	case *hclsyntax.ParenthesesExpr:
+		return g.guards(x.Expression)
+	case *hclsyntax.ScopeTraversalExpr:
+		addr := refAddress(x.Traversal)
+		if addr == "var.putin_khuylo" {
+			return true
+		}
+		if name, ok := strings.CutPrefix(addr, "local."); ok {
+			return g.localGuards(name)
+		}
+	case *hclsyntax.BinaryOpExpr:
+		return x.Op == hclsyntax.OpLogicalAnd && (g.guards(x.LHS) || g.guards(x.RHS))
+	case *hclsyntax.ConditionalExpr:
+		return createsNothing(x.FalseResult) && (g.guards(x.Condition) || g.guards(x.TrueResult))
+	case *hclsyntax.ForExpr:
+		return x.CondExpr != nil && g.guards(x.CondExpr)
+	}
+	return false
+}
+
+// localGuards is guards for a head local. A local met again on the current
+// walk is not gated by that path.
+func (g *gateGraph) localGuards(name string) bool {
+	if v, ok := g.guarded[name]; ok {
+		return v
+	}
+	x, ok := g.exprs[name]
+	if !ok || x == nil || g.walking[name] {
+		return false
+	}
+	g.walking[name] = true
+	v := g.guards(x)
+	delete(g.walking, name)
+	g.guarded[name] = v
+	return v
 }
 
 // isCreationVar reports a variable named like a creation input: create or
@@ -265,7 +342,8 @@ func addCreationInputs(refs map[string][]string, set map[string]bool) {
 // base and the head locals together, so a gate a change removes from a
 // create_<x> local still names its input.
 func newGateGraph(a *Area) *gateGraph {
-	g := &gateGraph{creation: map[string]bool{}, refs: localRefs(a.Head.Locals), edited: map[string]bool{}, memo: map[string]*gateNode{}}
+	g := &gateGraph{creation: map[string]bool{}, refs: localRefs(a.Head.Locals), exprs: map[string]hclsyntax.Expression{},
+		edited: map[string]bool{}, memo: map[string]*gateNode{}, guarded: map[string]bool{}, walking: map[string]bool{}}
 	addCreationInputs(g.refs, g.creation)
 	addCreationInputs(localRefs(a.Base.Locals), g.creation)
 	base := map[string]string{}
@@ -273,6 +351,7 @@ func newGateGraph(a *Area) *gateGraph {
 		base[l.Name] = l.Value.Text
 	}
 	for _, l := range a.Head.Locals {
+		g.exprs[l.Name] = parseExpr(&l.Value)
 		if t, ok := base[l.Name]; !ok || t != l.Value.Text {
 			g.edited[l.Name] = true
 		}
@@ -283,15 +362,15 @@ func newGateGraph(a *Area) *gateGraph {
 	return g
 }
 
-// node walks refs. An expression that reads the gate, directly or through
-// a local, gates every path through it. A local met again on the current
-// walk adds nothing.
-func (g *gateGraph) node(refs []string, walking map[string]bool) gateNode {
+// node answers gateNode for an expression and its references. Whether a
+// creation input is reached follows every reference; whether the gate decides
+// it follows the syntax, see guards. A local met again on the current walk
+// adds nothing.
+func (g *gateGraph) node(x hclsyntax.Expression, refs []string, walking map[string]bool) gateNode {
 	var n gateNode
-	n.gate = slices.Contains(refs, "var.putin_khuylo")
 	for _, r := range refs {
 		if g.creation[r] {
-			n.reaches, n.open = true, true
+			n.reaches = true
 			continue
 		}
 		name, ok := strings.CutPrefix(r, "local.")
@@ -299,25 +378,19 @@ func (g *gateGraph) node(refs []string, walking map[string]bool) gateNode {
 			continue
 		}
 		l := g.local(name, walking)
-		n.gate = n.gate || l.gate
 		if !l.reaches {
 			continue
 		}
 		n.reaches = true
 		n.via = append(n.via, l.via...)
+		n.lostVia = append(n.lostVia, l.lostVia...)
 		if g.edited[name] {
 			n.via = append(n.via, name)
 		}
-		if l.open {
-			n.open = true
-			n.openVia = append(n.openVia, l.openVia...)
-			if g.edited[name] {
-				n.openVia = append(n.openVia, name)
-			}
-		}
 	}
-	if n.gate {
-		n.open, n.openVia = false, nil
+	n.open = n.reaches && (x == nil || !g.guards(x))
+	if !n.open {
+		n.lostVia = nil
 	}
 	return n
 }
@@ -330,10 +403,18 @@ func (g *gateGraph) local(name string, walking map[string]bool) gateNode {
 		return gateNode{}
 	}
 	walking[name] = true
-	n := g.node(g.refs[name], walking)
+	n := g.node(g.exprs[name], g.refs[name], walking)
 	delete(walking, name)
+	if n.open && g.edited[name] {
+		n.lostVia = append(n.lostVia, name)
+	}
 	g.memo[name] = &n
 	return n
+}
+
+// block answers gateNode for a count or for_each.
+func (g *gateGraph) block(e *Expr) gateNode {
+	return g.node(parseExpr(e), exprRefs(e), map[string]bool{})
 }
 
 // judgedBlock is a resource or module block of the root with its count or
@@ -413,7 +494,7 @@ func checkPutinKhuyloMissing(a *Area) Result {
 			}
 		}
 		for _, b := range blocks {
-			open = open || g.node(exprRefs(b.expr), map[string]bool{}).open
+			open = open || g.block(b.expr).open
 		}
 		if declared && !open {
 			return Result{}
@@ -444,17 +525,17 @@ func checkPutinKhuyloMissing(a *Area) Result {
 		locals[l.Name] = l
 	}
 	for _, b := range blocks {
-		n := g.node(exprRefs(b.expr), map[string]bool{})
+		n := g.block(b.expr)
 		edited := b.head || b.base == nil || b.base.Text != b.expr.Text
 		if !n.open || (!edited && len(n.via) == 0) {
 			continue
 		}
 		s := spot{b.file, b.expr.Range.Start.Line}
 		what := "this block's count or for_each"
-		if len(n.openVia) > 0 {
+		if len(n.lostVia) > 0 {
 			// The first edited local, by position, takes every block whose
 			// gate it loses.
-			l := locals[slices.MinFunc(n.openVia, func(x, y string) int {
+			l := locals[slices.MinFunc(n.lostVia, func(x, y string) int {
 				lx, ly := locals[x], locals[y]
 				if c := strings.Compare(lx.File, ly.File); c != 0 {
 					return c
