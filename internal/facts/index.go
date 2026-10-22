@@ -94,11 +94,17 @@ func moduleIndex(out []IndexEntry, m *Module) []IndexEntry {
 // attributes of a variable's type, and the arguments, nested blocks and
 // required_providers entries of a terraform block. body, when set, is
 // indexed under the address.
+//
+// args, set for a variable or an output, are its arguments and validation
+// blocks. BuildIndex leaves them out, since var.<name>.<arg> would read as
+// an object attribute of the type; the change map uses them to find the
+// innermost argument that holds a line.
 type topBlock struct {
 	Span
 	addr  string
 	inner []innerEntry
 	body  *Body
+	args  *Body
 }
 
 type innerEntry struct {
@@ -115,14 +121,14 @@ func topBlocks(m *Module) []topBlock {
 	}
 	var out []topBlock
 	for _, v := range m.Variables {
-		b := topBlock{Span: v.Span, addr: "var." + v.Name}
+		b := topBlock{Span: v.Span, addr: "var." + v.Name, args: &v.Body}
 		for _, ta := range v.TypeAttrs {
 			b.inner = append(b.inner, innerEntry{ta.Range, b.addr + "." + ta.Path})
 		}
 		out = append(out, b)
 	}
 	for _, o := range m.Outputs {
-		out = append(out, topBlock{Span: o.Span, addr: "output." + o.Name})
+		out = append(out, topBlock{Span: o.Span, addr: "output." + o.Name, args: &o.Body})
 	}
 	for _, o := range m.Other {
 		out = append(out, topBlock{Span: o.Span, addr: strings.Join(append([]string{o.Type}, o.Labels...), "."), body: &o.Body})

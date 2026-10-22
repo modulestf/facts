@@ -415,3 +415,19 @@ func TestEvaluateNeedsChangeMap(t *testing.T) {
 	}()
 	Evaluate(nil, nil, nil)
 }
+
+// Variable and output arguments are entries of their own for
+// touched-expression: with only the description changed, a finding on the
+// unchanged default is dropped and one on the description is kept. The
+// whole variable as the innermost entry would keep both.
+func TestTouchedExpressionVariableArguments(t *testing.T) {
+	const v = "variable \"x\" {\n  default = {\n    a = 1\n  }\n  description = %q\n}\n\noutput \"o\" {\n  value       = 1\n  description = %q\n}\n"
+	areas, ch := scopeAreas(t, map[string]string{"main.tf": fmt.Sprintf(v, "old", "old")}, map[string]string{"main.tf": fmt.Sprintf(v, "new", "new")})
+	_, fs, _ := Evaluate(areas, []Rule{scopeRule(ScopeTouchedExpression, false, 2, 3, 5, 9, 10)}, ch)
+	if got := keptLines(fs); !reflect.DeepEqual(got, []int{5, 10}) {
+		t.Errorf("kept %v, want [5 10]", got)
+	}
+	if s, e := ch.entryAt("main.tf", 3); s != 2 || e != 4 {
+		t.Errorf("innermost entry of line 3: %d-%d, want the default, 2-4", s, e)
+	}
+}

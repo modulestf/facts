@@ -47,8 +47,8 @@ type ChangeMap struct {
 	// spans are the top-level block spans of each head file, each with its
 	// own status.
 	spans map[string][]blockSpan
-	// index is the index of the areas in scope, for the innermost entry that
-	// holds a line.
+	// index is the index of the areas in scope plus the arguments of their
+	// variables and outputs, for the innermost entry that holds a line.
 	index []IndexEntry
 }
 
@@ -63,7 +63,7 @@ type blockSpan struct {
 func BuildChangeMap(head, base *Tree, areas []*Area, lim Limits) (*ChangeMap, error) {
 	ch := &ChangeMap{base: base, paths: map[string]bool{}, lines: map[string][]lineRange{},
 		overLimit: map[string]bool{}, blocks: map[string]map[string]string{}, spans: map[string][]blockSpan{},
-		index: BuildIndex(areas)}
+		index: argIndex(BuildIndex(areas), areas)}
 	budget := maxDiffTotalCells
 	for _, p := range head.Paths {
 		if err := lim.expired(); err != nil {
@@ -152,6 +152,27 @@ func (ch *ChangeMap) addBlocks(a *Area) {
 		}
 	}
 	ch.blocks[a.Path] = status
+}
+
+// argIndex appends to an index the arguments and validation blocks of the
+// variables and outputs of the areas in scope, which BuildIndex leaves out.
+func argIndex(index []IndexEntry, areas []*Area) []IndexEntry {
+	for _, a := range areas {
+		if a.Untouched {
+			continue
+		}
+		for _, b := range topBlocks(a.Head) {
+			if b.args == nil {
+				continue
+			}
+			start := len(index)
+			index = bodyIndex(index, b.File, *b.args, b.addr)
+			for i := start; i < len(index); i++ {
+				index[i].File = path.Join(a.Path, index[i].File)
+			}
+		}
+	}
+	return index
 }
 
 // BlockStatus returns the status of a block address in an area, or "" when
