@@ -1,0 +1,364 @@
+{
+  "manifest": [
+    {
+      "rule_id": "coverage.attribute-not-output",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "coverage.optional-argument-unexposed",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "coverage.required-argument-unreachable",
+      "area": ".",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "main.tf",
+      "line": 5,
+      "subject": ".:aws_demo_widget.new.arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 5,
+            "text": "resource \"aws_demo_widget\" \"new\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "arn",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "arn",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "coverage.required-argument-unreachable",
+      "file": "main.tf",
+      "line": 5,
+      "subject": ".:aws_demo_widget.new.name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 5,
+            "text": "resource \"aws_demo_widget\" \"new\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "name",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "name",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "coverage.required-argument-unreachable",
+      "file": "main.tf",
+      "line": 5,
+      "subject": ".:aws_demo_widget.new.listener",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 5,
+            "text": "resource \"aws_demo_widget\" \"new\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "listener",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "listener",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "coverage.required-argument-unreachable",
+      "file": "main.tf",
+      "line": 8,
+      "subject": ".:aws_demo_widget.new.config.mode",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 8,
+            "text": "  config = {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "config.mode",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "config.mode",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "coverage.optional-argument-unexposed",
+      "file": "main.tf",
+      "line": 20,
+      "subject": ".:aws_demo_widget.new.extra[0].value",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 20,
+            "text": "  extra {}"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "extra.value",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "extra.value",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "coverage.required-argument-unreachable",
+      "file": "main.tf",
+      "line": 24,
+      "subject": ".:aws_demo_widget.edited.name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 24,
+            "text": "  name = null"
+          }
+        ],
+        "base": "var.name",
+        "head": "null",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "name",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "name",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "coverage.required-argument-unreachable",
+      "file": "main.tf",
+      "line": 29,
+      "subject": ".:data.aws_demo_lookup.this.name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 29,
+            "text": "data \"aws_demo_lookup\" \"this\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_lookup",
+            "path": "name",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_lookup",
+            "path": "name",
+            "state": "present"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 1,
+      "subject": ".:output.new_id",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 1,
+            "text": "output \"new_id\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 2,
+            "text": "  description = \"ID of the new widget\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 3,
+            "text": "  value       = aws_demo_widget.new.id"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 4,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.new.id",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 6,
+      "subject": ".:output.new_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 6,
+            "text": "output \"new_arn\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 7,
+            "text": "  description = \"ARN of the new widget, read through a local\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 8,
+            "text": "  value       = local.new_arn"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 9,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "local.new_arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+coverage.attribute-not-output
+coverage.optional-argument-unexposed
+coverage.required-argument-unreachable

@@ -9,7 +9,7 @@
     {"rule_id": "compat.variable-removed", "area": ".", "status": "clean"},
     {"rule_id": "compat.version-constraint-raised", "area": ".", "status": "clean"},
     {"rule_id": "coverage.argument-above-min-version", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.attribute-not-output", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.attribute-not-output", "area": ".", "status": "candidate"},
     {"rule_id": "coverage.block-attribute-mismatch", "area": ".", "status": "clean"},
     {"rule_id": "coverage.deprecated-argument", "area": ".", "status": "clean"},
     {"rule_id": "coverage.optional-argument-unexposed", "area": ".", "status": "clean"},
@@ -47,6 +47,108 @@
   "candidates": [
     {
       "candidate_id": "C-001",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 6,
+      "subject": ".:output.extra_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 6,
+            "text": "output \"extra_arn\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 7,
+            "text": "  description = \"ARN of the extra gadget\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 8,
+            "text": "  value       = try(aws_demo_gadget.extra[0].arn, null)"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 9,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_gadget.extra[0].arn, null)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 11,
+      "subject": ".:output.extra_id",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 11,
+            "text": "output \"extra_id\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 12,
+            "text": "  description = \"ID of the extra gadget\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 13,
+            "text": "  value       = try(aws_demo_gadget.extra[0].id, null)"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 14,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_gadget.extra[0].id, null)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
       "rule_id": "compat.default-changed",
       "file": "variables.tf",
       "line": 28,
@@ -67,7 +169,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-002",
+      "candidate_id": "C-004",
       "rule_id": "compat.default-changed",
       "file": "variables.tf",
       "line": 42,
