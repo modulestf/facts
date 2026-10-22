@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -25,6 +25,8 @@ var schemaKeywords = map[string]bool{
 	"oneOf": true, "$ref": true,
 }
 
+// schemaSet holds the schemas by $id. A $ref resolves against the $id of
+// the schema that holds it, as ajv resolves it.
 type schemaSet map[string]map[string]any
 
 func loadSchemas(t *testing.T) schemaSet {
@@ -43,9 +45,42 @@ func loadSchemas(t *testing.T) schemaSet {
 		if err := json.Unmarshal(data, &s); err != nil {
 			t.Fatalf("%s: %v", f, err)
 		}
-		set[filepath.Base(f)] = s
+		set[s["$id"].(string)] = s
 	}
 	return set
+}
+
+// resolve returns the schema a $ref in the schema with $id doc points to,
+// and the $id of the file that holds it.
+func (set schemaSet) resolve(doc, ref string) (string, map[string]any) {
+	// A relative $id, such as lint.schema.json, resolves under a placeholder
+	// base, since url.ResolveReference makes a relative path absolute.
+	const relBase = "https://relative.invalid/"
+	base, err1 := url.Parse(relBase + doc)
+	if strings.Contains(doc, "://") {
+		base, err1 = url.Parse(doc)
+	}
+	r, err2 := url.Parse(ref)
+	if err1 != nil || err2 != nil {
+		return "", nil
+	}
+	u := base.ResolveReference(r)
+	frag := u.Fragment
+	u.Fragment = ""
+	id := strings.TrimPrefix(u.String(), relBase)
+	var cur any = set[id]
+	for tok := range strings.SplitSeq(strings.TrimPrefix(frag, "/"), "/") {
+		if tok == "" {
+			continue
+		}
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return id, nil
+		}
+		cur = m[tok]
+	}
+	target, _ := cur.(map[string]any)
+	return id, target
 }
 
 func decodeJSON(t *testing.T, data []byte) any {
@@ -74,15 +109,7 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 		}
 	}
 	if ref, ok := s["$ref"].(string); ok {
-		var target map[string]any
-		file := doc
-		if name, ok := strings.CutPrefix(ref, "#/$defs/"); ok {
-			target = set[doc]["$defs"].(map[string]any)[name].(map[string]any)
-		} else {
-			// A ref by $id URL names the file by its last segment.
-			file = path.Base(ref)
-			target = set[file]
-		}
+		file, target := set.resolve(doc, ref)
 		if target == nil {
 			fail("unresolved $ref %q", ref)
 			return
@@ -132,8 +159,12 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 	}
 	switch x := v.(type) {
 	case string:
-		if p, ok := s["pattern"].(string); ok && !regexp.MustCompile(p).MatchString(x) {
-			fail("%q does not match %s", x, p)
+		// shortcut: a pattern RE2 cannot compile (a lookahead) is left to
+		// ajv in tests/schemas-test.sh; port it here if a Go test needs it.
+		if p, ok := s["pattern"].(string); ok {
+			if re, err := regexp.Compile(p); err == nil && !re.MatchString(x) {
+				fail("%q does not match %s", x, p)
+			}
 		}
 		if m, ok := s["minLength"].(float64); ok && len(x) < int(m) {
 			fail("shorter than %v", m)
@@ -240,7 +271,9 @@ func TestReportMatchesSchemas(t *testing.T) {
 			t.Fatal(err)
 		}
 		checkReport(t, set, r)
-		// The keys later inputs and builders fill, filled by hand.
+		// The keys later inputs and builders fill, filled by hand. InterfaceDiff
+		// stays empty: its schema uses allOf, const and not, which this
+		// validator lacks; ajv checks a filled one in schema/examples/lint.valid.json.
 		sum := strings.Repeat("c", 64)
 		r.Envelope.ProfileSHA256 = &sum
 		r.Envelope.SchemaInputs = &SchemaInputs{HandoffSHA256: sum, HeadSHA: strings.Repeat("a", 40), MergeBaseSHA: strings.Repeat("b", 40),

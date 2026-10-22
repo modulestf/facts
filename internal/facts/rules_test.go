@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -180,4 +181,26 @@ func TestJoinRulesRefusesDuplicateID(t *testing.T) {
 		}
 	}()
 	joinRules(p1Rules, p1Rules[:1])
+}
+
+func TestVariableEvidenceSplitsBlockComment(t *testing.T) {
+	r := runHead(t, map[string]string{"variables.tf": "variable \"v\" {\n  /* One,\r\n     two. */\n  type = any\n}\n"})
+	if len(r.Candidates) != 1 {
+		t.Fatalf("candidates %+v", r.Candidates)
+	}
+	want := []SourceLine{
+		{Revision: "head", File: "variables.tf", Line: 2, Text: "/* One,"},
+		{Revision: "head", File: "variables.tf", Line: 3, Text: "     two. */"},
+	}
+	if got := r.Candidates[0].Evidence.SourceLines; !reflect.DeepEqual(got, want) {
+		t.Errorf("source lines\n got %+v\nwant %+v", got, want)
+	}
+}
+
+func TestVariableEvidenceCapsCommentLines(t *testing.T) {
+	r := runHead(t, map[string]string{"variables.tf": "variable \"v\" {\n  /*" + strings.Repeat("\n x", 20) + " */\n  type = any\n}\n"})
+	c := r.Candidates[0]
+	if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxEvidenceComments {
+		t.Errorf("complete=%v lines=%d", c.EvidenceComplete, len(c.Evidence.SourceLines))
+	}
 }

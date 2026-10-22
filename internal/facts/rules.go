@@ -49,7 +49,7 @@ func joinRules(families ...[]Rule) []Rule {
 // sets evidence_complete to false.
 const (
 	maxEvidenceText     = 1024
-	maxEvidenceComments = 8
+	maxEvidenceComments = 8 // comment lines, after a multi-line comment is split
 )
 
 const moduleStructureRef = "the maintainer skill's module-structure reference"
@@ -131,12 +131,16 @@ func checkVariableUntyped(a *Area) Result {
 			t := capText(v.TypeText)
 			ev.Head = &t
 		}
-		for i, c := range v.Comments {
-			if i == maxEvidenceComments {
-				complete = false
-				break
+	comments:
+		for _, c := range v.Comments {
+			// A /* */ comment over several lines is one source line per line.
+			for i, text := range strings.Split(c.Text, "\n") {
+				if len(ev.SourceLines) == maxEvidenceComments {
+					complete = false
+					break comments
+				}
+				ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: c.Line + i, Text: capText(strings.TrimRight(text, "\r"))})
 			}
-			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: c.Line, Text: capText(c.Text)})
 		}
 		line := v.Line
 		res.Candidates = append(res.Candidates, Candidate{

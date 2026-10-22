@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "tool", "head_sha", "merge_base_sha", "registry_sha256", "inputs", "schema_inputs", "profile_sha256"],
   "properties": {
-    "schema_version": {"enum": [1]},
+    "schema_version": {"enum": [2]},
     "tool": {
       "type": "object",
       "additionalProperties": false,

@@ -163,10 +163,11 @@ func (m *Module) unsupported(code, text string) {
 	m.unsupportedCodes = append(m.unsupportedCodes, code)
 }
 
-// reasonCode is the code of the first Unsupported entry.
+// reasonCode is the code of the first Unsupported entry, or "" for a
+// Module that records none, which CheckManifest refuses.
 func (m *Module) reasonCode() string {
 	if len(m.unsupportedCodes) == 0 {
-		return ReasonUnsupportedFile // shortcut: only a Module built by hand lacks codes
+		return ""
 	}
 	return m.unsupportedCodes[0]
 }

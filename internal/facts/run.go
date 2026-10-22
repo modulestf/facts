@@ -14,7 +14,7 @@ import (
 )
 
 // SchemaVersion is the version of the report format in schema/.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 const maxRegistryBytes = 1 << 20
 

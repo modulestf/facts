@@ -1,6 +1,6 @@
 {
   "envelope": {
-    "schema_version": 1,
+    "schema_version": 2,
     "tool": {
       "name": "mtf-facts",
       "version": "v0.1.0",
