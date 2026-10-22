@@ -71,7 +71,7 @@ func checkVariableNowRequired(a *Area) Result {
 		var line int
 		switch {
 		case b == nil:
-			if v.Default != nil || !a.BaseExists {
+			if v.Default != nil || !moduleAtBase(a) {
 				continue
 			}
 			line = v.Line
@@ -99,7 +99,8 @@ func checkVariableNowRequired(a *Area) Result {
 
 // compat.default-changed: a variable default whose tokens differ, an
 // optional() attribute default that changed or was added, an optional()
-// default the head type no longer carries, and a data block the head no
+// default the head type no longer carries, a new variable with a non-null
+// default in a module that exists at the base, and a data block the head no
 // longer has, which the rule text sends here when it fed a value the caller
 // sees. A default the base did not have was required before, so adding one
 // changes nothing for an existing caller.
@@ -130,6 +131,15 @@ func checkDefaultChanged(a *Area) Result {
 	for _, v := range firstVariables(a.Head) {
 		b := base[v.Name]
 		if b == nil {
+			// A new input with a default changes what an existing caller, who
+			// sets nothing, gets wherever the module uses it.
+			if v.Default != nil && strings.TrimSpace(v.Default.Text) != "null" && moduleAtBase(a) {
+				e := newCompatEvidence(a)
+				line := argLine(v.Body, "default")
+				e.line(revHead, v.File, line)
+				e.ev.Head = e.ptr(v.Default.Text)
+				add(e.candidate(id, v.File, &line, "var."+v.Name))
+			}
 			continue
 		}
 		if v.Default != nil && b.Default != nil && normExpr(v.Default.Text) != normExpr(b.Default.Text) {
@@ -292,10 +302,10 @@ type typeDefault struct {
 // compareTypes compares the type constraints of a variable at the base and
 // at the head. A missing type is `any`. It is not narrowed only when it can
 // show that every value the base type accepted is accepted at the head: the
-// same tokens, `any` at the head, the same constructor with element types
-// that are not narrowed, or an object whose attributes are kept, added as
-// optional() or made optional(). Anything else, a removed object attribute
-// included, is narrowed, for the confirmer to judge.
+// same tokens, `any` at the head outside a collection, the same constructor
+// with element types that are not narrowed, or an object whose attributes
+// are kept or made optional(). Anything else, an added or removed object
+// attribute included, is narrowed, for the confirmer to judge.
 func compareTypes(b, v *Variable) typeDiff {
 	w := typeWalk{}
 	bx, ok1 := w.parse(b, &w.bSrc, &w.bLine)
@@ -397,8 +407,9 @@ func (w *typeWalk) object(path string, b, h *hclsyntax.ObjectConsExpr, inColl bo
 			w.diff.narrowed = true
 			continue
 		case !ok:
-			// A new attribute narrows unless a caller may leave it out.
-			w.diff.narrowed = w.diff.narrowed || !hOpt
+			// The base dropped this attribute from a value it was given; the
+			// head converts it, which can reject a value the base accepted.
+			w.diff.narrowed = true
 			continue
 		}
 		kept[k] = true
@@ -499,6 +510,11 @@ func variablesByName(m *Module) map[string]*Variable {
 	}
 	return out
 }
+
+// moduleAtBase reports whether the area has a module at the base: a
+// directory with at least one block. An empty base is a new module, which
+// no caller uses yet.
+func moduleAtBase(a *Area) bool { return a.BaseExists && len(topBlocks(a.Base)) > 0 }
 
 // argLine is the line an argument of a body starts on, or 0 without it.
 func argLine(b Body, name string) int {

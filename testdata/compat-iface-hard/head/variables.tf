@@ -88,3 +88,18 @@ variable "window" {
     error_message = "Too wide."
   }
 }
+
+variable "added_with_default" {
+  description = "Input the change adds with a default"
+  type        = string
+  default     = "x"
+}
+
+variable "shape" {
+  description = "Shape of the widget"
+  type = object({
+    sides = number
+    color = optional(string, "red")
+  })
+  default = null
+}

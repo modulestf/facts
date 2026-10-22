@@ -1,6 +1,6 @@
 {
   "manifest": [
-    {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.default-changed", "area": ".", "status": "candidate"},
     {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
     {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "clean"},
     {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
@@ -191,6 +191,27 @@
     },
     {
       "candidate_id": "C-007",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 32,
+      "subject": ".:var.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 32,
+            "text": "  default = 7"
+          }
+        ],
+        "base": null,
+        "head": "7",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
       "rule_id": "structure.variable-untyped",
       "file": "variables.tf",
       "line": 35,
@@ -206,6 +227,27 @@
         ],
         "base": null,
         "head": "any",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 38,
+      "subject": ".:var.extra_settings",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 38,
+            "text": "  default     = {}"
+          }
+        ],
+        "base": null,
+        "head": "{}",
         "schema_facts": []
       },
       "evidence_complete": true

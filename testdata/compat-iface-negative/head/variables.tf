@@ -50,7 +50,6 @@ variable "options" {
   type = object({
     size  = optional(number)
     color = optional(string, "blue")
-    shape = optional(string)
   })
   default = null
 }
@@ -58,5 +57,5 @@ variable "options" {
 variable "added" {
   description = "Input the change adds"
   type        = string
-  default     = "x"
+  default     = null
 }

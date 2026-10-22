@@ -4,7 +4,7 @@
     {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
     {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "clean"},
     {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
-    {"rule_id": "compat.type-narrowed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.type-narrowed", "area": ".", "status": "candidate"},
     {"rule_id": "compat.variable-now-required", "area": ".", "status": "clean"},
     {"rule_id": "compat.variable-removed", "area": ".", "status": "clean"},
     {"rule_id": "compat.version-constraint-raised", "area": ".", "status": "clean"},
@@ -44,5 +44,33 @@
     {"rule_id": "structure.wrong-file", "area": ".", "status": "clean"}
   ],
   "findings": [],
-  "candidates": []
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 51,
+      "subject": ".:var.options",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 51,
+            "text": "  type = object({"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 51,
+            "text": "  type = object({"
+          }
+        ],
+        "base": "object({\n    size = optional(number, 1)\n  })",
+        "head": "object({\n    size  = optional(number, 1)\n    label = optional(string, \"widget\")\n  })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
 }

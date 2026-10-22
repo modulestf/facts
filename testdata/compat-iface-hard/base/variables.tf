@@ -84,3 +84,11 @@ variable "window" {
     error_message = "Too wide."
   }
 }
+
+variable "shape" {
+  description = "Shape of the widget"
+  type = object({
+    sides = number
+  })
+  default = null
+}

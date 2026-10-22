@@ -1,6 +1,6 @@
 {
   "manifest": [
-    {"rule_id": "compat.default-changed", "area": "modules/extra", "status": "clean"},
+    {"rule_id": "compat.default-changed", "area": "modules/extra", "status": "candidate"},
     {"rule_id": "compat.generated-policy-narrowed", "area": "modules/extra", "status": "clean"},
     {"rule_id": "compat.provider-floor-raised", "area": "modules/extra", "status": "clean"},
     {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
@@ -56,5 +56,27 @@
       "subject": "modules/extra:var.path"
     }
   ],
-  "candidates": []
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.default-changed",
+      "file": "modules/extra/variables.tf",
+      "line": 21,
+      "subject": "modules/extra:var.path",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "modules/extra/variables.tf",
+            "line": 21,
+            "text": "  default = \"/\""
+          }
+        ],
+        "base": null,
+        "head": "\"/\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
 }

@@ -38,7 +38,8 @@ func TestCompareTypes(t *testing.T) {
 		{name: "any as a tuple element", base: "tuple([string, number])", head: "tuple([any, number])", narrowed: false},
 		{name: "collection kind changed", base: "list(string)", head: "set(string)", narrowed: true},
 		{name: "tuple shortened", base: "tuple([string, number])", head: "tuple([string])", narrowed: true},
-		{name: "optional attribute added", base: "object({a = string})", head: "object({a = string, b = optional(number)})", narrowed: false},
+		{name: "optional attribute added", base: "object({a = string})", head: "object({a = string, b = optional(number)})", narrowed: true},
+		{name: "optional attribute with default added", base: "object({a = string})", head: "object({a = string, b = optional(number, 1)})", narrowed: true},
 		{name: "required attribute added", base: "object({a = string})", head: "object({a = string, b = number})", narrowed: true},
 		{name: "attribute removed", base: "object({a = string, b = number})", head: "object({a = string})", narrowed: true},
 		{name: "attribute made optional", base: "object({a = string})", head: "object({a = optional(string)})", narrowed: false},
@@ -154,5 +155,35 @@ func TestCompatRemovedSubmodule(t *testing.T) {
 	want := []string{"compat.variable-removed modules/a/main.tf modules/a:var.x", "compat.variable-removed modules/a/main.tf modules/a:output.y"}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %q", got)
+	}
+}
+
+// A new input with a non-null default is a default-changed candidate in a
+// module that exists at the base, and clean in a new module or with a null
+// default. A base directory with no block is a new module.
+func TestCompatNewVariableDefault(t *testing.T) {
+	t.Parallel()
+	head := "variable \"a\" {\n  default = \"x\"\n}\nvariable \"b\" {\n  default = null\n}\n"
+	tests := []struct {
+		name string
+		base map[string]string
+		want []string
+	}{
+		{name: "existing module", base: map[string]string{"main.tf": "\n", "modules/m/main.tf": "locals {}\n"}, want: []string{"compat.default-changed modules/m:var.a"}},
+		{name: "base without blocks", base: map[string]string{"main.tf": "\n", "modules/m/README.md": "x\n"}},
+		{name: "new module", base: map[string]string{"main.tf": "\n"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := runCompat(t, tt.base, map[string]string{"main.tf": "\n", "modules/m/main.tf": head})
+			var got []string
+			for _, c := range r.Candidates {
+				got = append(got, c.RuleID+" "+c.Subject)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

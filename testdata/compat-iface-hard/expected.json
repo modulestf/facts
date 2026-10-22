@@ -367,6 +367,54 @@
         "schema_facts": []
       },
       "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-014",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 95,
+      "subject": ".:var.added_with_default",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 95,
+            "text": "  default     = \"x\""
+          }
+        ],
+        "base": null,
+        "head": "\"x\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-015",
+      "rule_id": "compat.type-narrowed",
+      "file": "variables.tf",
+      "line": 100,
+      "subject": ".:var.shape",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 90,
+            "text": "  type = object({"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 100,
+            "text": "  type = object({"
+          }
+        ],
+        "base": "object({\n    sides = number\n  })",
+        "head": "object({\n    sides = number\n    color = optional(string, \"red\")\n  })",
+        "schema_facts": []
+      },
+      "evidence_complete": true
     }
   ]
 }

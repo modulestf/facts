@@ -1,6 +1,6 @@
 {
   "manifest": [
-    {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.default-changed", "area": ".", "status": "candidate"},
     {"rule_id": "compat.default-changed", "area": "examples/complete", "status": "not_applicable"},
     {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
     {"rule_id": "compat.generated-policy-narrowed", "area": "examples/complete", "status": "not_applicable"},
@@ -79,5 +79,27 @@
     {"rule_id": "structure.wrong-file", "area": "examples/complete", "status": "not_applicable"}
   ],
   "findings": [],
-  "candidates": []
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 39,
+      "subject": ".:var.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 39,
+            "text": "  default     = 7"
+          }
+        ],
+        "base": null,
+        "head": "7",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
 }
