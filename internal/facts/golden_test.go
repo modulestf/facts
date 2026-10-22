@@ -51,10 +51,11 @@ func caseRules(t *testing.T, dir string, from []Rule) []Rule {
 	return out
 }
 
-// goldenOutput runs the case in dir with rules and renders what expected.json holds.
+// goldenOutput runs the case in dir with rules and the test profile, as a
+// review run always passes one, and renders what expected.json holds.
 func goldenOutput(t *testing.T, dir string, rules []Rule) []byte {
 	t.Helper()
-	o := Options{Head: filepath.Join(dir, "head"), Limits: DefaultLimits}
+	o := Options{Head: filepath.Join(dir, "head"), ProfileDir: testProfile, Limits: DefaultLimits}
 	if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 		o.Base = filepath.Join(dir, "base")
 	}
@@ -207,9 +208,11 @@ func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 	}
 }
 
-// TestHookInputsChangeOnlyTheEnvelope sets a schema handoff and the test
-// profile on every case. No rule reads either yet, so the manifest, findings
-// and candidates stay the same; only the envelope records the two inputs.
+// TestHookInputsChangeOnlyTheEnvelope sets a schema handoff on every case,
+// each run with the test profile. No rule reads the handoff yet, so the
+// manifest, findings and candidates stay the same; only the envelope records
+// it. Rules read the profile, so it is not varied here; see
+// TestProfileRulesNeedTheProfile.
 func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 	for _, dir := range goldenCases(t) {
 		o := Options{Head: filepath.Join(dir, "head"), Limits: DefaultLimits,
@@ -217,7 +220,7 @@ func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 			o.Base = filepath.Join(dir, "base")
 		}
-		without, err := run(Options{Head: o.Head, Base: o.Base, Limits: DefaultLimits}, Rules)
+		without, err := run(Options{Head: o.Head, Base: o.Base, ProfileDir: testProfile, Limits: DefaultLimits}, Rules)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -231,7 +234,7 @@ func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
 		if with.Envelope.ProfileSHA256 == nil {
 			t.Errorf("%s: no profile_sha256", filepath.Base(dir))
 		}
-		with.Envelope.SchemaInputs, with.Envelope.ProfileSHA256 = nil, nil
+		with.Envelope.SchemaInputs = nil
 		if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
 			t.Errorf("%s: schema or profile inputs changed more than the envelope", filepath.Base(dir))
 		}
