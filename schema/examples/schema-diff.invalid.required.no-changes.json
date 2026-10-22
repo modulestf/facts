@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "tool": {
+    "name": "mtf-facts",
+    "version": "v0.3.0",
+    "binary_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "from": {
+    "path": "from.json",
+    "sha256": "a5184b6ce7b0b176a623c08c272c72a222688f4b83f38bb7ca711f43642cff90"
+  },
+  "to": {
+    "path": "to.json",
+    "sha256": "743b5fac9d2b358149bd8044206418d3293ae6f4a4e59ee96aaf8c89af6448a7"
+  },
+  "types": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "."
+      ]
+    },
+    {
+      "mode": "data",
+      "type": "aws_region",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "examples/complete"
+      ]
+    }
+  ]
+}

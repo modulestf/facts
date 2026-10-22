@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "tool": {
+    "name": "mtf-facts",
+    "version": "v0.3.0",
+    "binary_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "from": {
+    "path": "dir/from.json",
+    "sha256": "a5184b6ce7b0b176a623c08c272c72a222688f4b83f38bb7ca711f43642cff90"
+  },
+  "to": {
+    "path": "to.json",
+    "sha256": "743b5fac9d2b358149bd8044206418d3293ae6f4a4e59ee96aaf8c89af6448a7"
+  },
+  "types": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "."
+      ]
+    },
+    {
+      "mode": "data",
+      "type": "aws_region",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "dirs": [
+        "examples/complete"
+      ]
+    }
+  ],
+  "changes": [
+    {
+      "mode": "data",
+      "type": "aws_iam_policy_document",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [],
+      "element": "type",
+      "change": "deprecated",
+      "from": {
+        "deprecated": false
+      },
+      "to": {
+        "deprecated": true
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "lifecycle_rule"
+      ],
+      "element": "block",
+      "change": "added",
+      "from": null,
+      "to": {
+        "deprecated": false,
+        "nesting_mode": "list",
+        "min_items": 1,
+        "max_items": 0
+      }
+    },
+    {
+      "mode": "resource",
+      "type": "aws_s3_bucket",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "path": [
+        "max_size"
+      ],
+      "element": "argument",
+      "change": "type_changed",
+      "from": {
+        "deprecated": false,
+        "attribute_type": "number",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      },
+      "to": {
+        "deprecated": false,
+        "attribute_type": "string",
+        "required": false,
+        "optional": true,
+        "computed": false,
+        "sensitive": false,
+        "write_only": false
+      }
+    }
+  ]
+}
