@@ -97,3 +97,36 @@ func TestScopeProviderOncePerSource(t *testing.T) {
 		t.Errorf("candidates %+v", cs)
 	}
 }
+
+// A base provider block alone is no base provider, so a resource of that
+// provider the change adds is a candidate.
+func TestScopeProviderIgnoresBaseProviderBlock(t *testing.T) {
+	base := map[string]string{"main.tf": "provider \"google\" {}\nresource \"aws_demo_widget\" \"this\" {}\n"}
+	head := map[string]string{"main.tf": "provider \"google\" {}\nresource \"aws_demo_widget\" \"this\" {}\nresource \"google_x\" \"y\" {}\n"}
+	cs := candidatesOf(runScopeConfig(t, base, head), "scope.provider")
+	if len(cs) != 1 || cs[0].Subject != `.:provider["registry.terraform.io/hashicorp/google"]` || *cs[0].Line != 3 {
+		t.Errorf("candidates %+v", cs)
+	}
+}
+
+// The interim not_evaluated for a provider added only to an existing
+// required_providers drops the candidate of another new provider too.
+func TestScopeProviderInterimDropsOthers(t *testing.T) {
+	tf := func(extra string) string {
+		return "terraform {\n  required_providers {\n    aws = {\n      source = \"hashicorp/aws\"\n    }\n" + extra + "  }\n}\n"
+	}
+	base := map[string]string{"versions.tf": tf(""), "main.tf": "resource \"aws_demo_widget\" \"this\" {}\n"}
+	head := map[string]string{
+		"versions.tf": tf("    helm = {\n      source = \"hashicorp/helm\"\n    }\n"),
+		"main.tf":     "resource \"aws_demo_widget\" \"this\" {}\nresource \"random_id\" \"x\" {}\n",
+	}
+	r := runScopeConfig(t, base, head)
+	if s := statusOf(r.Manifest, "scope.provider", "."); !strings.HasPrefix(s, "not_evaluated") || len(candidatesOf(r, "scope.provider")) != 0 {
+		t.Errorf("%s %+v", s, candidatesOf(r, "scope.provider"))
+	}
+	delete(head, "versions.tf")
+	head["versions.tf"] = tf("")
+	if cs := candidatesOf(runScopeConfig(t, base, head), "scope.provider"); len(cs) != 1 {
+		t.Errorf("without the interim case: %+v", cs)
+	}
+}

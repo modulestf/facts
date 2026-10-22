@@ -220,7 +220,7 @@ func (c *changedFiles) changed(file string, line int) bool {
 // A provider whose every changed site lies in a block the base already has,
 // such as an entry added to an existing required_providers, has no line the
 // newly-introduced scope keeps, so the pass is not evaluated rather than
-// clean.
+// clean, and its other candidates are dropped with it.
 func checkScopeProvider(a *Area) Result {
 	const id = "scope.provider"
 	if newModuleBase(a.baseTree) {
@@ -241,7 +241,11 @@ func checkScopeProvider(a *Area) Result {
 	for _, p := range areas {
 		if p.Base != nil {
 			for _, s := range providerSites(p.Base, p.Path) {
-				baseSet[s.src] = true
+				// A provider block alone makes no base provider: module-scope.md
+				// Providers counts required_providers and resource and data blocks.
+				if !strings.HasPrefix(s.block, "provider.") {
+					baseSet[s.src] = true
+				}
 			}
 		}
 	}
@@ -299,7 +303,8 @@ func checkScopeProvider(a *Area) Result {
 			// Another area reports it, or no site is in the change.
 		case anchor == nil:
 			// Reached only for a new provider with a changed site and no added
-			// block to anchor it; every other run is unaffected.
+			// block to anchor it. The whole pass is then not evaluated, so the
+			// candidates of every other new provider in the run are dropped too.
 			// shortcut: registry scope newly-introduced drops entries added to existing blocks; flips to touched-expression with the registry pin bump (mtf-lcc.2.40)
 			return Result{NotEvaluated: "provider " + short(src) + " is added only inside a block the base already has", Code: ReasonUnsupportedFile}
 		default:
