@@ -170,16 +170,26 @@ func (w *tryWalker) bareVar(t *hclsyntax.ScopeTraversalExpr) bool {
 	if len(t.Traversal) != 2 || t.Traversal.RootName() != "var" {
 		return false
 	}
-	if len(w.stack) == 0 {
+	// Look past parentheses: (var.x)[0] and (var.x).a access var.x too.
+	var child hclsyntax.Node = t
+	i := len(w.stack) - 1
+	for ; i >= 0; i-- {
+		p, ok := w.stack[i].(*hclsyntax.ParenthesesExpr)
+		if !ok {
+			break
+		}
+		child = p
+	}
+	if i < 0 {
 		return true
 	}
-	switch p := w.stack[len(w.stack)-1].(type) {
+	switch p := w.stack[i].(type) {
 	case *hclsyntax.IndexExpr:
-		return p.Collection != t
+		return hclsyntax.Node(p.Collection) != child
 	case *hclsyntax.SplatExpr:
-		return p.Source != t
+		return hclsyntax.Node(p.Source) != child
 	case *hclsyntax.RelativeTraversalExpr:
-		return p.Source != t
+		return hclsyntax.Node(p.Source) != child
 	}
 	return true
 }
@@ -220,7 +230,7 @@ func checkMultiProvider(a *Area) Result {
 		}
 	}
 	for _, r := range a.Head.Resources {
-		arg(r.File, blockAddr(r), "provider", r.Body)
+		arg(r.File, coverageBlockAddr(r), "provider", r.Body)
 	}
 	for _, c := range a.Head.ModuleCalls {
 		arg(c.File, "module."+c.Name, "providers", c.Body)
@@ -242,13 +252,6 @@ func checkMultiProvider(a *Area) Result {
 		}
 	}
 	return res
-}
-
-func blockAddr(r Resource) string {
-	if r.Mode == "data" {
-		return "data." + r.Type + "." + r.Name
-	}
-	return r.Type + "." + r.Name
 }
 
 // archetypeFiles are the files the service archetypes name for a group of
@@ -285,7 +288,8 @@ var fixedFiles = []string{"main.tf", "variables.tf", "outputs.tf", "versions.tf"
 // A feature file, <feature>.tf, has no fixed members, so whether a resource
 // in main.tf belongs there is not decidable: with one present, every resource
 // or data block in main.tf that no group claims is a candidate, with the
-// feature files as head evidence.
+// feature files as head evidence. A feature file is a regular file; a
+// directory or a link named <feature>.tf is not one.
 func checkWrongFile(a *Area) Result {
 	const id = "structure.wrong-file"
 	var res Result
@@ -307,8 +311,10 @@ func checkWrongFile(a *Area) Result {
 			if !g.member(kind, typ) {
 				continue
 			}
+			// A block of a group is claimed by it: silent in its own file or
+			// when the directory has no such file, as the rule text says.
 			if en := a.headEntry(g.file); file == g.file || en == nil || en.Kind != KindFile {
-				return file == g.file
+				return true
 			}
 			e := newEvidence(a)
 			e.line(file, line)
@@ -319,13 +325,13 @@ func checkWrongFile(a *Area) Result {
 		return false
 	}
 	for _, r := range a.Head.Resources {
-		if add(r.File, r.Line, blockAddr(r), "resource", r.Type) || r.File != "main.tf" || len(features) == 0 {
+		if add(r.File, r.Line, coverageBlockAddr(r), "resource", r.Type) || r.File != "main.tf" || len(features) == 0 {
 			continue
 		}
 		e := newEvidence(a)
 		e.line(r.File, r.Line)
 		e.head(strings.Join(features, ", "))
-		res.Candidates = append(res.Candidates, e.candidate(id, r.File, r.Line, blockAddr(r)))
+		res.Candidates = append(res.Candidates, e.candidate(id, r.File, r.Line, coverageBlockAddr(r)))
 	}
 	// Each local by itself: every locals block shares the one address, so a
 	// new block in a module that has one reads as an edit, a new local as new.
@@ -369,7 +375,7 @@ func checkArgumentOrder(a *Area) Result {
 			e.base(itemNames(bodyItems(b.Body)))
 		}
 		e.head(itemNames(items))
-		addr := blockAddr(r)
+		addr := coverageBlockAddr(r)
 		res.Candidates = append(res.Candidates, e.candidate("structure.argument-order", r.File, r.Line, addr))
 	}
 	return res
@@ -401,19 +407,6 @@ func itemNames(items []bodyItem) string {
 		names[i] = it.name
 	}
 	return strings.Join(names, ", ")
-}
-
-// baseResource returns the base block with the address of r, or nil.
-func baseResource(a *Area, r Resource) *Resource {
-	if a.Base == nil {
-		return nil
-	}
-	for i, b := range a.Base.Resources {
-		if blockAddr(b) == blockAddr(r) {
-			return &a.Base.Resources[i]
-		}
-	}
-	return nil
 }
 
 var (

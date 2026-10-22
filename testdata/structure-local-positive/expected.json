@@ -219,6 +219,27 @@
     },
     {
       "candidate_id": "C-010",
+      "rule_id": "structure.argument-order",
+      "file": "main.tf",
+      "line": 45,
+      "subject": ".:aws_demo_widget.reordered",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 48,
+            "text": "  tags = var.tags"
+          }
+        ],
+        "base": "count, name, tags",
+        "head": "count, tags, name",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-011",
       "rule_id": "structure.output-no-try",
       "file": "outputs.tf",
       "line": 1,
@@ -239,7 +260,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-011",
+      "candidate_id": "C-012",
       "rule_id": "structure.output-no-try",
       "file": "outputs.tf",
       "line": 6,
@@ -260,7 +281,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-012",
+      "candidate_id": "C-013",
       "rule_id": "structure.arn-partition-hardcoded",
       "file": "variables.tf",
       "line": 4,

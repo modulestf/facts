@@ -127,7 +127,11 @@ func TestStructureLocalHardCases(t *testing.T) {
 				"output \"h\" {\n  value = var.config.name\n}\n" +
 				"output \"i\" {\n  value = var.list[0]\n}\n" +
 				"output \"j\" {\n  value = var.list[*].id\n}\n" +
-				"output \"k\" {\n  value = \"${var.a}-${var.b}\"\n}\n"},
+				"output \"k\" {\n  value = \"${var.a}-${var.b}\"\n}\n" +
+				"output \"l\" {\n  value = (var.list)[0]\n}\n" +
+				"output \"m\" {\n  value = var.list[length(var.list) - 1]\n}\n" +
+				"output \"n\" {\n  value = (var.x).a\n}\n" +
+				"output \"o\" {\n  value = (var.x)\n}\n"},
 			want: []string{
 				"structure.output-no-try outputs.tf:16 .:output.e",
 				"structure.output-no-try outputs.tf:19 .:output.f",
@@ -135,6 +139,9 @@ func TestStructureLocalHardCases(t *testing.T) {
 				"structure.output-no-try outputs.tf:25 .:output.h",
 				"structure.output-no-try outputs.tf:28 .:output.i",
 				"structure.output-no-try outputs.tf:31 .:output.j",
+				"structure.output-no-try outputs.tf:37 .:output.l",
+				"structure.output-no-try outputs.tf:40 .:output.m",
+				"structure.output-no-try outputs.tf:43 .:output.n",
 			},
 		},
 		{
@@ -163,6 +170,21 @@ func TestStructureLocalHardCases(t *testing.T) {
 				"other.tf":      "resource \"aws_kms_key\" \"b\" {}\n",
 			},
 			want: []string{"structure.wrong-file main.tf:1 .:aws_kms_key.a", "structure.wrong-file main.tf:3 .:local.x", "structure.wrong-file main.tf:5 .:data.aws_demo.d"},
+		},
+		{
+			name: "wrong file: an identity resource with no iam.tf is claimed, even next to a feature file",
+			head: map[string]string{
+				"main.tf":       "resource \"aws_iam_role\" \"a\" {}\nresource \"aws_kms_key\" \"b\" {}\n",
+				"encryption.tf": "",
+			},
+			want: []string{"structure.wrong-file main.tf:2 .:aws_kms_key.b"},
+		},
+		{
+			name: "wrong file: a directory named like a feature file is not one",
+			head: map[string]string{
+				"main.tf":             "resource \"aws_kms_key\" \"a\" {}\n",
+				"encryption.tf/x.txt": "",
+			},
 		},
 		{
 			name: "wrong file: an identity resource with iam.tf is the iam.tf candidate only; iam.tf as a directory is not the file",

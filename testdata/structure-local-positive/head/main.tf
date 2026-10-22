@@ -41,3 +41,11 @@ resource "aws_demo_widget" "ordered_late" {
   name     = var.name
   for_each = var.items
 }
+
+resource "aws_demo_widget" "reordered" {
+  count = 1
+
+  tags = var.tags
+
+  name = var.name
+}
