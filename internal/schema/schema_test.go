@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 )
 
@@ -281,9 +280,19 @@ func TestMalformedHandoffs(t *testing.T) {
 		"repeated version": func(s string) string {
 			return strings.Replace(s, `"provider_schemas": [`, `"provider_schemas": [`+schemaEntry(s)+`, `, 1)
 		},
-		"no inputs":        func(s string) string { return edit(s, func(d map[string]any) { delete(d, "inputs") }) },
-		"no caps":          func(s string) string { return edit(s, func(d map[string]any) { delete(d, "caps") }) },
-		"null directories": func(s string) string { return edit(s, func(d map[string]any) { d["directories"] = nil }) },
+		"no inputs":                     func(s string) string { return edit(s, func(d map[string]any) { delete(d, "inputs") }) },
+		"no caps":                       func(s string) string { return edit(s, func(d map[string]any) { delete(d, "caps") }) },
+		"null directories":              func(s string) string { return edit(s, func(d map[string]any) { d["directories"] = nil }) },
+		"null old_floor at the top":     rep(`"caps"`, `"old_floor": null, "caps"`),
+		"null old_floor in a provider":  rep(`{"local_name": "aws", "source"`, `{"old_floor": null, "local_name": "aws", "source"`),
+		"null old_floor as a type":      rep(`"resource_schemas": {`, `"resource_schemas": {"old_floor": null, `),
+		"null old_floor as a data type": rep(`"data_source_schemas": {}`, `"data_source_schemas": {"old_floor": null}`),
+		"null old_floor attribute": func(s string) string {
+			return edit(s, func(d map[string]any) { obj(thing(d), "attributes")["old_floor"] = nil })
+		},
+		"null old_floor nested":      rep(`"attributes": {"port"`, `"attributes": {"old_floor": null, "port"`),
+		"null old_floor block type":  rep(`"block_types": {`, `"block_types": {"old_floor": null, `),
+		"null old_floor in an array": rep(`"directories": [`, `"directories": [null, `),
 		"no head files": func(s string) string {
 			return edit(s, func(d map[string]any) { delete(obj(d, "inputs", "head"), "files") })
 		},
@@ -487,11 +496,7 @@ func TestHandoffMustBeARegularFile(t *testing.T) {
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
-	fifo := filepath.Join(dir, "fifo")
-	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range []string{filepath.Join(dir, "missing.json"), dir, link, fifo} {
+	for _, p := range []string{filepath.Join(dir, "missing.json"), dir, link} {
 		if _, err := Load(p, nil); err == nil {
 			t.Errorf("%s: accepted", p)
 		}

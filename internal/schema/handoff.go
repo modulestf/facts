@@ -184,6 +184,12 @@ func loadHandoff(p string) (*Handoff, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	return parseHandoff(data)
+}
+
+// parseHandoff is loadHandoff on the bytes of the file.
+func parseHandoff(data []byte) (*Handoff, string, error) {
+	var err error
 	sum := sha256.Sum256(data)
 	compressed := len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
 	doc := data
@@ -235,14 +241,17 @@ func gunzip(data []byte) ([]byte, error) {
 }
 
 // nullsOnlyAtOldFloor refuses a JSON null anywhere but as the value of
-// old_floor, the one member the schema lets be null. Decoding alone would
-// read a null as the zero value.
+// versions.old_floor, the one member the schema lets be null. Decoding alone
+// would read a null as the zero value, or as a nil pointer.
 func nullsOnlyAtOldFloor(doc []byte) error {
+	// frame is one open container: an array, or an object at a key or at
+	// the value of key. in is the key the container itself is the value of.
+	type frame struct {
+		array, atValue bool
+		key, in        string
+	}
 	dec := json.NewDecoder(bytes.NewReader(doc))
-	// One frame per open container: 'k' an object at a key, 'v' an object
-	// at a value, 'a' an array.
-	var st []byte
-	key := ""
+	var st []frame
 	for {
 		tok, err := dec.Token()
 		if errors.Is(err, io.EOF) {
@@ -251,30 +260,31 @@ func nullsOnlyAtOldFloor(doc []byte) error {
 		if err != nil {
 			return err
 		}
-		top := byte(0)
+		var top *frame
 		if len(st) > 0 {
-			top = st[len(st)-1]
+			top = &st[len(st)-1]
 		}
-		if top == 'k' {
+		if top != nil && !top.array && !top.atValue {
 			if tok == json.Delim('}') {
 				st = st[:len(st)-1]
 				continue
 			}
-			key, st[len(st)-1] = tok.(string), 'v'
+			top.key, top.atValue = tok.(string), true
 			continue
 		}
-		if top == 'v' {
-			st[len(st)-1] = 'k'
+		in := ""
+		if top != nil && !top.array {
+			in, top.atValue = top.key, false
 		}
 		switch tok {
 		case json.Delim('{'):
-			st = append(st, 'k')
+			st = append(st, frame{in: in})
 		case json.Delim('['):
-			st = append(st, 'a')
+			st = append(st, frame{array: true, in: in})
 		case json.Delim(']'):
 			st = st[:len(st)-1]
 		case nil:
-			if top != 'v' || key != "old_floor" {
+			if top == nil || top.array || in != "old_floor" || top.in != "versions" {
 				return errors.New("null where the schema allows none")
 			}
 		}
@@ -338,7 +348,7 @@ func (h *Handoff) validate() error {
 		seen[key] = true
 		for _, types := range []map[string]*TypeSchema{p.ResourceSchemas, p.DataSourceSchemas} {
 			for name, t := range types {
-				if !typeRe.MatchString(name) || t.Block == nil {
+				if !typeRe.MatchString(name) || t == nil || t.Block == nil {
 					return fmt.Errorf("provider schema %q type %q: bad name or no block", key, name)
 				}
 				if err := checkBlock(t.Block, 0); err != nil {
@@ -409,7 +419,7 @@ func checkBlock(b *Block, depth int) error {
 		return err
 	}
 	for name, bt := range b.BlockTypes {
-		if bt.Block == nil || !blockModes[bt.NestingMode] {
+		if bt == nil || bt.Block == nil || !blockModes[bt.NestingMode] {
 			return fmt.Errorf("block type %q: no block or a bad nesting_mode", name)
 		}
 		if err := checkBlock(bt.Block, depth+1); err != nil {
@@ -421,6 +431,9 @@ func checkBlock(b *Block, depth int) error {
 
 func checkAttributes(attrs map[string]*Attribute, depth int) error {
 	for name, a := range attrs {
+		if a == nil {
+			return fmt.Errorf("attribute %q is null", name)
+		}
 		nt := a.NestedType
 		if nt == nil {
 			continue
