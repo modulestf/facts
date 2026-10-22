@@ -11,12 +11,15 @@ import (
 )
 
 // mutateOracle copies every fixture, so the positive case check holds on the
-// copy, and applies mutate to the parsed fixture/file.
+// copy, and applies mutate, when set, to the parsed fixture/file.
 func mutateOracle(t *testing.T, fixture, file string, mutate func(e map[string]any)) string {
 	t.Helper()
 	dst := filepath.Join(t.TempDir(), "oracle")
 	if err := os.CopyFS(dst, os.DirFS(oracleRoot)); err != nil {
 		t.Fatal(err)
+	}
+	if mutate == nil {
+		return dst
 	}
 	p := filepath.Join(dst, fixture, file)
 	data, err := os.ReadFile(p) //nolint:gosec // G304: the temp copy
@@ -169,6 +172,37 @@ func TestOracleChecksCatchMutations(t *testing.T) {
 		{"handoff outside its schema", "coverage-positive", "schema-handoff.json", true, "unexpected property", func(_ *testing.T, e map[string]any) {
 			e["extra"] = true
 		}},
+		// The path patterns RE2 cannot compile, one field each.
+		{"finding file with a leading slash", sp, x, true, `$.findings[0].file: "/a.tf" does not match`, func(_ *testing.T, e map[string]any) {
+			obj(itemsOf(e, "findings")[0])["file"] = "/a.tf"
+		}},
+		{"candidate file with a backslash", sp, x, true, `$.candidates[0].file: "a\\b" does not match`, func(_ *testing.T, e map[string]any) {
+			obj(itemsOf(e, "candidates")[0])["file"] = `a\b`
+		}},
+		{"evidence file with a .. segment", sp, x, true, `$.candidates[0].evidence.source_lines[0].file: "../up" does not match`, func(_ *testing.T, e map[string]any) {
+			obj(obj(obj(itemsOf(e, "candidates")[0])["evidence"])["source_lines"].([]any)[0])["file"] = "../up"
+		}},
+		{"handoff directory with a trailing slash", "coverage-positive", "schema-handoff.json", true, `$.directories[0].path: "dir/" does not match`, func(_ *testing.T, e map[string]any) {
+			obj(e["directories"].([]any)[0])["path"] = "dir/"
+		}},
+		{"handoff input that is not a .tf file", "coverage-positive", "schema-handoff.json", true, `$.inputs.head.files[0].path: "main.tfx" does not match`, func(_ *testing.T, e map[string]any) {
+			obj(obj(obj(e["inputs"])["head"])["files"].([]any)[0])["path"] = "main.tfx"
+		}},
+		{"cross-area entry not under .", "example-only", x, false, "a cross-area rule has its one entry under .", func(t *testing.T, e map[string]any) {
+			for _, m := range manifestOf(e) {
+				if r, _ := reg.Rule(obj(m)["rule_id"].(string)); r.CrossArea {
+					obj(m)["area"] = "examples/basic"
+					return
+				}
+			}
+			t.Fatal("example-only has no cross-area entry")
+		}},
+		{"line not in the head file", sp, x, false, "line 99999 is not in head/main.tf", func(_ *testing.T, e map[string]any) {
+			obj(itemsOf(e, "candidates")[1])["line"] = 99999
+		}},
+		{"subject names no block", sp, x, false, "outside the block of .:aws_demo_widget.nonexistent", func(_ *testing.T, e map[string]any) {
+			obj(itemsOf(e, "candidates")[1])["subject"] = ".:aws_demo_widget.nonexistent"
+		}},
 		// The only positive case of the rule read as clean, consistent in its
 		// own fixture.
 		{"rule with no positive case", "compat-versions-floor", x, false, "compat.provider-floor-raised: no fixture has a positive case", func(t *testing.T, e map[string]any) {
@@ -188,5 +222,17 @@ func TestOracleChecksCatchMutations(t *testing.T) {
 				t.Errorf("not caught for the intended reason %q; got:\n%s", c.want, strings.Join(bad, "\n"))
 			}
 		})
+	}
+}
+
+// TestOracleChecksCatchMissingHead removes a fixture's head/.
+func TestOracleChecksCatchMissingHead(t *testing.T) {
+	reg := pinnedOracleRegistry(t)
+	dir := mutateOracle(t, "structure-positive", "expected.json", nil)
+	if err := os.RemoveAll(filepath.Join(dir, "structure-positive", "head")); err != nil {
+		t.Fatal(err)
+	}
+	if bad := checkOracleInvariants(reg, dir); !slices.Contains(bad, "structure-positive: no head/") {
+		t.Errorf("not caught for the intended reason; got:\n%s", strings.Join(bad, "\n"))
 	}
 }
