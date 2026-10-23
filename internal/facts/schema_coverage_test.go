@@ -81,17 +81,26 @@ func TestSchemaCoverageRemovedPath(t *testing.T) {
 	}
 }
 
-// TestSchemaCoverageSkipsUnparsedArea leaves out an area with a parse error
-// or unsupported content at head, and still lists the touched block of
-// another area.
+// TestSchemaCoverageSkipsUnparsedArea leaves out the root area, which has a
+// touched block, when a revision of it does not parse in full, and still
+// lists the touched block of modules/ok. A parse error or a .tf.json file
+// at head reaches the Head.Unsupported guard, a parse error at base only
+// the Base.Unsupported guard. An area path that is a file at head reaches
+// the Issue guard; its head is never parsed, so that guard is defensive.
 func TestSchemaCoverageSkipsUnparsedArea(t *testing.T) {
 	block := "resource \"aws_demo_widget\" \"this\" {\n  name = \"a\"\n}\n"
-	for _, c := range []struct{ name, file, text string }{
-		{"parse error", "broken.tf", "resource \"aws_demo_widget\" {\n"},
-		{"unsupported content", "extra.tf.json", "{}"},
+	broken := "resource \"aws_demo_widget\" {\n"
+	for _, c := range []struct {
+		name       string
+		head, base map[string]string
+	}{
+		{"parse error at head", map[string]string{"main.tf": block, "broken.tf": broken}, map[string]string{"main.tf": ""}},
+		{"unsupported content at head", map[string]string{"main.tf": block, "extra.tf.json": "{}"}, map[string]string{"main.tf": ""}},
+		{"parse error at base", map[string]string{"main.tf": block}, map[string]string{"main.tf": "", "broken.tf": broken}},
+		{"area path a file at head", map[string]string{"main.tf": "", "modules/gone": block}, map[string]string{"main.tf": "", "modules/gone/main.tf": ""}},
 	} {
-		head := map[string]string{"main.tf": block, "modules/ok/main.tf": block, c.file: c.text}
-		r := runCoverageSchema(t, head, map[string]string{"main.tf": "", "modules/ok/main.tf": ""}, oracleHeadSHA)
+		c.head["modules/ok/main.tf"], c.base["modules/ok/main.tf"] = block, ""
+		r := runCoverageSchema(t, c.head, c.base, oracleHeadSHA)
 		if r.SchemaCoverage == nil {
 			t.Fatalf("%s: no schema_coverage", c.name)
 		}
