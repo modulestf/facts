@@ -391,6 +391,7 @@
                     "minLength": 1
                   },
                   "version": {
+                    "description": "The provider version the fact was read at, or the literal schema-file when it was read from a raw terraform providers schema -json file, which records no version.",
                     "type": "string",
                     "minLength": 1
                   },

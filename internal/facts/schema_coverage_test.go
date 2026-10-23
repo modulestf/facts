@@ -1,8 +1,10 @@
 package facts
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -72,6 +74,39 @@ func TestSchemaCoverageRemovedPath(t *testing.T) {
 	r = runCoverageSchema(t, edited, head, oracleHeadSHA)
 	if r.SchemaCoverage == nil || len(*r.SchemaCoverage) != 0 {
 		t.Errorf("untouched block: %+v", r.SchemaCoverage)
+	}
+	// Marshalled as [], since null is not schema-valid.
+	if b, err := json.Marshal(r); err != nil || !strings.Contains(string(b), `"schema_coverage":[]`) {
+		t.Errorf("untouched block marshals without an empty schema_coverage: %v", err)
+	}
+}
+
+// TestSchemaCoverageSkipsUnparsedArea leaves out the root area, which has a
+// touched block, when a revision of it does not parse in full, and still
+// lists the touched block of modules/ok. A parse error or a .tf.json file
+// at head reaches the Head.Unsupported guard, a parse error at base only
+// the Base.Unsupported guard. An area path that is a file at head reaches
+// the Issue guard; its head is never parsed, so that guard is defensive.
+func TestSchemaCoverageSkipsUnparsedArea(t *testing.T) {
+	block := "resource \"aws_demo_widget\" \"this\" {\n  name = \"a\"\n}\n"
+	broken := "resource \"aws_demo_widget\" {\n"
+	for _, c := range []struct {
+		name       string
+		head, base map[string]string
+	}{
+		{"parse error at head", map[string]string{"main.tf": block, "broken.tf": broken}, map[string]string{"main.tf": ""}},
+		{"unsupported content at head", map[string]string{"main.tf": block, "extra.tf.json": "{}"}, map[string]string{"main.tf": ""}},
+		{"parse error at base", map[string]string{"main.tf": block}, map[string]string{"main.tf": "", "broken.tf": broken}},
+		{"area path a file at head", map[string]string{"main.tf": "", "modules/gone": block}, map[string]string{"main.tf": "", "modules/gone/main.tf": ""}},
+	} {
+		c.head["modules/ok/main.tf"], c.base["modules/ok/main.tf"] = block, ""
+		r := runCoverageSchema(t, c.head, c.base, oracleHeadSHA)
+		if r.SchemaCoverage == nil {
+			t.Fatalf("%s: no schema_coverage", c.name)
+		}
+		if cov := *r.SchemaCoverage; len(cov) != 1 || cov[0].File != "modules/ok/main.tf" {
+			t.Errorf("%s: coverage %+v", c.name, cov)
+		}
 	}
 }
 

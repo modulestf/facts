@@ -239,6 +239,9 @@ func resolveSchema(a *Area, r Resource, needsMinimum bool) (providerSchema, stri
 		ps.source, ps.latest, ps.minimum = res.Source, res.Versions.Latest, res.Versions.DeclaredMinimum
 	}
 	if o, _ := ps.lookup(ps.latest, nil); o != schema.Present {
+		if ps.fromFiles {
+			return providerSchema{}, fmt.Sprintf("%s: type absent from the schema file for %s", short(addr), ps.source)
+		}
 		return providerSchema{}, fmt.Sprintf("%s: no schema of the type at %s %s", short(addr), ps.source, ps.latest)
 	}
 	ps.typeAtMinimum, _ = ps.lookup(ps.minimum, nil)

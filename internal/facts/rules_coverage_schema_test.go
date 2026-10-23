@@ -168,6 +168,41 @@ func TestCoverageSchemaRawFilesMissingProvider(t *testing.T) {
 	}
 }
 
+// In raw mode a data block reads the file's data source schemas, a
+// provider argument with an alias resolves the source by its local name,
+// and a type the file lacks says so, with no version in the reason.
+func TestCoverageSchemaRawFilesDataAliasMissingType(t *testing.T) {
+	raw := filepath.Join(t.TempDir(), "schema.json")
+	doc := `{"format_version": "1.0", "provider_schemas": {"registry.terraform.io/example/aws": {` +
+		`"resource_schemas": {"aws_demo_widget": {"version": 0, "block": {"attributes": {"name": {"type": "string", "optional": true}}}}},` +
+		`"data_source_schemas": {"aws_demo_lookup": {"version": 0, "block": {"attributes": {"name": {"type": "string", "optional": true}}}}}}}}`
+	if err := os.WriteFile(raw, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	versions := "terraform {\n  required_providers {\n    demo = {\n      source = \"example/aws\"\n    }\n  }\n}\n"
+	for _, c := range []struct{ name, main, subject, reason string }{
+		{"data block", "data \"aws_demo_lookup\" \"x\" {\n  provider = demo\n  bogus    = 1\n}\n", ".:data.aws_demo_lookup.x.bogus", ""},
+		{"provider alias", "resource \"aws_demo_widget\" \"x\" {\n  provider = demo.west\n  bogus    = 1\n}\n", ".:aws_demo_widget.x.bogus", ""},
+		{"missing type", "data \"aws_demo_widget\" \"x\" {\n  provider = demo\n}\n", "", "data.aws_demo_widget.x: type absent from the schema file for registry.terraform.io/example/aws"},
+	} {
+		head := writeTree(t, map[string]string{"versions.tf": versions, "main.tf": c.main})
+		r, err := run(Options{Head: head, SchemaFiles: []string{raw}, Limits: DefaultLimits}, coverageSchemaRules)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e := manifestByRule(r)["coverage.unknown-argument"]
+		if c.reason != "" {
+			if e.Status != StatusNotEvaluated || e.ReasonCode != ReasonSchemaUnavailable || e.Reason != c.reason {
+				t.Errorf("%s: %s %s %q", c.name, e.Status, e.ReasonCode, e.Reason)
+			}
+			continue
+		}
+		if len(r.Candidates) != 1 || r.Candidates[0].Subject != c.subject || r.Candidates[0].Evidence.SchemaFacts[0].Version != rawSchemaVersion {
+			t.Errorf("%s: %s %q, candidates %+v", c.name, e.Status, e.Reason, r.Candidates)
+		}
+	}
+}
+
 // With both inputs the handoff alone is read, bound to the run's commits:
 // the raw file, which has bogus, does not hide the handoff's unknown
 // argument, and an unbound handoff does not fall back to the raw file.
