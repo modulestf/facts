@@ -315,6 +315,20 @@ func TestParseBundleRefuses(t *testing.T) {
 	}
 }
 
+// A lead finding on a loose file under examples/ is the root's for a path
+// rule, as the engine reads it, so the root's not_evaluated entry allows it.
+func TestAllowedLooseFileIsRoot(t *testing.T) {
+	b := testBundle(t, `{"tool_findings":[],"candidates":[],
+ "area_rules":[{"area":".","rules":[{"rule_id":"profile.nonstandard-config-file","status":"not_evaluated","reason":"file_index_shed"}]}],
+ "severity_needed":[]}`)
+	in := Inputs{Registry: testRegistry(t), Bundle: b}
+	for file, want := range map[string]bool{"examples/.checkov.yaml": true, "modules/.checkov.yaml": true, "tests/.checkov.yaml": true, "modules/m/x.tf": false} {
+		if _, ok := in.allowed(Finding{RuleID: "profile.nonstandard-config-file", File: file}); ok != want {
+			t.Errorf("%s: allowed %v, want %v", file, ok, want)
+		}
+	}
+}
+
 // TestFinalLeadFindings covers what the merge does to the lead's findings:
 // the allowed rules, the severity cap and floor, and the subject a lead
 // finding dedups by.
@@ -492,10 +506,13 @@ func TestFindingArea(t *testing.T) {
 		{"submodule directory, path rule", path, "modules/m", "modules/m"},
 		{"wrappers directory, path rule", path, "wrappers/x", "."},
 		{"tests file, path rule", path, "tests/.checkov.yaml", "."},
+		{"loose example file, path rule", path, "examples/.checkov.yaml", "."},
+		{"loose submodule file, path rule", path, "modules/.checkov.yaml", "."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := findingArea(tt.rule, tt.file)
+			known := func(a string) bool { return a == "examples/complete" || a == "modules/m" }
+			got, ok := findingArea(tt.rule, tt.file, known)
 			if got != tt.want || ok != (tt.want != "") {
 				t.Errorf("findingArea(%q) = %q, %v; want %q", tt.file, got, ok, tt.want)
 			}

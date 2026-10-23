@@ -294,7 +294,9 @@ func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
 	if r.Engine == registry.EngineLLM {
 		return r, true
 	}
-	area, ok := findingArea(r, f.File)
+	area, ok := findingArea(r, f.File, func(a string) bool {
+		return slices.ContainsFunc(in.Bundle.AreaRules, func(ar AreaRules) bool { return ar.Area == a })
+	})
 	if !ok {
 		return r, false
 	}
@@ -314,10 +316,11 @@ func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
 // findingArea is the area of a finding's file, as the facts engine maps a
 // path. A path rule's subject may be an area directory itself, such as
 // examples/complete, which facts.Classify reads as a loose file under
-// examples/; for a path rule that directory is its own area. Any other path
-// in no area, such as one under tests/ or wrappers/, is the root's for a path
-// rule, as the engine reads it there.
-func findingArea(r registry.Rule, file string) (string, bool) {
+// examples/; for a path rule that directory is its own area when the bundle
+// lists it (known). Any other path in no area, such as one under tests/ or
+// wrappers/ or a loose file like examples/.checkov.yaml, is the root's for a
+// path rule, as the engine reads it there.
+func findingArea(r registry.Rule, file string, known func(string) bool) (string, bool) {
 	if area, _, ok := facts.Classify(file); ok {
 		return area, true
 	}
@@ -325,7 +328,7 @@ func findingArea(r registry.Rule, file string) (string, bool) {
 		return "", false
 	}
 	if parts := strings.Split(file, "/"); len(parts) == 2 &&
-		(parts[0] == "examples" || parts[0] == "modules") && parts[1] != "" {
+		(parts[0] == "examples" || parts[0] == "modules") && parts[1] != "" && known(file) {
 		return file, true
 	}
 	return ".", true
