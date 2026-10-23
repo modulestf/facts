@@ -107,6 +107,29 @@ func TestOutputAttrs(t *testing.T) {
 			t.Errorf("%s: read %v whole %v, want %v %v", c.value, got, whole, c.read, c.whole)
 		}
 	}
+	// Whether each path's value reaches the output unchanged: only then does
+	// it read the levels above and below it.
+	for value, want := range map[string]map[string]bool{
+		"aws_demo_widget.this.listener":                                              {"listener": true},
+		"var.c ? aws_demo_widget.this.listener : null":                               {"listener": true},
+		"{ l = [aws_demo_widget.this.listener] }":                                    {"listener": true},
+		"coalesce(aws_demo_widget.this.config, {})":                                  {"config": true},
+		"one(aws_demo_widget.this.listener).port":                                    {"listener": false},
+		"tolist(aws_demo_widget.this.listener)[0].port":                              {"listener": false},
+		"element(aws_demo_widget.this.listener, 0).port":                             {"listener": false},
+		"(var.c ? aws_demo_widget.this.listener : [])[0].port":                       {"listener": false},
+		"try(aws_demo_widget.this.listener, null)[0].port":                           {"listener": false},
+		"length(aws_demo_widget.this.listener)":                                      {"listener": false},
+		`lookup(aws_demo_widget.this.config, "status", null)`:                        {"config": false},
+		"element(aws_demo_widget.this[*].arn, 0)":                                    {"arn": false},
+		"var.c ? one(aws_demo_widget.this.listener) : aws_demo_widget.this.listener": {"listener": true},
+	} {
+		read := map[string]bool{}
+		outputAttrs(Expr{Text: value, Range: hcl.Range{Start: hcl.InitialPos}}, "outputs.tf", r, read)
+		if !maps.Equal(read, want) {
+			t.Errorf("%s: read %v, want %v", value, read, want)
+		}
+	}
 }
 
 func TestNullLiteral(t *testing.T) {
@@ -234,6 +257,16 @@ func TestCoverageReachNestedComputed(t *testing.T) {
 			"output \"c\" {\n  value = aws_demo_widget.this.listener[var.k].port\n}\n" +
 			"output \"d\" {\n  value = [for l in aws_demo_widget.this.listener : l.port]\n}\n",
 			[]string{".:aws_demo_widget.this.config.status", ".:aws_demo_widget.this.listener.listener_arn"}},
+		{top + "output \"a\" {\n  value = one(aws_demo_widget.this.listener).port\n}\n" +
+			"output \"b\" {\n  value = tolist(aws_demo_widget.this.listener)[0].port\n}\n" +
+			"output \"c\" {\n  value = element(aws_demo_widget.this.listener, 0).port\n}\n" +
+			"output \"d\" {\n  value = (var.c ? aws_demo_widget.this.listener : [])[0].port\n}\n" +
+			"output \"e\" {\n  value = try(aws_demo_widget.this.listener, null)[0].port\n}\n" +
+			"output \"f\" {\n  value = length(aws_demo_widget.this.listener)\n}\n" +
+			"output \"g\" {\n  value = lookup(aws_demo_widget.this.config, \"status\", null)\n}\n",
+			[]string{".:aws_demo_widget.this.config.status", ".:aws_demo_widget.this.listener.listener_arn"}},
+		{top + "output \"l\" {\n  value = var.c ? try(aws_demo_widget.this.listener, null) : null\n}\n" +
+			"output \"c\" {\n  value = { c = aws_demo_widget.this.config }\n}\n", nil},
 	} {
 		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": c.outputs}, map[string]string{}, nested)
 		var got []string

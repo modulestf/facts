@@ -230,10 +230,14 @@ func modeOutputs(a *Area) []Candidate {
 // block the change adds that no output of the area reads, at the top level,
 // inside a nested block at any depth, or inside a nested attribute that is
 // not itself computed; the candidate's address and schema path name each
-// level. An output reads an attribute when its value names it on the block,
-// through indexes or a splat, or names a level above it or below it, or is
-// the block itself. A read through a local or a for expression is not
-// traced, so it stays a candidate.
+// level. An output reads an attribute when its value names the attribute's
+// path on the block, through indexes or a splat, anywhere in the value, or is
+// the block itself. A path that names a level above or below the attribute
+// reads it only where its value reaches the output unchanged: as the value,
+// or through parentheses, conditional branches, tuple and object elements and
+// try() and coalesce() arguments; inside another function call or as the
+// source of a later traversal or index it reads only itself. A read through a
+// local or a for expression is not traced, so it stays a candidate.
 func attributeNotOutput(a *Area, ps providerSchema, r Resource, base *Resource) []schemaItem {
 	if base != nil || r.Mode == "data" {
 		return nil
@@ -249,8 +253,8 @@ func attributeNotOutput(a *Area, ps providerSchema, r Resource, base *Resource) 
 		}
 	}
 	isRead := func(p string) bool {
-		for q := range read {
-			if q == p || strings.HasPrefix(p, q+".") || strings.HasPrefix(q, p+".") {
+		for q, whole := range read {
+			if q == p || whole && (strings.HasPrefix(p, q+".") || strings.HasPrefix(q, p+".")) {
 				return true
 			}
 		}
@@ -464,8 +468,10 @@ func unparen(e hclsyntax.Expression) hclsyntax.Expression {
 }
 
 // outputAttrs adds to read the attribute paths of resource r that an output
-// value reads by name, the names past indexes and splats joined by dots, and
-// reports whether the value is the block itself.
+// value reads by name, the names past indexes and splats joined by dots, true
+// when the path's value reaches the output unchanged and false when it is
+// used inside a function call or traversed further, and reports whether the
+// value is the block itself.
 func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole bool) {
 	e, diags := hclsyntax.ParseExpression([]byte(v.Text), file, hcl.Pos{Line: v.Range.Start.Line, Column: v.Range.Start.Column})
 	if diags.HasErrors() {
@@ -477,7 +483,33 @@ func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole b
 	// A node that reads r records its whole path once; the nodes inside it,
 	// such as the source of a splat, record nothing of their own.
 	// Nodes are keyed by range: some, such as ChildScope, are not comparable.
-	inside := map[hcl.Range]bool{}
+	inside, unchanged := map[hcl.Range]bool{}, map[hcl.Range]bool{}
+	var pass func(e hclsyntax.Expression)
+	pass = func(e hclsyntax.Expression) {
+		unchanged[e.Range()] = true
+		switch x := e.(type) {
+		case *hclsyntax.ParenthesesExpr:
+			pass(x.Expression)
+		case *hclsyntax.ConditionalExpr:
+			pass(x.TrueResult)
+			pass(x.FalseResult)
+		case *hclsyntax.TupleConsExpr:
+			for _, el := range x.Exprs {
+				pass(el)
+			}
+		case *hclsyntax.ObjectConsExpr:
+			for _, it := range x.Items {
+				pass(it.ValueExpr)
+			}
+		case *hclsyntax.FunctionCallExpr:
+			if x.Name == "try" || x.Name == "coalesce" {
+				for _, arg := range x.Args {
+					pass(arg)
+				}
+			}
+		}
+	}
+	pass(e)
 	skip := func(n hclsyntax.Node) {
 		_ = hclsyntax.VisitAll(n, func(c hclsyntax.Node) hcl.Diagnostics {
 			inside[c.Range()] = true
@@ -496,7 +528,7 @@ func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole b
 		case hclsyntax.Expression:
 			if p, of := readPath(x, r, nil); of {
 				if p != "" {
-					read[p] = true
+					read[p] = read[p] || unchanged[x.Range()]
 				}
 				skip(x)
 			}
