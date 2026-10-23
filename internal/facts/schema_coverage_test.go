@@ -1,8 +1,10 @@
 package facts
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -72,6 +74,30 @@ func TestSchemaCoverageRemovedPath(t *testing.T) {
 	r = runCoverageSchema(t, edited, head, oracleHeadSHA)
 	if r.SchemaCoverage == nil || len(*r.SchemaCoverage) != 0 {
 		t.Errorf("untouched block: %+v", r.SchemaCoverage)
+	}
+	// Marshalled as [], since null is not schema-valid.
+	if b, err := json.Marshal(r); err != nil || !strings.Contains(string(b), `"schema_coverage":[]`) {
+		t.Errorf("untouched block marshals without an empty schema_coverage: %v", err)
+	}
+}
+
+// TestSchemaCoverageSkipsUnparsedArea leaves out an area with a parse error
+// or unsupported content at head, and still lists the touched block of
+// another area.
+func TestSchemaCoverageSkipsUnparsedArea(t *testing.T) {
+	block := "resource \"aws_demo_widget\" \"this\" {\n  name = \"a\"\n}\n"
+	for _, c := range []struct{ name, file, text string }{
+		{"parse error", "broken.tf", "resource \"aws_demo_widget\" {\n"},
+		{"unsupported content", "extra.tf.json", "{}"},
+	} {
+		head := map[string]string{"main.tf": block, "modules/ok/main.tf": block, c.file: c.text}
+		r := runCoverageSchema(t, head, map[string]string{"main.tf": "", "modules/ok/main.tf": ""}, oracleHeadSHA)
+		if r.SchemaCoverage == nil {
+			t.Fatalf("%s: no schema_coverage", c.name)
+		}
+		if cov := *r.SchemaCoverage; len(cov) != 1 || cov[0].File != "modules/ok/main.tf" {
+			t.Errorf("%s: coverage %+v", c.name, cov)
+		}
 	}
 }
 
