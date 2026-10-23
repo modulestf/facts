@@ -120,7 +120,7 @@ func TestLookupFields(t *testing.T) {
 func TestUnresolvedReasonPassesThrough(t *testing.T) {
 	s := bound(t, "../../schema/examples/schema-handoff.valid.json")
 	r := s.Resolve("examples/complete", "aws")
-	if r.Outcome != Unavailable || r.Reason != "constraint_unparsable" {
+	if r.Outcome != Unavailable || r.Reason != "constraint_unparsable" || r.Source == "" {
 		t.Errorf("resolve %+v", r)
 	}
 	r = s.Resolve(".", "aws")

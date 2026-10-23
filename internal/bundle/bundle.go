@@ -77,7 +77,7 @@ func Build(r *Report, reg *registry.Registry, text EngineText, o Options) (*Resu
 	// Shedding never changes a manifest entry: a tool or candidate rule's
 	// findings and candidates carry their own evidence, and its clean is the
 	// engine's exhaustive answer. An llm rule that reads a shed section is
-	// judged from the files in any case. schema_coverage is never built.
+	// judged from the files in any case.
 	var shed []string
 	for _, section := range shedOrder {
 		payload, err := encode(b)
@@ -125,7 +125,8 @@ func finish(payload []byte, manifest []facts.ManifestEntry, text EngineText, o O
 
 // checkReport refuses a report the registry does not describe: a manifest,
 // finding or candidate rule that is not a registry tool or candidate rule, a
-// not_evaluated entry without a reason code, or a malformed candidate id.
+// not_evaluated entry without a reason code, a malformed candidate id, or
+// schema coverage in a report that read no schema handoff.
 func checkReport(r *Report, reg *registry.Registry) error {
 	var errs []error
 	known := func(id, what string) {
@@ -149,6 +150,9 @@ func checkReport(r *Report, reg *registry.Registry) error {
 			errs = append(errs, fmt.Errorf("candidate id %q is malformed or repeated", c.CandidateID))
 		}
 		seen[c.CandidateID] = true
+	}
+	if r.SchemaCoverage != nil && (r.Envelope.SchemaInputs == nil || r.Envelope.SchemaInputs.HandoffSHA256 == nil) {
+		errs = append(errs, errors.New("report has schema coverage but read no schema handoff"))
 	}
 	if r.Envelope.Inputs.Base == nil {
 		errs = append(errs, errors.New("report has no base tree"))
@@ -177,6 +181,13 @@ func fullBundle(r *Report, reg *registry.Registry) (*Bundle, error) {
 			return nil, fmt.Errorf("interface diff: %w", err)
 		}
 		d.InterfaceDiff = raw
+	}
+	if r.SchemaCoverage != nil {
+		raw, err := capStrings(r.SchemaCoverage)
+		if err != nil {
+			return nil, fmt.Errorf("schema coverage: %w", err)
+		}
+		d.SchemaCoverage = raw
 	}
 	ar := areaRulesOf(r.Manifest)
 	d.AreaRules = &ar

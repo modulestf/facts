@@ -175,7 +175,7 @@ func TestBundleRefuses(t *testing.T) {
 // TestBundleFromLint runs lint on a golden case with the pinned registry and
 // builds the bundle from its report, with engine text made up for every rule.
 func TestBundleFromLint(t *testing.T) {
-	bundleFile, _, _ := bundleFromLint(t)
+	bundleFile, _, _ := bundleFromLint(t, "../../testdata/compat-iface-positive", "../../testdata/profile", "")
 	f, err := os.Open(bundleFile)
 	if err != nil {
 		t.Fatal(err)
@@ -187,10 +187,31 @@ func TestBundleFromLint(t *testing.T) {
 	}
 }
 
-// bundleFromLint writes the bundle of a lint run on a golden case with the
-// pinned registry, and returns the bundle file, the lint report and the
-// registry file. It skips without the registry, except in CI.
-func bundleFromLint(t *testing.T) (bundleFile, report, regFile string) {
+// TestBundleFromLintFillsSchemaCoverage builds the bundle of a lint run whose
+// schema handoff binds: schema_coverage lists the blocks the change touches.
+func TestBundleFromLintFillsSchemaCoverage(t *testing.T) {
+	dir := "../../testdata/coverage-schema-positive"
+	bundleFile, _, _ := bundleFromLint(t, dir, "../../testdata/profile", filepath.Join(dir, "schema-handoff.json"))
+	f, err := os.Open(bundleFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	b, err := fb.Decode(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cov []facts.SchemaCoverage
+	if err := json.Unmarshal(b.SchemaCoverage, &cov); err != nil || len(cov) != 3 || cov[0].Address != "aws_demo_widget.this" || len(cov[0].Arguments) == 0 {
+		t.Errorf("schema_coverage %s, %v", b.SchemaCoverage, err)
+	}
+}
+
+// bundleFromLint writes the bundle of a lint run on the case in dir, with
+// the profile and the schema handoff, if not empty, and the pinned registry.
+// It returns the bundle file, the lint report and the registry file. It
+// skips without the registry, except in CI.
+func bundleFromLint(t *testing.T, dir, profile, handoff string) (bundleFile, report, regFile string) {
 	t.Helper()
 	regFile = os.Getenv(registryEnv)
 	if regFile == "" {
@@ -225,10 +246,13 @@ func bundleFromLint(t *testing.T) (bundleFile, report, regFile string) {
 	if err := os.WriteFile(filepath.Join(engine, "all.md"), []byte(text.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	dir := "../../testdata/compat-iface-positive"
+	schemaArgs := []string{}
+	if handoff != "" {
+		schemaArgs = []string{"--schema-handoff", handoff}
+	}
 	var lintOut, errb bytes.Buffer
-	code := run([]string{"lint", "--json", filepath.Join(dir, "head"), "--base", filepath.Join(dir, "base"),
-		"--registry", regFile, "--head-sha", testHead, "--merge-base-sha", testBase, "--profile-dir", "../../testdata/profile"}, &lintOut, &errb)
+	code := run(append([]string{"lint", "--json", filepath.Join(dir, "head"), "--base", filepath.Join(dir, "base"),
+		"--registry", regFile, "--head-sha", testHead, "--merge-base-sha", testBase, "--profile-dir", profile}, schemaArgs...), &lintOut, &errb)
 	if code == exitError {
 		t.Fatalf("lint: %s", errb.String())
 	}
@@ -242,7 +266,7 @@ func bundleFromLint(t *testing.T) (bundleFile, report, regFile string) {
 	}
 	args := bundleArgsFor(report, skills, tmp)
 	args[len(args)-1] = binary
-	args = append(args, "--profile-dir", "../../testdata/profile")
+	args = append(append(args, "--profile-dir", profile), schemaArgs...)
 	code, stdout, stderr := runBundle(args)
 	if code != 0 || stdout != "judgment\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)

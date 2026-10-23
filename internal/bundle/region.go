@@ -26,8 +26,8 @@ const (
 const maxBundleBytes = 16 << 20
 
 // Bundle is the facts bundle of facts-bundle.schema.json, its keys in the
-// schema's order. A nil section was left out. Build never writes
-// schema_coverage: the report carries no schema coverage delta yet.
+// schema's order. A nil section was left out; schema_coverage is also left
+// out when the report has none, that is when no schema handoff bound.
 type Bundle struct {
 	ToolFindings   []ToolFinding     `json:"tool_findings"`
 	Candidates     []facts.Candidate `json:"candidates"`

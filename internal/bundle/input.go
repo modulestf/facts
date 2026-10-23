@@ -25,15 +25,16 @@ const (
 	maxEngineFiles   = 64
 )
 
-// Report is the lint report the bundle is built from. InterfaceDiff stays
-// raw: its elements have no exported Go shape to decode into.
+// Report is the lint report the bundle is built from. InterfaceDiff and
+// SchemaCoverage stay raw: the bundle only caps their strings.
 type Report struct {
-	Envelope      facts.Envelope        `json:"envelope"`
-	Manifest      []facts.ManifestEntry `json:"manifest"`
-	Findings      []facts.Finding       `json:"findings"`
-	Candidates    []facts.Candidate     `json:"candidates"`
-	Index         []facts.IndexEntry    `json:"index"`
-	InterfaceDiff json.RawMessage       `json:"interface_diff"`
+	Envelope       facts.Envelope        `json:"envelope"`
+	Manifest       []facts.ManifestEntry `json:"manifest"`
+	Findings       []facts.Finding       `json:"findings"`
+	Candidates     []facts.Candidate     `json:"candidates"`
+	Index          []facts.IndexEntry    `json:"index"`
+	InterfaceDiff  json.RawMessage       `json:"interface_diff"`
+	SchemaCoverage json.RawMessage       `json:"schema_coverage"`
 }
 
 // ReadReport reads and decodes a lint --json report. An unknown field, a
@@ -54,6 +55,9 @@ func ReadReport(p string) (*Report, error) {
 	}
 	if string(r.InterfaceDiff) == "null" {
 		r.InterfaceDiff = nil
+	}
+	if string(r.SchemaCoverage) == "null" {
+		r.SchemaCoverage = nil
 	}
 	return &r, nil
 }

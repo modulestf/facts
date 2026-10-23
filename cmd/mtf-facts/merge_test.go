@@ -131,7 +131,7 @@ func TestMergeFinal(t *testing.T) {
 // TestMergeOnRealBundle runs the bundle mtf-facts bundle writes from a lint
 // report through merge check and merge final, with that report's index.
 func TestMergeOnRealBundle(t *testing.T) {
-	bundleFile, report, regFile := bundleFromLint(t)
+	bundleFile, report, regFile := bundleFromLint(t, "../../testdata/compat-iface-positive", "../../testdata/profile", "")
 	f, err := os.Open(bundleFile)
 	if err != nil {
 		t.Fatal(err)
