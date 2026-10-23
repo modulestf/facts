@@ -1,0 +1,16 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

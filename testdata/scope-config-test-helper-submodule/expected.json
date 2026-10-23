@@ -1,0 +1,47 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "tests/setup/main.tf: test helper configuration the engine does not read",
+      "reason_code": "unsupported_file"
+    },
+    {
+      "rule_id": "scope.module-call",
+      "area": "modules/m",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "unsupported_file",
+      "reason_code": "unsupported_file"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "scope.module-call",
+      "file": "modules/m/main.tf",
+      "line": 3,
+      "subject": "modules/m:module.extra",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "modules/m/main.tf",
+            "line": 4,
+            "text": "  source = \"git::https://example.com/extra.git\""
+          }
+        ],
+        "base": null,
+        "head": "\"git::https://example.com/extra.git\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}
