@@ -85,7 +85,12 @@ func TestOutputAttrs(t *testing.T) {
 		{`try(aws_demo_widget.this["k"].arn, null)`, []string{"arn"}, false},
 		{"aws_demo_widget.this[var.k].id", []string{"id"}, false},
 		{"aws_demo_widget.this.listener[0].arn", []string{"listener.arn"}, false},
-		{"aws_demo_widget.this[0].listener[*].arn", []string{"listener"}, false},
+		{"aws_demo_widget.this[0].listener[*].arn", []string{"listener.arn"}, false},
+		{"aws_demo_widget.this.listener[*].port", []string{"listener.port"}, false},
+		{"aws_demo_widget.this.listener.*.port", []string{"listener.port"}, false},
+		{"aws_demo_widget.this.listener[var.k].port", []string{"listener.port"}, false},
+		{"[for l in aws_demo_widget.this.listener : l.port]", nil, false},
+		{"aws_demo_widget.this[var.k]", nil, true},
 		{"aws_demo_widget.this[*].arn", []string{"arn"}, false},
 		{"aws_demo_widget.this.*.arn", []string{"arn"}, false},
 		{"(aws_demo_widget.this)", nil, true},
@@ -207,6 +212,8 @@ func TestCoverageReachNestedComputed(t *testing.T) {
 			listener := b["block_types"].(map[string]any)["listener"].(map[string]any)["block"].(map[string]any)["attributes"].(map[string]any)
 			listener["listener_arn"] = map[string]any{"computed": true}
 			listener["old_listener_arn"] = map[string]any{"computed": true, "deprecated": true}
+			b["block_types"].(map[string]any)["legacy_block"] = map[string]any{"nesting_mode": "list", "block": map[string]any{
+				"deprecated": true, "attributes": map[string]any{"legacy_arn": map[string]any{"computed": true}}}}
 			config := b["attributes"].(map[string]any)["config"].(map[string]any)["nested_type"].(map[string]any)["attributes"].(map[string]any)
 			config["status"] = map[string]any{"computed": true}
 		}
@@ -222,6 +229,11 @@ func TestCoverageReachNestedComputed(t *testing.T) {
 			"output \"c\" {\n  value = aws_demo_widget.this.config\n}\n", nil},
 		{top + "output \"l\" {\n  value = aws_demo_widget.this.listener\n}\n" +
 			"output \"c\" {\n  value = aws_demo_widget.this.config.status.x\n}\n", nil},
+		{top + "output \"a\" {\n  value = aws_demo_widget.this.listener[*].port\n}\n" +
+			"output \"b\" {\n  value = aws_demo_widget.this.listener.*.port\n}\n" +
+			"output \"c\" {\n  value = aws_demo_widget.this.listener[var.k].port\n}\n" +
+			"output \"d\" {\n  value = [for l in aws_demo_widget.this.listener : l.port]\n}\n",
+			[]string{".:aws_demo_widget.this.config.status", ".:aws_demo_widget.this.listener.listener_arn"}},
 	} {
 		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": c.outputs}, map[string]string{}, nested)
 		var got []string

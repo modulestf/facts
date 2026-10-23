@@ -471,33 +471,70 @@ func outputAttrs(v Expr, file string, r Resource, read map[string]bool) (whole b
 	if diags.HasErrors() {
 		return false
 	}
-	if t, ok := unparen(e).(*hclsyntax.ScopeTraversalExpr); ok {
-		if attr, of := attrOf(t.Traversal, r); of && attr == "" {
-			return true
-		}
+	if p, of := readPath(e, r, nil); of && p == "" {
+		return true
+	}
+	// A node that reads r records its whole path once; the nodes inside it,
+	// such as the source of a splat, record nothing of their own.
+	// Nodes are keyed by range: some, such as ChildScope, are not comparable.
+	inside := map[hcl.Range]bool{}
+	skip := func(n hclsyntax.Node) {
+		_ = hclsyntax.VisitAll(n, func(c hclsyntax.Node) hcl.Diagnostics {
+			inside[c.Range()] = true
+			return nil
+		})
 	}
 	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics {
+		if inside[n.Range()] {
+			return nil
+		}
 		switch x := n.(type) {
-		case *hclsyntax.ScopeTraversalExpr:
-			if attr, of := attrOf(x.Traversal, r); of && attr != "" {
-				read[attr] = true
+		case *hclsyntax.ForExpr: // a read through a for expression is not traced
+			if _, of := readPath(x.CollExpr, r, nil); of {
+				skip(x.CollExpr)
 			}
-		case *hclsyntax.RelativeTraversalExpr: // r[expr].attr
-			if resourceRoot(x.Source, r) {
-				if attr := attrPath(x.Traversal); attr != "" {
-					read[attr] = true
+		case hclsyntax.Expression:
+			if p, of := readPath(x, r, nil); of {
+				if p != "" {
+					read[p] = true
 				}
-			}
-		case *hclsyntax.SplatExpr: // r[*].attr
-			if each, ok := x.Each.(*hclsyntax.RelativeTraversalExpr); ok && resourceRoot(x.Source, r) {
-				if attr := attrPath(each.Traversal); attr != "" {
-					read[attr] = true
-				}
+				skip(x)
 			}
 		}
 		return nil
 	})
 	return false
+}
+
+// readPath returns the attribute path an expression reads of resource r,
+// through parentheses, indexes, traversals and splats, "" when it reads the
+// block itself; of is false when it reads anything else. anon is the path the
+// anonymous symbol of an enclosing splat stands for.
+func readPath(e hclsyntax.Expression, r Resource, anon *string) (path string, of bool) {
+	switch x := e.(type) {
+	case *hclsyntax.ParenthesesExpr:
+		return readPath(x.Expression, r, anon)
+	case *hclsyntax.ScopeTraversalExpr:
+		return attrOf(x.Traversal, r)
+	case *hclsyntax.AnonSymbolExpr:
+		if anon != nil {
+			return *anon, true
+		}
+	case *hclsyntax.IndexExpr: // r.block[expr]
+		return readPath(x.Collection, r, anon)
+	case *hclsyntax.RelativeTraversalExpr: // r.block[expr].attr
+		if p, ok := readPath(x.Source, r, anon); ok {
+			return strings.TrimPrefix(joinPath(p, attrPath(x.Traversal)), "."), true
+		}
+	case *hclsyntax.SplatExpr: // r.block[*].attr
+		if p, ok := readPath(x.Source, r, anon); ok {
+			if q, ok := readPath(x.Each, r, &p); ok {
+				return q, true
+			}
+			return p, true
+		}
+	}
+	return "", false
 }
 
 // attrOf returns the attribute path a traversal reads of resource r, "" when
@@ -510,21 +547,6 @@ func attrOf(t hcl.Traversal, r Resource) (attr string, of bool) {
 		return "", false
 	}
 	return attrPath(t[2:]), true
-}
-
-// resourceRoot reports whether e is resource r itself, through indexes and
-// parentheses.
-func resourceRoot(e hclsyntax.Expression, r Resource) bool {
-	switch x := e.(type) {
-	case *hclsyntax.ParenthesesExpr:
-		return resourceRoot(x.Expression, r)
-	case *hclsyntax.IndexExpr:
-		return resourceRoot(x.Collection, r)
-	case *hclsyntax.ScopeTraversalExpr:
-		attr, of := attrOf(x.Traversal, r)
-		return of && attr == ""
-	}
-	return false
 }
 
 // attrPath returns the attribute names of a traversal, past indexes and
