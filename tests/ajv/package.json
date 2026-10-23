@@ -1,0 +1,8 @@
+{
+  "name": "schemas-test-ajv",
+  "private": true,
+  "description": "Pinned JSON schema validator for tests/schemas-test.sh.",
+  "dependencies": {
+    "ajv-cli": "5.0.0"
+  }
+}
