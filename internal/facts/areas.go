@@ -79,7 +79,8 @@ func Classify(p string) (area, kind string, ok bool) {
 }
 
 // FindAreas returns the areas of the module. With a base tree the areas in
-// scope are those of changed, added or removed paths; without one, every area
+// scope are those of changed, added or removed paths, and a path in no area
+// brings the root into scope; without one, every area
 // at head is in scope. With untouched set and a base tree, every other area at
 // head is listed and parsed too, marked Untouched, for a cross-area pass to
 // read. Without it those areas are neither listed nor parsed.
@@ -100,9 +101,14 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 				p += "/x"
 			}
 		}
-		if a, k, ok := Classify(p); ok {
-			set[a] = k
+		a, k, ok := Classify(p)
+		if !ok {
+			// A path in no area, such as one under tests/ or wrappers/,
+			// counts as the root's, so the root's path rules read it and a
+			// change to such paths alone is not left with no area in scope.
+			a, k = rootArea, AreaRoot
 		}
+		set[a] = k
 	}
 	// every collects each area at head.
 	every := func(set map[string]string) {
