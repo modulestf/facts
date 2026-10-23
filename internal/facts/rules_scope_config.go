@@ -15,15 +15,17 @@ import (
 // when text of the reviewer's Check F and the registry row of its id, and
 // reads the base, so each sets NeedsBase. Every rule here is a candidate.
 //
-// A test helper module under tests/ is subject to these rules but is not
-// read, so a change to its .tf or .tf.json files makes them not_evaluated at
-// the root (ReadsTestHelpers). Known gap, an unknown the model still owns: a
-// directory more than one level under modules/ is not read, as for every
-// rule (the deep-nesting oracle).
+// A test helper module under tests/ and a directory more than one level
+// under modules/<m>/ are boundary directories subject to these rules, but no
+// area reads them, so a change to their .tf or .tf.json files makes the rules
+// not_evaluated(unsupported_file) at the root or at modules/<m>
+// (ReadsUnreadConfig). A nested directory under modules/<m>/ is exempt when
+// it parses with no issue and holds only variable, output, locals, moved and
+// removed blocks: it can hold no module call and no provider.
 var scopeConfigRules = []Rule{
-	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, ReadsTestHelpers: true, Check: checkScopeModuleCall},
+	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeModuleCall},
 	{ID: "scope.new-submodule", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaSubmodule}, NeedsBase: true, Check: checkNewSubmodule},
-	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsTestHelpers: true, Check: checkScopeProvider},
+	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeProvider},
 }
 
 // scopeRecordFile is the module's exceptions file, read from the base only.

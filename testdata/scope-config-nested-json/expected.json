@@ -1,0 +1,20 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": "modules/m",
+      "status": "not_evaluated",
+      "reason": "modules/m/sub/main.tf.json: configuration in a nested directory the engine does not evaluate",
+      "reason_code": "unsupported_file"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "unsupported_file",
+      "reason_code": "unsupported_file"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

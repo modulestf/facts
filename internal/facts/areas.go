@@ -3,6 +3,7 @@ package facts
 import (
 	"maps"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 
@@ -33,10 +34,11 @@ type Area struct {
 	Issue string
 	// issueCode is the reason code of Issue.
 	issueCode string
-	// unreadHelpers are the .tf and .tf.json files under tests/ that the
-	// change adds or edits, set on the root only. No area reads them, though
-	// a test helper module is subject to the rules that set ReadsTestHelpers.
-	unreadHelpers []string
+	// unreadConfig are the .tf and .tf.json files the change adds or edits
+	// in a boundary directory no area reads: on the root, those under tests/,
+	// where a test helper module lives; on a submodule modules/<m>, those more
+	// than one level under it. The rules that set ReadsUnreadConfig judge them.
+	unreadConfig []string
 
 	// Schema is the run's schema input, set by applySchema; nil without one.
 	// Its lookups answer for the area's directory, Path.
@@ -80,6 +82,52 @@ func Classify(p string) (area, kind string, ok bool) {
 		return parts[0] + "/" + parts[1], kind, true
 	}
 	return ".", AreaRoot, true
+}
+
+// unreadArea returns the area whose rules judge p, a .tf or .tf.json file in
+// a boundary directory that no area reads: the root for a file under tests/,
+// and modules/<m> for a file more than one level under modules/<m>/.
+func unreadArea(p string) (string, bool) {
+	if !strings.HasSuffix(p, ".tf") && !strings.HasSuffix(p, ".tf.json") {
+		return "", false
+	}
+	parts := strings.Split(p, "/")
+	switch {
+	case parts[0] == "tests":
+		return rootArea, true
+	case parts[0] == "modules" && len(parts) > 3:
+		return parts[0] + "/" + parts[1], true
+	}
+	return "", false
+}
+
+// judgedConfig returns the unread files of area that a scope rule may judge.
+// Under tests/ that is every file. Under modules/<m>/ a nested directory that
+// parses with only variables, outputs, locals, moved or removed blocks holds
+// nothing those rules judge, so its files are dropped.
+func judgedConfig(t *Tree, area string, files []string, lim Limits) ([]string, error) {
+	if area == rootArea {
+		return files, nil
+	}
+	var out []string
+	inert := map[string]bool{}
+	for _, f := range files {
+		d := path.Dir(f)
+		ok, seen := inert[d]
+		if !seen {
+			m, err := ParseDir(t, d, lim)
+			if err != nil {
+				return nil, err
+			}
+			ok = len(m.Unsupported) == 0 && len(m.Terraform)+len(m.Providers)+len(m.Resources)+len(m.ModuleCalls) == 0 &&
+				!slices.ContainsFunc(m.Other, func(o OtherBlock) bool { return o.Type != "locals" })
+			inert[d] = ok
+		}
+		if !ok {
+			out = append(out, f)
+		}
+	}
+	return out, nil
 }
 
 // FindAreas returns the areas of the module. With a base tree the areas in
@@ -128,15 +176,15 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	}
 	inScope := map[string]string{}
 	all := inScope
-	var helpers []string
+	unread := map[string][]string{}
 	if base == nil {
 		every(inScope)
 	} else {
 		for _, p := range head.Paths {
 			if !sameEntry(head.Entries[p], base.Entries[p]) {
 				add(inScope, p, head)
-				if strings.HasPrefix(p, "tests/") && (strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")) {
-					helpers = append(helpers, p)
+				if a, ok := unreadArea(p); ok {
+					unread[a] = append(unread[a], p)
 				}
 			}
 		}
@@ -155,10 +203,10 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	for p, k := range all {
 		_, touched := inScope[p]
 		a := &Area{Path: p, Kind: k, Untouched: !touched, headTree: head, baseTree: base, Head: &Module{Dir: p}}
-		if p == rootArea {
-			a.unreadHelpers = helpers
-		}
 		var err error
+		if a.unreadConfig, err = judgedConfig(head, p, unread[p], lim); err != nil {
+			return nil, err
+		}
 		a.HeadExists, a.Issue, a.issueCode = dirState(head, p)
 		if a.HeadExists && a.Issue == "" {
 			if a.Head, err = ParseDir(head, p, lim); err != nil {
