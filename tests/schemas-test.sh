@@ -17,11 +17,14 @@
 # Override the command with AJV, for example AJV="ajv" for a local install, to
 # skip the install.
 #
-# Each ajv call writes to a file, never to a pipe. ajv-cli prints its errors and
-# then calls process.exit, and Node.js writes to a pipe asynchronously on macOS,
-# so output that did not fit in the pipe at exit was lost. Under load the
-# capture was cut short at varying lengths, and a fixture whose expected
-# keyword came late in the output was reported as failing on another keyword.
+# Each ajv call writes to a file, and grep reads that file. The script used to
+# check `printf '%s' "$out" | grep -q`: grep -q exits at the first match, printf
+# can then die of SIGPIPE, and pipefail turned that into a miss, so under load a
+# fixture failing on its expected keyword was sometimes reported as failing on
+# another one. Writing to a file also avoids reading ajv-cli's output through a
+# pipe: it calls process.exit after printing, and Node.js writes pipes
+# asynchronously on macOS. Two loaded runs logged captures cut off mid-token,
+# but that truncation did not reproduce on demand.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)

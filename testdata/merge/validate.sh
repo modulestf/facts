@@ -3,9 +3,10 @@
 #
 # Usage: FACTS_SCHEMA_DIR=<checkout of modulestf/facts>/schema bash validate.sh
 #
-# Validator: ajv-cli 5.0.0 through npx, draft 2020-12, strict mode, as the
-# facts repository's own tests/schemas-test.sh runs it. Needs Node.js and
-# network access to the npm registry on first run. Override with AJV.
+# Validator: ajv-cli 5.0.0 through npx, draft 2020-12, strict mode, the same
+# version and options as tests/schemas-test.sh, which installs it from its own
+# lock file instead. Needs Node.js and network access to the npm registry on
+# first run. Override with AJV.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
