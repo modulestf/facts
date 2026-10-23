@@ -9,26 +9,34 @@
 # additionalProperties, oneOf, required) in ajv's --all-errors JSON output.
 #
 # Validator: ajv-cli 5.0.0, draft 2020-12 (--spec=draft2020), strict mode.
-# Needs Node.js and npm. It is installed once per run into a private temporary
-# directory, which needs network access to the npm registry, and every check
-# then runs that local copy offline. Calling npx per check instead fetched the
-# package metadata from the registry on every call, so any failed fetch was
-# reported as a failing fixture. Override the command with AJV, for example
-# AJV="ajv" for a local install, to skip the install. If the npm cache is not
-# writable, set npm_config_cache to a writable directory.
+# Needs Node.js and npm. tests/ajv/package-lock.json pins ajv-cli and every
+# package it pulls in, with integrity hashes. Each run installs that lock with
+# npm ci into its own temporary directory, with its own npm cache there, so
+# concurrent runs share no writable path; the install needs network access to
+# the npm registry, and every check then runs that local copy offline.
+# Override the command with AJV, for example AJV="ajv" for a local install, to
+# skip the install.
+#
+# Each ajv call writes to a file, never to a pipe. ajv-cli prints its errors and
+# then calls process.exit, and Node.js writes to a pipe asynchronously on macOS,
+# so output that did not fit in the pipe at exit was lost. Under load the
+# capture was cut short at varying lengths, and a fixture whose expected
+# keyword came late in the output was reported as failing on another keyword.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 schemas="$root/schema"
 examples="$schemas/examples"
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/schemas-test.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+out="$tmp/out"
 if [ -n "${AJV:-}" ]; then
   read -r -a ajv <<<"$AJV"
 else
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/schemas-test.XXXXXX")
-  trap 'rm -rf "$tmp"' EXIT
-  if ! npm install --prefix "$tmp" --no-save --no-audit --no-fund --ignore-scripts \
-    ajv-cli@5.0.0 >"$tmp/install.log" 2>&1; then
-    echo "FAIL could not install ajv-cli 5.0.0:"
+  cp "$root/tests/ajv/package.json" "$root/tests/ajv/package-lock.json" "$tmp/"
+  if ! (cd "$tmp" && npm ci --cache "$tmp/npm-cache" --ignore-scripts \
+    --no-audit --no-fund >"$tmp/install.log" 2>&1); then
+    echo "FAIL could not install ajv-cli from tests/ajv/package-lock.json:"
     sed 's/^/     /' "$tmp/install.log"
     exit 1
   fi
@@ -61,11 +69,11 @@ for schema in "$schemas"/*.schema.json; do
   fi
 
   for f in "${valids[@]}"; do
-    if "${run[@]}" -d "$f" --valid >/dev/null 2>&1; then
+    if "${run[@]}" -d "$f" --valid >"$out" 2>&1; then
       echo "ok   $(basename "$f") passes"
     else
       echo "FAIL $(basename "$f") does not pass:"
-      "${run[@]}" -d "$f" --valid 2>&1 | sed 's/^/     /' || true
+      sed 's/^/     /' "$out"
       fail=1
     fi
   done
@@ -73,14 +81,14 @@ for schema in "$schemas"/*.schema.json; do
   for f in "${invalid[@]}"; do
     base=$(basename "$f" .json)
     keyword=$(printf '%s' "$base" | cut -d. -f3)
-    if out=$("${ajv[@]}" validate "${opts[@]}" -d "$f" --all-errors --errors=json 2>&1); then
+    if "${ajv[@]}" validate "${opts[@]}" -d "$f" --all-errors --errors=json >"$out" 2>&1; then
       echo "FAIL $base.json passes but must fail"
       fail=1
-    elif printf '%s' "$out" | grep -Eq "\"keyword\": ?\"$keyword\""; then
+    elif grep -Eq "\"keyword\": ?\"$keyword\"" "$out"; then
       echo "ok   $base.json fails on $keyword"
     else
       echo "FAIL $base.json fails, but not on $keyword:"
-      printf '%s\n' "$out" | sed 's/^/     /'
+      sed 's/^/     /' "$out"
       fail=1
     fi
   done

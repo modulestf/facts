@@ -62,3 +62,7 @@ jobs:
         run: go test -race -count=1 ./...
       - name: Build
         run: go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
+      # ajv-cli and its dependencies come from tests/ajv/package-lock.json,
+      # installed by npm ci from the public registry with no token.
+      - name: Schemas
+        run: bash tests/schemas-test.sh
