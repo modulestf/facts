@@ -15,15 +15,15 @@ import (
 // when text of the reviewer's Check F and the registry row of its id, and
 // reads the base, so each sets NeedsBase. Every rule here is a candidate.
 //
-// Known gaps, each an unknown the model still owns: a directory more than
-// one level under modules/ is not read, as for every rule (the deep-nesting
-// oracle), and a test helper directory under tests/ is not read: a change
-// there brings the root into scope for its path rules, but these rules judge
-// only the configuration of the root, submodule and example directories.
+// A test helper module under tests/ is subject to these rules but is not
+// read, so a change to its .tf or .tf.json files makes them not_evaluated at
+// the root (ReadsTestHelpers). Known gap, an unknown the model still owns: a
+// directory more than one level under modules/ is not read, as for every
+// rule (the deep-nesting oracle).
 var scopeConfigRules = []Rule{
-	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, Check: checkScopeModuleCall},
+	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, ReadsTestHelpers: true, Check: checkScopeModuleCall},
 	{ID: "scope.new-submodule", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaSubmodule}, NeedsBase: true, Check: checkNewSubmodule},
-	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, Check: checkScopeProvider},
+	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsTestHelpers: true, Check: checkScopeProvider},
 }
 
 // scopeRecordFile is the module's exceptions file, read from the base only.

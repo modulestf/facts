@@ -33,6 +33,10 @@ type Area struct {
 	Issue string
 	// issueCode is the reason code of Issue.
 	issueCode string
+	// unreadHelpers are the .tf and .tf.json files under tests/ that the
+	// change adds or edits, set on the root only. No area reads them, though
+	// a test helper module is subject to the rules that set ReadsTestHelpers.
+	unreadHelpers []string
 
 	// Schema is the run's schema input, set by applySchema; nil without one.
 	// Its lookups answer for the area's directory, Path.
@@ -124,12 +128,16 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	}
 	inScope := map[string]string{}
 	all := inScope
+	var helpers []string
 	if base == nil {
 		every(inScope)
 	} else {
 		for _, p := range head.Paths {
 			if !sameEntry(head.Entries[p], base.Entries[p]) {
 				add(inScope, p, head)
+				if strings.HasPrefix(p, "tests/") && (strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")) {
+					helpers = append(helpers, p)
+				}
 			}
 		}
 		for _, p := range base.Paths {
@@ -147,6 +155,9 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	for p, k := range all {
 		_, touched := inScope[p]
 		a := &Area{Path: p, Kind: k, Untouched: !touched, headTree: head, baseTree: base, Head: &Module{Dir: p}}
+		if p == rootArea {
+			a.unreadHelpers = helpers
+		}
 		var err error
 		a.HeadExists, a.Issue, a.issueCode = dirState(head, p)
 		if a.HeadExists && a.Issue == "" {
