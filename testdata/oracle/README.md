@@ -93,11 +93,11 @@ The engine's text leaves some outcomes to the reader. These fixtures read them t
 | `profile.putin-khuylo-missing` | `profile-positive` | `profile-negative` |
 | `profile.region-not-allowed` | `profile-positive` | `profile-negative` |
 | `profile.required-file-missing` | `new-module` | `examples-negative` |
-| `profile.template-drift` | `profile-positive`, `profile-file-only` | `profile-negative`, `scope-negative` |
+| `profile.template-drift` | `profile-positive`, `profile-file-only` | `profile-negative`, `scope-negative`, `profile-workflow-added` |
 | `scope.module-call` | `scope-positive` | `scope-negative` |
 | `scope.new-submodule` | `scope-positive` | `scope-negative`, `examples-positive` |
 | `scope.pre-commit-hook` | `scope-positive` | `scope-negative` |
-| `scope.profile-file` | `scope-positive` | `scope-negative` |
+| `scope.profile-file` | `scope-positive` | `scope-negative`, `profile-workflow-added` |
 | `scope.provider` | `scope-positive` | `scope-negative` |
 | `scope.readme-banner` | `scope-positive` | `scope-negative` |
 | `scope.tooling` | `scope-positive` | `scope-negative` |
@@ -136,6 +136,7 @@ Adversarial cases:
 | `.tf.json` and override files | `nonstandard-positive`, with `nonstandard-negative` as the near miss |
 | Parse errors at the root and in an example | `parse-error` |
 | A change to a root profile file and nothing else | `profile-file-only` |
+| A module that lacks one of the profile's workflows adds it as its template: no ban | `profile-workflow-added` |
 | A change to one submodule and nothing else: no root entries | `submodule-only` |
 | A change to one example and nothing else: no root entries | `example-only` |
 | An empty base | `new-module` |
@@ -159,6 +160,7 @@ Adversarial cases:
 - `examples-positive`: the root removes an output the complete example still reads, the complete example loses its disabled call, the basic example keeps its constraints in `terraform.tf`, and a new submodule has no example. The submodule manages only an adjunct type, so `scope.new-submodule` stays `clean`.
 - `examples-negative`: near misses: the root removes an output no example reads (still a compat candidate), the complete example keeps its disabled call, the basic example has none and needs none, every example has `versions.tf`, and the new submodule has an example of its own.
 - `profile-file-only`: only `.editorconfig` changes. It counts as the root, so `.` is in scope and the edit is a `profile.template-drift` candidate.
+- `profile-workflow-added`: the change adds `.github/workflows/pr-title.yml`, one of the profile's five workflows, byte for byte as its template, to a module whose base lacks it. Adding one of the five is no `scope.profile-file`, and content equal to the template is no `profile.template-drift`, so both are `clean`.
 - `submodule-only`: the change adds a typed variable with no description to `modules/extra` and touches nothing else. Only `modules/extra` is in scope: the manifest has no root entry for any rule but the cross-area rules, which keep their one `.` entry. The tree is the head of `examples-negative`, and the root does not call the submodule.
 - `example-only`: the change edits one argument of the module call in `examples/basic` and touches nothing else. Only `examples/basic` is in scope, every entry there is `clean` or `not_applicable`, and the cross-area rules keep their one `.` entry. Same tree as `submodule-only`.
 - `profile-positive`: a new root block gated on `var.create` alone, a profile-owned file edited away from its template, and an example region outside the two the profile allows.
