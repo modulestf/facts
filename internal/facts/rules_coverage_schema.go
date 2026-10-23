@@ -18,7 +18,8 @@ import (
 //
 // Each rule reads the resource and data blocks the change adds or edits and
 // looks up every argument and nested block they set in the schema handoff:
-// at the latest version the head allows and at its declared minimum. A
+// at the latest version the head allows and at its declared minimum, or,
+// with raw schema files and no handoff, in those files as the latest. A
 // schema it cannot read for such a block makes the rule not_evaluated with
 // schema_unavailable; an area whose change touches no such block is clean.
 // What the detector cannot decide statically is a candidate, never clean.
@@ -115,9 +116,22 @@ type providerSchema struct {
 	data                    bool
 	typ                     string
 	typeAtMinimum           schema.Outcome
+	// fromFiles reads the raw schema files: latest is rawSchemaVersion and
+	// minimum is empty, so every lookup at the minimum is schema_unavailable.
+	fromFiles bool
 }
 
+// rawSchemaVersion is the version a schema fact read from the raw schema
+// files carries: `terraform providers schema -json` records none.
+const rawSchemaVersion = "schema-file"
+
 func (ps providerSchema) lookup(version string, path []string) (schema.Outcome, schema.Field) {
+	if ps.fromFiles {
+		if version != rawSchemaVersion {
+			return schema.Unavailable, schema.Field{}
+		}
+		version = "" // the raw schema files
+	}
 	return ps.set.Lookup(schema.Query{Source: ps.source, Version: version, DataSource: ps.data, Type: ps.typ, Path: path})
 }
 
@@ -199,26 +213,39 @@ func coverageBlockAddr(r Resource) string {
 // resolveSchema resolves a block's provider by its provider argument or its
 // type's prefix, and checks the latest schema, and with needsMinimum the
 // declared minimum's, has its type. It returns why not otherwise.
+//
+// A run with a schema handoff reads the handoff alone, bound to the run's
+// commits, even when it also has raw schema files. A run with raw schema
+// files only, as in lint, resolves the source from required_providers and
+// reads the files as the latest schema: they record no version, so the
+// declared minimum is unavailable and a rule that needs it is not evaluated.
 func resolveSchema(a *Area, r Resource, needsMinimum bool) (providerSchema, string) {
 	addr := coverageBlockAddr(r)
+	ps := providerSchema{set: a.Schema, data: r.Mode == "data", typ: r.Type}
 	if a.Schema != nil && a.Schema.Handoff == nil {
-		// shortcut: raw schema files have no versions, so they are not read; upgrade when the follow-up reads them.
-		return providerSchema{}, fmt.Sprintf("%s: the rule needs the schema handoff, and the run has raw schema files only", short(addr))
+		ps.source, ps.latest, ps.fromFiles = ResourceProviderSource(a.Head, r), rawSchemaVersion, true
+		if o, _ := ps.lookup(ps.latest, nil); o == schema.Unavailable {
+			return providerSchema{}, fmt.Sprintf("%s: provider %s is in no schema file", short(addr), ps.source)
+		}
+	} else {
+		local, _, _ := strings.Cut(r.Type, "_")
+		if e := r.Body.Arg("provider"); e != nil {
+			local, _, _ = strings.Cut(strings.TrimSpace(e.Text), ".")
+		}
+		res := a.Schema.Resolve(a.Path, local)
+		if res.Outcome != schema.Present {
+			return providerSchema{}, fmt.Sprintf("%s: provider %q has no resolved schema: %s", short(addr), short(local), res.Reason)
+		}
+		ps.source, ps.latest, ps.minimum = res.Source, res.Versions.Latest, res.Versions.DeclaredMinimum
 	}
-	local, _, _ := strings.Cut(r.Type, "_")
-	if e := r.Body.Arg("provider"); e != nil {
-		local, _, _ = strings.Cut(strings.TrimSpace(e.Text), ".")
-	}
-	res := a.Schema.Resolve(a.Path, local)
-	if res.Outcome != schema.Present {
-		return providerSchema{}, fmt.Sprintf("%s: provider %q has no resolved schema: %s", short(addr), short(local), res.Reason)
-	}
-	ps := providerSchema{set: a.Schema, source: res.Source, latest: res.Versions.Latest, minimum: res.Versions.DeclaredMinimum, data: r.Mode == "data", typ: r.Type}
 	if o, _ := ps.lookup(ps.latest, nil); o != schema.Present {
 		return providerSchema{}, fmt.Sprintf("%s: no schema of the type at %s %s", short(addr), ps.source, ps.latest)
 	}
 	ps.typeAtMinimum, _ = ps.lookup(ps.minimum, nil)
 	if needsMinimum && ps.typeAtMinimum == schema.Unavailable {
+		if ps.fromFiles {
+			return providerSchema{}, fmt.Sprintf("%s: schema files record no declared minimum version; the rule needs the schema handoff", short(addr))
+		}
 		return providerSchema{}, fmt.Sprintf("%s: no schema at the declared minimum %s %s", short(addr), ps.source, ps.minimum)
 	}
 	return ps, ""
@@ -464,7 +491,7 @@ func schemaCandidate(a *Area, id string, ps providerSchema, it schemaItem, base 
 		Head:        capText(it.value),
 		SchemaFacts: []SchemaFact{{ProviderSource: ps.source, Version: ps.latest, Type: ps.typ, Path: key, State: factState(it.latest, it.field)}},
 	}
-	if ps.minimum != ps.latest {
+	if ps.minimum != "" && ps.minimum != ps.latest {
 		ev.SchemaFacts = append(ev.SchemaFacts, SchemaFact{ProviderSource: ps.source, Version: ps.minimum, Type: ps.typ, Path: key, State: factState(it.minimum, it.minimal)})
 	}
 	if f, ok := flagFact(it, key); ok {
