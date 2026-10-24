@@ -398,17 +398,21 @@ func localModuleSource(a *Area, src string) bool {
 //
 // A new directory more than one level under modules/<m>/ is a directory
 // under modules/ too, but no area reads it, so the rule is not evaluated at
-// modules/<m> unless that directory is inert, as judgedConfig decides.
+// modules/<m> unless that directory is inert, as judgedConfig decides. For
+// a new modules/<m>, a candidate from its top level comes first.
 func checkNewSubmodule(a *Area) Result {
 	const id = "scope.new-submodule"
 	if !a.HeadExists || newModuleBase(a.baseTree) {
 		return Result{}
 	}
+	// unread is the result when the top level gives no candidate. A candidate
+	// already sends the directory to judgment, nested directories included.
+	unread := Result{}
 	if nested := a.newUnreadConfig(); len(nested) > 0 {
-		return Result{NotEvaluated: strings.Join(nested, ", ") + ": configuration in a new nested directory or link the engine does not evaluate", Code: ReasonUnsupportedFile}
+		unread = Result{NotEvaluated: strings.Join(nested, ", ") + ": configuration in a new nested directory or link the engine does not evaluate", Code: ReasonUnsupportedFile}
 	}
 	if a.BaseExists {
-		return Result{}
+		return unread
 	}
 	if res, ok := needProfile(a); !ok {
 		return res
@@ -428,7 +432,7 @@ func checkNewSubmodule(a *Area) Result {
 		ev.line("head", file, r.Line, lineOf(a.headTree.Entries[file].Data, r.Line))
 	}
 	if len(types) == 0 {
-		return Result{}
+		return unread
 	}
 	ev.ev.Head = ev.value(strings.Join(types, ", "))
 	return Result{Candidates: []Candidate{ev.candidate(id, a.Path, nil)}}
