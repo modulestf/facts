@@ -12,7 +12,8 @@ import (
 // mode of the module, so it cannot fail when a counted block has no
 // instance. The shapes are narrow; anything else stays a candidate:
 //   - try() of two or more arguments whose last is a literal, such as
-//     null, "", [], {}, 0 or false, or a bare var.<name>;
+//     null, "", [], {}, 0 or false, or a bare var.<name> declared in the
+//     area and neither sensitive nor ephemeral;
 //   - a whole block with count or for_each, such as aws_x.this or module.m;
 //   - a splat over a block with count, whose items read attributes only:
 //     aws_x.this[*].arn;
@@ -30,7 +31,7 @@ func safeValue(a *Area, e hclsyntax.Expression) bool {
 	case *hclsyntax.FunctionCallExpr:
 		switch {
 		case t.Name == "try" && len(t.Args) >= 2 && !t.ExpandFinal:
-			return safeFallback(unparen(t.Args[len(t.Args)-1]))
+			return safeFallback(a, unparen(t.Args[len(t.Args)-1]))
 		case t.Name == "one" && len(t.Args) == 1 && !t.ExpandFinal:
 			s, ok := unparen(t.Args[0]).(*hclsyntax.SplatExpr)
 			return ok && safeSplat(a, s) && zeroOrOne(a, s.Source)
@@ -56,12 +57,35 @@ func safeValue(a *Area, e hclsyntax.Expression) bool {
 }
 
 // safeFallback: the last argument of try() cannot fail, so try() yields a
-// value in every mode: a literal, or a bare var.<name>.
-func safeFallback(e hclsyntax.Expression) bool {
+// value in every mode: a literal, or a bare var.<name> the area declares
+// neither sensitive nor ephemeral, which an output may not return as is.
+func safeFallback(a *Area, e hclsyntax.Expression) bool {
 	if t, ok := e.(*hclsyntax.ScopeTraversalExpr); ok {
-		return t.Traversal.RootName() == "var" && len(t.Traversal) == 2 && attrsOnly(t.Traversal[1:])
+		if t.Traversal.RootName() != "var" || len(t.Traversal) != 2 || !attrsOnly(t.Traversal[1:]) {
+			return false
+		}
+		name := t.Traversal[1].(hcl.TraverseAttr).Name
+		for _, v := range a.Head.Variables {
+			if v.Name == name {
+				return literalFalse(v.Body.Arg("sensitive")) && literalFalse(v.Body.Arg("ephemeral"))
+			}
+		}
+		return false // undeclared
 	}
 	return literal(e)
+}
+
+// literalFalse: the argument is absent or the literal false.
+func literalFalse(x *Expr) bool {
+	if x == nil {
+		return true
+	}
+	e, ok := parseExprAt(*x)
+	if !ok {
+		return false
+	}
+	l, ok := unparen(e).(*hclsyntax.LiteralValueExpr)
+	return ok && l.Val.Type() == cty.Bool && l.Val.IsKnown() && l.Val.False()
 }
 
 // literal: a literal value, a string with no interpolation, or a tuple or

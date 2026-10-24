@@ -67,3 +67,8 @@ output "extra_arns_named" {
   description = "ARNs of the named extra widgets, which fails on a null name"
   value       = [for w in aws_demo_widget.each : w.arn if w.name != ""]
 }
+
+output "widget_arn_or_token" {
+  description = "ARN of the widget, or a sensitive token, which an output may not return"
+  value       = try(aws_demo_widget.this[0].arn, var.token)
+}

@@ -27,3 +27,10 @@ variable "widgets" {
   type        = map(string)
   default     = {}
 }
+
+variable "token" {
+  description = "Token of the widget"
+  type        = string
+  default     = null
+  sensitive   = true
+}

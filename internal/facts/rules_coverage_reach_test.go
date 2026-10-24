@@ -329,6 +329,8 @@ func TestCoverageReachModeSafeOutputs(t *testing.T) {
 		"resource \"aws_demo_widget\" \"many\" {\n  count = var.n\n}\n\n" +
 		"resource \"aws_demo_widget\" \"each\" {\n  for_each = var.m\n}\n\n" +
 		"module \"m\" {\n  source = \"./child\"\n  count  = var.create ? 1 : 0\n}\n"
+	vars := "variable \"fallback\" {}\n\nvariable \"plain\" {\n  sensitive = false\n  ephemeral = false\n}\n\n" +
+		"variable \"secret\" {\n  sensitive = true\n}\n\nvariable \"short\" {\n  ephemeral = true\n}\n"
 	for value, want := range map[string]bool{
 		"try(aws_demo_widget.this[0].arn, null)":                    false,
 		"try(aws_demo_widget.this[0].arn, \"\", (null))":            false,
@@ -352,6 +354,10 @@ func TestCoverageReachModeSafeOutputs(t *testing.T) {
 		"aws_demo_widget.this[0].arn":                               true,
 		"try(aws_demo_widget.this[0].arn)":                          true,
 		"try(aws_demo_widget.this[0].arn, var.fallback)":            false,
+		"try(aws_demo_widget.this[0].arn, var.plain)":               false,
+		"try(aws_demo_widget.this[0].arn, var.secret)":              true,
+		"try(aws_demo_widget.this[0].arn, var.short)":               true,
+		"try(aws_demo_widget.this[0].arn, var.undeclared)":          true,
 		"try(aws_demo_widget.this[0].arn, \"\")":                    false,
 		"try(aws_demo_widget.this[0].arn, \"none\")":                false,
 		"try(aws_demo_widget.this[0].tags, {})":                     false,
@@ -375,7 +381,7 @@ func TestCoverageReachModeSafeOutputs(t *testing.T) {
 		"aws_demo_widget.this":                                      false,
 	} {
 		out := "output \"o\" {\n  value = " + value + "\n}\n"
-		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{"main.tf": main})
+		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out, "variables.tf": vars}, map[string]string{"main.tf": main, "variables.tf": vars})
 		got := slices.ContainsFunc(r.Candidates, func(c Candidate) bool { return c.Subject == ".:output.o" })
 		if got != want {
 			t.Errorf("%s: candidate %v, want %v", value, got, want)
