@@ -33,6 +33,7 @@ var testRows = [][5]string{
 	{"profile.commit-type-mismatch", "llm", "config-semantic", "yes", "MEDIUM, LOW"},
 	{"profile.nonstandard-config-file", "tool", "path", "no", "HIGH"},
 	{"review.check-not-run", "llm", "path", "yes", "MEDIUM"},
+	{"review.tool-disputed", "llm", "path", "no", "LOW"},
 	{"scope.cross", "tool", "config-semantic", "yes", "HIGH"},
 	{"structure.flag-polarity", "llm", "config-semantic", "no", "MEDIUM"},
 	{"structure.grouping", "llm", "config-semantic", "no", "LOW"},

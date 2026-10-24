@@ -24,11 +24,9 @@ import (
 // schema_unavailable; an area whose change touches no such block is clean.
 // What the detector cannot decide statically is a candidate, never clean.
 var coverageSchemaRules = []Rule{
-	// shortcut: registry scope newly-introduced drops arguments added to edited blocks; flips to touched-expression with the registry pin bump (mtf-lcc.2.40)
-	coverageSchemaRule("coverage.argument-above-min-version", ScopeNewlyIntroduced, true, aboveMinVersion),
+	coverageSchemaRule("coverage.argument-above-min-version", ScopeTouchedExpression, true, aboveMinVersion),
 	coverageSchemaRule("coverage.block-attribute-mismatch", ScopeTouchedBlock, false, blockAttributeMismatch),
-	// shortcut: registry scope newly-introduced drops arguments added to edited blocks; flips to touched-expression with the registry pin bump (mtf-lcc.2.40)
-	coverageSchemaRule("coverage.deprecated-argument", ScopeNewlyIntroduced, false, deprecatedArgument),
+	coverageSchemaRule("coverage.deprecated-argument", ScopeTouchedExpression, false, deprecatedArgument),
 	coverageSchemaRule("coverage.unknown-argument", ScopeTouchedBlock, false, unknownArgument),
 }
 

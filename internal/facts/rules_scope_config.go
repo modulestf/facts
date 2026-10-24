@@ -26,7 +26,7 @@ import (
 var scopeConfigRules = []Rule{
 	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeModuleCall},
 	{ID: "scope.new-submodule", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaSubmodule}, NeedsBase: true, Check: checkNewSubmodule},
-	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeProvider},
+	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedExpression, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeProvider},
 }
 
 // scopeRecordFile is the module's exceptions file, read from the base only.
@@ -217,14 +217,12 @@ func (c *changedFiles) changed(file string, line int) bool {
 // provider. Base providers are the union over every boundary directory at
 // base of its required_providers sources and the providers of its resource
 // and data blocks, plus the Allowed providers of the base docs/SCOPE.md.
-// One candidate per provider, at its first site in file order that the
-// change adds, in the area of that site; its evidence is every site of the
+// One candidate per provider, in the area of its anchor: the first site in
+// file order (path, then line) that is a block the change adds or a
+// required_providers entry the change sets, including an entry added to an
+// existing required_providers. A provider with changed sites but neither is
+// anchored at its first changed site. Its evidence is every site of the
 // provider on a changed line. A new module's empty base is not this rule.
-//
-// A provider whose every changed site lies in a block the base already has,
-// such as an entry added to an existing required_providers, has no line the
-// newly-introduced scope keeps, so the pass is not evaluated rather than
-// clean, and its other candidates are dropped with it.
 func checkScopeProvider(a *Area) Result {
 	const id = "scope.provider"
 	if newModuleBase(a.baseTree) {
@@ -285,15 +283,21 @@ func checkScopeProvider(a *Area) Result {
 			return x.line - y.line
 		})
 		ev := newPathEvidence()
-		var anchor *providerSite
+		var anchor, first *providerSite
 		for i, s := range sites {
 			if !ch.changed(s.file, s.line) && !ch.changed(s.file, s.evLine) {
 				continue
 			}
 			ev.line("head", s.file, s.evLine, lineOf(a.headTree.Entries[s.file].Data, s.evLine))
-			if anchor == nil && added[s.file+" "+s.block] && ch.changed(s.file, s.line) {
+			if first == nil {
+				first = &sites[i]
+			}
+			if anchor == nil && (s.block == "terraform" || added[s.file+" "+s.block] && ch.changed(s.file, s.line)) {
 				anchor = &sites[i]
 			}
+		}
+		if anchor == nil {
+			anchor = first
 		}
 		if ch.over {
 			return Result{NotEvaluated: "a changed file is past the line diff limit", Code: ReasonLimitExceeded}
@@ -303,14 +307,8 @@ func checkScopeProvider(a *Area) Result {
 			owner = areaOf(anchor.file)
 		}
 		switch {
-		case owner != a.Path || len(ev.ev.SourceLines) == 0:
+		case owner != a.Path || anchor == nil:
 			// Another area reports it, or no site is in the change.
-		case anchor == nil:
-			// Reached only for a new provider with a changed site and no added
-			// block to anchor it. The whole pass is then not evaluated, so the
-			// candidates of every other new provider in the run are dropped too.
-			// shortcut: registry scope newly-introduced drops entries added to existing blocks; flips to touched-expression with the registry pin bump (mtf-lcc.2.40)
-			return Result{NotEvaluated: "provider " + short(src) + " is added only inside a block the base already has", Code: ReasonUnsupportedFile}
 		default:
 			ev.ev.Head = ev.value(strings.TrimPrefix(src, defaultRegistryHost+"/"))
 			line := anchor.line

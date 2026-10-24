@@ -1,6 +1,8 @@
 package facts
 
 import (
+	"maps"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -109,9 +111,9 @@ func TestScopeProviderIgnoresBaseProviderBlock(t *testing.T) {
 	}
 }
 
-// The interim not_evaluated for a provider added only to an existing
-// required_providers drops the candidate of another new provider too.
-func TestScopeProviderInterimDropsOthers(t *testing.T) {
+// An entry the change adds to an existing required_providers is a candidate
+// anchored at the entry, and does not drop another new provider.
+func TestScopeProviderEntryInExistingBlock(t *testing.T) {
 	tf := func(extra string) string {
 		return "terraform {\n  required_providers {\n    aws = {\n      source = \"hashicorp/aws\"\n    }\n" + extra + "  }\n}\n"
 	}
@@ -121,12 +123,36 @@ func TestScopeProviderInterimDropsOthers(t *testing.T) {
 		"main.tf":     "resource \"aws_demo_widget\" \"this\" {}\nresource \"random_id\" \"x\" {}\n",
 	}
 	r := runScopeConfig(t, base, head)
-	if s := statusOf(r.Manifest, "scope.provider", "."); !strings.HasPrefix(s, "not_evaluated") || len(candidatesOf(r, "scope.provider")) != 0 {
-		t.Errorf("%s %+v", s, candidatesOf(r, "scope.provider"))
+	if s := statusOf(r.Manifest, "scope.provider", "."); s != StatusCandidate {
+		t.Errorf("status %s", s)
 	}
-	delete(head, "versions.tf")
-	head["versions.tf"] = tf("")
-	if cs := candidatesOf(runScopeConfig(t, base, head), "scope.provider"); len(cs) != 1 {
-		t.Errorf("without the interim case: %+v", cs)
+	got := map[string]string{}
+	for _, c := range candidatesOf(r, "scope.provider") {
+		got[c.Subject] = c.File + ":" + strconv.Itoa(*c.Line)
+	}
+	want := map[string]string{
+		`.:provider["registry.terraform.io/hashicorp/helm"]`:   "versions.tf:6",
+		`.:provider["registry.terraform.io/hashicorp/random"]`: "main.tf:2",
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("candidates %v", got)
+	}
+}
+
+// The anchor is the first added block or required_providers entry in file
+// order, path then line: an entry in main.tf comes before a block added in
+// resources.tf, even though the entry's block is in the base.
+func TestScopeProviderAnchorFileOrder(t *testing.T) {
+	tf := func(extra string) string {
+		return "terraform {\n  required_providers {\n    aws = {\n      source = \"hashicorp/aws\"\n    }\n" + extra + "  }\n}\n"
+	}
+	base := map[string]string{"main.tf": tf(""), "resources.tf": "resource \"aws_demo_widget\" \"this\" {}\n"}
+	head := map[string]string{
+		"main.tf":      tf("    helm = {\n      source = \"hashicorp/helm\"\n    }\n"),
+		"resources.tf": "resource \"aws_demo_widget\" \"this\" {}\nresource \"helm_release\" \"x\" {}\n",
+	}
+	cs := candidatesOf(runScopeConfig(t, base, head), "scope.provider")
+	if len(cs) != 1 || cs[0].File != "main.tf" || *cs[0].Line != 6 || len(cs[0].Evidence.SourceLines) != 2 {
+		t.Errorf("candidates %+v", cs)
 	}
 }

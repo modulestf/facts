@@ -64,17 +64,18 @@ func checkEngine(engine map[string]engineRule, reg *registry.Registry) error {
 }
 
 // checkRules compares the `mtf-facts rules` listing with the registry tiers.
-// Every listed rule must be a tool or candidate rule that the registry tiers
-// the same way. It is a subset check: the registry has tool and candidate
-// rules the engine does not implement yet. Once every one is implemented,
-// this becomes an equality check.
+// It is an equality check: every listed rule must be a tool or candidate rule
+// that the registry tiers the same way, and every tool or candidate rule of
+// the registry must be listed.
 func checkRules(listing string, reg *registry.Registry) error {
 	if listing == "" {
 		return errors.New("mtf-facts rules lists no rules")
 	}
 	var errs []error
+	listed := map[string]bool{}
 	for line := range strings.SplitSeq(strings.TrimSuffix(listing, "\n"), "\n") {
 		id, tier, ok := strings.Cut(line, "\t")
+		listed[id] = true
 		r, known := reg.Rule(id)
 		switch {
 		case !ok:
@@ -85,6 +86,11 @@ func checkRules(listing string, reg *registry.Registry) error {
 			errs = append(errs, fmt.Errorf("rule %q: not in the registry", id))
 		case r.Engine != tier:
 			errs = append(errs, fmt.Errorf("rule %q: mtf-facts tier %q, registry engine %q", id, tier, r.Engine))
+		}
+	}
+	for _, r := range reg.Rules {
+		if (r.Engine == registry.EngineTool || r.Engine == registry.EngineCandidate) && !listed[r.ID] {
+			errs = append(errs, fmt.Errorf("rule %q: registry engine %q, not in mtf-facts rules", r.ID, r.Engine))
 		}
 	}
 	return errors.Join(errs...)
@@ -195,7 +201,6 @@ const fixtureRegistry = "# Rules\n\n" +
 	"| `a.tool` | never | tool | path | any-file-in-area | no | example | tool-findings | MEDIUM | - | - |\n" +
 	"| `b.candidate` | file | candidate | config-semantic | newly-introduced | yes | root, submodule | candidates | HIGH | lead | mid |\n" +
 	"| `c.llm` | never | llm | path | touched-block | no | root | none | LOW | - | - |\n" +
-	"| `d.unimplemented` | never | tool | path | touched-block | no | root | tool-findings | LOW | - | - |\n" +
 	"\ntext after the table\n\n" +
 	"## Dedup Overlap\n\n" +
 	"| Pair | Kept | Dropped | Same defect when | From |\n" +
@@ -232,6 +237,8 @@ func TestCheckRules(t *testing.T) {
 		{name: "llm rule listed", listing: "c.llm\tllm\n", text: fixtureRegistry},
 		{name: "llm rule listed as tool", listing: "c.llm\ttool\n", text: fixtureRegistry},
 		{name: "unknown rule", listing: "e.unknown\ttool\n", text: fixtureRegistry},
+		{name: "registry rule not listed", listing: "a.tool\ttool\n", text: fixtureRegistry},
+		{name: "registry rule not implemented", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` |", "| `d.unimplemented` | never | tool | path | touched-block | no | root | tool-findings | LOW | - | - |\n| `c.llm` |", 1)},
 		{name: "empty listing", listing: "", text: fixtureRegistry},
 		{name: "no tab", listing: "a.tool tool\n", text: fixtureRegistry},
 		{name: "no table", listing: listing, text: "# Rules\n"},
