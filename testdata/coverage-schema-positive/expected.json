@@ -61,6 +61,42 @@
     },
     {
       "candidate_id": "C-002",
+      "rule_id": "coverage.argument-above-min-version",
+      "file": "main.tf",
+      "line": 8,
+      "subject": ".:aws_demo_widget.this.fast_path",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 8,
+            "text": "  fast_path = true"
+          }
+        ],
+        "base": null,
+        "head": "true",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.2.0",
+            "type": "aws_demo_widget",
+            "path": "fast_path",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_demo_widget",
+            "path": "fast_path",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
       "rule_id": "coverage.block-attribute-mismatch",
       "file": "main.tf",
       "line": 9,
@@ -96,7 +132,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-003",
+      "candidate_id": "C-004",
       "rule_id": "coverage.argument-above-min-version",
       "file": "main.tf",
       "line": 23,
@@ -132,7 +168,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-004",
+      "candidate_id": "C-005",
       "rule_id": "coverage.unknown-argument",
       "file": "main.tf",
       "line": 24,
@@ -168,7 +204,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-005",
+      "candidate_id": "C-006",
       "rule_id": "coverage.unknown-argument",
       "file": "main.tf",
       "line": 27,
@@ -211,7 +247,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-006",
+      "candidate_id": "C-007",
       "rule_id": "coverage.unknown-argument",
       "file": "main.tf",
       "line": 36,
@@ -247,7 +283,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-007",
+      "candidate_id": "C-008",
       "rule_id": "coverage.deprecated-argument",
       "file": "main.tf",
       "line": 40,
@@ -283,7 +319,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-008",
+      "candidate_id": "C-009",
       "rule_id": "coverage.argument-above-min-version",
       "file": "main.tf",
       "line": 44,
@@ -319,7 +355,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-009",
+      "candidate_id": "C-010",
       "rule_id": "coverage.unknown-argument",
       "file": "main.tf",
       "line": 51,

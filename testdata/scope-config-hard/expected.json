@@ -13,11 +13,31 @@
     {
       "rule_id": "scope.provider",
       "area": ".",
-      "status": "not_evaluated",
-      "reason": "unsupported_file",
-      "reason_code": "unsupported_file"
+      "status": "candidate"
     }
   ],
   "findings": [],
-  "candidates": []
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "scope.provider",
+      "file": "versions.tf",
+      "line": 9,
+      "subject": ".:provider[\"registry.terraform.io/hashicorp/helm\"]",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 10,
+            "text": "      source  = \"hashicorp/helm\""
+          }
+        ],
+        "base": null,
+        "head": "hashicorp/helm",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
 }

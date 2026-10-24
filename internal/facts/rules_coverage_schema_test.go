@@ -256,3 +256,26 @@ func TestCoverageSchemaReportsMatchLintSchema(t *testing.T) {
 		}
 	}
 }
+
+// A deprecated argument the change adds to a block the base already has is a
+// candidate: the rule's scope is touched-expression, so an edited block keeps
+// the arguments it newly sets.
+func TestCoverageSchemaDeprecatedInEditedBlock(t *testing.T) {
+	raw := rawWidgetSchema(t, "registry.terraform.io/example/aws", "")
+	base := map[string]string{
+		"versions.tf": rawWidgetVersions,
+		"main.tf":     "resource \"aws_demo_widget\" \"this\" {\n  name = \"a\"\n}\n",
+	}
+	head := map[string]string{
+		"versions.tf": rawWidgetVersions,
+		"main.tf":     "resource \"aws_demo_widget\" \"this\" {\n  name        = \"a\"\n  legacy_mode = true\n}\n",
+	}
+	r, err := run(Options{Head: writeTree(t, head), Base: writeTree(t, base), SchemaFiles: []string{raw}, Limits: DefaultLimits}, coverageSchemaRules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := candidatesOf(r, "coverage.deprecated-argument")
+	if len(cs) != 1 || cs[0].Subject != ".:aws_demo_widget.this.legacy_mode" || cs[0].Line == nil || *cs[0].Line != 3 {
+		t.Fatalf("candidates %+v", cs)
+	}
+}

@@ -26,7 +26,7 @@ import (
 var scopeConfigRules = []Rule{
 	{ID: "scope.module-call", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule}, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeModuleCall},
 	{ID: "scope.new-submodule", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaSubmodule}, NeedsBase: true, Check: checkNewSubmodule},
-	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeNewlyIntroduced, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeProvider},
+	{ID: "scope.provider", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedExpression, Kinds: []string{AreaRoot, AreaSubmodule}, CrossArea: true, NeedsBase: true, ReadsUnreadConfig: true, Check: checkScopeProvider},
 }
 
 // scopeRecordFile is the module's exceptions file, read from the base only.
@@ -99,7 +99,7 @@ type providerSite struct {
 	src    string // canonical source, or "?<text>" when it cannot be read
 	file   string // relative to the module root
 	line   int    // the site's own line
-	evLine int    // the line evidence cites: a required_providers source line
+	evLine int    // the line evidence cites: a required_providers source line, or a block's provider argument
 	block  string // address of the top-level block holding the site
 }
 
@@ -127,32 +127,34 @@ func providerSites(m *Module, dir string) []providerSite {
 		}
 		return canonicalProvider(name), name != "terraform"
 	}
-	add := func(name, file string, line int, block string) {
+	add := func(name, file string, line, evLine int, block string) {
 		if s, ok := resolve(name); ok {
-			out = append(out, providerSite{src: s, file: areaFile(dir, file), line: line, evLine: line, block: block})
+			out = append(out, providerSite{src: s, file: areaFile(dir, file), line: line, evLine: evLine, block: block})
 		}
 	}
-	// blockLocal is the local name of a block's provider: its provider
-	// argument up to the first dot, or its type up to the first underscore.
-	blockLocal := func(typ string, b Body) string {
+	// blockLocal is the local name of a block's provider and the line that
+	// names it: its provider argument up to the first dot, at the argument's
+	// line, or its type up to the first underscore, at the block's line.
+	blockLocal := func(typ string, b Body, line int) (string, int) {
 		if e := b.Arg("provider"); e != nil {
-			return strings.TrimSpace(strings.SplitN(e.Text, ".", 2)[0])
+			return strings.TrimSpace(strings.SplitN(e.Text, ".", 2)[0]), e.Range.Start.Line
 		}
-		return strings.SplitN(typ, "_", 2)[0]
+		return strings.SplitN(typ, "_", 2)[0], line
 	}
 	for _, p := range m.Providers {
 		addr := "provider." + p.Name
 		if alias, ok := literalAlias(p.Body); ok {
 			addr += "." + alias
 		}
-		add(p.Name, p.File, p.Line, addr)
+		add(p.Name, p.File, p.Line, p.Line, addr)
 	}
 	for _, r := range m.Resources {
 		addr := r.Type + "." + r.Name
 		if r.Mode == "data" {
 			addr = "data." + addr
 		}
-		add(blockLocal(r.Type, r.Body), r.File, r.Line, addr)
+		name, ev := blockLocal(r.Type, r.Body, r.Line)
+		add(name, r.File, r.Line, ev, addr)
 	}
 	for _, o := range m.Other {
 		if o.Type != "check" {
@@ -160,7 +162,8 @@ func providerSites(m *Module, dir string) []providerSite {
 		}
 		for _, nb := range o.Body.Blocks {
 			if nb.Type == "data" && len(nb.Labels) > 0 {
-				add(blockLocal(nb.Labels[0], nb.Body), o.File, nb.Range.Start.Line, strings.Join(append([]string{o.Type}, o.Labels...), "."))
+				name, ev := blockLocal(nb.Labels[0], nb.Body, nb.Range.Start.Line)
+				add(name, o.File, nb.Range.Start.Line, ev, strings.Join(append([]string{o.Type}, o.Labels...), "."))
 			}
 		}
 	}
@@ -217,14 +220,12 @@ func (c *changedFiles) changed(file string, line int) bool {
 // provider. Base providers are the union over every boundary directory at
 // base of its required_providers sources and the providers of its resource
 // and data blocks, plus the Allowed providers of the base docs/SCOPE.md.
-// One candidate per provider, at its first site in file order that the
-// change adds, in the area of that site; its evidence is every site of the
+// One candidate per provider, in the area of its anchor: the first site in
+// file order (path, then line) that is a block the change adds or a
+// required_providers entry the change sets, including an entry added to an
+// existing required_providers. A provider with changed sites but neither is
+// anchored at the evidence line of its first changed site. Its evidence is every site of the
 // provider on a changed line. A new module's empty base is not this rule.
-//
-// A provider whose every changed site lies in a block the base already has,
-// such as an entry added to an existing required_providers, has no line the
-// newly-introduced scope keeps, so the pass is not evaluated rather than
-// clean, and its other candidates are dropped with it.
 func checkScopeProvider(a *Area) Result {
 	const id = "scope.provider"
 	if newModuleBase(a.baseTree) {
@@ -285,15 +286,26 @@ func checkScopeProvider(a *Area) Result {
 			return x.line - y.line
 		})
 		ev := newPathEvidence()
-		var anchor *providerSite
+		var anchor, first *providerSite
 		for i, s := range sites {
 			if !ch.changed(s.file, s.line) && !ch.changed(s.file, s.evLine) {
 				continue
 			}
 			ev.line("head", s.file, s.evLine, lineOf(a.headTree.Entries[s.file].Data, s.evLine))
-			if anchor == nil && added[s.file+" "+s.block] && ch.changed(s.file, s.line) {
+			if first == nil {
+				first = &sites[i]
+			}
+			if anchor == nil && (s.block == "terraform" || added[s.file+" "+s.block] && ch.changed(s.file, s.line)) {
 				anchor = &sites[i]
 			}
+		}
+		line := 0
+		if anchor != nil {
+			line = anchor.line
+		} else if first != nil {
+			// No added block or entry: anchor at the changed line, which for a
+			// block the base has is its evidence line, such as a provider argument.
+			anchor, line = first, first.evLine
 		}
 		if ch.over {
 			return Result{NotEvaluated: "a changed file is past the line diff limit", Code: ReasonLimitExceeded}
@@ -303,17 +315,10 @@ func checkScopeProvider(a *Area) Result {
 			owner = areaOf(anchor.file)
 		}
 		switch {
-		case owner != a.Path || len(ev.ev.SourceLines) == 0:
+		case owner != a.Path || anchor == nil:
 			// Another area reports it, or no site is in the change.
-		case anchor == nil:
-			// Reached only for a new provider with a changed site and no added
-			// block to anchor it. The whole pass is then not evaluated, so the
-			// candidates of every other new provider in the run are dropped too.
-			// shortcut: registry scope newly-introduced drops entries added to existing blocks; flips to touched-expression with the registry pin bump (mtf-lcc.2.40)
-			return Result{NotEvaluated: "provider " + short(src) + " is added only inside a block the base already has", Code: ReasonUnsupportedFile}
 		default:
 			ev.ev.Head = ev.value(strings.TrimPrefix(src, defaultRegistryHost+"/"))
-			line := anchor.line
 			res.Candidates = append(res.Candidates, Candidate{RuleID: id, File: anchor.file, Line: &line,
 				Subject: subject(owner, `provider["`+short(src)+`"]`), Evidence: ev.ev, EvidenceComplete: ev.complete})
 		}

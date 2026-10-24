@@ -13,21 +13,10 @@ import (
 )
 
 // Rules the merge itself writes or allows.
-const (
-	ruleCheckNotRun  = "review.check-not-run"
-	ruleToolDisputed = "review.tool-disputed"
-)
+const ruleCheckNotRun = "review.check-not-run"
 
 // classPath is the registry class of a path rule.
 const classPath = "path"
-
-// toolDisputed stands in for review.tool-disputed while the pinned registry
-// has no row for it: an llm path rule at LOW, as the row on the skills
-// default branch has it.
-var toolDisputed = registry.Rule{
-	ID: ruleToolDisputed, Engine: registry.EngineLLM, Class: classPath,
-	Severities: []string{registry.SeverityLow},
-}
 
 // Template is the host text of one rule, with {subject} and {rule_id} as
 // placeholders.
@@ -101,7 +90,7 @@ func Final(in Inputs, first, repair []byte) ([]Finding, error) {
 func (in Inputs) check() error {
 	var errs []error
 	known := func(where, id string) (registry.Rule, bool) {
-		r, ok := in.rule(id)
+		r, ok := in.Registry.Rule(id)
 		if !ok {
 			errs = append(errs, fmt.Errorf("%s: rule %q is not in the registry", where, id))
 		}
@@ -126,7 +115,7 @@ func (in Inputs) check() error {
 			errs = append(errs, fmt.Errorf("severity_needed %s: severities %v, registry %v", s.CandidateID, s.Severities, r.Severities))
 		}
 	}
-	if r, ok := in.rule(ruleCheckNotRun); !ok || len(r.Severities) == 0 {
+	if r, ok := in.Registry.Rule(ruleCheckNotRun); !ok || len(r.Severities) == 0 {
 		errs = append(errs, fmt.Errorf("rule %q is not in the registry with severities", ruleCheckNotRun))
 	}
 	for _, o := range in.Registry.Overlaps {
@@ -155,17 +144,6 @@ func (in Inputs) checkSeverityNeeded(items []*item) error {
 
 func sameSet(a, b []string) bool {
 	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
-}
-
-// rule returns a registry row, with the stand-in for review.tool-disputed.
-func (in Inputs) rule(id string) (registry.Rule, bool) {
-	if r, ok := in.Registry.Rule(id); ok {
-		return r, true
-	}
-	if id == ruleToolDisputed {
-		return toolDisputed, true
-	}
-	return registry.Rule{}, false
 }
 
 // item is a finding on its way through the merge. subject is the dedup
@@ -239,7 +217,7 @@ func (in Inputs) answers(r *Reply) ([]Finding, error) {
 		case st != answerValid:
 			out = append(out, in.checkNotRun(c))
 		case d.Confirm:
-			rule, _ := in.rule(c.RuleID)
+			rule, _ := in.Registry.Rule(c.RuleID)
 			out = append(out, Finding{
 				RuleID: c.RuleID, Severity: clamp(d.Severity, rule.Severities), File: c.File, Line: c.Line,
 				Summary: d.Summary, SuggestedFix: d.SuggestedFix, Source: SourceLLM, Subject: c.Subject,
@@ -271,7 +249,7 @@ func (in Inputs) answers(r *Reply) ([]Finding, error) {
 // Its subject carries the candidate's rule, so two rules on one address stay
 // two findings.
 func (in Inputs) checkNotRun(c Candidate) Finding {
-	cnr, _ := in.rule(ruleCheckNotRun)
+	cnr, _ := in.Registry.Rule(ruleCheckNotRun)
 	t, ok := in.Templates[ruleCheckNotRun]
 	if !ok {
 		t = checkNotRunTemplate
@@ -287,7 +265,7 @@ func (in Inputs) checkNotRun(c Candidate) Finding {
 // llm rule, or a rule injected as not_evaluated for the finding's area, or
 // for any area when the rule is cross-area, whose one entry is under ".".
 func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
-	r, ok := in.rule(f.RuleID)
+	r, ok := in.Registry.Rule(f.RuleID)
 	if !ok || len(r.Severities) == 0 {
 		return r, false
 	}

@@ -1,5 +1,5 @@
 {
-  "description": "Registry rows the fixtures use. engine, severities and confirm_class are copied from rule-facts.md, except review.tool-disputed, which the spec names and the registry lacks. The templates are fixture inputs: the spec requires fixed per-rule host templates filled with the subject but gives no text. A fixture's host.json overrides confirm_class.",
+  "description": "Registry rows the fixtures use. engine, severities and confirm_class are copied from rule-facts.md. The templates are fixture inputs: the spec requires fixed per-rule host templates filled with the subject but gives no text. A fixture's host.json overrides confirm_class.",
   "rules": {
     "compat.claim-contradicts-analysis": {
       "engine": "llm",
@@ -175,8 +175,7 @@
       "severities": [
         "LOW"
       ],
-      "confirm_class": "-",
-      "note": "Not in rule-facts.md yet. Severity from the spec: LOW, no effect on the verdict ladder."
+      "confirm_class": "-"
     }
   }
 }

@@ -136,7 +136,7 @@ func (in Inputs) dedupStep2(items []*item) []*item {
 					continue
 				}
 				if registry.SeverityRank(d.f.Severity) < registry.SeverityRank(k.f.Severity) {
-					r, _ := in.rule(k.f.RuleID)
+					r, _ := in.Registry.Rule(k.f.RuleID)
 					k.f.Severity = clamp(d.f.Severity, r.Severities)
 				}
 				drop[d] = true
