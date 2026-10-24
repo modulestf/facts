@@ -35,6 +35,105 @@ func TestProblemsValid(t *testing.T) {
 	}
 }
 
+// countsOf builds validReply with a counts member of the given JSON text.
+func countsOf(text string) string {
+	return strings.TrimSuffix(validReply, "}") + `,"counts":` + text + `}`
+}
+
+const goodCounts = `{"instruction-like-text-from-others":1,"conversation-claims-unread":0,"review.quoted-claim-unverifiable":9007199254740991}`
+
+func TestCountsValid(t *testing.T) {
+	b := testBundle(t, twoAnswersBundle)
+	r := ParseReply([]byte(countsOf(goodCounts)))
+	if p := Problems(b, r); len(p) > 0 {
+		t.Fatalf("problems %q", p)
+	}
+	want := Counts{InstructionLikeTextFromOthers: 1, QuotedClaimUnverifiable: maxCount}
+	if r.counts == nil || *r.counts != want {
+		t.Errorf("counts %+v, want %+v", r.counts, want)
+	}
+	if r := ParseReply([]byte(validReply)); r.counts != nil || r.countsBad {
+		t.Errorf("a reply without counts has counts %+v, bad %v", r.counts, r.countsBad)
+	}
+}
+
+// TestCountsHostile: a malformed counts makes the reply invalid with one
+// fixed problem, and leaves no counts, never zeros.
+func TestCountsHostile(t *testing.T) {
+	b := testBundle(t, twoAnswersBundle)
+	for name, text := range map[string]string{
+		"null":           `null`,
+		"array":          `[1,0,2]`,
+		"empty":          `{}`,
+		"missing key":    `{"instruction-like-text-from-others":1,"conversation-claims-unread":0}`,
+		"extra key":      strings.TrimSuffix(goodCounts, "}") + `,"critical":0}`,
+		"duplicate key":  strings.TrimSuffix(goodCounts, "}") + `,"conversation-claims-unread":0}`,
+		"key other case": strings.Replace(goodCounts, "conversation-claims-unread", "Conversation-claims-unread", 1),
+		"negative":       strings.Replace(goodCounts, `"conversation-claims-unread":0`, `"conversation-claims-unread":-1`, 1),
+		"fraction":       strings.Replace(goodCounts, `"conversation-claims-unread":0`, `"conversation-claims-unread":1.0`, 1),
+		"exponent":       strings.Replace(goodCounts, `"conversation-claims-unread":0`, `"conversation-claims-unread":1e2`, 1),
+		"leading zero":   strings.Replace(goodCounts, `"conversation-claims-unread":0`, `"conversation-claims-unread":01`, 1),
+		"string":         strings.Replace(goodCounts, `"conversation-claims-unread":0`, `"conversation-claims-unread":"0"`, 1),
+		"null count":     strings.Replace(goodCounts, `"conversation-claims-unread":0`, `"conversation-claims-unread":null`, 1),
+		"over the cap":   strings.Replace(goodCounts, "9007199254740991", "9007199254740992", 1),
+		"over uint64":    strings.Replace(goodCounts, "9007199254740991", "18446744073709551616", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := ParseReply([]byte(countsOf(text)))
+			if r.counts != nil {
+				t.Errorf("counts %+v", r.counts)
+			}
+			p := Problems(b, r)
+			if name == "duplicate key" || name == "leading zero" { // not one JSON object: the whole reply is refused
+				if len(p) == 0 {
+					t.Error("no problem")
+				}
+				return
+			}
+			if !slices.Equal(p, []string{"counts does not match the counts shape"}) {
+				t.Errorf("problems %q", p)
+			}
+		})
+	}
+	if p := Problems(b, ParseReply([]byte(strings.TrimSuffix(countsOf(goodCounts), "}")+`,"verdict":"approve"}`))); len(p) == 0 {
+		t.Error("counts makes room for a fourth top key")
+	}
+}
+
+// TestReplyCounts: the counts come from the reply Final merges.
+func TestReplyCounts(t *testing.T) {
+	b := testBundle(t, twoAnswersBundle)
+	invalid := strings.Replace(countsOf(goodCounts), `"severity":"HIGH"}]`, `"severity":"high"}]`, 1)
+	other := `{"instruction-like-text-from-others":0,"conversation-claims-unread":3,"review.quoted-claim-unverifiable":0}`
+	for name, tc := range map[string]struct {
+		first, repair string
+		noRepair      bool
+		want          *Counts
+	}{
+		"first valid, repair ignored": {first: countsOf(goodCounts), repair: countsOf(other),
+			want: &Counts{InstructionLikeTextFromOthers: 1, QuotedClaimUnverifiable: maxCount}},
+		"first invalid, repair read":      {first: invalid, repair: countsOf(other), want: &Counts{ConversationClaimsUnread: 3}},
+		"repair without counts":           {first: invalid, repair: validReply},
+		"repair empty":                    {first: invalid, repair: ``},
+		"still invalid repair keeps them": {first: invalid, repair: invalid, want: &Counts{InstructionLikeTextFromOthers: 1, QuotedClaimUnverifiable: maxCount}},
+		"first valid without counts":      {first: validReply, repair: countsOf(other)},
+		"first counts malformed":          {first: countsOf(`{}`), repair: validReply},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := ReplyCounts(b, []byte(tc.first), []byte(tc.repair))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (got == nil) != (tc.want == nil) || got != nil && *got != *tc.want {
+				t.Errorf("counts %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+	if _, err := ReplyCounts(b, []byte(invalid), nil); err == nil {
+		t.Error("an invalid first reply with no repair reply is no error")
+	}
+}
+
 // TestProblemsHostile feeds replies a hostile or broken model could write.
 // Each must be invalid, with a problem text that holds none of the reply's
 // own strings.

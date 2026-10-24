@@ -1,0 +1,1 @@
+The optional counts object goes with the reply that is merged: the first reply is invalid, so the repair reply's counts are read, 0 included, and the first reply's are not.

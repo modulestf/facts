@@ -17,6 +17,7 @@ import (
 	"io"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -30,7 +31,20 @@ const MaxReplyBytes = 1 << 20
 // maxReasonRunes is the model-output schema's maxLength of a reason.
 const maxReasonRunes = 200
 
+// maxCount is the model-output schema's maximum of a count, the largest
+// integer a JSON reader holds exactly.
+const maxCount = 1<<53 - 1
+
+// Count keys of the envelope's optional counts object: the summary-line
+// counts of the full variant.
+const (
+	countInstructionLike  = "instruction-like-text-from-others"
+	countClaimsUnread     = "conversation-claims-unread"
+	countQuotedUnverified = "review.quoted-claim-unverifiable"
+)
+
 var (
+	countPattern       = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
 	candidateIDPattern = regexp.MustCompile(`^C-[0-9]{3,}$`)
 	findingIDPattern   = regexp.MustCompile(`^F-[0-9]{3,}$`)
 	ruleIDPattern      = regexp.MustCompile(`^(compat|coverage|structure|examples|profile|scope|review)\.[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -46,15 +60,27 @@ type Decision struct {
 	SuggestedFix string
 }
 
+// Counts are the three summary-line counts a reply may carry. A reply
+// without them has none: no count is ever read as 0 for its absence.
+type Counts struct {
+	InstructionLikeTextFromOthers uint64 `json:"instruction-like-text-from-others"`
+	ConversationClaimsUnread      uint64 `json:"conversation-claims-unread"`
+	QuotedClaimUnverifiable       uint64 `json:"review.quoted-claim-unverifiable"`
+}
+
 // Reply is a parsed lead reply. Parsing never fails: what does not match the
 // model-output schema is recorded and makes the reply invalid.
 type Reply struct {
 	tooLarge bool
 	// topOK is set when the reply is one JSON object with exactly the keys
-	// candidate_decisions and findings, each an array.
+	// candidate_decisions and findings, each an array, and optionally counts.
 	topOK     bool
 	decisions []decisionEntry
 	findings  []findingEntry
+	// counts is nil when the reply has no counts or malformed ones;
+	// countsBad marks the malformed case.
+	counts    *Counts
+	countsBad bool
 }
 
 // decisionEntry is one entry of candidate_decisions. id is set whenever the
@@ -82,7 +108,12 @@ func ParseReply(data []byte) *Reply {
 	if err != nil {
 		return r
 	}
-	r.topOK = len(fields) == 2
+	rawCounts, hasCounts := fields["counts"]
+	r.topOK = len(fields) == 2 || hasCounts && len(fields) == 3
+	if hasCounts {
+		r.counts = parseCounts(rawCounts)
+		r.countsBad = r.counts == nil
+	}
 	for key, parse := range map[string]func(json.RawMessage){
 		"candidate_decisions": func(raw json.RawMessage) { r.decisions = append(r.decisions, parseDecision(raw)) },
 		"findings":            func(raw json.RawMessage) { r.findings = append(r.findings, parseFinding(raw)) },
@@ -156,6 +187,28 @@ func str(raw json.RawMessage) (string, bool) {
 		return "", false
 	}
 	return s, true
+}
+
+// parseCounts reads the counts object: exactly the three keys, each a
+// natural number written as decimal digits, at most maxCount. It returns
+// nil for anything else.
+func parseCounts(raw json.RawMessage) *Counts {
+	fields, err := objectFields(raw)
+	keys := []string{countInstructionLike, countClaimsUnread, countQuotedUnverified}
+	if err != nil || !exactKeys(fields, keys, nil) {
+		return nil
+	}
+	var n [3]uint64
+	for i, k := range keys {
+		v := string(fields[k])
+		if !countPattern.MatchString(v) {
+			return nil
+		}
+		if n[i], err = strconv.ParseUint(v, 10, 64); err != nil || n[i] > maxCount {
+			return nil
+		}
+	}
+	return &Counts{InstructionLikeTextFromOthers: n[0], ConversationClaimsUnread: n[1], QuotedClaimUnverifiable: n[2]}
 }
 
 func parseDecision(raw json.RawMessage) decisionEntry {
@@ -298,7 +351,10 @@ func Problems(b *Bundle, r *Reply) []string {
 	}
 	var out []string
 	if !r.topOK {
-		out = append(out, "the reply is not one JSON object with exactly the arrays candidate_decisions and findings")
+		out = append(out, "the reply is not one JSON object with exactly the arrays candidate_decisions and findings and an optional counts object")
+	}
+	if r.countsBad {
+		out = append(out, "counts does not match the counts shape")
 	}
 	for i, e := range r.decisions {
 		if !e.ok {

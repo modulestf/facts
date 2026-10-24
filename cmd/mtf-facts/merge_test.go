@@ -76,10 +76,52 @@ func TestMergeRefusesUsage(t *testing.T) {
 		"final four files":     {"merge", "final", "--registry", reply, bundle, reply, reply, reply},
 		"final bad registry":   {"merge", "final", "--registry", reply, bundle, reply},
 		"final missing bundle": {"merge", "final", "--registry", reply, filepath.Join(dir, "nope.json"), reply},
+		"counts one file":      {"merge", "counts", bundle},
+		"counts four files":    {"merge", "counts", bundle, reply, reply, reply},
+		"counts plain JSON":    {"merge", "counts", filepath.Join(dir, "bundle.json"), reply},
+		"counts a directory":   {"merge", "counts", bundle, dir},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var out, errb bytes.Buffer
 			if code := run(args, &out, &errb); code != exitError || out.Len() != 0 || errb.Len() == 0 {
+				t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
+			}
+		})
+	}
+}
+
+// TestMergeCounts runs merge counts: the counts of the reply merge final
+// reads, null when it has none, and an error for an invalid first reply
+// without a repair reply.
+func TestMergeCounts(t *testing.T) {
+	dir := filepath.Join(mergeFixtures, "counts-from-repair")
+	bundle := regionFile(t, "counts-from-repair")
+	want, err := os.ReadFile(filepath.Join(dir, "expected-counts.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	noCounts := filepath.Join(mergeFixtures, "answered-once-duplicate", "model-output.repair.json")
+	for name, tc := range map[string]struct {
+		files []string
+		code  int
+		out   string
+	}{
+		"from the repair reply": {[]string{"model-output.json", "model-output.repair.json"}, 0, string(want)},
+		"from the first reply":  {[]string{"model-output.repair.json", "model-output.json"}, 0, string(want)},
+		"none":                  {[]string{"model-output.json", noCounts}, 0, `{"counts":null}` + "\n"},
+		"no repair reply":       {[]string{"model-output.json"}, exitError, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			args := []string{"merge", "counts", bundle}
+			for _, f := range tc.files {
+				if !filepath.IsAbs(f) && !strings.Contains(f, "/") {
+					f = filepath.Join(dir, f)
+				}
+				args = append(args, f)
+			}
+			var out, errb bytes.Buffer
+			code := run(args, &out, &errb)
+			if code != tc.code || out.String() != tc.out || (code == 0) != (errb.Len() == 0) {
 				t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
 			}
 		})

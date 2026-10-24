@@ -18,7 +18,7 @@ import (
 const registryEnv = "MTF_FACTS_REGISTRY"
 
 // fixtureDir holds the merge fixtures, byte-identical copies of the ones the
-// facts engine spec was written against.
+// facts engine spec was written against, and counts-from-repair.
 const fixtureDir = "../../testdata/merge"
 
 // skippedFixtures are fixtures of the confirm step, which is not part of the
@@ -125,10 +125,35 @@ func TestFinalFixtures(t *testing.T) {
 				t.Errorf("merged findings differ\ngot:\n%s\nwant:\n%s", strings.Join(g, "\n"), strings.Join(w, "\n"))
 			}
 			checkOrder(t, got)
+			checkFixtureCounts(t, dir, b, readFixture(t, dir, "model-output.json"), repair)
 		})
 	}
 	if want := len(dirs) - len(skippedFixtures); ran != want {
 		t.Errorf("ran %d fixtures, want %d", ran, want)
+	}
+}
+
+// checkFixtureCounts compares the counts of the merged reply with
+// expected-counts.json, or checks there are none when the fixture has no
+// such file: a reply without counts never reads as zeros.
+func checkFixtureCounts(t *testing.T, dir string, b *Bundle, first, repair []byte) {
+	t.Helper()
+	got, err := ReplyCounts(b, first, repair)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotJSON, err := json.Marshal(struct {
+		Counts *Counts `json:"counts"`
+	}{got})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []byte(`{"counts":null}`)
+	if _, err := os.Stat(filepath.Join(dir, "expected-counts.json")); err == nil {
+		want = []byte(strings.TrimSpace(string(readFixture(t, dir, "expected-counts.json"))))
+	}
+	if string(gotJSON) != string(want) {
+		t.Errorf("counts %s, want %s", gotJSON, want)
 	}
 }
 
