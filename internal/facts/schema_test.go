@@ -303,10 +303,10 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 				fail("%q does not match %s", x, p)
 			}
 		}
-		if m, ok := s["minLength"].(float64); ok && len(x) < int(m) {
+		// JSON Schema counts characters, not bytes.
+		if m, ok := s["minLength"].(float64); ok && utf8.RuneCountInString(x) < int(m) {
 			fail("shorter than %v", m)
 		}
-		// JSON Schema counts characters, not bytes.
 		if m, ok := s["maxLength"].(float64); ok && utf8.RuneCountInString(x) > int(m) {
 			fail("longer than %v", m)
 		}
@@ -400,6 +400,7 @@ func jsonType(v any) string {
 	case string:
 		return "string"
 	case json.Number:
+		// Stricter than JSON Schema on purpose: 1.0 and 1e0 are not integers here, as the host refuses those forms.
 		if _, err := x.Int64(); err == nil {
 			return "integer"
 		}
@@ -524,7 +525,7 @@ func TestSchemaValidatorKeywords(t *testing.T) {
 		"base.json": {"properties": map[string]any{"a": map[string]any{}}},
 		"t.json": {
 			"$ref":                  "base.json",
-			"properties":            map[string]any{"b": map[string]any{"const": "x"}, "c": map[string]any{}, "l": map[string]any{"minItems": 1.0, "uniqueItems": true}, "e": true, "f": false, "s": map[string]any{"const": "1"}, "m": map[string]any{"enum": []any{1.0}}, "x": map[string]any{"maxLength": 2.0}, "n": map[string]any{"maximum": 3.0}},
+			"properties":            map[string]any{"b": map[string]any{"const": "x"}, "c": map[string]any{}, "l": map[string]any{"minItems": 1.0, "uniqueItems": true}, "e": true, "f": false, "s": map[string]any{"const": "1"}, "m": map[string]any{"enum": []any{1.0}}, "x": map[string]any{"maxLength": 2.0}, "y": map[string]any{"minLength": 2.0}, "n": map[string]any{"maximum": 3.0}},
 			"dependentRequired":     map[string]any{"b": []any{"c"}},
 			"propertyNames":         map[string]any{"pattern": "^[a-z]$"},
 			"unevaluatedProperties": false,
@@ -532,7 +533,7 @@ func TestSchemaValidatorKeywords(t *testing.T) {
 			"then":                  map[string]any{"properties": map[string]any{"c": map[string]any{"not": map[string]any{"const": "no"}}}},
 		},
 	}
-	if errs := set.validate("t.json", decodeJSON(t, []byte(`{"a":1,"b":"x","c":"yes","e":null,"l":[1,2],"s":"1","m":1.0,"x":"\u00e9\u00e9","n":3}`))); len(errs) > 0 {
+	if errs := set.validate("t.json", decodeJSON(t, []byte(`{"a":1,"b":"x","c":"yes","e":null,"l":[1,2],"s":"1","m":1.0,"x":"\u00e9\u00e9","y":"\u00e9\u00e9","n":3}`))); len(errs) > 0 {
 		t.Errorf("good value rejected: %v", errs)
 	}
 	for name, doc := range map[string]string{
@@ -548,6 +549,7 @@ func TestSchemaValidatorKeywords(t *testing.T) {
 		"enum type":             `{"m":"1"}`,
 		"uniqueItems numbers":   `{"l":[1,1.0]}`,
 		"maxLength":             `{"x":"abc"}`,
+		"minLength characters":  `{"y":"\u00e9"}`,
 		"maximum":               `{"n":4}`,
 	} {
 		if errs := set.validate("t.json", decodeJSON(t, []byte(doc))); len(errs) == 0 {

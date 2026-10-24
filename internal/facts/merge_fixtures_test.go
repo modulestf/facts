@@ -55,6 +55,7 @@ func TestMergeFixtureSchemasCatchBreakage(t *testing.T) {
 		"note":          func(dir string) { write(t, filepath.Join(dir, "note.txt"), "a\nb\n") },
 		"no expected":   func(dir string) { remove(t, filepath.Join(dir, "expected-findings.json")) },
 		"host":          func(dir string) { write(t, filepath.Join(dir, "host.json"), `{`) },
+		"registry":      func(dir string) { write(t, filepath.Join(filepath.Dir(dir), "registry.json"), `{`) },
 	}
 	for name, mutate := range breaks {
 		root := t.TempDir()
@@ -62,6 +63,11 @@ func TestMergeFixtureSchemasCatchBreakage(t *testing.T) {
 		if err := os.CopyFS(dir, os.DirFS(src)); err != nil {
 			t.Fatal(err)
 		}
+		reg, err := os.ReadFile(filepath.Join(mergeRoot, "registry.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		write(t, filepath.Join(root, "registry.json"), string(reg))
 		if bad := checkMergeFixtures(t, set, root); len(bad) > 0 {
 			t.Fatalf("unbroken copy fails: %v", bad)
 		}
@@ -124,6 +130,7 @@ func checkMergeFixtures(t *testing.T, set schemaSet, root string) []string {
 			case len(errs) == 0:
 				add("%s: valid, want invalid", rel)
 			default:
+				// A keyword nested in oneOf reports as oneOf, so such an example is named oneOf.
 				kw, _, _ := strings.Cut(after[1:], ".")
 				msg, ok := keywordMessages[kw]
 				if !ok {
@@ -140,7 +147,7 @@ func checkMergeFixtures(t *testing.T, set schemaSet, root string) []string {
 			}
 		}
 	}
-	if data, err := os.ReadFile(filepath.Join(mergeRoot, "registry.json")); err != nil || !json.Valid(data) {
+	if data, err := os.ReadFile(filepath.Join(root, "registry.json")); err != nil || !json.Valid(data) { //nolint:gosec // G304: a test file of this repository
 		add("registry.json is not JSON")
 	}
 	return bad
@@ -148,7 +155,7 @@ func checkMergeFixtures(t *testing.T, set schemaSet, root string) []string {
 
 func write(t *testing.T, path, data string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil { //nolint:gosec // G703: a temp copy of a fixture
 		t.Fatal(err)
 	}
 }
