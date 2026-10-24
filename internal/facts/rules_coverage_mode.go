@@ -11,13 +11,15 @@ import (
 // modeSafe reports whether an output value yields a value or null in every
 // mode of the module, so it cannot fail when a counted block has no
 // instance. The shapes are narrow; anything else stays a candidate:
-//   - try(..., null): try() with a literal null as its last argument;
+//   - try() of two or more arguments whose last is a literal, such as
+//     null, "", [], {}, 0 or false, or a bare var.<name>;
 //   - a whole block with count or for_each, such as aws_x.this or module.m;
 //   - a splat over a block with count, whose items read attributes only:
 //     aws_x.this[*].arn;
 //   - one() of such a splat when count is a conditional of 0 and 1;
-//   - a for expression over a block with count or for_each whose key,
-//     value and condition read only its own variables, by attribute.
+//   - a for expression over a block with count or for_each, with no
+//     condition and no grouping, whose key is its key variable and whose
+//     value forValue accepts.
 func modeSafe(a *Area, x Expr) bool {
 	e, ok := parseExprAt(x)
 	return ok && safeValue(a, unparen(e))
@@ -28,7 +30,7 @@ func safeValue(a *Area, e hclsyntax.Expression) bool {
 	case *hclsyntax.FunctionCallExpr:
 		switch {
 		case t.Name == "try" && len(t.Args) >= 2 && !t.ExpandFinal:
-			return isNullLit(unparen(t.Args[len(t.Args)-1]))
+			return safeFallback(unparen(t.Args[len(t.Args)-1]))
 		case t.Name == "one" && len(t.Args) == 1 && !t.ExpandFinal:
 			s, ok := unparen(t.Args[0]).(*hclsyntax.SplatExpr)
 			return ok && safeSplat(a, s) && zeroOrOne(a, s.Source)
@@ -39,26 +41,54 @@ func safeValue(a *Area, e hclsyntax.Expression) bool {
 	case *hclsyntax.SplatExpr:
 		return safeSplat(a, t)
 	case *hclsyntax.ForExpr:
-		if _, _, ok := switchedBlock(a, unparen(t.CollExpr)); !ok {
+		if _, _, ok := switchedBlock(a, unparen(t.CollExpr)); !ok || t.CondExpr != nil || t.Group {
 			return false
 		}
-		vars := map[string]bool{t.ValVar: true}
-		if t.KeyVar != "" {
-			vars[t.KeyVar] = true
+		if t.KeyExpr != nil {
+			k, ok := unparen(t.KeyExpr).(*hclsyntax.ScopeTraversalExpr)
+			if !ok || t.KeyVar == "" || len(k.Traversal) != 1 || k.Traversal.RootName() != t.KeyVar {
+				return false // another key can repeat, and a null one fails
+			}
 		}
-		for _, b := range []hclsyntax.Expression{t.KeyExpr, t.ValExpr, t.CondExpr} {
-			if b != nil && !readsOnly(b, vars) {
+		return forValue(t.ValExpr, t.KeyVar, t.ValVar)
+	}
+	return false
+}
+
+// safeFallback: the last argument of try() cannot fail, so try() yields a
+// value in every mode: a literal, or a bare var.<name>.
+func safeFallback(e hclsyntax.Expression) bool {
+	if t, ok := e.(*hclsyntax.ScopeTraversalExpr); ok {
+		return t.Traversal.RootName() == "var" && len(t.Traversal) == 2 && attrsOnly(t.Traversal[1:])
+	}
+	return literal(e)
+}
+
+// literal: a literal value, a string with no interpolation, or a tuple or
+// object of literals with keyword or literal keys.
+func literal(e hclsyntax.Expression) bool {
+	switch t := unparen(e).(type) {
+	case *hclsyntax.LiteralValueExpr:
+		return true
+	case *hclsyntax.TemplateExpr:
+		return t.IsStringLiteral()
+	case *hclsyntax.TupleConsExpr:
+		for _, x := range t.Exprs {
+			if !literal(x) {
+				return false
+			}
+		}
+		return true
+	case *hclsyntax.ObjectConsExpr:
+		for _, it := range t.Items {
+			k, ok := it.KeyExpr.(*hclsyntax.ObjectConsKeyExpr)
+			if !ok || !literalKey(k.Wrapped) || !literal(it.ValueExpr) {
 				return false
 			}
 		}
 		return true
 	}
 	return false
-}
-
-func isNullLit(e hclsyntax.Expression) bool {
-	l, ok := e.(*hclsyntax.LiteralValueExpr)
-	return ok && l.Val.IsNull()
 }
 
 // switchedBlock returns the body and meta-argument, count or for_each, of
@@ -104,8 +134,9 @@ func safeSplat(a *Area, s *hclsyntax.SplatExpr) bool {
 	case *hclsyntax.AnonSymbolExpr:
 		return true
 	case *hclsyntax.RelativeTraversalExpr:
+		// one attribute only: a second one fails where the first is null
 		_, ok := each.Source.(*hclsyntax.AnonSymbolExpr)
-		return ok && attrsOnly(each.Traversal)
+		return ok && len(each.Traversal) == 1 && attrsOnly(each.Traversal)
 	}
 	return false
 }
@@ -145,17 +176,22 @@ func attrsOnly(t hcl.Traversal) bool {
 	return true
 }
 
-// readsOnly: e is a reference to one of vars by attribute, a literal, or
-// an object or tuple of such, and nothing else.
-func readsOnly(e hclsyntax.Expression, vars map[string]bool) bool {
+// forValue: the value of a for expression is an iteration variable, the
+// value variable with one attribute, or a tuple or object of those with
+// keyword or literal keys. A deeper read fails where an attribute is null.
+func forValue(e hclsyntax.Expression, keyVar, valVar string) bool {
 	switch t := unparen(e).(type) {
-	case *hclsyntax.LiteralValueExpr:
-		return true
 	case *hclsyntax.ScopeTraversalExpr:
-		return vars[t.Traversal.RootName()] && attrsOnly(t.Traversal[1:])
+		root := t.Traversal.RootName()
+		switch len(t.Traversal) {
+		case 1:
+			return root == valVar || keyVar != "" && root == keyVar
+		case 2:
+			return root == valVar && attrsOnly(t.Traversal[1:])
+		}
 	case *hclsyntax.TupleConsExpr:
 		for _, x := range t.Exprs {
-			if !readsOnly(x, vars) {
+			if !forValue(x, keyVar, valVar) {
 				return false
 			}
 		}
@@ -163,11 +199,19 @@ func readsOnly(e hclsyntax.Expression, vars map[string]bool) bool {
 	case *hclsyntax.ObjectConsExpr:
 		for _, it := range t.Items {
 			k, ok := it.KeyExpr.(*hclsyntax.ObjectConsKeyExpr)
-			if !ok || hcl.ExprAsKeyword(k.Wrapped) == "" && !readsOnly(k.Wrapped, vars) || !readsOnly(it.ValueExpr, vars) {
+			if !ok || !literalKey(k.Wrapped) || !forValue(it.ValueExpr, keyVar, valVar) {
 				return false
 			}
 		}
 		return true
 	}
 	return false
+}
+
+func literalKey(e hclsyntax.Expression) bool {
+	if hcl.ExprAsKeyword(e) != "" {
+		return true
+	}
+	t, ok := e.(*hclsyntax.TemplateExpr)
+	return ok && t.IsStringLiteral()
 }

@@ -327,7 +327,8 @@ func TestCoverageReachAttributesPerBlock(t *testing.T) {
 func TestCoverageReachModeSafeOutputs(t *testing.T) {
 	main := "resource \"aws_demo_widget\" \"this\" {\n  count = var.create ? 1 : 0\n}\n\n" +
 		"resource \"aws_demo_widget\" \"many\" {\n  count = var.n\n}\n\n" +
-		"resource \"aws_demo_widget\" \"each\" {\n  for_each = var.m\n}\n"
+		"resource \"aws_demo_widget\" \"each\" {\n  for_each = var.m\n}\n\n" +
+		"module \"m\" {\n  source = \"./child\"\n  count  = var.create ? 1 : 0\n}\n"
 	for value, want := range map[string]bool{
 		"try(aws_demo_widget.this[0].arn, null)":                    false,
 		"try(aws_demo_widget.this[0].arn, \"\", (null))":            false,
@@ -337,10 +338,34 @@ func TestCoverageReachModeSafeOutputs(t *testing.T) {
 		"one(aws_demo_widget.this[*].arn)":                          false,
 		"[for w in aws_demo_widget.this : w.arn]":                   false,
 		"{ for k, w in aws_demo_widget.each : k => { a = w.arn } }": false,
-		"[for w in aws_demo_widget.each : w.arn if w.enabled]":      false,
+		"[for w in aws_demo_widget.each : w.arn if w.enabled]":      true,
+		"module.m[*].x.y":                                           true,
+		"{ for k, v in module.m : k => v.x.y }":                     true,
+		"one(module.m[*].x.y)":                                      true,
+		"one(aws_demo_widget.this[*].config.status)":                true,
+		"[for v in module.m : v.name if v.f]":                       true,
+		"{ for v in module.m : v.name => v.f }":                     true,
+		"{ for k, v in module.m : k => v... }":                      true,
+		"module.m[*].x":                                             false,
+		"{ for k, v in module.m : k => { a = v.x, \"b\" = v } }":    false,
+		"[for k, v in module.m : [k, v.x]]":                         false,
 		"aws_demo_widget.this[0].arn":                               true,
 		"try(aws_demo_widget.this[0].arn)":                          true,
-		"try(aws_demo_widget.this[0].arn, var.fallback)":            true,
+		"try(aws_demo_widget.this[0].arn, var.fallback)":            false,
+		"try(aws_demo_widget.this[0].arn, \"\")":                    false,
+		"try(aws_demo_widget.this[0].arn, \"none\")":                false,
+		"try(aws_demo_widget.this[0].tags, {})":                     false,
+		"try(aws_demo_widget.this[0].list, [])":                     false,
+		"try(aws_demo_widget.this[0].n, 0)":                         false,
+		"try(aws_demo_widget.this[0].on, false)":                    false,
+		"try(aws_demo_widget.this[0].tags, { a = \"b\" })":          false,
+		"try(aws_demo_widget.this[0].arn, local.x)":                 true,
+		"try(aws_demo_widget.this[0].arn, var.x[0])":                true,
+		"try(aws_demo_widget.this[0].arn, var.x.y)":                 true,
+		"try(aws_demo_widget.this[0].arn, module.m.o)":              true,
+		"try(aws_demo_widget.this[0].arn, coalesce(var.a, var.b))":  true,
+		"try(aws_demo_widget.this[0].arn, \"${var.a}\")":            true,
+		"try(aws_demo_widget.this[0].arn, aws_demo_widget.each)":    true,
 		"aws_demo_widget.each[*].arn":                               true,
 		"aws_demo_widget.this[*].tags[\"a\"]":                       true,
 		"one(aws_demo_widget.many[*].arn)":                          true,

@@ -47,3 +47,23 @@ output "extra_arns_splat" {
   description = "ARNs of the extra widgets, which fails on a map"
   value       = aws_demo_widget.each[*].arn
 }
+
+output "widget_arn_or_name" {
+  description = "ARN of the widget, or its name when it is not created"
+  value       = try(aws_demo_widget.this[0].arn, var.name)
+}
+
+output "widget_arn_or_tag" {
+  description = "ARN of the widget, or a tag that may be missing"
+  value       = try(aws_demo_widget.this[0].arn, var.tags["arn"])
+}
+
+output "widget_tag_names" {
+  description = "Name tags of the widget, which fails where tags is null"
+  value       = aws_demo_widget.this[*].tags.Name
+}
+
+output "extra_arns_named" {
+  description = "ARNs of the named extra widgets, which fails on a null name"
+  value       = [for w in aws_demo_widget.each : w.arn if w.name != ""]
+}
