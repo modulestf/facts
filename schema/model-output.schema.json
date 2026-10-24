@@ -57,7 +57,7 @@
       }
     },
     "counts": {
-      "description": "The three summary-line counts of the full variant: items of origin other with instruction-like text, conversation and bot claims past the claim cap, and quoted claims the code did not confirm. All three, 0 included.",
+      "description": "The three summary-line counts of the full variant: items of origin other with instruction-like text, conversation and bot claims past the claim cap, and quoted claims the code did not confirm. All three, 0 included, each written as plain decimal digits; 1.0, 1e0 and -0 are refused.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -80,6 +80,7 @@
   },
   "$defs": {
     "count": {
+      "description": "Written as plain decimal digits; 1.0, 1e0 and -0 are refused.",
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
