@@ -15,6 +15,8 @@ It reads files only. It makes no network call and runs no Terraform or other pro
 go install github.com/modulestf/facts/cmd/mtf-facts@latest
 ```
 
+Pin a release with `@v0.3.0-rc.1` in place of `@latest`.
+
 Or build from a checkout:
 
 ```sh
@@ -22,6 +24,10 @@ go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
 ```
 
 ## Usage
+
+Run `mtf-facts` with no arguments for the list of subcommands, and `mtf-facts <subcommand> -h` for the flags of one. Every subcommand exits 2 on an error, and stdout is then not output.
+
+### lint
 
 Check a whole module tree:
 
@@ -60,13 +66,36 @@ Host contract:
 
 Candidates are unconfirmed: the author confirms or rejects each one, and they never change the exit code.
 
-List the implemented rules and their tier:
+### rules and version
+
+List the implemented rules, one per line with its tier (`tool` or `candidate`), sorted by id, and print the binary version:
 
 ```sh
 mtf-facts rules
+mtf-facts version
 ```
 
-### Merge
+### bundle
+
+`mtf-facts bundle` turns a `lint --json` report into the facts bundle a model reviewer reads, and the injected rule text for the rules the report left `not_evaluated`.
+
+```sh
+mtf-facts bundle --report lint.json --skills path/to/terraform-module-reviewer \
+  --out bundle.json --injection injection.md \
+  --head-sha <sha> --merge-base-sha <sha> --binary-sha256 <sha256> \
+  [--schema-handoff <file>] [--schema-files <file>]... [--profile-dir <dir>]
+```
+
+`--skills` is the reviewer skill directory at its pinned commit; the bundle reads `references/rule-facts.md`, the rule registry, and the rule text under `references/engine/`. `--head-sha` and `--merge-base-sha` take 40 or 64 lowercase hex characters, and `--binary-sha256` the pinned SHA-256 of the binary that wrote the report. Give `--schema-handoff`, `--schema-files` and `--profile-dir` exactly as the lint run had them.
+
+Every envelope field of the report must equal its pin: the schema version, both commits, the binary SHA-256, the SHA-256 of the registry, the profile SHA-256 and the schema inputs. The report must come from a run with `--base` and name only tool and candidate rules of the registry. Any mismatch exits 2.
+
+It prints the mode to stdout and exits 0:
+
+- `judgment`: it wrote `--out`, in the shape of [facts-bundle.schema.json](schema/facts-bundle.schema.json), and `--injection`. Both files must not exist yet; when the second write fails, the first file is removed. Over the 48 KiB cap, sections are shed lowest priority first (`file_index`, `schema_coverage`, `interface_diff`, `area_rules`), never `tool_findings` or `candidates`.
+- `full`: the tool findings and candidates alone are over the cap, or the injected rule text is over its 24 KiB budget. It writes no file and gives the reason on stderr.
+
+### merge
 
 `mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
 
@@ -80,19 +109,46 @@ mtf-facts merge final --registry rule-facts.md [--report lint.json] [--templates
 
 `merge final` prints the merged findings, in the shape of [merged-findings.schema.json](schema/merged-findings.schema.json), and exits 0. It merges the first reply when that one is valid, and otherwise the repair reply, which must then be given: an empty file when the repair turn returned nothing. A repair reply that is still invalid keeps only its valid entries; a candidate it leaves undecided becomes `review.check-not-run`. `--report` takes a `lint --json` report, whose index derives the subject a lead finding dedups by. `--templates` takes the per-rule host text for confirmed entries the model gave no text for. Exit code 2 is an error, and stdout is then not output.
 
+### ledger
+
+`mtf-facts ledger` lists the provider fields of each resource and data source type the module declares, nested fields included, from one or more `terraform providers schema -json` files:
+
+```sh
+mtf-facts ledger path/to/module --schema-files schema.json [--schema-files more.json]... \
+  [--check coverage-ledger.json] [--registry rule-facts.md]
+```
+
+At least one `--schema-files` is required, and a provider the module uses that no file has exits 2. The JSON output has an `envelope` (the tool, `registry_sha256`, which is `null` without `--registry`, the hash of each schema file and of the ledger, each named by its base name), the `types` and their fields, and `problems`.
+
+`--check` reads the author's coverage ledger, in the shape of [ledger.schema.json](schema/ledger.schema.json), and checks that it gives each leaf field exactly one disposition and names no input or output the module lacks. Without `--check`, `problems` is `null`.
+
+| Code | Meaning |
+|------|---------|
+| 0 | The inventory, and with `--check` a complete ledger. |
+| 1 | With `--check`: at least one problem, listed in `problems`. |
+| 2 | An error: bad input or a limit. |
+
+### schema-diff
+
+`mtf-facts schema-diff` compares two `terraform providers schema -json` files, the current and the target provider version, for the resource and data source types a module tree uses:
+
+```sh
+mtf-facts schema-diff --from current.json --to target.json --types-from path/to/module
+```
+
+All three flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
+
 ## Status
 
-Early. `mtf-facts rules` lists the implemented rules and their tier.
+All 42 tool and candidate rules of the reviewer's rule registry are implemented. CI checks that the `mtf-facts rules` listing equals the registry's tool and candidate rules, tier for tier, against a registry pinned by commit and SHA-256.
 
 Areas are the root module, each `modules/<name>` and each `examples/<name>`, parsed one directory at a time. A change under `.github/` or to a root profile file such as `.editorconfig` counts as the root. With a base tree, the root is in scope only when the change touches it; a cross-area rule still has its one entry under `.`. A cross-area pass reads every area of the module, in scope or not, and keeps only the findings and candidates of the areas in the change. When any area it reads cannot be evaluated, untouched areas included, that entry is `not_evaluated` with one reason code (`parse_error`, `unsupported_file`, `symlink` or `limit_exceeded`) and no findings or candidates. Files Terraform ignores (a leading `.`, a trailing `~`, `#...#`) are skipped. A directory with a parse error, a `.tf.json` file, an override file, a `.tf` file that is a link or cannot be read, or a file over the token, nesting or unary operator limits gets `not_evaluated` for its configuration rules, never `clean`. Path rules still run: a link where a path rule looks for a file counts as present and is never followed. An area directory that is a link or cannot be read gets `not_evaluated` for every rule. No area reads `tests/` or a directory more than one level under `modules/<name>/`, though both hold boundary directories for the scope rules. So `scope.module-call` and `scope.provider` are `not_evaluated(unsupported_file)` at the root when the change adds or edits a `.tf` or `.tf.json` file, or any link, special or unreadable entry, under `tests/`, or when `tests` itself is such an entry. They are `not_evaluated(unsupported_file)` at `modules/<name>` when it does the same in a nested directory there, or adds a link, special or unreadable entry directly in `modules/<name>/` that is not a `.tf` or `.tf.json` file (one that is keeps its own reason code), except a regular `.tf` file in a nested directory that parses with no issue and holds only `variable`, `output`, `locals`, `moved` and `removed` blocks. `scope.new-submodule` is `not_evaluated(unsupported_file)` at `modules/<name>` on the same entries when they lie in a nested directory the base lacks, or are a link, special or unreadable entry, with the same exception. For a new `modules/<name>`, a candidate from its own top level comes first, and the nested entries give `not_evaluated` only when that top level gives none. Candidate subjects are scoped to their area, `<area>:<address>`, such as `.:var.name`.
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
-Not yet: provider schema input and the remaining rules.
-
 ## Releases
 
-Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
+The current release is the pre-release `v0.3.0-rc.1`. Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
 
 ### Cut a release
 
