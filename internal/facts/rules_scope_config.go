@@ -17,7 +17,8 @@ import (
 //
 // A test helper module under tests/ and a directory more than one level
 // under modules/<m>/ are boundary directories subject to these rules, but no
-// area reads them, so a change to their .tf or .tf.json files makes the rules
+// area reads them, so a change to their .tf or .tf.json files, or a link,
+// special or unreadable entry there, makes the rules
 // not_evaluated(unsupported_file) at the root or at modules/<m>
 // (ReadsUnreadConfig). A nested directory under modules/<m>/ is exempt when
 // it parses with no issue and holds only variable, output, locals, moved and

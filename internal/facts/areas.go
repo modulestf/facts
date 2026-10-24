@@ -84,27 +84,32 @@ func Classify(p string) (area, kind string, ok bool) {
 	return ".", AreaRoot, true
 }
 
-// unreadArea returns the area whose rules judge p, a .tf or .tf.json file in
-// a boundary directory that no area reads: the root for a file under tests/,
-// and modules/<m> for a file more than one level under modules/<m>/.
-func unreadArea(p string) (string, bool) {
-	if !strings.HasSuffix(p, ".tf") && !strings.HasSuffix(p, ".tf.json") {
+// unreadArea returns the area whose rules judge p, a changed entry in a
+// boundary directory that no area reads: the root for one under tests/, and
+// modules/<m> for one more than one level under modules/<m>/. A regular file
+// counts when it is a .tf or .tf.json file. Any other entry counts whatever
+// its name, from one level under modules/<m>/: a link, special or unreadable
+// entry may be a directory of configuration the engine never follows.
+func unreadArea(p string, e *Entry) (string, bool) {
+	regular := e.Kind == KindFile || e.Kind == KindOversize
+	if regular && !strings.HasSuffix(p, ".tf") && !strings.HasSuffix(p, ".tf.json") {
 		return "", false
 	}
 	parts := strings.Split(p, "/")
 	switch {
-	case parts[0] == "tests":
+	case parts[0] == "tests" && len(parts) > 1:
 		return rootArea, true
-	case parts[0] == "modules" && len(parts) > 3:
+	case parts[0] == "modules" && (len(parts) > 3 || !regular && len(parts) == 3):
 		return parts[0] + "/" + parts[1], true
 	}
 	return "", false
 }
 
-// judgedConfig returns the unread files of area that a scope rule may judge.
-// Under tests/ that is every file. Under modules/<m>/ a nested directory that
-// parses with only variables, outputs, locals, moved or removed blocks holds
-// nothing those rules judge, so its files are dropped.
+// judgedConfig returns the unread entries of area that a scope rule may judge.
+// Under tests/ that is every entry, and so is an entry that is not a regular
+// file. Under modules/<m>/ a nested directory that parses with no issue and
+// only variables, outputs, locals, moved or removed blocks holds nothing those
+// rules judge, so its files are dropped.
 func judgedConfig(t *Tree, area string, files []string, lim Limits) ([]string, error) {
 	if area == rootArea {
 		return files, nil
@@ -112,6 +117,10 @@ func judgedConfig(t *Tree, area string, files []string, lim Limits) ([]string, e
 	var out []string
 	inert := map[string]bool{}
 	for _, f := range files {
+		if k := t.Entries[f].Kind; k != KindFile && k != KindOversize {
+			out = append(out, f)
+			continue
+		}
 		d := path.Dir(f)
 		ok, seen := inert[d]
 		if !seen {
@@ -183,7 +192,7 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 		for _, p := range head.Paths {
 			if !sameEntry(head.Entries[p], base.Entries[p]) {
 				add(inScope, p, head)
-				if a, ok := unreadArea(p); ok {
+				if a, ok := unreadArea(p, head.Entries[p]); ok {
 					unread[a] = append(unread[a], p)
 				}
 			}

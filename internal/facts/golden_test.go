@@ -55,6 +55,9 @@ func caseRules(t *testing.T, dir string, from []Rule) []Rule {
 // review run always passes one, and renders what expected.json holds.
 func goldenOutput(t *testing.T, dir string, rules []Rule) []byte {
 	t.Helper()
+	if _, err := os.Stat(filepath.Join(dir, "symlinks.txt")); err == nil {
+		dir = setupOracle(t, dir) // links a case cannot commit as such
+	}
 	o := Options{Head: filepath.Join(dir, "head"), ProfileDir: testProfile, Limits: DefaultLimits}
 	if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 		o.Base = filepath.Join(dir, "base")
