@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -211,7 +212,7 @@ func TestCoverageReachModeThroughLocalsAndModules(t *testing.T) {
 		"module \"child\" {\n  source   = \"./modules/child\"\n  for_each = {}\n}\n\n" +
 		"module \"plain\" {\n  source = \"./modules/child\"\n}\n"
 	out := "output \"via_local\" {\n  value = local.a\n}\n" +
-		"output \"via_module\" {\n  value = module.child\n}\n" +
+		"output \"via_module\" {\n  value = module.child[\"a\"].id\n}\n" +
 		"output \"plain\" {\n  value = module.plain.id\n}\n"
 	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{})
 	var got []string
@@ -271,12 +272,159 @@ func TestCoverageReachNestedComputed(t *testing.T) {
 		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": c.outputs}, map[string]string{}, nested)
 		var got []string
 		for _, cand := range r.Candidates {
-			if cand.RuleID == "coverage.attribute-not-output" {
-				got = append(got, cand.Subject)
+			if cand.RuleID != "coverage.attribute-not-output" {
+				continue
+			}
+			if cand.Subject != ".:aws_demo_widget.this" || *cand.Line != 1 {
+				t.Errorf("candidate %s at %d, want the block", cand.Subject, *cand.Line)
+			}
+			for _, f := range cand.Evidence.SchemaFacts {
+				got = append(got, cand.Subject+"."+f.Path)
 			}
 		}
 		if !slices.Equal(got, c.want) {
 			t.Errorf("outputs %q: candidates %v, want %v", c.outputs, got, c.want)
 		}
 	}
+}
+
+// The computed attributes of an added block that no output reads are one
+// candidate at the block's line: a fact per attribute at the latest version,
+// and one at the declared minimum only where the state there differs.
+func TestCoverageReachAttributesPerBlock(t *testing.T) {
+	added := func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			if p.(map[string]any)["version"] == "6.2.0" {
+				b := p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)
+				b["attributes"].(map[string]any)["created_at"] = map[string]any{"computed": true}
+			}
+		}
+	}
+	main := "resource \"aws_demo_widget\" \"a\" {\n  name = var.name\n}\n\nresource \"aws_demo_widget\" \"b\" {\n  name = var.name\n}\n"
+	out := "output \"b\" {\n  value = aws_demo_widget.b\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{}, added)
+	var got []string
+	for _, c := range r.Candidates {
+		if c.RuleID != "coverage.attribute-not-output" {
+			continue
+		}
+		got = append(got, c.Subject+"@"+strconv.Itoa(*c.Line))
+		for _, f := range c.Evidence.SchemaFacts {
+			got = append(got, f.Version+" "+f.Path+" "+f.State)
+		}
+		if len(c.Evidence.SourceLines) != 0 || !c.EvidenceComplete {
+			t.Errorf("%s: evidence %+v", c.Subject, c.Evidence)
+		}
+	}
+	want := []string{".:aws_demo_widget.a@1", "6.2.0 arn present", "6.2.0 created_at present", "6.0.0 created_at absent", "6.2.0 id present"}
+	if !slices.Equal(got, want) {
+		t.Errorf("candidates %q, want %q", got, want)
+	}
+}
+
+// An output that yields a value or null in every mode is no candidate; a
+// near miss that can fail when the counted block has no instance stays one.
+func TestCoverageReachModeSafeOutputs(t *testing.T) {
+	main := "resource \"aws_demo_widget\" \"this\" {\n  count = var.create ? 1 : 0\n}\n\n" +
+		"resource \"aws_demo_widget\" \"many\" {\n  count = var.n\n}\n\n" +
+		"resource \"aws_demo_widget\" \"each\" {\n  for_each = var.m\n}\n\n" +
+		"module \"m\" {\n  source = \"./child\"\n  count  = var.create ? 1 : 0\n}\n"
+	vars := "variable \"fallback\" {}\n\nvariable \"plain\" {\n  sensitive = false\n  ephemeral = false\n}\n\n" +
+		"variable \"secret\" {\n  sensitive = true\n}\n\nvariable \"short\" {\n  ephemeral = true\n}\n"
+	for value, want := range map[string]bool{
+		"try(aws_demo_widget.this[0].arn, null)":                    false,
+		"try(aws_demo_widget.this[0].arn, \"\", (null))":            false,
+		"aws_demo_widget.each":                                      false,
+		"aws_demo_widget.this[*].arn":                               false,
+		"aws_demo_widget.this[*]":                                   false,
+		"one(aws_demo_widget.this[*].arn)":                          false,
+		"[for w in aws_demo_widget.this : w.arn]":                   false,
+		"{ for k, w in aws_demo_widget.each : k => { a = w.arn } }": false,
+		"[for w in aws_demo_widget.each : w.arn if w.enabled]":      true,
+		"module.m[*].x.y":                                           true,
+		"{ for k, v in module.m : k => v.x.y }":                     true,
+		"one(module.m[*].x.y)":                                      true,
+		"one(aws_demo_widget.this[*].config.status)":                true,
+		"[for v in module.m : v.name if v.f]":                       true,
+		"{ for v in module.m : v.name => v.f }":                     true,
+		"{ for k, v in module.m : k => v... }":                      true,
+		"module.m[*].x":                                             false,
+		"{ for k, v in module.m : k => { a = v.x, \"b\" = v } }":    false,
+		"[for k, v in module.m : [k, v.x]]":                         false,
+		"aws_demo_widget.this[0].arn":                               true,
+		"try(aws_demo_widget.this[0].arn)":                          true,
+		"try(aws_demo_widget.this[0].arn, var.fallback)":            false,
+		"try(aws_demo_widget.this[0].arn, var.plain)":               false,
+		"try(aws_demo_widget.this[0].arn, var.secret)":              true,
+		"try(aws_demo_widget.this[0].arn, var.short)":               true,
+		"try(aws_demo_widget.this[0].arn, var.undeclared)":          true,
+		"try(aws_demo_widget.this[0].arn, \"\")":                    false,
+		"try(aws_demo_widget.this[0].arn, \"none\")":                false,
+		"try(aws_demo_widget.this[0].tags, {})":                     false,
+		"try(aws_demo_widget.this[0].list, [])":                     false,
+		"try(aws_demo_widget.this[0].n, 0)":                         false,
+		"try(aws_demo_widget.this[0].on, false)":                    false,
+		"try(aws_demo_widget.this[0].tags, { a = \"b\" })":          false,
+		"try(aws_demo_widget.this[0].arn, local.x)":                 true,
+		"try(aws_demo_widget.this[0].arn, var.x[0])":                true,
+		"try(aws_demo_widget.this[0].arn, var.x.y)":                 true,
+		"try(aws_demo_widget.this[0].arn, module.m.o)":              true,
+		"try(aws_demo_widget.this[0].arn, coalesce(var.a, var.b))":  true,
+		"try(aws_demo_widget.this[0].arn, \"${var.a}\")":            true,
+		"try(aws_demo_widget.this[0].arn, aws_demo_widget.each)":    true,
+		"aws_demo_widget.each[*].arn":                               true,
+		"aws_demo_widget.this[*].tags[\"a\"]":                       true,
+		"one(aws_demo_widget.many[*].arn)":                          true,
+		"[for w in aws_demo_widget.this : w.list[0]]":               true,
+		"[for w in aws_demo_widget.this : var.x[w.arn]]":            true,
+		"[for w in aws_demo_widget.this[0].list : w]":               true,
+		"aws_demo_widget.this":                                      false,
+	} {
+		out := "output \"o\" {\n  value = " + value + "\n}\n"
+		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out, "variables.tf": vars}, map[string]string{"main.tf": main, "variables.tf": vars})
+		got := slices.ContainsFunc(r.Candidates, func(c Candidate) bool { return c.Subject == ".:output.o" })
+		if got != want {
+			t.Errorf("%s: candidate %v, want %v", value, got, want)
+		}
+	}
+}
+
+// A mode output line past maxEvidenceText is cut and makes the evidence
+// incomplete.
+func TestCoverageReachModeLineCap(t *testing.T) {
+	main := "resource \"aws_demo_widget\" \"this\" {\n  count = 1\n}\n"
+	out := "output \"o\" {\n  value = [aws_demo_widget.this[0].id, \"" + strings.Repeat("x", maxEvidenceText) + "\"]\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{"main.tf": main})
+	for _, c := range r.Candidates {
+		if c.Subject == ".:output.o" {
+			if c.EvidenceComplete || len(c.Evidence.SourceLines[1].Text) != maxEvidenceText {
+				t.Errorf("evidence %+v", c.Evidence.SourceLines)
+			}
+			return
+		}
+	}
+	t.Fatal("no output candidate")
+}
+
+// The facts of one block's candidate stop at maxResSchemaFacts.
+func TestCoverageReachAttributesCap(t *testing.T) {
+	many := func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			b := p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)
+			for i := range maxResSchemaFacts + 1 {
+				b["attributes"].(map[string]any)["c"+strconv.Itoa(100+i)] = map[string]any{"computed": true}
+			}
+		}
+	}
+	main := "resource \"aws_demo_widget\" \"a\" {\n  name = var.name\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main}, map[string]string{}, many)
+	for _, c := range r.Candidates {
+		if c.RuleID == "coverage.attribute-not-output" {
+			if c.EvidenceComplete || len(c.Evidence.SchemaFacts) != maxResSchemaFacts {
+				t.Errorf("cap: complete %v, %d facts", c.EvidenceComplete, len(c.Evidence.SchemaFacts))
+			}
+			return
+		}
+	}
+	t.Fatal("no attribute candidate")
 }

@@ -50,16 +50,9 @@
       "rule_id": "coverage.attribute-not-output",
       "file": "main.tf",
       "line": 13,
-      "subject": ".:aws_demo_widget.extra.arn",
+      "subject": ".:aws_demo_widget.extra",
       "evidence": {
-        "source_lines": [
-          {
-            "revision": "head",
-            "file": "main.tf",
-            "line": 13,
-            "text": "resource \"aws_demo_widget\" \"extra\" {"
-          }
-        ],
+        "source_lines": [],
         "base": null,
         "head": null,
         "schema_facts": [
@@ -72,43 +65,7 @@
           },
           {
             "provider_source": "registry.terraform.io/hashicorp/aws",
-            "version": "6.0.0",
-            "type": "aws_demo_widget",
-            "path": "arn",
-            "state": "present"
-          }
-        ]
-      },
-      "evidence_complete": true
-    },
-    {
-      "candidate_id": "C-002",
-      "rule_id": "coverage.attribute-not-output",
-      "file": "main.tf",
-      "line": 13,
-      "subject": ".:aws_demo_widget.extra.id",
-      "evidence": {
-        "source_lines": [
-          {
-            "revision": "head",
-            "file": "main.tf",
-            "line": 13,
-            "text": "resource \"aws_demo_widget\" \"extra\" {"
-          }
-        ],
-        "base": null,
-        "head": null,
-        "schema_facts": [
-          {
-            "provider_source": "registry.terraform.io/hashicorp/aws",
             "version": "6.2.0",
-            "type": "aws_demo_widget",
-            "path": "id",
-            "state": "present"
-          },
-          {
-            "provider_source": "registry.terraform.io/hashicorp/aws",
-            "version": "6.0.0",
             "type": "aws_demo_widget",
             "path": "id",
             "state": "present"
@@ -118,7 +75,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-003",
+      "candidate_id": "C-002",
       "rule_id": "coverage.optional-argument-unexposed",
       "file": "main.tf",
       "line": 13,
@@ -154,7 +111,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-004",
+      "candidate_id": "C-003",
       "rule_id": "coverage.required-argument-unreachable",
       "file": "main.tf",
       "line": 13,
@@ -190,7 +147,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-005",
+      "candidate_id": "C-004",
       "rule_id": "coverage.unknown-argument",
       "file": "main.tf",
       "line": 16,
@@ -226,7 +183,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-006",
+      "candidate_id": "C-005",
       "rule_id": "coverage.deprecated-argument",
       "file": "main.tf",
       "line": 17,
@@ -262,7 +219,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-007",
+      "candidate_id": "C-006",
       "rule_id": "coverage.argument-above-min-version",
       "file": "main.tf",
       "line": 18,
@@ -298,7 +255,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-008",
+      "candidate_id": "C-007",
       "rule_id": "coverage.block-attribute-mismatch",
       "file": "main.tf",
       "line": 20,

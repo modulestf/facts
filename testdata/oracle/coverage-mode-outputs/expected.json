@@ -1,0 +1,679 @@
+{
+  "manifest": [
+    {"rule_id": "compat.default-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.generated-policy-narrowed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.provider-floor-raised", "area": ".", "status": "clean"},
+    {"rule_id": "compat.resource-address-changed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.type-narrowed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.variable-now-required", "area": ".", "status": "clean"},
+    {"rule_id": "compat.variable-removed", "area": ".", "status": "clean"},
+    {"rule_id": "compat.version-constraint-raised", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.argument-above-min-version", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.attribute-not-output", "area": ".", "status": "candidate"},
+    {"rule_id": "coverage.block-attribute-mismatch", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.deprecated-argument", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.optional-argument-unexposed", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.required-argument-unreachable", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.unknown-argument", "area": ".", "status": "clean"},
+    {"rule_id": "examples.disabled-call-missing", "area": ".", "status": "not_applicable"},
+    {"rule_id": "examples.stale-reference", "area": ".", "status": "clean"},
+    {"rule_id": "examples.submodule-missing", "area": ".", "status": "clean"},
+    {"rule_id": "examples.versions-missing", "area": ".", "status": "not_applicable"},
+    {"rule_id": "profile.nonstandard-config-file", "area": ".", "status": "clean"},
+    {"rule_id": "profile.putin-khuylo-missing", "area": ".", "status": "clean"},
+    {"rule_id": "profile.region-not-allowed", "area": ".", "status": "clean"},
+    {"rule_id": "profile.required-file-missing", "area": ".", "status": "clean"},
+    {"rule_id": "profile.template-drift", "area": ".", "status": "clean"},
+    {"rule_id": "scope.module-call", "area": ".", "status": "clean"},
+    {"rule_id": "scope.new-submodule", "area": ".", "status": "not_applicable"},
+    {"rule_id": "scope.pre-commit-hook", "area": ".", "status": "clean"},
+    {"rule_id": "scope.profile-file", "area": ".", "status": "clean"},
+    {"rule_id": "scope.provider", "area": ".", "status": "clean"},
+    {"rule_id": "scope.readme-banner", "area": ".", "status": "clean"},
+    {"rule_id": "scope.tooling", "area": ".", "status": "clean"},
+    {"rule_id": "structure.argument-order", "area": ".", "status": "clean"},
+    {"rule_id": "structure.arn-partition-hardcoded", "area": ".", "status": "clean"},
+    {"rule_id": "structure.feature-above-version-floor", "area": ".", "status": "clean"},
+    {"rule_id": "structure.missing-description", "area": ".", "status": "clean"},
+    {"rule_id": "structure.multi-provider", "area": ".", "status": "clean"},
+    {"rule_id": "structure.output-no-try", "area": ".", "status": "candidate"},
+    {"rule_id": "structure.passthrough-default-drift", "area": ".", "status": "clean"},
+    {"rule_id": "structure.passthrough-field-drift", "area": ".", "status": "clean"},
+    {"rule_id": "structure.variable-untyped", "area": ".", "status": "clean"},
+    {"rule_id": "structure.version-floor-understated", "area": ".", "status": "clean"},
+    {"rule_id": "structure.wrong-file", "area": ".", "status": "clean"}
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 11,
+      "subject": ".:output.widget_arns",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 13,
+            "text": "  value       = aws_demo_widget.this[*].arn"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.this[*].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 16,
+      "subject": ".:output.widget_arn_one",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 18,
+            "text": "  value       = one(aws_demo_widget.this[*].arn)"
+          }
+        ],
+        "base": null,
+        "head": "one(aws_demo_widget.this[*].arn)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 21,
+      "subject": ".:output.widget_arn_list",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 23,
+            "text": "  value       = [for w in aws_demo_widget.this : w.arn]"
+          }
+        ],
+        "base": null,
+        "head": "[for w in aws_demo_widget.this : w.arn]",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 26,
+      "subject": ".:output.extra_arns",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 28,
+            "text": "  value       = { for k, w in aws_demo_widget.each : k => w.arn }"
+          }
+        ],
+        "base": null,
+        "head": "{ for k, w in aws_demo_widget.each : k => w.arn }",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-005",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 31,
+      "subject": ".:output.extras",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 33,
+            "text": "  value       = aws_demo_widget.each"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.each",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 36,
+      "subject": ".:output.widget_arn_index",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 36,
+            "text": "output \"widget_arn_index\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 37,
+            "text": "  description = \"ARN of the widget, which fails when it is not created\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 38,
+            "text": "  value       = aws_demo_widget.this[0].arn"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 39,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.this[0].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-007",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 36,
+      "subject": ".:output.widget_arn_index",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 38,
+            "text": "  value       = aws_demo_widget.this[0].arn"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.this[0].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 41,
+      "subject": ".:output.widget_arn_try",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 41,
+            "text": "output \"widget_arn_try\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 42,
+            "text": "  description = \"ARN of the widget, which fails when it is not created\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 43,
+            "text": "  value       = try(aws_demo_widget.this[0].arn)"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 44,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 41,
+      "subject": ".:output.widget_arn_try",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 43,
+            "text": "  value       = try(aws_demo_widget.this[0].arn)"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-010",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 46,
+      "subject": ".:output.extra_arns_splat",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 46,
+            "text": "output \"extra_arns_splat\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 47,
+            "text": "  description = \"ARNs of the extra widgets, which fails on a map\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 48,
+            "text": "  value       = aws_demo_widget.each[*].arn"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 49,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  for_each = local.create ? var.widgets : {}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.each[*].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-011",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 46,
+      "subject": ".:output.extra_arns_splat",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 48,
+            "text": "  value       = aws_demo_widget.each[*].arn"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.each[*].arn",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-012",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 51,
+      "subject": ".:output.widget_arn_or_name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 53,
+            "text": "  value       = try(aws_demo_widget.this[0].arn, var.name)"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn, var.name)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-013",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 56,
+      "subject": ".:output.widget_arn_or_tag",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 56,
+            "text": "output \"widget_arn_or_tag\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 57,
+            "text": "  description = \"ARN of the widget, or a tag that may be missing\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 58,
+            "text": "  value       = try(aws_demo_widget.this[0].arn, var.tags[\"arn\"])"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 59,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn, var.tags[\"arn\"])",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-014",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 56,
+      "subject": ".:output.widget_arn_or_tag",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 58,
+            "text": "  value       = try(aws_demo_widget.this[0].arn, var.tags[\"arn\"])"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn, var.tags[\"arn\"])",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-015",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 61,
+      "subject": ".:output.widget_tag_names",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 61,
+            "text": "output \"widget_tag_names\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 62,
+            "text": "  description = \"Name tags of the widget, which fails where tags is null\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 63,
+            "text": "  value       = aws_demo_widget.this[*].tags.Name"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 64,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.this[*].tags.Name",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-016",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 61,
+      "subject": ".:output.widget_tag_names",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 63,
+            "text": "  value       = aws_demo_widget.this[*].tags.Name"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.this[*].tags.Name",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-017",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 66,
+      "subject": ".:output.extra_arns_named",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 66,
+            "text": "output \"extra_arns_named\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 67,
+            "text": "  description = \"ARNs of the named extra widgets, which fails on a null name\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 68,
+            "text": "  value       = [for w in aws_demo_widget.each : w.arn if w.name != \"\"]"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 69,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 14,
+            "text": "  for_each = local.create ? var.widgets : {}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "[for w in aws_demo_widget.each : w.arn if w.name != \"\"]",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-018",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 66,
+      "subject": ".:output.extra_arns_named",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 68,
+            "text": "  value       = [for w in aws_demo_widget.each : w.arn if w.name != \"\"]"
+          }
+        ],
+        "base": null,
+        "head": "[for w in aws_demo_widget.each : w.arn if w.name != \"\"]",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-019",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 71,
+      "subject": ".:output.widget_arn_or_token",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 71,
+            "text": "output \"widget_arn_or_token\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 72,
+            "text": "  description = \"ARN of the widget, or a sensitive token, which an output may not return\""
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 73,
+            "text": "  value       = try(aws_demo_widget.this[0].arn, var.token)"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 74,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 6,
+            "text": "  count = local.create ? 1 : 0"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn, var.token)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-020",
+      "rule_id": "structure.output-no-try",
+      "file": "outputs.tf",
+      "line": 71,
+      "subject": ".:output.widget_arn_or_token",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 73,
+            "text": "  value       = try(aws_demo_widget.this[0].arn, var.token)"
+          }
+        ],
+        "base": null,
+        "head": "try(aws_demo_widget.this[0].arn, var.token)",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

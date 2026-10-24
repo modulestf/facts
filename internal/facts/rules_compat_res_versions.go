@@ -253,7 +253,12 @@ func resSortedKeys[V any](m map[string]V) []string {
 // against the old floor. Without the handoff's versions for that provider
 // the rule is not_evaluated(schema_unavailable). The schema facts are the
 // arguments and blocks the area's resource and data blocks of that
-// provider set, looked up at the old floor.
+// provider set, but only those the floors tell apart: the fact at the old
+// floor, and the fact at the new floor, the declared minimum, when its
+// state differs. A name present at both floors, or deprecated at both, has
+// no fact, and neither has one present at the old floor when the handoff
+// has no schema at the new one; one absent or unknown at the old floor
+// always has.
 func checkProviderFloorRaised(a *Area) Result {
 	if !baseHasFiles(a) {
 		return Result{} // a module new in this change breaks no caller
@@ -291,8 +296,10 @@ func checkProviderFloorRaised(a *Area) Result {
 		if !dm.GreaterThan(of) || dm.Segments()[0] != of.Segments()[0] {
 			continue // no raise, or a major one, which is compat.version-constraint-raised
 		}
-		ev := floorEvidence(a, base, head)
-		schemaFacts(a, ev, name, r.Source, *r.Versions.OldFloor)
+		// base and head carry the constraint text, the candidate its head line
+		ev := newResEvidence(a)
+		ev.values(new(constraintText(base)), new(constraintText(head)))
+		schemaFacts(a, ev, name, r.Source, *r.Versions.OldFloor, r.Versions.DeclaredMinimum)
 		file, line := constraintHeadLine(base, head)
 		if line == 0 {
 			file = firstFile(base, head)
@@ -313,7 +320,7 @@ func resourceProvider(r *Resource) string {
 	return name
 }
 
-func schemaFacts(a *Area, ev *resEvidence, local, source, ver string) {
+func schemaFacts(a *Area, ev *resEvidence, local, source, oldFloor, newFloor string) {
 	seen := map[string]bool{}
 	for i := range a.Head.Resources {
 		r := &a.Head.Resources[i]
@@ -327,12 +334,23 @@ func schemaFacts(a *Area, ev *resEvidence, local, source, ver string) {
 				continue
 			}
 			seen[key] = true
-			if len(ev.ev.SchemaFacts) == maxResSchemaFacts {
+			state := func(ver string) string {
+				return factState(a.Schema.Lookup(schema.Query{Source: source, Version: ver, DataSource: r.Mode == "data", Type: r.Type, Path: []string{n}}))
+			}
+			old, cur := state(oldFloor), state(newFloor)
+			// unknown at the new floor is no schema there, so only the old floor speaks
+			if (old == "present" || old == "deprecated") && (cur == old || cur == "unknown") {
+				continue
+			}
+			facts := []SchemaFact{{ProviderSource: source, Version: oldFloor, Type: r.Type, Path: n, State: old}}
+			if cur != old {
+				facts = append(facts, SchemaFact{ProviderSource: source, Version: newFloor, Type: r.Type, Path: n, State: cur})
+			}
+			if len(ev.ev.SchemaFacts)+len(facts) > maxResSchemaFacts {
 				ev.complete = false
 				return
 			}
-			out, f := a.Schema.Lookup(schema.Query{Source: source, Version: ver, DataSource: r.Mode == "data", Type: r.Type, Path: []string{n}})
-			ev.ev.SchemaFacts = append(ev.ev.SchemaFacts, SchemaFact{ProviderSource: source, Version: ver, Type: r.Type, Path: n, State: factState(out, f)})
+			ev.ev.SchemaFacts = append(ev.ev.SchemaFacts, facts...)
 		}
 	}
 }

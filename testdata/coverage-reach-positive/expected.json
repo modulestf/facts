@@ -23,29 +23,15 @@
       "rule_id": "coverage.attribute-not-output",
       "file": "main.tf",
       "line": 5,
-      "subject": ".:aws_demo_widget.new.arn",
+      "subject": ".:aws_demo_widget.new",
       "evidence": {
-        "source_lines": [
-          {
-            "revision": "head",
-            "file": "main.tf",
-            "line": 5,
-            "text": "resource \"aws_demo_widget\" \"new\" {"
-          }
-        ],
+        "source_lines": [],
         "base": null,
         "head": null,
         "schema_facts": [
           {
             "provider_source": "registry.terraform.io/hashicorp/aws",
             "version": "6.2.0",
-            "type": "aws_demo_widget",
-            "path": "arn",
-            "state": "present"
-          },
-          {
-            "provider_source": "registry.terraform.io/hashicorp/aws",
-            "version": "6.0.0",
             "type": "aws_demo_widget",
             "path": "arn",
             "state": "present"

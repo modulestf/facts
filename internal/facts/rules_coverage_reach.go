@@ -26,7 +26,7 @@ var coverageReachRules = []Rule{
 	{
 		ID: "coverage.attribute-not-output", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule},
 		Check: func(a *Area) Result {
-			res := checkReach(a, "coverage.attribute-not-output", attributeNotOutput)
+			res := checkReach(a, "coverage.attribute-not-output", attributeNotOutput, blockCandidate)
 			if res.NotEvaluated == "" {
 				res.Candidates = append(res.Candidates, modeOutputs(a)...)
 			}
@@ -44,11 +44,49 @@ type reachJudge func(a *Area, ps providerSchema, r Resource, base *Resource) []s
 func coverageReachRule(id, scope string, judge reachJudge) Rule {
 	return Rule{
 		ID: id, Tier: "candidate", Class: ClassConfig, Scope: scope, Kinds: []string{AreaRoot, AreaSubmodule},
-		Check: func(a *Area) Result { return checkReach(a, id, judge) },
+		Check: func(a *Area) Result { return checkReach(a, id, judge, itemCandidates) },
 	}
 }
 
-func checkReach(a *Area, id string, judge reachJudge) Result {
+// reachEmit turns the candidate items of one block into candidates.
+type reachEmit func(a *Area, id string, ps providerSchema, r Resource, base *Resource, items []schemaItem) []Candidate
+
+// itemCandidates is one candidate per item.
+func itemCandidates(a *Area, id string, ps providerSchema, _ Resource, base *Resource, items []schemaItem) []Candidate {
+	out := make([]Candidate, 0, len(items))
+	for _, it := range items {
+		out = append(out, schemaCandidate(a, id, ps, it, baseArg(base, it)))
+	}
+	return out
+}
+
+// blockCandidate is one candidate for all the items of a block, at its
+// header line, with a schema fact per item at the latest version, and one
+// at the declared minimum where its state there differs.
+func blockCandidate(a *Area, id string, ps providerSchema, r Resource, _ *Resource, items []schemaItem) []Candidate {
+	if len(items) == 0 {
+		return nil
+	}
+	ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
+	complete := true
+	for _, it := range items {
+		key := strings.Join(it.path, ".")
+		facts := []SchemaFact{{ProviderSource: ps.source, Version: ps.latest, Type: ps.typ, Path: key, State: factState(it.latest, it.field)}}
+		if m := factState(it.minimum, it.minimal); ps.minimum != "" && ps.minimum != ps.latest && m != facts[0].State {
+			facts = append(facts, SchemaFact{ProviderSource: ps.source, Version: ps.minimum, Type: ps.typ, Path: key, State: m})
+		}
+		if len(ev.SchemaFacts)+len(facts) > maxResSchemaFacts {
+			complete = false
+			break
+		}
+		ev.SchemaFacts = append(ev.SchemaFacts, facts...)
+	}
+	line := r.Line
+	return []Candidate{{RuleID: id, File: areaFile(a.Path, r.File), Line: &line,
+		Subject: subject(a.Path, short(coverageBlockAddr(r))), Evidence: ev, EvidenceComplete: complete}}
+}
+
+func checkReach(a *Area, id string, judge reachJudge, emit reachEmit) Result {
 	var res Result
 	for _, r := range a.Head.Resources {
 		base := baseResource(a, r)
@@ -59,9 +97,7 @@ func checkReach(a *Area, id string, judge reachJudge) Result {
 		if why != "" {
 			return Result{NotEvaluated: why, Code: ReasonSchemaUnavailable}
 		}
-		for _, it := range judge(a, ps, r, base) {
-			res.Candidates = append(res.Candidates, schemaCandidate(a, id, ps, it, baseArg(base, it)))
-		}
+		res.Candidates = append(res.Candidates, emit(a, id, ps, r, base, judge(a, ps, r, base))...)
 	}
 	return res
 }
@@ -127,8 +163,10 @@ func optionalUnexposed(_ *Area, ps providerSchema, r Resource, base *Resource) [
 // judge (owner decision). A module has a mode switch when it declares a
 // create flag, a variable named create or create_*, or when a resource,
 // data block or module call the output reads, directly or through locals at
-// any depth, has count or for_each. The evidence is the output's lines, then
-// each count or for_each line of what it reads and each create flag's line.
+// any depth, has count or for_each. An output that yields a value or null
+// in every mode, as modeSafe reads it, is no candidate. The evidence is the
+// output's lines, then each count or for_each line of what it reads and
+// each create flag's line.
 func modeOutputs(a *Area) []Candidate {
 	var flags []Variable
 	for _, v := range a.Head.Variables {
@@ -147,6 +185,9 @@ func modeOutputs(a *Area) []Candidate {
 		}
 		if base != nil && base.Hash == o.Hash {
 			continue // untouched
+		}
+		if o.Value != nil && modeSafe(a, *o.Value) {
+			continue
 		}
 		type line struct {
 			file string

@@ -255,7 +255,7 @@ func TestVersionCases(t *testing.T) {
 // floorHandoff runs the compat-versions-floor oracle trees, with head
 // changed by edit, and a copy of its handoff whose tree hashes match and
 // whose versions edit sets.
-func floorHandoff(t *testing.T, edit func(head map[string]string), versions func(v map[string]any)) *Report {
+func floorHandoff(t *testing.T, edit func(head map[string]string), versions func(v map[string]any), schemas ...func(h map[string]any)) *Report {
 	t.Helper()
 	src := filepath.Join(oracleRoot, "compat-versions-floor")
 	read := func(rev string) map[string]string {
@@ -282,6 +282,9 @@ func floorHandoff(t *testing.T, edit func(head map[string]string), versions func
 	}
 	h["inputs"].(map[string]any)["head"].(map[string]any)["tree_hash"] = tfTreeHash(mustTree(t, hd))
 	versions(h["directories"].([]any)[0].(map[string]any)["providers"].([]any)[0].(map[string]any))
+	for _, e := range schemas {
+		e(h)
+	}
 	out, _ := json.Marshal(h)
 	hf := filepath.Join(t.TempDir(), "handoff.json")
 	if err := os.WriteFile(hf, out, 0o644); err != nil {
@@ -306,6 +309,54 @@ func TestProviderFloorWithSchema(t *testing.T) {
 	if s := statusOf(r.Manifest, floorRule, "."); s != "not_evaluated: no schema handoff versions for provider aws: constraint_unparsable" {
 		t.Errorf("unresolved: %s", s)
 	}
+	// Every name the module sets is present at both floors: no fact.
+	r = floorHandoff(t, same, func(map[string]any) {})
+	if len(r.Candidates) != 1 || len(r.Candidates[0].Evidence.SchemaFacts) != 0 || !r.Candidates[0].EvidenceComplete ||
+		len(r.Candidates[0].Evidence.SourceLines) != 0 || *r.Candidates[0].Evidence.Base != ">= 6.0" || *r.Candidates[0].Evidence.Head != ">= 6.2" {
+		t.Fatalf("all present: %+v", r.Candidates)
+	}
+	// A name the new floor adds is a fact at each floor; one the old floor
+	// has and the new one deprecates too.
+	r = floorHandoff(t, func(h map[string]string) {
+		h["main.tf"] = strings.Replace(h["main.tf"], "  name = var.name\n", "  name = var.name\n  fresh = 1\n", 1)
+	}, func(map[string]any) {}, func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			attrs := p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)["attributes"].(map[string]any)
+			if p.(map[string]any)["version"] == "6.2.0" {
+				attrs["fresh"] = map[string]any{"optional": true}
+				attrs["name"].(map[string]any)["deprecated"] = true
+			}
+		}
+	})
+	var got []string
+	for _, f := range r.Candidates[0].Evidence.SchemaFacts {
+		got = append(got, f.Version+" "+f.Path+" "+f.State)
+	}
+	if want := []string{"6.0.0 fresh absent", "6.2.0 fresh present", "6.0.0 name present", "6.2.0 name deprecated"}; !slices.Equal(got, want) {
+		t.Errorf("facts %q, want %q", got, want)
+	}
+	// A name the new floor drops is a fact at each floor.
+	r = floorHandoff(t, same, func(map[string]any) {}, func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			if p.(map[string]any)["version"] == "6.2.0" {
+				delete(p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)["attributes"].(map[string]any), "tags")
+			}
+		}
+	})
+	got = got[:0]
+	for _, f := range r.Candidates[0].Evidence.SchemaFacts {
+		got = append(got, f.Version+" "+f.Path+" "+f.State)
+	}
+	if want := []string{"6.0.0 tags present", "6.2.0 tags absent"}; !slices.Equal(got, want) {
+		t.Errorf("dropped: facts %q, want %q", got, want)
+	}
+	// With no schema at the new floor only the old floor speaks.
+	r = floorHandoff(t, same, func(map[string]any) {}, func(h map[string]any) {
+		h["provider_schemas"] = slices.DeleteFunc(h["provider_schemas"].([]any), func(p any) bool { return p.(map[string]any)["version"] == "6.2.0" })
+	})
+	if len(r.Candidates) != 1 || len(r.Candidates[0].Evidence.SchemaFacts) != 0 {
+		t.Fatalf("no new floor schema: %+v", r.Candidates)
+	}
 	// A type the old floor lacks is absent; too many facts are capped.
 	r = floorHandoff(t, func(h map[string]string) {
 		var b strings.Builder
@@ -318,7 +369,7 @@ func TestProviderFloorWithSchema(t *testing.T) {
 	if len(r.Candidates) != 1 || r.Candidates[0].EvidenceComplete || len(r.Candidates[0].Evidence.SchemaFacts) != maxResSchemaFacts {
 		t.Fatalf("cap: %+v", r.Candidates)
 	}
-	if f := r.Candidates[0].Evidence.SchemaFacts; f[0].State != "present" || f[len(f)-1].State != "absent" {
+	if f := r.Candidates[0].Evidence.SchemaFacts; f[0].Type != "aws_demo_unknown" || f[0].State != "absent" || f[len(f)-1].State != "absent" {
 		t.Errorf("states %+v", f)
 	}
 }
