@@ -1,0 +1,20 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": "modules/m",
+      "status": "not_evaluated",
+      "reason": "link.tf is a symbolic link",
+      "reason_code": "symlink"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "symlink",
+      "reason_code": "symlink"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

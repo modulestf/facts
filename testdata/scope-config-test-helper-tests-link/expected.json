@@ -1,0 +1,20 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.module-call",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "tests: test helper configuration the engine does not read",
+      "reason_code": "unsupported_file"
+    },
+    {
+      "rule_id": "scope.provider",
+      "area": ".",
+      "status": "not_evaluated",
+      "reason": "unsupported_file",
+      "reason_code": "unsupported_file"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

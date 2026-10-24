@@ -62,12 +62,13 @@ type Rule struct {
 	// NeedsBase is set for a rule that cannot be decided without the base
 	// tree: with none, every area is not_evaluated(no_base).
 	NeedsBase bool
-	// ReadsTestHelpers is set for a rule that also judges a test helper
-	// module under tests/. The engine reads no such directory, so a change
-	// to a .tf or .tf.json file there makes the rule not_evaluated at the
-	// root rather than clean.
-	ReadsTestHelpers bool
-	Check            func(a *Area) Result
+	// ReadsUnreadConfig is set for a rule that also judges a test helper
+	// module under tests/ and a directory more than one level under
+	// modules/<m>/. No area reads either, so a change to a .tf or .tf.json
+	// file there makes the rule not_evaluated at the root or at modules/<m>
+	// rather than clean; judgedConfig says which nested files are exempt.
+	ReadsUnreadConfig bool
+	Check             func(a *Area) Result
 }
 
 // rootArea is the area of the module root, where a cross-area rule's one
@@ -285,8 +286,12 @@ func gate(r Rule, a *Area) (reason, code string) {
 		return a.Issue, a.issueCode
 	case r.NeedsBase && a.Base == nil:
 		return "no base revision to compare with", ReasonNoBase
-	case r.ReadsTestHelpers && len(a.unreadHelpers) > 0:
-		return strings.Join(a.unreadHelpers, ", ") + ": test helper configuration the engine does not read", ReasonUnsupportedFile
+	case r.ReadsUnreadConfig && len(a.unreadConfig) > 0:
+		what := ": test helper configuration the engine does not read"
+		if a.Kind == AreaSubmodule {
+			what = ": configuration in a nested directory or link the engine does not evaluate"
+		}
+		return strings.Join(a.unreadConfig, ", ") + what, ReasonUnsupportedFile
 	}
 	if r.Class != ClassConfig {
 		return "", ""
