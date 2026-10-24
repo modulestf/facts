@@ -395,9 +395,19 @@ func localModuleSource(a *Area, src string) bool {
 // renamed whole from one the base has is still read as new: the trees carry
 // no rename, so the confirmer settles it. A new module's empty base is not
 // this rule.
+//
+// A new directory more than one level under modules/<m>/ is a directory
+// under modules/ too, but no area reads it, so the rule is not evaluated at
+// modules/<m> unless that directory is inert, as judgedConfig decides.
 func checkNewSubmodule(a *Area) Result {
 	const id = "scope.new-submodule"
-	if a.BaseExists || !a.HeadExists || newModuleBase(a.baseTree) {
+	if !a.HeadExists || newModuleBase(a.baseTree) {
+		return Result{}
+	}
+	if nested := a.newUnreadConfig(); len(nested) > 0 {
+		return Result{NotEvaluated: strings.Join(nested, ", ") + ": configuration in a new nested directory or link the engine does not evaluate", Code: ReasonUnsupportedFile}
+	}
+	if a.BaseExists {
 		return Result{}
 	}
 	if res, ok := needProfile(a); !ok {
