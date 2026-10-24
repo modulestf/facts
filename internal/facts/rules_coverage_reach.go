@@ -26,7 +26,7 @@ var coverageReachRules = []Rule{
 	{
 		ID: "coverage.attribute-not-output", Tier: "candidate", Class: ClassConfig, Scope: ScopeTouchedBlock, Kinds: []string{AreaRoot, AreaSubmodule},
 		Check: func(a *Area) Result {
-			res := checkReach(a, "coverage.attribute-not-output", attributeNotOutput)
+			res := checkReach(a, "coverage.attribute-not-output", attributeNotOutput, blockCandidate)
 			if res.NotEvaluated == "" {
 				res.Candidates = append(res.Candidates, modeOutputs(a)...)
 			}
@@ -44,11 +44,49 @@ type reachJudge func(a *Area, ps providerSchema, r Resource, base *Resource) []s
 func coverageReachRule(id, scope string, judge reachJudge) Rule {
 	return Rule{
 		ID: id, Tier: "candidate", Class: ClassConfig, Scope: scope, Kinds: []string{AreaRoot, AreaSubmodule},
-		Check: func(a *Area) Result { return checkReach(a, id, judge) },
+		Check: func(a *Area) Result { return checkReach(a, id, judge, itemCandidates) },
 	}
 }
 
-func checkReach(a *Area, id string, judge reachJudge) Result {
+// reachEmit turns the candidate items of one block into candidates.
+type reachEmit func(a *Area, id string, ps providerSchema, r Resource, base *Resource, items []schemaItem) []Candidate
+
+// itemCandidates is one candidate per item.
+func itemCandidates(a *Area, id string, ps providerSchema, _ Resource, base *Resource, items []schemaItem) []Candidate {
+	out := make([]Candidate, 0, len(items))
+	for _, it := range items {
+		out = append(out, schemaCandidate(a, id, ps, it, baseArg(base, it)))
+	}
+	return out
+}
+
+// blockCandidate is one candidate for all the items of a block, at its
+// header line, with a schema fact per item at the latest version, and one
+// at the declared minimum where its state there differs.
+func blockCandidate(a *Area, id string, ps providerSchema, r Resource, _ *Resource, items []schemaItem) []Candidate {
+	if len(items) == 0 {
+		return nil
+	}
+	ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
+	complete := true
+	for _, it := range items {
+		key := strings.Join(it.path, ".")
+		facts := []SchemaFact{{ProviderSource: ps.source, Version: ps.latest, Type: ps.typ, Path: key, State: factState(it.latest, it.field)}}
+		if m := factState(it.minimum, it.minimal); ps.minimum != "" && ps.minimum != ps.latest && m != facts[0].State {
+			facts = append(facts, SchemaFact{ProviderSource: ps.source, Version: ps.minimum, Type: ps.typ, Path: key, State: m})
+		}
+		if len(ev.SchemaFacts)+len(facts) > maxResSchemaFacts {
+			complete = false
+			break
+		}
+		ev.SchemaFacts = append(ev.SchemaFacts, facts...)
+	}
+	line := r.Line
+	return []Candidate{{RuleID: id, File: areaFile(a.Path, r.File), Line: &line,
+		Subject: subject(a.Path, short(coverageBlockAddr(r))), Evidence: ev, EvidenceComplete: complete}}
+}
+
+func checkReach(a *Area, id string, judge reachJudge, emit reachEmit) Result {
 	var res Result
 	for _, r := range a.Head.Resources {
 		base := baseResource(a, r)
@@ -59,9 +97,7 @@ func checkReach(a *Area, id string, judge reachJudge) Result {
 		if why != "" {
 			return Result{NotEvaluated: why, Code: ReasonSchemaUnavailable}
 		}
-		for _, it := range judge(a, ps, r, base) {
-			res.Candidates = append(res.Candidates, schemaCandidate(a, id, ps, it, baseArg(base, it)))
-		}
+		res.Candidates = append(res.Candidates, emit(a, id, ps, r, base, judge(a, ps, r, base))...)
 	}
 	return res
 }
@@ -127,8 +163,10 @@ func optionalUnexposed(_ *Area, ps providerSchema, r Resource, base *Resource) [
 // judge (owner decision). A module has a mode switch when it declares a
 // create flag, a variable named create or create_*, or when a resource,
 // data block or module call the output reads, directly or through locals at
-// any depth, has count or for_each. The evidence is the output's lines, then
-// each count or for_each line of what it reads and each create flag's line.
+// any depth, has count or for_each. The outputs of one file are one
+// candidate, whose subject is the file, at the first output's line. Its
+// evidence is each output's value lines, then each count or for_each line
+// of what it reads and each create flag's line, every line once.
 func modeOutputs(a *Area) []Candidate {
 	var flags []Variable
 	for _, v := range a.Head.Variables {
@@ -137,7 +175,17 @@ func modeOutputs(a *Area) []Candidate {
 		}
 	}
 	locals := localRefs(a.Head.Locals)
-	var out []Candidate
+	type line struct {
+		file string
+		n    int
+	}
+	type group struct {
+		first int
+		lines []line
+		seen  map[line]bool
+	}
+	groups := map[string]*group{}
+	var files []string
 	for _, o := range a.Head.Outputs {
 		var base *Output
 		if a.Base != nil {
@@ -148,13 +196,11 @@ func modeOutputs(a *Area) []Candidate {
 		if base != nil && base.Hash == o.Hash {
 			continue // untouched
 		}
-		type line struct {
-			file string
-			n    int
-		}
 		var lines []line
-		for n := o.Range.Start.Line; n <= o.Range.End.Line; n++ {
-			lines = append(lines, line{o.File, n})
+		if o.Value != nil {
+			for n := o.Value.Range.Start.Line; n <= o.Value.Range.End.Line; n++ {
+				lines = append(lines, line{o.File, n})
+			}
 		}
 		reads := map[string]bool{}
 		for refs := slices.Clone(o.References); len(refs) > 0; refs = refs[1:] {
@@ -190,41 +236,45 @@ func modeOutputs(a *Area) []Candidate {
 		for _, v := range flags {
 			lines = append(lines, line{v.File, v.Line})
 		}
-		complete := true
-		capText := func(s string) string {
-			if len(s) > maxEvidenceText {
-				complete = false
-				return s[:maxEvidenceText]
-			}
-			return s
+		g := groups[o.File]
+		if g == nil {
+			g = &group{first: o.Line, seen: map[line]bool{}}
+			groups[o.File] = g
+			files = append(files, o.File)
 		}
-		ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
 		for _, l := range lines {
-			if len(ev.SourceLines) == maxEvidenceLines {
-				complete = false
-				break
+			// one past the cap is kept, so the cap shows as incomplete evidence
+			if !g.seen[l] && len(g.lines) <= maxModeLines {
+				g.seen[l] = true
+				g.lines = append(g.lines, l)
 			}
+		}
+	}
+	out := make([]Candidate, 0, len(files))
+	for _, f := range files {
+		g := groups[f]
+		ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
+		complete := len(g.lines) <= maxModeLines
+		for _, l := range g.lines[:min(len(g.lines), maxModeLines)] {
 			file := areaFile(a.Path, l.file)
 			text := ""
 			if e := a.headTree.Entries[file]; e != nil {
 				text = coverageLineOf(e.Data, l.n)
 			}
-			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: l.n, Text: capText(text)})
+			if len(text) > maxEvidenceText {
+				complete, text = false, text[:maxEvidenceText]
+			}
+			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: l.n, Text: text})
 		}
-		if o.Value != nil {
-			h := capText(o.Value.Text)
-			ev.Head = &h
-		}
-		if base != nil && base.Value != nil {
-			b := capText(base.Value.Text)
-			ev.Base = &b
-		}
-		n := o.Line
-		out = append(out, Candidate{RuleID: "coverage.attribute-not-output", File: areaFile(a.Path, o.File), Line: &n,
-			Subject: subject(a.Path, "output."+short(o.Name)), Evidence: ev, EvidenceComplete: complete})
+		file, n := areaFile(a.Path, f), g.first
+		out = append(out, Candidate{RuleID: "coverage.attribute-not-output", File: file, Line: &n,
+			Subject: file, Evidence: ev, EvidenceComplete: complete})
 	}
 	return out
 }
+
+// maxModeLines caps the source lines of one file's mode outputs candidate.
+const maxModeLines = 64
 
 // attributeNotOutput: a computed, not deprecated attribute of a resource
 // block the change adds that no output of the area reads, at the top level,

@@ -52,38 +52,10 @@
       "line": 7,
       "subject": ".:required_providers.aws",
       "evidence": {
-        "source_lines": [
-          {
-            "revision": "merge_base",
-            "file": "versions.tf",
-            "line": 7,
-            "text": "      version = \">= 6.0\""
-          },
-          {
-            "revision": "head",
-            "file": "versions.tf",
-            "line": 7,
-            "text": "      version = \">= 6.2\""
-          }
-        ],
+        "source_lines": [],
         "base": ">= 6.0",
         "head": ">= 6.2",
-        "schema_facts": [
-          {
-            "provider_source": "registry.terraform.io/hashicorp/aws",
-            "version": "6.0.0",
-            "type": "aws_demo_widget",
-            "path": "name",
-            "state": "present"
-          },
-          {
-            "provider_source": "registry.terraform.io/hashicorp/aws",
-            "version": "6.0.0",
-            "type": "aws_demo_widget",
-            "path": "tags",
-            "state": "present"
-          }
-        ]
+        "schema_facts": []
       },
       "evidence_complete": true
     }

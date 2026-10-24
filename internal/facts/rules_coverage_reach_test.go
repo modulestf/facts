@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -140,39 +141,52 @@ func TestNullLiteral(t *testing.T) {
 	}
 }
 
-// An output the change adds or edits that reads a block with count or
-// for_each is a candidate with that line in its evidence; an untouched one,
-// or one reading a block with no mode switch, is not. A long output cuts the
-// evidence at its cap.
+// The outputs of one file that the change adds or edits and that read a
+// block with count or for_each are one candidate, subject the file, with
+// each output's value lines and that line, every line once; an untouched
+// output, or one reading a block with no mode switch, adds nothing. Many
+// lines cut the evidence at its cap.
 func TestCoverageReachModeOutputs(t *testing.T) {
 	main := "resource \"aws_demo_widget\" \"this\" {\n  count = 1\n}\n\nresource \"aws_demo_widget\" \"one\" {\n}\n"
 	same := "output \"same\" {\n  value = aws_demo_widget.this[0].arn\n}\n"
 	head := map[string]string{"main.tf": main, "outputs.tf": same +
 		"output \"new\" {\n  value = aws_demo_widget.this[0].id\n}\n" +
-		"output \"one\" {\n  value = aws_demo_widget.one.id\n}\n" +
-		"output \"long\" {\n  value = [\n" + strings.Repeat("    aws_demo_widget.this[0].id,\n", 10) + "  ]\n}\n"}
+		"output \"one\" {\n  value = aws_demo_widget.one.id\n}\n"}
 	r := runCoverageReach(t, head, map[string]string{"main.tf": main, "outputs.tf": same})
-	var got []string
+	c := modeCandidates(t, r, "outputs.tf")
+	if *c.Line != 4 || !c.EvidenceComplete || !slices.Equal(lineRefs(c), []string{"outputs.tf:5", "main.tf:2"}) {
+		t.Errorf("new: line %d, evidence %v", *c.Line, lineRefs(c))
+	}
+	head["outputs.tf"] += "output \"long\" {\n  value = [\n" + strings.Repeat("    aws_demo_widget.this[0].id,\n", maxModeLines) + "  ]\n}\n"
+	r = runCoverageReach(t, head, map[string]string{"main.tf": main, "outputs.tf": same})
+	c = modeCandidates(t, r, "outputs.tf")
+	if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxModeLines || lineRefs(c)[2] != "outputs.tf:11" {
+		t.Errorf("long: cap did not bite: %v", lineRefs(c))
+	}
+}
+
+// modeCandidates returns the only output candidate of attribute-not-output,
+// which must have subject and file want.
+func modeCandidates(t *testing.T, r *Report, want string) Candidate {
+	t.Helper()
+	var out []Candidate
 	for _, c := range r.Candidates {
-		if !strings.HasPrefix(c.Subject, ".:output.") {
-			continue
-		}
-		got = append(got, c.Subject)
-		last := c.Evidence.SourceLines[len(c.Evidence.SourceLines)-1]
-		switch c.Subject {
-		case ".:output.new":
-			if !c.EvidenceComplete || last.File != "main.tf" || last.Line != 2 {
-				t.Errorf("new: evidence %+v", c.Evidence.SourceLines)
-			}
-		case ".:output.long":
-			if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxEvidenceLines {
-				t.Errorf("long: cap did not bite")
-			}
+		if c.RuleID == "coverage.attribute-not-output" && len(c.Evidence.SchemaFacts) == 0 {
+			out = append(out, c)
 		}
 	}
-	if !slices.Equal(got, []string{".:output.new", ".:output.long"}) {
-		t.Errorf("output candidates %v", got)
+	if len(out) != 1 || out[0].Subject != want || out[0].File != want {
+		t.Fatalf("output candidates %+v", out)
 	}
+	return out[0]
+}
+
+func lineRefs(c Candidate) []string {
+	var out []string
+	for _, l := range c.Evidence.SourceLines {
+		out = append(out, l.File+":"+strconv.Itoa(l.Line))
+	}
+	return out
 }
 
 // A Required argument set from a local is reachable only when the local can
@@ -214,14 +228,9 @@ func TestCoverageReachModeThroughLocalsAndModules(t *testing.T) {
 		"output \"via_module\" {\n  value = module.child\n}\n" +
 		"output \"plain\" {\n  value = module.plain.id\n}\n"
 	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{})
-	var got []string
-	for _, c := range r.Candidates {
-		if strings.HasPrefix(c.Subject, ".:output.") {
-			got = append(got, c.Subject)
-		}
-	}
-	if !slices.Equal(got, []string{".:output.via_local", ".:output.via_module"}) {
-		t.Errorf("output candidates %v", got)
+	c := modeCandidates(t, r, "outputs.tf")
+	if got := lineRefs(c); !slices.Equal(got, []string{"outputs.tf:2", "main.tf:7", "outputs.tf:5", "main.tf:12"}) {
+		t.Errorf("evidence %v", got)
 	}
 }
 
@@ -271,12 +280,52 @@ func TestCoverageReachNestedComputed(t *testing.T) {
 		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": c.outputs}, map[string]string{}, nested)
 		var got []string
 		for _, cand := range r.Candidates {
-			if cand.RuleID == "coverage.attribute-not-output" {
-				got = append(got, cand.Subject)
+			if cand.RuleID != "coverage.attribute-not-output" {
+				continue
+			}
+			if cand.Subject != ".:aws_demo_widget.this" || *cand.Line != 1 {
+				t.Errorf("candidate %s at %d, want the block", cand.Subject, *cand.Line)
+			}
+			for _, f := range cand.Evidence.SchemaFacts {
+				got = append(got, cand.Subject+"."+f.Path)
 			}
 		}
 		if !slices.Equal(got, c.want) {
 			t.Errorf("outputs %q: candidates %v, want %v", c.outputs, got, c.want)
 		}
+	}
+}
+
+// The computed attributes of an added block that no output reads are one
+// candidate at the block's line: a fact per attribute at the latest version,
+// and one at the declared minimum only where the state there differs.
+func TestCoverageReachAttributesPerBlock(t *testing.T) {
+	added := func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			if p.(map[string]any)["version"] == "6.2.0" {
+				b := p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)
+				b["attributes"].(map[string]any)["created_at"] = map[string]any{"computed": true}
+			}
+		}
+	}
+	main := "resource \"aws_demo_widget\" \"a\" {\n  name = var.name\n}\n\nresource \"aws_demo_widget\" \"b\" {\n  name = var.name\n}\n"
+	out := "output \"b\" {\n  value = aws_demo_widget.b\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{}, added)
+	var got []string
+	for _, c := range r.Candidates {
+		if c.RuleID != "coverage.attribute-not-output" {
+			continue
+		}
+		got = append(got, c.Subject+"@"+strconv.Itoa(*c.Line))
+		for _, f := range c.Evidence.SchemaFacts {
+			got = append(got, f.Version+" "+f.Path+" "+f.State)
+		}
+		if len(c.Evidence.SourceLines) != 0 || !c.EvidenceComplete {
+			t.Errorf("%s: evidence %+v", c.Subject, c.Evidence)
+		}
+	}
+	want := []string{".:aws_demo_widget.a@1", "6.2.0 arn present", "6.2.0 created_at present", "6.0.0 created_at absent", "6.2.0 id present"}
+	if !slices.Equal(got, want) {
+		t.Errorf("candidates %q, want %q", got, want)
 	}
 }
