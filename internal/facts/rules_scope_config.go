@@ -99,7 +99,7 @@ type providerSite struct {
 	src    string // canonical source, or "?<text>" when it cannot be read
 	file   string // relative to the module root
 	line   int    // the site's own line
-	evLine int    // the line evidence cites: a required_providers source line
+	evLine int    // the line evidence cites: a required_providers source line, or a block's provider argument
 	block  string // address of the top-level block holding the site
 }
 
@@ -127,32 +127,34 @@ func providerSites(m *Module, dir string) []providerSite {
 		}
 		return canonicalProvider(name), name != "terraform"
 	}
-	add := func(name, file string, line int, block string) {
+	add := func(name, file string, line, evLine int, block string) {
 		if s, ok := resolve(name); ok {
-			out = append(out, providerSite{src: s, file: areaFile(dir, file), line: line, evLine: line, block: block})
+			out = append(out, providerSite{src: s, file: areaFile(dir, file), line: line, evLine: evLine, block: block})
 		}
 	}
-	// blockLocal is the local name of a block's provider: its provider
-	// argument up to the first dot, or its type up to the first underscore.
-	blockLocal := func(typ string, b Body) string {
+	// blockLocal is the local name of a block's provider and the line that
+	// names it: its provider argument up to the first dot, at the argument's
+	// line, or its type up to the first underscore, at the block's line.
+	blockLocal := func(typ string, b Body, line int) (string, int) {
 		if e := b.Arg("provider"); e != nil {
-			return strings.TrimSpace(strings.SplitN(e.Text, ".", 2)[0])
+			return strings.TrimSpace(strings.SplitN(e.Text, ".", 2)[0]), e.Range.Start.Line
 		}
-		return strings.SplitN(typ, "_", 2)[0]
+		return strings.SplitN(typ, "_", 2)[0], line
 	}
 	for _, p := range m.Providers {
 		addr := "provider." + p.Name
 		if alias, ok := literalAlias(p.Body); ok {
 			addr += "." + alias
 		}
-		add(p.Name, p.File, p.Line, addr)
+		add(p.Name, p.File, p.Line, p.Line, addr)
 	}
 	for _, r := range m.Resources {
 		addr := r.Type + "." + r.Name
 		if r.Mode == "data" {
 			addr = "data." + addr
 		}
-		add(blockLocal(r.Type, r.Body), r.File, r.Line, addr)
+		name, ev := blockLocal(r.Type, r.Body, r.Line)
+		add(name, r.File, r.Line, ev, addr)
 	}
 	for _, o := range m.Other {
 		if o.Type != "check" {
@@ -160,7 +162,8 @@ func providerSites(m *Module, dir string) []providerSite {
 		}
 		for _, nb := range o.Body.Blocks {
 			if nb.Type == "data" && len(nb.Labels) > 0 {
-				add(blockLocal(nb.Labels[0], nb.Body), o.File, nb.Range.Start.Line, strings.Join(append([]string{o.Type}, o.Labels...), "."))
+				name, ev := blockLocal(nb.Labels[0], nb.Body, nb.Range.Start.Line)
+				add(name, o.File, nb.Range.Start.Line, ev, strings.Join(append([]string{o.Type}, o.Labels...), "."))
 			}
 		}
 	}
@@ -221,7 +224,7 @@ func (c *changedFiles) changed(file string, line int) bool {
 // file order (path, then line) that is a block the change adds or a
 // required_providers entry the change sets, including an entry added to an
 // existing required_providers. A provider with changed sites but neither is
-// anchored at its first changed site. Its evidence is every site of the
+// anchored at the evidence line of its first changed site. Its evidence is every site of the
 // provider on a changed line. A new module's empty base is not this rule.
 func checkScopeProvider(a *Area) Result {
 	const id = "scope.provider"
@@ -296,8 +299,13 @@ func checkScopeProvider(a *Area) Result {
 				anchor = &sites[i]
 			}
 		}
-		if anchor == nil {
-			anchor = first
+		line := 0
+		if anchor != nil {
+			line = anchor.line
+		} else if first != nil {
+			// No added block or entry: anchor at the changed line, which for a
+			// block the base has is its evidence line, such as a provider argument.
+			anchor, line = first, first.evLine
 		}
 		if ch.over {
 			return Result{NotEvaluated: "a changed file is past the line diff limit", Code: ReasonLimitExceeded}
@@ -311,7 +319,6 @@ func checkScopeProvider(a *Area) Result {
 			// Another area reports it, or no site is in the change.
 		default:
 			ev.ev.Head = ev.value(strings.TrimPrefix(src, defaultRegistryHost+"/"))
-			line := anchor.line
 			res.Candidates = append(res.Candidates, Candidate{RuleID: id, File: anchor.file, Line: &line,
 				Subject: subject(owner, `provider["`+short(src)+`"]`), Evidence: ev.ev, EvidenceComplete: ev.complete})
 		}

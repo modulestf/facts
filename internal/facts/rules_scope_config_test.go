@@ -156,3 +156,15 @@ func TestScopeProviderAnchorFileOrder(t *testing.T) {
 		t.Errorf("candidates %+v", cs)
 	}
 }
+
+// A provider argument the change adds on its own line to a multi-line block
+// the base has is a changed site: the candidate is anchored at that line.
+func TestScopeProviderArgumentInExistingBlock(t *testing.T) {
+	base := map[string]string{"main.tf": "resource \"google_x\" \"y\" {\n  name = \"a\"\n}\n"}
+	head := map[string]string{"main.tf": "resource \"google_x\" \"y\" {\n  name     = \"a\"\n  provider = google-beta\n}\n"}
+	cs := candidatesOf(runScopeConfig(t, base, head), "scope.provider")
+	if len(cs) != 1 || cs[0].Subject != `.:provider["registry.terraform.io/hashicorp/google-beta"]` || cs[0].File != "main.tf" || *cs[0].Line != 3 ||
+		len(cs[0].Evidence.SourceLines) != 1 || cs[0].Evidence.SourceLines[0].Line != 3 {
+		t.Errorf("candidates %+v", cs)
+	}
+}
