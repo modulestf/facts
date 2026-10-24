@@ -4,7 +4,7 @@
       "rule_id": "scope.module-call",
       "area": "modules/m",
       "status": "not_evaluated",
-      "reason": "modules/m/sub/versions.tf: configuration in a nested directory the engine does not evaluate",
+      "reason": "modules/m/sub/versions.tf: configuration in a nested directory or link the engine does not evaluate",
       "reason_code": "unsupported_file"
     },
     {

@@ -289,7 +289,7 @@ func gate(r Rule, a *Area) (reason, code string) {
 	case r.ReadsUnreadConfig && len(a.unreadConfig) > 0:
 		what := ": test helper configuration the engine does not read"
 		if a.Kind == AreaSubmodule {
-			what = ": configuration in a nested directory the engine does not evaluate"
+			what = ": configuration in a nested directory or link the engine does not evaluate"
 		}
 		return strings.Join(a.unreadConfig, ", ") + what, ReasonUnsupportedFile
 	}

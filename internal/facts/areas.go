@@ -88,18 +88,22 @@ func Classify(p string) (area, kind string, ok bool) {
 // boundary directory that no area reads: the root for one under tests/, and
 // modules/<m> for one more than one level under modules/<m>/. A regular file
 // counts when it is a .tf or .tf.json file. Any other entry counts whatever
-// its name, from one level under modules/<m>/: a link, special or unreadable
-// entry may be a directory of configuration the engine never follows.
+// its name, tests itself included, and so does one directly in modules/<m>
+// that is not named as configuration: a link, special or unreadable entry
+// may be a directory of configuration the engine never follows.
 func unreadArea(p string, e *Entry) (string, bool) {
 	regular := e.Kind == KindFile || e.Kind == KindOversize
-	if regular && !strings.HasSuffix(p, ".tf") && !strings.HasSuffix(p, ".tf.json") {
+	config := strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")
+	if regular && !config {
 		return "", false
 	}
 	parts := strings.Split(p, "/")
 	switch {
-	case parts[0] == "tests" && len(parts) > 1:
+	case parts[0] == "tests" && (len(parts) > 1 || !regular):
 		return rootArea, true
-	case parts[0] == "modules" && (len(parts) > 3 || !regular && len(parts) == 3):
+	// A .tf or .tf.json entry directly in modules/<m> is ParseDir's to
+	// report, with its own reason code.
+	case parts[0] == "modules" && (len(parts) > 3 || !regular && !config && len(parts) == 3):
 		return parts[0] + "/" + parts[1], true
 	}
 	return "", false
