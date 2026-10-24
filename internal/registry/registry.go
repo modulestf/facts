@@ -365,8 +365,8 @@ func splitCells(line string) []string {
 }
 
 // readTable reads the first table in lines[from:to] whose header satisfies
-// match. The separator row must follow the header, and no other row may be
-// empty or dashes only. The table must end with a line that is not a row
+// match. The separator row must follow the header with as many cells, and no
+// other row may be empty or dashes only. The table must end with a line that is not a row
 // before to.
 func readTable(lines []string, from, to int, match func([]string) bool) (*table, error) {
 	t := &table{}
@@ -394,14 +394,18 @@ func readTable(lines []string, from, to int, match func([]string) bool) (*table,
 			break
 		}
 		cells := splitCells(trimmed)
-		isSep := strings.Trim(strings.Join(cells, ""), "-:") == ""
+		blank := strings.Trim(strings.Join(cells, ""), "-:") == ""
+		// Each separator cell holds a dash; a colon only marks alignment.
+		isSep := blank && !slices.ContainsFunc(cells, func(c string) bool { return !strings.Contains(c, "-") })
 		switch {
 		case !sepSeen && !isSep:
 			return nil, fmt.Errorf("line %d: no separator row after the header", i+1)
+		case !sepSeen && len(cells) != len(t.header):
+			return nil, fmt.Errorf("line %d: separator row has %d cells, header has %d", i+1, len(cells), len(t.header))
 		case !sepSeen:
 			sepSeen = true
 			continue
-		case isSep:
+		case blank:
 			return nil, fmt.Errorf("line %d: empty row", i+1)
 		}
 		if len(cells) != len(t.header) {
