@@ -1,0 +1,11 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.new-submodule",
+      "area": "modules/m",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}

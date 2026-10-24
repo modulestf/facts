@@ -1,0 +1,33 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.new-submodule",
+      "area": "modules/n",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "scope.new-submodule",
+      "file": "modules/n",
+      "line": null,
+      "subject": "modules/n",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "modules/n/main.tf",
+            "line": 1,
+            "text": "resource \"aws_demo_extra\" \"this\" {}"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_extra",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

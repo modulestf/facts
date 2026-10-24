@@ -37,7 +37,8 @@ type Area struct {
 	// unreadConfig are the .tf and .tf.json files the change adds or edits
 	// in a boundary directory no area reads: on the root, those under tests/,
 	// where a test helper module lives; on a submodule modules/<m>, those more
-	// than one level under it. The rules that set ReadsUnreadConfig judge them.
+	// than one level under it. The rules that set ReadsUnreadConfig judge them,
+	// and scope.new-submodule judges those in a directory the base lacks.
 	unreadConfig []string
 
 	// Schema is the run's schema input, set by applySchema; nil without one.
@@ -141,6 +142,21 @@ func judgedConfig(t *Tree, area string, files []string, lim Limits) ([]string, e
 		}
 	}
 	return out, nil
+}
+
+// newUnreadConfig returns the entries of a.unreadConfig that may be a
+// directory the base lacks: a file whose directory the base does not have,
+// and every link, special or unreadable entry, which the engine never
+// follows. judgedConfig has already dropped the inert nested directories.
+func (a *Area) newUnreadConfig() []string {
+	var out []string
+	for _, f := range a.unreadConfig {
+		if k := a.headTree.Entries[f].Kind; (k == KindFile || k == KindOversize) && a.baseTree.Dirs[path.Dir(f)] {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // FindAreas returns the areas of the module. With a base tree the areas in

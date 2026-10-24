@@ -1,0 +1,13 @@
+{
+  "manifest": [
+    {
+      "rule_id": "scope.new-submodule",
+      "area": "modules/m",
+      "status": "not_evaluated",
+      "reason": "modules/m/sub: configuration in a new nested directory or link the engine does not evaluate",
+      "reason_code": "unsupported_file"
+    }
+  ],
+  "findings": [],
+  "candidates": []
+}
