@@ -163,10 +163,10 @@ func optionalUnexposed(_ *Area, ps providerSchema, r Resource, base *Resource) [
 // judge (owner decision). A module has a mode switch when it declares a
 // create flag, a variable named create or create_*, or when a resource,
 // data block or module call the output reads, directly or through locals at
-// any depth, has count or for_each. The outputs of one file are one
-// candidate, whose subject is the file, at the first output's line. Its
-// evidence is each output's value lines, then each count or for_each line
-// of what it reads and each create flag's line, every line once.
+// any depth, has count or for_each. An output that yields a value or null
+// in every mode, as modeSafe reads it, is no candidate. The evidence is the
+// output's lines, then each count or for_each line of what it reads and
+// each create flag's line.
 func modeOutputs(a *Area) []Candidate {
 	var flags []Variable
 	for _, v := range a.Head.Variables {
@@ -175,17 +175,7 @@ func modeOutputs(a *Area) []Candidate {
 		}
 	}
 	locals := localRefs(a.Head.Locals)
-	type line struct {
-		file string
-		n    int
-	}
-	type group struct {
-		first int
-		lines []line
-		seen  map[line]bool
-	}
-	groups := map[string]*group{}
-	var files []string
+	var out []Candidate
 	for _, o := range a.Head.Outputs {
 		var base *Output
 		if a.Base != nil {
@@ -196,11 +186,16 @@ func modeOutputs(a *Area) []Candidate {
 		if base != nil && base.Hash == o.Hash {
 			continue // untouched
 		}
+		if o.Value != nil && modeSafe(a, *o.Value) {
+			continue
+		}
+		type line struct {
+			file string
+			n    int
+		}
 		var lines []line
-		if o.Value != nil {
-			for n := o.Value.Range.Start.Line; n <= o.Value.Range.End.Line; n++ {
-				lines = append(lines, line{o.File, n})
-			}
+		for n := o.Range.Start.Line; n <= o.Range.End.Line; n++ {
+			lines = append(lines, line{o.File, n})
 		}
 		reads := map[string]bool{}
 		for refs := slices.Clone(o.References); len(refs) > 0; refs = refs[1:] {
@@ -236,45 +231,41 @@ func modeOutputs(a *Area) []Candidate {
 		for _, v := range flags {
 			lines = append(lines, line{v.File, v.Line})
 		}
-		g := groups[o.File]
-		if g == nil {
-			g = &group{first: o.Line, seen: map[line]bool{}}
-			groups[o.File] = g
-			files = append(files, o.File)
-		}
-		for _, l := range lines {
-			// one past the cap is kept, so the cap shows as incomplete evidence
-			if !g.seen[l] && len(g.lines) <= maxModeLines {
-				g.seen[l] = true
-				g.lines = append(g.lines, l)
+		complete := true
+		capText := func(s string) string {
+			if len(s) > maxEvidenceText {
+				complete = false
+				return s[:maxEvidenceText]
 			}
+			return s
 		}
-	}
-	out := make([]Candidate, 0, len(files))
-	for _, f := range files {
-		g := groups[f]
 		ev := Evidence{SourceLines: []SourceLine{}, SchemaFacts: []SchemaFact{}}
-		complete := len(g.lines) <= maxModeLines
-		for _, l := range g.lines[:min(len(g.lines), maxModeLines)] {
+		for _, l := range lines {
+			if len(ev.SourceLines) == maxEvidenceLines {
+				complete = false
+				break
+			}
 			file := areaFile(a.Path, l.file)
 			text := ""
 			if e := a.headTree.Entries[file]; e != nil {
 				text = coverageLineOf(e.Data, l.n)
 			}
-			if len(text) > maxEvidenceText {
-				complete, text = false, text[:maxEvidenceText]
-			}
-			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: l.n, Text: text})
+			ev.SourceLines = append(ev.SourceLines, SourceLine{Revision: "head", File: file, Line: l.n, Text: capText(text)})
 		}
-		file, n := areaFile(a.Path, f), g.first
-		out = append(out, Candidate{RuleID: "coverage.attribute-not-output", File: file, Line: &n,
-			Subject: file, Evidence: ev, EvidenceComplete: complete})
+		if o.Value != nil {
+			h := capText(o.Value.Text)
+			ev.Head = &h
+		}
+		if base != nil && base.Value != nil {
+			b := capText(base.Value.Text)
+			ev.Base = &b
+		}
+		n := o.Line
+		out = append(out, Candidate{RuleID: "coverage.attribute-not-output", File: areaFile(a.Path, o.File), Line: &n,
+			Subject: subject(a.Path, "output."+short(o.Name)), Evidence: ev, EvidenceComplete: complete})
 	}
 	return out
 }
-
-// maxModeLines caps the source lines of one file's mode outputs candidate.
-const maxModeLines = 64
 
 // attributeNotOutput: a computed, not deprecated attribute of a resource
 // block the change adds that no output of the area reads, at the top level,

@@ -141,52 +141,39 @@ func TestNullLiteral(t *testing.T) {
 	}
 }
 
-// The outputs of one file that the change adds or edits and that read a
-// block with count or for_each are one candidate, subject the file, with
-// each output's value lines and that line, every line once; an untouched
-// output, or one reading a block with no mode switch, adds nothing. Many
-// lines cut the evidence at its cap.
+// An output the change adds or edits that reads a block with count or
+// for_each is a candidate with that line in its evidence; an untouched one,
+// or one reading a block with no mode switch, is not. A long output cuts the
+// evidence at its cap.
 func TestCoverageReachModeOutputs(t *testing.T) {
 	main := "resource \"aws_demo_widget\" \"this\" {\n  count = 1\n}\n\nresource \"aws_demo_widget\" \"one\" {\n}\n"
 	same := "output \"same\" {\n  value = aws_demo_widget.this[0].arn\n}\n"
 	head := map[string]string{"main.tf": main, "outputs.tf": same +
 		"output \"new\" {\n  value = aws_demo_widget.this[0].id\n}\n" +
-		"output \"one\" {\n  value = aws_demo_widget.one.id\n}\n"}
+		"output \"one\" {\n  value = aws_demo_widget.one.id\n}\n" +
+		"output \"long\" {\n  value = [\n" + strings.Repeat("    aws_demo_widget.this[0].id,\n", 10) + "  ]\n}\n"}
 	r := runCoverageReach(t, head, map[string]string{"main.tf": main, "outputs.tf": same})
-	c := modeCandidates(t, r, "outputs.tf")
-	if *c.Line != 4 || !c.EvidenceComplete || !slices.Equal(lineRefs(c), []string{"outputs.tf:5", "main.tf:2"}) {
-		t.Errorf("new: line %d, evidence %v", *c.Line, lineRefs(c))
-	}
-	head["outputs.tf"] += "output \"long\" {\n  value = [\n" + strings.Repeat("    aws_demo_widget.this[0].id,\n", maxModeLines) + "  ]\n}\n"
-	r = runCoverageReach(t, head, map[string]string{"main.tf": main, "outputs.tf": same})
-	c = modeCandidates(t, r, "outputs.tf")
-	if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxModeLines || lineRefs(c)[2] != "outputs.tf:11" {
-		t.Errorf("long: cap did not bite: %v", lineRefs(c))
-	}
-}
-
-// modeCandidates returns the only output candidate of attribute-not-output,
-// which must have subject and file want.
-func modeCandidates(t *testing.T, r *Report, want string) Candidate {
-	t.Helper()
-	var out []Candidate
+	var got []string
 	for _, c := range r.Candidates {
-		if c.RuleID == "coverage.attribute-not-output" && len(c.Evidence.SchemaFacts) == 0 {
-			out = append(out, c)
+		if !strings.HasPrefix(c.Subject, ".:output.") {
+			continue
+		}
+		got = append(got, c.Subject)
+		last := c.Evidence.SourceLines[len(c.Evidence.SourceLines)-1]
+		switch c.Subject {
+		case ".:output.new":
+			if !c.EvidenceComplete || last.File != "main.tf" || last.Line != 2 {
+				t.Errorf("new: evidence %+v", c.Evidence.SourceLines)
+			}
+		case ".:output.long":
+			if c.EvidenceComplete || len(c.Evidence.SourceLines) != maxEvidenceLines {
+				t.Errorf("long: cap did not bite")
+			}
 		}
 	}
-	if len(out) != 1 || out[0].Subject != want || out[0].File != want {
-		t.Fatalf("output candidates %+v", out)
+	if !slices.Equal(got, []string{".:output.new", ".:output.long"}) {
+		t.Errorf("output candidates %v", got)
 	}
-	return out[0]
-}
-
-func lineRefs(c Candidate) []string {
-	var out []string
-	for _, l := range c.Evidence.SourceLines {
-		out = append(out, l.File+":"+strconv.Itoa(l.Line))
-	}
-	return out
 }
 
 // A Required argument set from a local is reachable only when the local can
@@ -225,12 +212,17 @@ func TestCoverageReachModeThroughLocalsAndModules(t *testing.T) {
 		"module \"child\" {\n  source   = \"./modules/child\"\n  for_each = {}\n}\n\n" +
 		"module \"plain\" {\n  source = \"./modules/child\"\n}\n"
 	out := "output \"via_local\" {\n  value = local.a\n}\n" +
-		"output \"via_module\" {\n  value = module.child\n}\n" +
+		"output \"via_module\" {\n  value = module.child[\"a\"].id\n}\n" +
 		"output \"plain\" {\n  value = module.plain.id\n}\n"
 	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{})
-	c := modeCandidates(t, r, "outputs.tf")
-	if got := lineRefs(c); !slices.Equal(got, []string{"outputs.tf:2", "main.tf:7", "outputs.tf:5", "main.tf:12"}) {
-		t.Errorf("evidence %v", got)
+	var got []string
+	for _, c := range r.Candidates {
+		if strings.HasPrefix(c.Subject, ".:output.") {
+			got = append(got, c.Subject)
+		}
+	}
+	if !slices.Equal(got, []string{".:output.via_local", ".:output.via_module"}) {
+		t.Errorf("output candidates %v", got)
 	}
 }
 
@@ -328,4 +320,80 @@ func TestCoverageReachAttributesPerBlock(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("candidates %q, want %q", got, want)
 	}
+}
+
+// An output that yields a value or null in every mode is no candidate; a
+// near miss that can fail when the counted block has no instance stays one.
+func TestCoverageReachModeSafeOutputs(t *testing.T) {
+	main := "resource \"aws_demo_widget\" \"this\" {\n  count = var.create ? 1 : 0\n}\n\n" +
+		"resource \"aws_demo_widget\" \"many\" {\n  count = var.n\n}\n\n" +
+		"resource \"aws_demo_widget\" \"each\" {\n  for_each = var.m\n}\n"
+	for value, want := range map[string]bool{
+		"try(aws_demo_widget.this[0].arn, null)":                    false,
+		"try(aws_demo_widget.this[0].arn, \"\", (null))":            false,
+		"aws_demo_widget.each":                                      false,
+		"aws_demo_widget.this[*].arn":                               false,
+		"aws_demo_widget.this[*]":                                   false,
+		"one(aws_demo_widget.this[*].arn)":                          false,
+		"[for w in aws_demo_widget.this : w.arn]":                   false,
+		"{ for k, w in aws_demo_widget.each : k => { a = w.arn } }": false,
+		"[for w in aws_demo_widget.each : w.arn if w.enabled]":      false,
+		"aws_demo_widget.this[0].arn":                               true,
+		"try(aws_demo_widget.this[0].arn)":                          true,
+		"try(aws_demo_widget.this[0].arn, var.fallback)":            true,
+		"aws_demo_widget.each[*].arn":                               true,
+		"aws_demo_widget.this[*].tags[\"a\"]":                       true,
+		"one(aws_demo_widget.many[*].arn)":                          true,
+		"[for w in aws_demo_widget.this : w.list[0]]":               true,
+		"[for w in aws_demo_widget.this : var.x[w.arn]]":            true,
+		"[for w in aws_demo_widget.this[0].list : w]":               true,
+		"aws_demo_widget.this":                                      false,
+	} {
+		out := "output \"o\" {\n  value = " + value + "\n}\n"
+		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{"main.tf": main})
+		got := slices.ContainsFunc(r.Candidates, func(c Candidate) bool { return c.Subject == ".:output.o" })
+		if got != want {
+			t.Errorf("%s: candidate %v, want %v", value, got, want)
+		}
+	}
+}
+
+// A mode output line past maxEvidenceText is cut and makes the evidence
+// incomplete.
+func TestCoverageReachModeLineCap(t *testing.T) {
+	main := "resource \"aws_demo_widget\" \"this\" {\n  count = 1\n}\n"
+	out := "output \"o\" {\n  value = [aws_demo_widget.this[0].id, \"" + strings.Repeat("x", maxEvidenceText) + "\"]\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{"main.tf": main})
+	for _, c := range r.Candidates {
+		if c.Subject == ".:output.o" {
+			if c.EvidenceComplete || len(c.Evidence.SourceLines[1].Text) != maxEvidenceText {
+				t.Errorf("evidence %+v", c.Evidence.SourceLines)
+			}
+			return
+		}
+	}
+	t.Fatal("no output candidate")
+}
+
+// The facts of one block's candidate stop at maxResSchemaFacts.
+func TestCoverageReachAttributesCap(t *testing.T) {
+	many := func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			b := p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)
+			for i := range maxResSchemaFacts + 1 {
+				b["attributes"].(map[string]any)["c"+strconv.Itoa(100+i)] = map[string]any{"computed": true}
+			}
+		}
+	}
+	main := "resource \"aws_demo_widget\" \"a\" {\n  name = var.name\n}\n"
+	r := runCoverageReach(t, map[string]string{"main.tf": main}, map[string]string{}, many)
+	for _, c := range r.Candidates {
+		if c.RuleID == "coverage.attribute-not-output" {
+			if c.EvidenceComplete || len(c.Evidence.SchemaFacts) != maxResSchemaFacts {
+				t.Errorf("cap: complete %v, %d facts", c.EvidenceComplete, len(c.Evidence.SchemaFacts))
+			}
+			return
+		}
+	}
+	t.Fatal("no attribute candidate")
 }

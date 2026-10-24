@@ -335,6 +335,21 @@ func TestProviderFloorWithSchema(t *testing.T) {
 	if want := []string{"6.0.0 fresh absent", "6.2.0 fresh present", "6.0.0 name present", "6.2.0 name deprecated"}; !slices.Equal(got, want) {
 		t.Errorf("facts %q, want %q", got, want)
 	}
+	// A name the new floor drops is a fact at each floor.
+	r = floorHandoff(t, same, func(map[string]any) {}, func(h map[string]any) {
+		for _, p := range h["provider_schemas"].([]any) {
+			if p.(map[string]any)["version"] == "6.2.0" {
+				delete(p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)["attributes"].(map[string]any), "tags")
+			}
+		}
+	})
+	got = got[:0]
+	for _, f := range r.Candidates[0].Evidence.SchemaFacts {
+		got = append(got, f.Version+" "+f.Path+" "+f.State)
+	}
+	if want := []string{"6.0.0 tags present", "6.2.0 tags absent"}; !slices.Equal(got, want) {
+		t.Errorf("dropped: facts %q, want %q", got, want)
+	}
 	// With no schema at the new floor only the old floor speaks.
 	r = floorHandoff(t, same, func(map[string]any) {}, func(h map[string]any) {
 		h["provider_schemas"] = slices.DeleteFunc(h["provider_schemas"].([]any), func(p any) bool { return p.(map[string]any)["version"] == "6.2.0" })

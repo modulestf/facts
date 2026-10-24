@@ -261,9 +261,21 @@
       "rule_id": "coverage.attribute-not-output",
       "file": "outputs.tf",
       "line": 1,
-      "subject": "outputs.tf",
+      "subject": ".:output.new_id",
       "evidence": {
         "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 1,
+            "text": "output \"new_id\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 2,
+            "text": "  description = \"ID of the new widget\""
+          },
           {
             "revision": "head",
             "file": "outputs.tf",
@@ -272,19 +284,64 @@
           },
           {
             "revision": "head",
+            "file": "outputs.tf",
+            "line": 4,
+            "text": "}"
+          },
+          {
+            "revision": "head",
             "file": "variables.tf",
             "line": 1,
             "text": "variable \"create\" {"
+          }
+        ],
+        "base": null,
+        "head": "aws_demo_widget.new.id",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-009",
+      "rule_id": "coverage.attribute-not-output",
+      "file": "outputs.tf",
+      "line": 6,
+      "subject": ".:output.new_arn",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 6,
+            "text": "output \"new_arn\" {"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 7,
+            "text": "  description = \"ARN of the new widget, read through a local\""
           },
           {
             "revision": "head",
             "file": "outputs.tf",
             "line": 8,
             "text": "  value       = local.new_arn"
+          },
+          {
+            "revision": "head",
+            "file": "outputs.tf",
+            "line": 9,
+            "text": "}"
+          },
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 1,
+            "text": "variable \"create\" {"
           }
         ],
         "base": null,
-        "head": null,
+        "head": "local.new_arn",
         "schema_facts": []
       },
       "evidence_complete": true
