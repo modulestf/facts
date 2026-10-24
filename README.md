@@ -103,11 +103,16 @@ It prints the mode to stdout and exits 0:
 mtf-facts merge check bundle.txt reply.json
 mtf-facts merge final --registry rule-facts.md [--report lint.json] [--templates templates.json] \
   bundle.txt reply.json [repair.json]
+mtf-facts merge counts bundle.txt reply.json [repair.json]
 ```
+
+The reply is one JSON object with the arrays `candidate_decisions` and `findings` and, optionally, a `counts` object, in the shape of [model-output.schema.json](schema/model-output.schema.json). `counts` holds the three counts a reviewer's summary line carries: `instruction-like-text-from-others`, `conversation-claims-unread` and `review.quoted-claim-unverifiable`. When present, it has exactly those three keys, each a natural number written as decimal digits, 0 included and at most 9007199254740991; anything else makes the reply invalid.
 
 `merge check` prints `{"result":"valid"}` and exits 0, or `{"result":"repair","reasons":[...]}` and exits 1 when the reply needs the repair turn. Its reasons are fixed text and quote nothing from the reply.
 
 `merge final` prints the merged findings, in the shape of [merged-findings.schema.json](schema/merged-findings.schema.json), and exits 0. It merges the first reply when that one is valid, and otherwise the repair reply, which must then be given: an empty file when the repair turn returned nothing. A repair reply that is still invalid keeps only its valid entries; a candidate it leaves undecided becomes `review.check-not-run`. `--report` takes a `lint --json` report, whose index derives the subject a lead finding dedups by. `--templates` takes the per-rule host text for confirmed entries the model gave no text for.
+
+`merge counts` takes the replies as `merge final` does, picks the same reply, and prints its counts as `{"counts":{...}}`, or `{"counts":null}` when that reply has none, and exits 0. A reply without counts has none: no count is ever read as 0 for its absence. A repair reply that is still invalid keeps its counts when they are well formed.
 
 ### ledger
 

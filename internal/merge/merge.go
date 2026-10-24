@@ -58,12 +58,9 @@ func Final(in Inputs, first, repair []byte) ([]Finding, error) {
 	if err := in.check(); err != nil {
 		return nil, err
 	}
-	reply := ParseReply(first)
-	if len(Problems(in.Bundle, reply)) > 0 {
-		if repair == nil {
-			return nil, errors.New("the first reply is invalid and no repair reply was given")
-		}
-		reply = ParseReply(repair)
+	reply, err := chosen(in.Bundle, first, repair)
+	if err != nil {
+		return nil, err
 	}
 	items, err := in.collect(reply)
 	if err != nil {
@@ -83,6 +80,30 @@ func Final(in Inputs, first, repair []byte) ([]Finding, error) {
 		}
 	}
 	return out, nil
+}
+
+// chosen is the reply the merge reads: the first one when it is valid,
+// otherwise the repair reply, which must then be given.
+func chosen(b *Bundle, first, repair []byte) (*Reply, error) {
+	reply := ParseReply(first)
+	if len(Problems(b, reply)) == 0 {
+		return reply, nil
+	}
+	if repair == nil {
+		return nil, errors.New("the first reply is invalid and no repair reply was given")
+	}
+	return ParseReply(repair), nil
+}
+
+// ReplyCounts returns the counts of the reply Final merges, chosen the same
+// way: nil when that reply has none, or malformed ones, never zeros in their
+// place.
+func ReplyCounts(b *Bundle, first, repair []byte) (*Counts, error) {
+	reply, err := chosen(b, first, repair)
+	if err != nil {
+		return nil, err
+	}
+	return reply.counts, nil
 }
 
 // check holds the bundle to the registry: every rule it names has a row, and

@@ -30,6 +30,10 @@ const mergeUsage = `usage:
         print the merged findings; the repair reply is read only when the
         first reply is invalid, and must then be given (an empty file when
         the repair turn returned nothing)
+  mtf-facts merge counts <bundle> <reply> [<repair-reply>]
+        print {"counts":{...}} with the reply's three summary-line counts, or
+        {"counts":null} when the reply merge final reads has none; the replies
+        are given as to merge final
 `
 
 // merge checks a lead reply or merges it with the facts into the final
@@ -41,6 +45,8 @@ func merge(args []string, stdout, stderr io.Writer) int {
 			return mergeCheck(args[1:], stdout, stderr)
 		case "final":
 			return mergeFinal(args[1:], stdout, stderr)
+		case "counts":
+			return mergeCounts(args[1:], stdout, stderr)
 		}
 	}
 	fmt.Fprint(stderr, mergeUsage)
@@ -81,6 +87,47 @@ func mergeCheck(args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 	return code
+}
+
+// mergeCounts prints the counts of the reply merge final reads, or null.
+func mergeCounts(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 2 || len(args) > 3 {
+		fmt.Fprint(stderr, mergeUsage)
+		return exitError
+	}
+	out, err := mergeCountsWork(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "mtf-facts:", err)
+		return exitError
+	}
+	if _, err := fmt.Fprintf(stdout, "%s\n", out); err != nil {
+		return exitError
+	}
+	return 0
+}
+
+func mergeCountsWork(files []string) ([]byte, error) {
+	b, err := mergeBundle(files[0])
+	if err != nil {
+		return nil, err
+	}
+	first, err := mergeReadFile(files[1], factsmerge.MaxReplyBytes)
+	if err != nil {
+		return nil, err
+	}
+	var repair []byte
+	if len(files) == 3 {
+		if repair, err = mergeReadFile(files[2], factsmerge.MaxReplyBytes); err != nil {
+			return nil, err
+		}
+	}
+	c, err := factsmerge.ReplyCounts(b, first, repair)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(struct {
+		Counts *factsmerge.Counts `json:"counts"`
+	}{c})
 }
 
 func mergeFinal(args []string, stdout, stderr io.Writer) int {

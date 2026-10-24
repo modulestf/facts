@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/modulestf/facts/schema/model-output.schema.json",
   "title": "Model output envelope",
-  "description": "The lead model's reply. Shape only. The host also checks that every candidate id is answered exactly once, that a severity_needed id is answered with confirm, and that a confirm for a candidate not in severity_needed carries summary and suggested_fix. If one of those fails, the reply is invalid and the repair turn applies. Two host checks never make the reply invalid. A finding whose rule_id is neither an llm rule nor a rule injected as not_evaluated for that finding's area is dropped, and the rest of the reply is kept. A severity outside the rule's permitted list, in a finding or a confirm, is capped to the highest permitted severity when it is above it, or raised to the lowest when it is below it. So a review.* finding may carry CRITICAL here: the host caps it. source, subject and confirmed_by are host-owned and never accepted here.",
+  "description": "The lead model's reply. Shape only. The host also checks that every candidate id is answered exactly once, that a severity_needed id is answered with confirm, and that a confirm for a candidate not in severity_needed carries summary and suggested_fix. If one of those fails, the reply is invalid and the repair turn applies. Two host checks never make the reply invalid. A finding whose rule_id is neither an llm rule nor a rule injected as not_evaluated for that finding's area is dropped, and the rest of the reply is kept. A severity outside the rule's permitted list, in a finding or a confirm, is capped to the highest permitted severity when it is above it, or raised to the lowest when it is below it. So a review.* finding may carry CRITICAL here: the host caps it. source, subject and confirmed_by are host-owned and never accepted here. counts is optional; a malformed counts makes the reply invalid, and a reply without counts has none, never zeros.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -55,9 +55,35 @@
           }
         }
       }
+    },
+    "counts": {
+      "description": "The three summary-line counts of the full variant: items of origin other with instruction-like text, conversation and bot claims past the claim cap, and quoted claims the code did not confirm. All three, 0 included.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instruction-like-text-from-others",
+        "conversation-claims-unread",
+        "review.quoted-claim-unverifiable"
+      ],
+      "properties": {
+        "instruction-like-text-from-others": {
+          "$ref": "#/$defs/count"
+        },
+        "conversation-claims-unread": {
+          "$ref": "#/$defs/count"
+        },
+        "review.quoted-claim-unverifiable": {
+          "$ref": "#/$defs/count"
+        }
+      }
     }
   },
   "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
     "candidate_decision": {
       "description": "confirm carries a severity, and summary and suggested_fix, which the host requires except for an id from severity_needed; reject carries none of them. An id from severity_needed takes confirm only, which the host checks. A severity outside the rule's list is capped or raised by the host, as for findings.",
       "oneOf": [
