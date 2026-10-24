@@ -38,10 +38,8 @@ func engineRules() map[string]engineRule {
 }
 
 // checkEngine compares each implemented rule's area kinds, as sets, its
-// cross-area flag, its scope and its class with the registry's. The registry
-// has no column for the base: Check F reads the base for every scope.* rule
-// and leaves each one not evaluated without it, so an implemented scope.*
-// rule must need the base, or it would see every path as added.
+// cross-area flag, its scope and its class with the registry's. It also
+// requires the base where the registry text does; see needsBase.
 func checkEngine(engine map[string]engineRule, reg *registry.Registry) error {
 	var errs []error
 	for _, id := range slices.Sorted(maps.Keys(engine)) {
@@ -63,11 +61,20 @@ func checkEngine(engine map[string]engineRule, reg *registry.Registry) error {
 		if e.class != r.Class {
 			errs = append(errs, fmt.Errorf("rule %q: mtf-facts class %q, registry class %q", id, e.class, r.Class))
 		}
-		if strings.HasPrefix(id, "scope.") && !e.needsBase {
-			errs = append(errs, fmt.Errorf("rule %q: a scope rule that does not need the base", id))
+		if needsBase(id) && !e.needsBase {
+			errs = append(errs, fmt.Errorf("rule %q: does not need the base, which its check reads", id))
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// needsBase reports whether the registry text makes rule id read the base.
+// The registry has no column for it. Check F reads the base for every
+// scope.* rule and leaves each one not evaluated without it, or it would see
+// every path as added; Check A compares every compat.* rule with the base and
+// treats a base that could not be read as a check that cannot run.
+func needsBase(id string) bool {
+	return strings.HasPrefix(id, "scope.") || strings.HasPrefix(id, "compat.")
 }
 
 // checkRules compares the `mtf-facts rules` listing with the registry tiers.
@@ -188,7 +195,7 @@ func checkMutations(t *testing.T, listing string, engine map[string]engineRule, 
 				t.Errorf("%s %s: mutated registry passed", id, name)
 			}
 		}
-		if strings.HasPrefix(id, "scope.") {
+		if needsBase(id) {
 			noBase := maps.Clone(engine)
 			e.needsBase = false
 			noBase[id] = e
@@ -217,6 +224,7 @@ const fixtureRegistry = "# Rules\n\n" +
 	"| `b.candidate` | file | candidate | config-semantic | newly-introduced | yes | root, submodule | candidates | HIGH | lead | mid |\n" +
 	"| `c.llm` | never | llm | path | touched-block | no | root | none | LOW | - | - |\n" +
 	"| `scope.d` | never | candidate | path | touched-block | no | root | candidates | HIGH | lead | lead |\n" +
+	"| `compat.e` | never | candidate | config-semantic | touched-block | no | root | candidates | HIGH | lead | lead |\n" +
 	"\ntext after the table\n\n" +
 	"## Dedup Overlap\n\n" +
 	"| Pair | Kept | Dropped | Same defect when | From |\n" +
@@ -229,6 +237,7 @@ var fixtureEngine = map[string]engineRule{
 	"a.tool":      {kinds: []string{"example"}, scope: facts.ScopeAnyFileInArea, class: facts.ClassPath},
 	"b.candidate": {kinds: []string{"root", "submodule"}, cross: true, scope: facts.ScopeNewlyIntroduced, class: facts.ClassConfig},
 	"scope.d":     {kinds: []string{"root"}, scope: facts.ScopeTouchedBlock, class: facts.ClassPath, needsBase: true},
+	"compat.e":    {kinds: []string{"root"}, scope: facts.ScopeTouchedBlock, class: facts.ClassConfig, needsBase: true},
 }
 
 // withRule returns fixtureEngine with one rule replaced or added.
@@ -239,7 +248,7 @@ func withRule(id string, e engineRule) map[string]engineRule {
 }
 
 func TestCheckRules(t *testing.T) {
-	listing := "a.tool\ttool\nb.candidate\tcandidate\nscope.d\tcandidate\n"
+	listing := "a.tool\ttool\nb.candidate\tcandidate\ncompat.e\tcandidate\nscope.d\tcandidate\n"
 	if err := checkRegistryText(listing, fixtureEngine, fixtureRegistry); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
@@ -255,7 +264,8 @@ func TestCheckRules(t *testing.T) {
 		{name: "llm rule listed as tool", listing: "c.llm\ttool\n", text: fixtureRegistry},
 		{name: "unknown rule", listing: "e.unknown\ttool\n", text: fixtureRegistry},
 		{name: "registry rule not listed", listing: "a.tool\ttool\n", text: fixtureRegistry},
-		{name: "registry candidate not listed", listing: "a.tool\ttool\nb.candidate\tcandidate\n", text: fixtureRegistry},
+		{name: "registry candidate not listed", listing: "a.tool\ttool\nb.candidate\tcandidate\nscope.d\tcandidate\n", text: fixtureRegistry},
+		{name: "compat rule without the base", listing: listing, text: fixtureRegistry, engine: withRule("compat.e", engineRule{kinds: []string{"root"}, scope: facts.ScopeTouchedBlock, class: facts.ClassConfig})},
 		{name: "scope rule without the base", listing: listing, text: fixtureRegistry, engine: withRule("scope.d", engineRule{kinds: []string{"root"}, scope: facts.ScopeTouchedBlock, class: facts.ClassPath})},
 		{name: "registry rule not implemented", listing: listing, text: strings.Replace(fixtureRegistry, "| `c.llm` |", "| `d.unimplemented` | never | tool | path | touched-block | no | root | tool-findings | LOW | - | - |\n| `c.llm` |", 1)},
 		{name: "empty listing", listing: "", text: fixtureRegistry},

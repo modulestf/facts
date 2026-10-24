@@ -245,20 +245,23 @@ func TestParseRefusesMutations(t *testing.T) {
 	row := lineOf(t, fixture, "| `b.llm`")
 	cut := fixture[:strings.Index(fixture, row)+len(row)]
 	for name, text := range map[string]string{
-		"no rule table":        "# Rules\n",
-		"rule rows gone":       "# Rules\n\n" + ruleHeader + fixture[strings.Index(fixture, "\ntext between"):],
-		"rule row short":       strings.Replace(fixture, row, row[:strings.LastIndex(row[:len(row)-1], "|")+1], 1),
-		"rule row cut":         strings.Replace(fixture, row, row[:len(row)-2], 1),
-		"rule empty row":       strings.Replace(fixture, row, row+"\n| | | | | | | | | | | |", 1),
-		"rule dash row":        strings.Replace(fixture, row, row+"\n|---|---|---|---|---|---|---|---|---|---|---|", 1),
-		"rule separator gone":  strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "", 1),
-		"rule separator short": strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "|---|\n", 1),
-		"rule separator long":  strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "|---|---|---|---|---|---|---|---|---|---|---|---|\n", 1),
-		"rule table cut":       cut,
-		"rule table cut, nl":   cut + "\n",
-		"empty":                "",
-		"rule table only":      fixture[:strings.Index(fixture, "## Dedup")],
-		"rule row duplicated":  strings.Replace(fixture, row, row+"\n"+row, 1),
+		"no rule table":            "# Rules\n",
+		"rule rows gone":           "# Rules\n\n" + ruleHeader + fixture[strings.Index(fixture, "\ntext between"):],
+		"rule row short":           strings.Replace(fixture, row, row[:strings.LastIndex(row[:len(row)-1], "|")+1], 1),
+		"rule row cut":             strings.Replace(fixture, row, row[:len(row)-2], 1),
+		"rule empty row":           strings.Replace(fixture, row, row+"\n| | | | | | | | | | | |", 1),
+		"rule dash row":            strings.Replace(fixture, row, row+"\n|---|---|---|---|---|---|---|---|---|---|---|", 1),
+		"rule separator gone":      strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "", 1),
+		"rule separator short":     strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "|---|\n", 1),
+		"rule separator blank":     strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "| | | | | | | | | | | |\n", 1),
+		"rule separator colons":    strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "|:|:|:|:|:|:|:|:|:|:|:|\n", 1),
+		"rule separator one colon": strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "|---|---|---|---|---|---|---|---|---|---|:|\n", 1),
+		"rule separator long":      strings.Replace(fixture, "|---|---|---|---|---|---|---|---|---|---|---|\n", "|---|---|---|---|---|---|---|---|---|---|---|---|\n", 1),
+		"rule table cut":           cut,
+		"rule table cut, nl":       cut + "\n",
+		"empty":                    "",
+		"rule table only":          fixture[:strings.Index(fixture, "## Dedup")],
+		"rule row duplicated":      strings.Replace(fixture, row, row+"\n"+row, 1),
 	} {
 		checkFails(t, name, text)
 	}

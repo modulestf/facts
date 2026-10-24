@@ -394,7 +394,9 @@ func readTable(lines []string, from, to int, match func([]string) bool) (*table,
 			break
 		}
 		cells := splitCells(trimmed)
-		isSep := strings.Trim(strings.Join(cells, ""), "-:") == ""
+		blank := strings.Trim(strings.Join(cells, ""), "-:") == ""
+		// Each separator cell holds a dash; a colon only marks alignment.
+		isSep := blank && !slices.ContainsFunc(cells, func(c string) bool { return !strings.Contains(c, "-") })
 		switch {
 		case !sepSeen && !isSep:
 			return nil, fmt.Errorf("line %d: no separator row after the header", i+1)
@@ -403,7 +405,7 @@ func readTable(lines []string, from, to int, match func([]string) bool) (*table,
 		case !sepSeen:
 			sepSeen = true
 			continue
-		case isSep:
+		case blank:
 			return nil, fmt.Errorf("line %d: empty row", i+1)
 		}
 		if len(cells) != len(t.header) {
