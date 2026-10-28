@@ -104,8 +104,8 @@ func TestLedgerErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "no directory", args: []string{"--schema-files", ledgerSchema}, want: "usage:"},
-		{name: "two directories", args: []string{ledgerModule, ledgerModule, "--schema-files", ledgerSchema}, want: "usage:"},
+		{name: "no directory", args: []string{"--schema-files", ledgerSchema}, want: "accepts 1 arg(s), received 0"},
+		{name: "two directories", args: []string{ledgerModule, ledgerModule, "--schema-files", ledgerSchema}, want: "accepts 1 arg(s), received 2"},
 		{name: "no schema", args: []string{ledgerModule}, want: "--schema-files"},
 		{name: "malformed ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", bad}, want: "unknown key"},
 		{name: "missing ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", filepath.Join(dir, "none.json")}, want: "not a regular file"},
@@ -113,8 +113,8 @@ func TestLedgerErrors(t *testing.T) {
 		{name: "empty check", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", ""}, want: "--check needs a path"},
 		{name: "empty check with =", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check="}, want: "--check needs a path"},
 		{name: "empty registry", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--registry", ""}, want: "--registry needs a path"},
-		{name: "empty schema file", args: []string{ledgerModule, "--schema-files", ""}, want: "empty path"},
-		{name: "unknown flag", args: []string{ledgerModule, "--schema", ledgerSchema}, want: "flag provided but not defined"},
+		{name: "empty schema file", args: []string{ledgerModule, "--schema-files", ""}, want: "--schema-files needs a path"},
+		{name: "unknown flag", args: []string{ledgerModule, "--schema", ledgerSchema}, want: "unknown flag: --schema"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

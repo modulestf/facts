@@ -2,32 +2,42 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
-	"io"
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/schemadiff"
+	"github.com/spf13/cobra"
 )
 
-const schemaDiffUsage = "usage: mtf-facts schema-diff --from <file> --to <file> --types-from <dir>\n"
+// newSchemaDiffCmd builds schema-diff.
+func newSchemaDiffCmd() *cobra.Command {
+	o := schemadiff.Options{Limits: facts.DefaultLimits}
+	cmd := &cobra.Command{
+		Use:     "schema-diff",
+		Short:   schemaDiffShort,
+		Long:    schemaDiffLong,
+		Example: schemaDiffExample,
+		GroupID: groupCheck,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return status(schemaDiff(cmd, o))
+		},
+	}
+	f := cmd.Flags()
+	f.SortFlags = false
+	f.StringVar(&o.From, "from", "", schemaDiffFromUsage)
+	f.StringVar(&o.To, "to", "", schemaDiffToUsage)
+	f.StringVar(&o.TypesFrom, "types-from", "", schemaDiffTypesFromUsage)
+	return cmd
+}
 
 // schemaDiff compares two provider schema files for the types a module tree
 // uses and writes the report as JSON. It exits 0 with the report, changes or
 // not, and 2 on bad input or a limit.
-func schemaDiff(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("schema-diff", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	o := schemadiff.Options{Limits: facts.DefaultLimits}
-	fs.StringVar(&o.From, "from", "", "terraform providers schema -json file of the current provider version")
-	fs.StringVar(&o.To, "to", "", "terraform providers schema -json file of the target provider version")
-	fs.StringVar(&o.TypesFrom, "types-from", "", "module tree whose resource and data source types are compared")
-	if err := fs.Parse(args); err != nil {
-		return exitError
-	}
-	if fs.NArg() != 0 || o.From == "" || o.To == "" || o.TypesFrom == "" {
-		fmt.Fprint(stderr, schemaDiffUsage)
-		return exitError
+func schemaDiff(cmd *cobra.Command, o schemadiff.Options) int {
+	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
+	if o.From == "" || o.To == "" || o.TypesFrom == "" {
+		return usageError(cmd, schemaDiffRequired)
 	}
 	sum, err := binarySHA256()
 	if err != nil {

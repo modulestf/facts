@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/spf13/cobra"
 )
 
 // Exit codes of lint.
@@ -23,50 +23,53 @@ const (
 	exitNotEvaluated = 3 // no findings, but some (rule, area) was not evaluated
 )
 
+// newLintCmd builds lint, which checks the module tree in its argument.
+func newLintCmd() *cobra.Command {
+	var (
+		o       = facts.Options{Limits: facts.DefaultLimits}
+		asJSON  bool
+		timeout time.Duration
+	)
+	cmd := &cobra.Command{
+		Use:     "lint <dir>",
+		Short:   lintShort,
+		Long:    lintLong,
+		Example: lintExample,
+		GroupID: groupCheck,
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Head = args[0]
+			return status(lint(cmd, o, asJSON, timeout))
+		},
+	}
+	f := cmd.Flags()
+	f.SortFlags = false
+	f.StringVar(&o.Base, "base", "", lintBaseUsage)
+	f.BoolVar(&asJSON, "json", false, lintJSONUsage)
+	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
+	f.StringVar(&o.RegistryFile, "registry", "", lintRegistryUsage)
+	f.StringVar(&o.ProfileDir, "profile-dir", "", lintProfileDirUsage)
+	f.StringArrayVar(&o.SchemaFiles, "schema-files", nil, lintSchemaFilesUsage)
+	f.StringVar(&o.SchemaHandoff, "schema-handoff", "", lintSchemaHandoffUsage)
+	f.StringVar(&o.HeadSHA, "head-sha", "", lintHeadSHAUsage)
+	f.StringVar(&o.MergeBaseSHA, "merge-base-sha", "", lintMergeBaseSHAUsage)
+	return cmd
+}
+
 // lint returns one of the exit codes above. Candidates are unconfirmed and
 // never change the exit code.
-func lint(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("lint", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	o := facts.Options{Limits: facts.DefaultLimits, Version: version()}
-	asJSON := fs.Bool("json", false, "write the report as JSON")
-	fs.StringVar(&o.Base, "base", "", "tree the change started from")
-	fs.StringVar(&o.RegistryFile, "registry", "", "rule-facts.md to hash into the output")
-	fs.StringVar(&o.HeadSHA, "head-sha", "", "commit the tree was extracted from")
-	fs.StringVar(&o.MergeBaseSHA, "merge-base-sha", "", "commit the base tree was extracted from")
-	fs.StringVar(&o.SchemaHandoff, "schema-handoff", "", "schema handoff file from the schema job, gzipped or not")
-	fs.Func("schema-files", "a terraform providers schema -json file; repeat for more", func(p string) error {
-		o.SchemaFiles = append(o.SchemaFiles, p)
-		return nil
-	})
-	fs.StringVar(&o.ProfileDir, "profile-dir", "", "module profile directory; must exist and not be a link (links in parent components resolve)")
-	timeout := fs.Duration("timeout", 60*time.Second, "stop with an error after this long")
-	var dirs []string
-	for rest := args; ; {
-		if err := fs.Parse(rest); err != nil {
-			return exitError
-		}
-		if fs.NArg() == 0 {
-			break
-		}
-		dirs, rest = append(dirs, fs.Arg(0)), fs.Args()[1:]
+func lint(cmd *cobra.Command, o facts.Options, asJSON bool, timeout time.Duration) int {
+	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
+	if timeout <= 0 {
+		return usageError(cmd, timeoutNotPositive)
 	}
-	if len(dirs) != 1 {
-		fmt.Fprint(stderr, usage)
-		return exitError
-	}
-	if *timeout <= 0 {
-		fmt.Fprintln(stderr, "mtf-facts: --timeout must be greater than zero")
-		fmt.Fprint(stderr, usage)
-		return exitError
-	}
-	o.Head = dirs[0]
+	o.Version = version()
 	// Defense in depth only: the timer below is the timeout mechanism.
-	o.Limits.Deadline = time.Now().Add(*timeout)
+	o.Limits.Deadline = time.Now().Add(timeout)
 
 	done := make(chan lintResult, 1) // buffered: a late worker never blocks
-	go func() { done <- lintWork(o, *asJSON) }()
-	timer := time.NewTimer(*timeout)
+	go func() { done <- lintWork(o, asJSON) }()
+	timer := time.NewTimer(timeout)
 	var res lintResult
 	select {
 	case res = <-done:

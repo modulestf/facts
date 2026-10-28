@@ -68,6 +68,7 @@ func TestMergeRefusesUsage(t *testing.T) {
 		"no verb":              {"merge"},
 		"unknown verb":         {"merge", "apply"},
 		"check one file":       {"merge", "check", bundle},
+		"check three files":    {"merge", "check", bundle, reply, reply},
 		"check a directory":    {"merge", "check", bundle, dir},
 		"check broken bundle":  {"merge", "check", reply, reply},
 		"check plain JSON":     {"merge", "check", filepath.Join(dir, "bundle.json"), reply},

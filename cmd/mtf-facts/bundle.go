@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +13,7 @@ import (
 
 	fb "github.com/modulestf/facts/internal/bundle"
 	"github.com/modulestf/facts/internal/registry"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -29,16 +29,42 @@ type bundleArgs struct {
 	schemaFiles                    []string
 }
 
+// newBundleCmd builds bundle.
+func newBundleCmd() *cobra.Command {
+	var a bundleArgs
+	cmd := &cobra.Command{
+		Use:     "bundle",
+		Short:   bundleShort,
+		Long:    bundleLong,
+		Example: bundleExample,
+		GroupID: groupPipeline,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return status(bundle(a, cmd.OutOrStdout(), cmd.ErrOrStderr()))
+		},
+	}
+	f := cmd.Flags()
+	f.SortFlags = false
+	f.StringVar(&a.report, "report", "", bundleReportUsage)
+	f.StringVar(&a.skills, "skills", "", bundleSkillsUsage)
+	f.StringVar(&a.out, "out", "", bundleOutUsage)
+	f.StringVar(&a.injection, "injection", "", bundleInjectionUsage)
+	f.StringVar(&a.pins.HeadSHA, "head-sha", "", bundleHeadSHAUsage)
+	f.StringVar(&a.pins.MergeBaseSHA, "merge-base-sha", "", bundleMergeBaseSHAUsage)
+	f.StringVar(&a.pins.BinarySHA256, "binary-sha256", "", bundleBinarySHA256Usage)
+	f.StringVar(&a.handoff, "schema-handoff", "", bundleSchemaHandoffUsage)
+	f.StringArrayVar(&a.schemaFiles, "schema-files", nil, bundleSchemaFilesUsage)
+	f.StringVar(&a.profileDir, "profile-dir", "", bundleProfileDirUsage)
+	return cmd
+}
+
 // bundle builds the facts bundle and the injection from a lint report and
 // prints the mode, judgment or full. It exits 2 on bad input, a report the
 // validity predicate refuses or one that does not match the registry. In
 // full mode it writes no file.
-func bundle(args []string, stdout, stderr io.Writer) int {
-	a, err := parseBundleArgs(args, stderr)
-	if err != nil {
-		if !errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
-		}
+func bundle(a bundleArgs, stdout, stderr io.Writer) int {
+	if err := checkBundleArgs(a); err != nil {
+		fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
 		return exitError
 	}
 	res, err := buildBundle(a)
@@ -58,39 +84,19 @@ func bundle(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-func parseBundleArgs(args []string, stderr io.Writer) (bundleArgs, error) {
-	var a bundleArgs
-	fs := flag.NewFlagSet("bundle", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	fs.StringVar(&a.report, "report", "", "lint --json report")
-	fs.StringVar(&a.skills, "skills", "", "reviewer skill directory at the pinned commit: references/rule-facts.md and references/engine/")
-	fs.StringVar(&a.out, "out", "", "bundle file to create")
-	fs.StringVar(&a.injection, "injection", "", "injected rule text file to create")
-	fs.StringVar(&a.pins.HeadSHA, "head-sha", "", "workspace HEAD")
-	fs.StringVar(&a.pins.MergeBaseSHA, "merge-base-sha", "", "recorded merge base")
-	fs.StringVar(&a.pins.BinarySHA256, "binary-sha256", "", "pinned SHA-256 of the mtf-facts binary that wrote the report")
-	fs.StringVar(&a.handoff, "schema-handoff", "", "schema handoff the lint run was given")
-	fs.Func("schema-files", "a raw schema file the lint run was given; repeat for more", func(p string) error {
-		a.schemaFiles = append(a.schemaFiles, p)
-		return nil
-	})
-	fs.StringVar(&a.profileDir, "profile-dir", "", "module profile directory the lint run was given")
-	if err := fs.Parse(args); err != nil {
-		return a, err
-	}
+// checkBundleArgs refuses missing, malformed or clashing flag values.
+func checkBundleArgs(a bundleArgs) error {
 	switch {
-	case fs.NArg() != 0:
-		return a, fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	case a.report == "" || a.skills == "" || a.out == "" || a.injection == "":
-		return a, errors.New("--report, --skills, --out and --injection are required")
+		return errors.New("--report, --skills, --out and --injection are required")
 	case filepath.Clean(a.out) == filepath.Clean(a.injection):
-		return a, errors.New("--out and --injection must be different files")
+		return errors.New("--out and --injection must be different files")
 	case !commitPattern.MatchString(a.pins.HeadSHA) || !commitPattern.MatchString(a.pins.MergeBaseSHA):
-		return a, errors.New("--head-sha and --merge-base-sha must be 40 or 64 lowercase hex characters")
+		return errors.New("--head-sha and --merge-base-sha must be 40 or 64 lowercase hex characters")
 	case !sha256Pattern.MatchString(a.pins.BinarySHA256):
-		return a, errors.New("--binary-sha256 must be 64 lowercase hex characters")
+		return errors.New("--binary-sha256 must be 64 lowercase hex characters")
 	}
-	return a, nil
+	return nil
 }
 
 // buildBundle computes the pins it can compute, checks the report and builds.

@@ -67,7 +67,8 @@ func bundleArgsFor(report, skills, out string) []string {
 		"--head-sha", testHead, "--merge-base-sha", testBase, "--binary-sha256", testBinary}
 }
 
-func runBundle(args []string) (int, string, string) {
+// runCLI runs the CLI in process and returns the exit code, stdout and stderr.
+func runCLI(args []string) (int, string, string) {
 	var out, errb bytes.Buffer
 	code := run(args, &out, &errb)
 	return code, out.String(), errb.String()
@@ -82,7 +83,7 @@ func TestBundleWritesJudgment(t *testing.T) {
 		if err := os.Mkdir(out, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		code, stdout, stderr := runBundle(bundleArgsFor(report, "../../testdata/bundle/skills", out))
+		code, stdout, stderr := runCLI(bundleArgsFor(report, "../../testdata/bundle/skills", out))
 		if code != 0 || stdout != "judgment\n" {
 			t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 		}
@@ -132,13 +133,13 @@ func TestBundleRefuses(t *testing.T) {
 		"bad head":            {replace(bundleArgsFor(report, skills, tmp), "--head-sha", "HEAD"), "--head-sha"},
 		"bad binary":          {replace(bundleArgsFor(report, skills, tmp), "--binary-sha256", "x"), "--binary-sha256"},
 		"no report":           {replace(bundleArgsFor(report, skills, tmp), "--report", ""), "required"},
-		"extra argument":      {append(bundleArgsFor(report, skills, tmp), "x"), "unexpected argument"},
+		"extra argument":      {append(bundleArgsFor(report, skills, tmp), "x"), `unknown command "x"`},
 		"missing skills":      {replace(bundleArgsFor(report, skills, tmp), "--skills", tmp), "registry"},
 		"same output twice":   {replace(bundleArgsFor(report, skills, tmp), "--injection", filepath.Join(tmp, ".", "bundle.txt")), "different files"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			code, stdout, stderr := runBundle(c.args)
+			code, stdout, stderr := runCLI(c.args)
 			if code != exitError || stdout != "" || !strings.Contains(stderr, c.want) {
 				t.Errorf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 			}
@@ -151,7 +152,7 @@ func TestBundleRefuses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmp, "injection.md"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, stderr := runBundle(bundleArgsFor(report, skills, tmp)); code != exitError || !strings.Contains(stderr, "exists") {
+	if code, _, stderr := runCLI(bundleArgsFor(report, skills, tmp)); code != exitError || !strings.Contains(stderr, "exists") {
 		t.Errorf("existing injection: exit %d, stderr %q", code, stderr)
 	}
 	if _, err := os.Lstat(filepath.Join(tmp, "bundle.txt")); err == nil {
@@ -164,7 +165,7 @@ func TestBundleRefuses(t *testing.T) {
 	if err := os.Symlink(filepath.Join(tmp, "elsewhere"), filepath.Join(tmp, "bundle.txt")); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, stderr := runBundle(bundleArgsFor(report, skills, tmp)); code != exitError || !strings.Contains(stderr, "exists") {
+	if code, _, stderr := runCLI(bundleArgsFor(report, skills, tmp)); code != exitError || !strings.Contains(stderr, "exists") {
 		t.Errorf("existing output: exit %d, stderr %q", code, stderr)
 	}
 	if _, err := os.Lstat(filepath.Join(tmp, "elsewhere")); err == nil {
@@ -220,32 +221,8 @@ func bundleFromLint(t *testing.T, dir, profile, handoff string) (bundleFile, rep
 		}
 		t.Skipf("%s is not set", registryEnv)
 	}
-	regText, err := os.ReadFile(regFile) //nolint:gosec // G703: the path is the CI-set registry copy
-	if err != nil {
-		t.Fatal(err)
-	}
-	reg, err := registry.Parse(string(regText))
-	if err != nil {
-		t.Fatal(err)
-	}
 	tmp := t.TempDir()
-	skills := filepath.Join(tmp, "skills")
-	engine := filepath.Join(skills, "references", "engine")
-	if err := os.MkdirAll(engine, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(skills, "references", "rule-facts.md"), regText, 0o644); err != nil { //nolint:gosec // G703: a test temp dir
-		t.Fatal(err)
-	}
-	var text strings.Builder
-	for _, r := range reg.Rules {
-		if r.Engine != registry.EngineLLM {
-			fmt.Fprintf(&text, "## `%s`\n\nText of %s.\n\n", r.ID, r.ID)
-		}
-	}
-	if err := os.WriteFile(filepath.Join(engine, "all.md"), []byte(text.String()), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	skills := writeSkills(t, regFile)
 	schemaArgs := []string{}
 	if handoff != "" {
 		schemaArgs = []string{"--schema-handoff", handoff}
@@ -267,9 +244,42 @@ func bundleFromLint(t *testing.T, dir, profile, handoff string) (bundleFile, rep
 	args := bundleArgsFor(report, skills, tmp)
 	args[len(args)-1] = binary
 	args = append(append(args, "--profile-dir", profile), schemaArgs...)
-	code, stdout, stderr := runBundle(args)
+	code, stdout, stderr := runCLI(args)
 	if code != 0 || stdout != "judgment\n" {
 		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
 	return filepath.Join(tmp, "bundle.txt"), report, regFile
+}
+
+// writeSkills writes a reviewer skill directory with the registry in regFile
+// and made-up engine text for each of its tool and candidate rules, and
+// returns the directory.
+func writeSkills(t *testing.T, regFile string) string {
+	t.Helper()
+	regText, err := os.ReadFile(regFile) //nolint:gosec // G703: the path is the CI-set registry copy
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := registry.Parse(string(regText))
+	if err != nil {
+		t.Fatal(err)
+	}
+	skills := filepath.Join(t.TempDir(), "skills")
+	engine := filepath.Join(skills, "references", "engine")
+	if err := os.MkdirAll(engine, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skills, "references", "rule-facts.md"), regText, 0o644); err != nil { //nolint:gosec // G703: a test temp dir
+		t.Fatal(err)
+	}
+	var text strings.Builder
+	for _, r := range reg.Rules {
+		if r.Engine != registry.EngineLLM {
+			fmt.Fprintf(&text, "## `%s`\n\nText of %s.\n\n", r.ID, r.ID)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(engine, "all.md"), []byte(text.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return skills
 }

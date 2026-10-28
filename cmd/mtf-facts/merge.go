@@ -3,13 +3,13 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 
 	factsmerge "github.com/modulestf/facts/internal/merge"
 	"github.com/modulestf/facts/internal/registry"
+	"github.com/spf13/cobra"
 )
 
 // Exit codes of merge check, beside exitError.
@@ -21,36 +21,64 @@ const (
 // maxRegistryFileBytes bounds the rule-facts.md the merge reads.
 const maxRegistryFileBytes = 1 << 20
 
-const mergeUsage = `usage:
-  mtf-facts merge check <bundle> <reply>
-        print {"result":"valid"} and exit 0, or {"result":"repair","reasons":[...]}
-        and exit 1 when the reply needs the repair turn
-  mtf-facts merge final --registry <rule-facts.md> [--report <lint.json>]
-                        [--templates <file>] <bundle> <reply> [<repair-reply>]
-        print the merged findings; the repair reply is read only when the
-        first reply is invalid, and must then be given (an empty file when
-        the repair turn returned nothing)
-  mtf-facts merge counts <bundle> <reply> [<repair-reply>]
-        print {"counts":{...}} with the reply's three summary-line counts, or
-        {"counts":null} when the reply merge final reads has none; the replies
-        are given as to merge final
-`
-
-// merge checks a lead reply or merges it with the facts into the final
-// findings.
-func merge(args []string, stdout, stderr io.Writer) int {
-	if len(args) > 0 {
-		switch args[0] {
-		case "check":
-			return mergeCheck(args[1:], stdout, stderr)
-		case "final":
-			return mergeFinal(args[1:], stdout, stderr)
-		case "counts":
-			return mergeCounts(args[1:], stdout, stderr)
-		}
+// newMergeCmd builds merge, whose subcommands check a lead reply or merge it
+// with the facts into the final findings.
+func newMergeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "merge <command>",
+		Short:   mergeShort,
+		Long:    mergeLong,
+		GroupID: groupPipeline,
+		Args:    cobra.NoArgs,
+		RunE:    usageExit,
 	}
-	fmt.Fprint(stderr, mergeUsage)
-	return exitError
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:     "check <bundle> <reply>",
+			Short:   mergeCheckShort,
+			Long:    mergeCheckLong,
+			Example: mergeCheckExample,
+			Args:    cobra.ExactArgs(2),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return status(mergeCheck(args, cmd.OutOrStdout(), cmd.ErrOrStderr()))
+			},
+		},
+		newMergeFinalCmd(),
+		&cobra.Command{
+			Use:     "counts <bundle> <reply> [<repair-reply>]",
+			Short:   mergeCountsShort,
+			Long:    mergeCountsLong,
+			Example: mergeCountsExample,
+			Args:    cobra.RangeArgs(2, 3),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return status(mergeCounts(args, cmd.OutOrStdout(), cmd.ErrOrStderr()))
+			},
+		},
+	)
+	return cmd
+}
+
+func newMergeFinalCmd() *cobra.Command {
+	var regFile, reportFile, templatesFile string
+	cmd := &cobra.Command{
+		Use:     "final <bundle> <reply> [<repair-reply>]",
+		Short:   mergeFinalShort,
+		Long:    mergeFinalLong,
+		Example: mergeFinalExample,
+		Args:    cobra.RangeArgs(2, 3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if regFile == "" {
+				return status(usageError(cmd, registryRequired))
+			}
+			return status(mergeFinal(regFile, reportFile, templatesFile, args, cmd.OutOrStdout(), cmd.ErrOrStderr()))
+		},
+	}
+	f := cmd.Flags()
+	f.SortFlags = false
+	f.StringVar(&regFile, "registry", "", mergeFinalRegistryUsage)
+	f.StringVar(&reportFile, "report", "", mergeFinalReportUsage)
+	f.StringVar(&templatesFile, "templates", "", mergeFinalTemplatesUsage)
+	return cmd
 }
 
 // checkResult is what merge check prints.
@@ -60,10 +88,6 @@ type checkResult struct {
 }
 
 func mergeCheck(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 {
-		fmt.Fprint(stderr, mergeUsage)
-		return exitError
-	}
 	b, err := mergeBundle(args[0])
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
@@ -91,10 +115,6 @@ func mergeCheck(args []string, stdout, stderr io.Writer) int {
 
 // mergeCounts prints the counts of the reply merge final reads, or null.
 func mergeCounts(args []string, stdout, stderr io.Writer) int {
-	if len(args) < 2 || len(args) > 3 {
-		fmt.Fprint(stderr, mergeUsage)
-		return exitError
-	}
 	out, err := mergeCountsWork(args)
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
@@ -130,27 +150,10 @@ func mergeCountsWork(files []string) ([]byte, error) {
 	}{c})
 }
 
-func mergeFinal(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("merge final", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	regFile := fs.String("registry", "", "rule-facts.md, the rule registry")
-	reportFile := fs.String("report", "", "lint report whose index derives the subjects of lead findings")
-	templatesFile := fs.String("templates", "", "per-rule host templates")
-	var files []string
-	for rest := args; ; {
-		if err := fs.Parse(rest); err != nil {
-			return exitError
-		}
-		if fs.NArg() == 0 {
-			break
-		}
-		files, rest = append(files, fs.Arg(0)), fs.Args()[1:]
-	}
-	if *regFile == "" || len(files) < 2 || len(files) > 3 {
-		fmt.Fprint(stderr, mergeUsage)
-		return exitError
-	}
-	out, err := mergeFinalWork(*regFile, *reportFile, *templatesFile, files)
+// mergeFinal prints the findings merged from the files: the bundle, the
+// first reply and the repair reply, if given.
+func mergeFinal(regFile, reportFile, templatesFile string, files []string, stdout, stderr io.Writer) int {
+	out, err := mergeFinalWork(regFile, reportFile, templatesFile, files)
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
 		return exitError

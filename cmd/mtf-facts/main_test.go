@@ -49,7 +49,7 @@ func TestRules(t *testing.T) {
 
 func TestUsage(t *testing.T) {
 	var out, errb bytes.Buffer
-	if code := run(nil, &out, &errb); code != 2 || errb.Len() == 0 {
+	if code := run(nil, &out, &errb); code != 2 || errb.Len() == 0 || out.Len() != 0 {
 		t.Errorf("exit %d", code)
 	}
 }
@@ -99,8 +99,8 @@ func TestLintErrors(t *testing.T) {
 		{"lint", "--bogus", "."},
 	} {
 		var out, errb bytes.Buffer
-		if code := run(args, &out, &errb); code != 2 {
-			t.Errorf("%v: exit %d", args, code)
+		if code := run(args, &out, &errb); code != 2 || out.Len() != 0 {
+			t.Errorf("%v: exit %d, stdout %q", args, code, out.String())
 		}
 	}
 }

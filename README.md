@@ -4,8 +4,8 @@
 
 It serves two uses:
 
-- Module review: a facts bundle that lets a model reviewer skip the rules a parser can decide.
 - Module authoring: `lint`, a provider coverage `ledger` check, and `schema-diff` for provider upgrades.
+- Module review: a facts bundle that lets a model reviewer skip the rules a parser can decide.
 
 It reads files only. It makes no network call and runs no Terraform or other program.
 
@@ -15,7 +15,7 @@ It reads files only. It makes no network call and runs no Terraform or other pro
 go install github.com/modulestf/facts/cmd/mtf-facts@latest
 ```
 
-Pin a release with `@v0.3.0-rc.1` in place of `@latest`.
+Pin a release with `@v0.3.0-rc.2` in place of `@latest`, or download a release binary and check it as in [Verify a release](#verify-a-release).
 
 Or build from a checkout:
 
@@ -23,11 +23,7 @@ Or build from a checkout:
 go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
 ```
 
-## Usage
-
-Run `mtf-facts` with no arguments for the list of subcommands, and `mtf-facts <subcommand> -h` for the flags of one; `-h` exits 2. Every subcommand exits 2 on an error. Ignore stdout on exit 2: a failed write to stdout can leave partial output.
-
-### lint
+## Quick start
 
 Check a whole module tree:
 
@@ -41,24 +37,13 @@ Check only the areas a change touched, against the tree the change started from:
 mtf-facts lint path/to/module --base path/to/base-tree
 ```
 
-Add `--json` for the full report: the envelope, one manifest entry per rule and area (one under `.` for a cross-area rule), findings in the reviewer's findings schema, and candidates. `--registry <rule-facts.md>` records the registry hash, and `--head-sha` and `--merge-base-sha` record the commits the trees came from. Each one is `null` when its flag is absent, and a host that checks a report against its pins must treat `null` as invalid. The JSON schemas are in [schema/](schema/).
+Write the full report as JSON:
 
-Two flags take provider schemas:
+```sh
+mtf-facts lint path/to/module --base path/to/base-tree --json > report.json
+```
 
-- `--schema-handoff <file>`: the schema handoff the schema job writes, gzipped or not.
-- `--schema-files <file>`, repeatable: a `terraform providers schema -json` output. Two schema files with one base name exit 2.
-
-Both are read offline under size caps; a missing, oversized or malformed one exits 2. The handoff is read only when `--head-sha`, `--merge-base-sha` and the `.tf` tree hashes of the head and `--base` trees equal the ones it records; otherwise every lookup in it is `schema_unavailable`.
-
-The envelope's `schema_inputs` records the handoff's hash, commits and tree hashes, and the hash of each schema file, named by its base name. With schema files and no handoff, it records the hash of each schema file and the handoff keys are null. `handoff_sha256` hashes the file's bytes as read, so a gzipped and a plain copy of the same handoff hash differently: a host that checks it must hash the form it passed.
-
-The `coverage.*` rules read the bound handoff when one is given, and never fall back to the schema files. With schema files and no handoff, as in local `lint`, they resolve each block's provider source from `required_providers` and read the files as the latest schema; a provider no file has stays `schema_unavailable`. A schema file records no provider version, so its schema facts carry the version `schema-file`, and `coverage.argument-above-min-version`, which needs the declared minimum, stays `not_evaluated(schema_unavailable)`.
-
-`--profile-dir <dir>` names the module profile directory: its `PROFILE.md` profile-constants blocks and the templates they name, read without following a link and with size caps. The output envelope records its `profile_sha256`. A path that is missing, not a directory or itself a link exits 2; a link in a parent component of the path is resolved. A profile that cannot be read or parsed is no error: the rules that need it are `not_evaluated` with `profile_unavailable`, as they are without `--profile-dir`.
-
-`--timeout` (default `60s`, must be greater than zero) stops a run that takes longer: it writes `mtf-facts: timeout` to stderr and exits with code 2.
-
-Exit codes:
+`lint` exits with one of these codes:
 
 | Code | Meaning |
 |------|---------|
@@ -67,22 +52,111 @@ Exit codes:
 | 2 | An error: bad input, a limit, the timeout, or a failed integrity check. |
 | 3 | No findings, but at least one rule was `not_evaluated` in some area. |
 
+Candidates are unconfirmed: the author confirms or rejects each one, and they never change the exit code.
+
+`mtf-facts --help` lists the commands, and `mtf-facts <command> --help` gives the flags and exit codes of one. Help goes to stdout and exits 0. Long options take two dashes (`--json`); the single-dash form (`-json`) is not accepted. Every command exits 2 on an error. Ignore stdout on exit 2: a failed write to stdout can leave partial output.
+
+## Common tasks
+
+### Lint a module you are writing
+
+Pass the rule registry and the module profile so the report records their hashes and the profile rules run, and the provider schema files so the `coverage.*` rules run:
+
+```sh
+mtf-facts lint path/to/module --base path/to/base-tree --json \
+  --registry rule-facts.md --profile-dir path/to/profile \
+  --schema-files schema.json > report.json
+```
+
+Without `--profile-dir`, the rules that need the profile are `not_evaluated` with `profile_unavailable`. Without a schema, a `coverage.*` rule is `not_evaluated(schema_unavailable)` in an area where the change adds or edits a resource or data block. See [lint](#lint) for each flag.
+
+### Match a hosted review report
+
+Add the commits the two trees came from, so the report records them as a hosted review does:
+
+```sh
+mtf-facts lint path/to/head --base path/to/base --json \
+  --registry rule-facts.md --profile-dir path/to/profile \
+  --head-sha <sha> --merge-base-sha <sha> > report.json
+```
+
+Each of `--registry`, `--head-sha` and `--merge-base-sha` is recorded as `null` when its flag is absent, and a host that checks a report against its pins must treat `null` as invalid.
+
+### Write a provider coverage ledger
+
+List the provider fields of each type the module declares, then check the ledger you wrote against that inventory:
+
+```sh
+mtf-facts ledger path/to/module --schema-files schema.json
+mtf-facts ledger path/to/module --schema-files schema.json --check coverage-ledger.json
+```
+
+When the ledger is incomplete, the check exits 1 and lists each problem in `problems`. See [ledger](#ledger).
+
+### Upgrade a provider
+
+Compare the provider schema of the current and the target version, for the types the module tree uses:
+
+```sh
+mtf-facts schema-diff --from current.json --to target.json --types-from path/to/module
+```
+
+Each schema file is a `terraform providers schema -json` output. See [schema-diff](#schema-diff).
+
+## Run in a review pipeline
+
+A hosted review runs the commands in this order:
+
+1. `lint --json` on the head tree with `--base`, `--registry`, `--profile-dir`, `--schema-handoff`, `--head-sha` and `--merge-base-sha`.
+2. `bundle` on that report, with `--head-sha`, `--merge-base-sha`, `--binary-sha256` and the schema and profile flags the lint run had. It prints `judgment` and writes the facts bundle and the injected rule text, or prints `full` and writes no file. Steps 3 to 6 run only after `judgment`.
+3. The model reviewer reads the bundle and the injected text and writes its reply.
+4. `merge check` on the bundle and the reply. Exit 1 means the reply needs the repair turn.
+5. `merge final --registry` on the bundle, the reply and, after a repair turn, the repair reply.
+6. `merge counts` on the bundle and the same replies, read only after `merge final` succeeds.
+
 Host contract:
 
 - Exit code 2 means stdout is not a report. Ignore stdout on exit 2: a failed write to stdout can leave partial output.
 - A timeout, or any error before output, writes nothing to stdout.
 - Drain both stdout and stderr while the process runs, and keep your own wall-clock kill. `--timeout` does not replace it.
+- Pin one version and its SHA-256 per platform, and check the attestation. See [Update a consumer pin](#update-a-consumer-pin).
 
-Candidates are unconfirmed: the author confirms or rejects each one, and they never change the exit code.
+## Command reference
 
-### rules and version
-
-List the implemented rules, one per line with its tier (`tool` or `candidate`), sorted by id, and print the binary version:
+### lint
 
 ```sh
-mtf-facts rules
-mtf-facts version
+mtf-facts lint <dir> [--base <dir>] [--json] [--timeout <duration>]
+  [--registry <rule-facts.md>] [--profile-dir <dir>]
+  [--schema-files <file>]... [--schema-handoff <file>]
+  [--head-sha <sha>] [--merge-base-sha <sha>]
 ```
+
+| Flag | Meaning |
+|------|---------|
+| `--base <dir>` | The tree the change started from. Only the areas the change touched are checked. |
+| `--json` | Write the full report as JSON. |
+| `--timeout <duration>` | Stop a run that takes longer. Default `60s`. |
+| `--registry <rule-facts.md>` | Record the registry hash. |
+| `--profile-dir <dir>` | The module profile directory. |
+| `--schema-files <file>` | A `terraform providers schema -json` output. Repeatable. |
+| `--schema-handoff <file>` | The schema handoff the schema job writes, gzipped or not. |
+| `--head-sha <sha>` | Record the commit the head tree came from. |
+| `--merge-base-sha <sha>` | Record the commit the base tree came from. |
+
+The `--json` report holds the envelope, one manifest entry per rule and area (one under `.` for a cross-area rule), findings in the reviewer's findings schema, and candidates. The JSON schemas are in [schema/](schema/).
+
+Two schema files with one base name exit 2. The schema handoff and the schema files are read offline under size caps; a missing, oversized or malformed one exits 2. The handoff is read only when `--head-sha`, `--merge-base-sha` and the `.tf` tree hashes of the head and `--base` trees equal the ones it records; otherwise every lookup in it is `schema_unavailable`.
+
+The envelope's `schema_inputs` records the handoff's hash, commits and tree hashes, and the hash of each schema file, named by its base name. With schema files and no handoff, it records the hash of each schema file and the handoff keys are null. `handoff_sha256` hashes the file's bytes as read, so a gzipped and a plain copy of the same handoff hash differently: a host that checks it must hash the form it passed.
+
+The `coverage.*` rules read the bound handoff when one is given, and never fall back to the schema files. With schema files and no handoff, as in local `lint`, they resolve each block's provider source from `required_providers` and read the files as the latest schema; a provider no file has stays `schema_unavailable`. A schema file records no provider version, so its schema facts carry the version `schema-file`, and `coverage.argument-above-min-version`, which needs the declared minimum, stays `not_evaluated(schema_unavailable)`.
+
+`--profile-dir` reads the directory's `PROFILE.md` profile-constants blocks and the templates they name, without following a link and with size caps. The output envelope records its `profile_sha256`. A path that is missing, not a directory or itself a link exits 2; a link in a parent component of the path is resolved. A profile that cannot be read or parsed is no error: the rules that need it are `not_evaluated` with `profile_unavailable`, as they are without `--profile-dir`.
+
+`--timeout` must be greater than zero. A run that takes longer writes `mtf-facts: timeout` to stderr and exits with code 2.
+
+The exit codes are in [Quick start](#quick-start).
 
 ### bundle
 
@@ -180,7 +254,17 @@ mtf-facts schema-diff --from current.json --to target.json --types-from path/to/
 
 All three flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
 
-## Status
+### rules, version and completion
+
+```sh
+mtf-facts rules
+mtf-facts version
+mtf-facts completion bash
+```
+
+`rules` lists the implemented rules, one per line with its tier (`tool` or `candidate`), sorted by id. `version` prints the binary version, as does `mtf-facts --version`. `completion` prints a shell completion script for `bash`, `zsh`, `fish` or `powershell` to stdout.
+
+## How rules are evaluated
 
 All 42 tool and candidate rules of the reviewer's rule registry are implemented. CI checks that the `mtf-facts rules` listing equals the registry's tool and candidate rules, tier for tier, against a registry pinned by commit and SHA-256.
 
@@ -208,7 +292,7 @@ The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
 ## Releases
 
-The current release is the pre-release `v0.3.0-rc.1`. Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
+The current release is the pre-release `v0.3.0-rc.2`. Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
 
 ### Cut a release
 
