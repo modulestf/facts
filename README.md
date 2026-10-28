@@ -43,9 +43,18 @@ mtf-facts lint path/to/module --base path/to/base-tree
 
 Add `--json` for the full report: the envelope, one manifest entry per rule and area (one under `.` for a cross-area rule), findings in the reviewer's findings schema, and candidates. `--registry <rule-facts.md>` records the registry hash, and `--head-sha` and `--merge-base-sha` record the commits the trees came from. Each one is `null` when its flag is absent, and a host that checks a report against its pins must treat `null` as invalid. The JSON schemas are in [schema/](schema/).
 
-`--schema-handoff <file>` names the schema handoff the schema job writes, gzipped or not, and `--schema-files <file>`, repeatable, a `terraform providers schema -json` output. Both are read offline under size caps; a missing, oversized or malformed one exits 2. The handoff is read only when `--head-sha`, `--merge-base-sha` and the `.tf` tree hashes of the head and `--base` trees equal the ones it records; otherwise every lookup in it is `schema_unavailable`. The envelope's `schema_inputs` records the handoff's hash, commits and tree hashes and the hash of each schema file, named by its base name. Two schema files with one base name exit 2. With schema files and no handoff, it records the hash of each schema file and the handoff keys are null. `handoff_sha256` hashes the file's bytes as read, so a gzipped and a plain copy of the same handoff hash differently: a host that checks it must hash the form it passed. The `coverage.*` rules read the bound handoff when one is given, and never fall back to the schema files. With schema files and no handoff, as in local `lint`, they resolve each block's provider source from `required_providers` and read the files as the latest schema; a provider no file has stays `schema_unavailable`. A schema file records no provider version, so its schema facts carry the version `schema-file`, and `coverage.argument-above-min-version`, which needs the declared minimum, stays `not_evaluated(schema_unavailable)`.
+Two flags take provider schemas:
 
-`--profile-dir <dir>` names the module profile directory: its `PROFILE.md` profile-constants blocks and the templates they name, read without following a link and with size caps. The output envelope records its `profile_sha256`. A path that is missing, not a directory or itself a link exits 2; a link in a parent component of the path is resolved. A directory whose profile cannot be read or parsed is no error: the rules that need the profile are `not_evaluated` with `profile_unavailable`, as they are without `--profile-dir`.
+- `--schema-handoff <file>`: the schema handoff the schema job writes, gzipped or not.
+- `--schema-files <file>`, repeatable: a `terraform providers schema -json` output. Two schema files with one base name exit 2.
+
+Both are read offline under size caps; a missing, oversized or malformed one exits 2. The handoff is read only when `--head-sha`, `--merge-base-sha` and the `.tf` tree hashes of the head and `--base` trees equal the ones it records; otherwise every lookup in it is `schema_unavailable`.
+
+The envelope's `schema_inputs` records the handoff's hash, commits and tree hashes, and the hash of each schema file, named by its base name. With schema files and no handoff, it records the hash of each schema file and the handoff keys are null. `handoff_sha256` hashes the file's bytes as read, so a gzipped and a plain copy of the same handoff hash differently: a host that checks it must hash the form it passed.
+
+The `coverage.*` rules read the bound handoff when one is given, and never fall back to the schema files. With schema files and no handoff, as in local `lint`, they resolve each block's provider source from `required_providers` and read the files as the latest schema; a provider no file has stays `schema_unavailable`. A schema file records no provider version, so its schema facts carry the version `schema-file`, and `coverage.argument-above-min-version`, which needs the declared minimum, stays `not_evaluated(schema_unavailable)`.
+
+`--profile-dir <dir>` names the module profile directory: its `PROFILE.md` profile-constants blocks and the templates they name, read without following a link and with size caps. The output envelope records its `profile_sha256`. A path that is missing, not a directory or itself a link exits 2; a link in a parent component of the path is resolved. A profile that cannot be read or parsed is no error: the rules that need it are `not_evaluated` with `profile_unavailable`, as they are without `--profile-dir`.
 
 `--timeout` (default `60s`, must be greater than zero) stops a run that takes longer: it writes `mtf-facts: timeout` to stderr and exits with code 2.
 
@@ -92,8 +101,19 @@ These envelope fields of the report must equal their pins: the schema version, b
 
 It prints the mode to stdout and exits 0:
 
-- `judgment`: it wrote `--out` and `--injection`. Both files must not exist yet; when the second write fails, the first file is removed. `--out` is not plain JSON. It is a framed region: a `FACTS-BUNDLE-BYTES <n>` header line, then `FACTS-BUNDLE BEGIN`, one line holding the bundle as a JSON string with every byte outside printable ASCII escaped, and `FACTS-BUNDLE END`. The bundle inside that string has the shape of [facts-bundle.schema.json](schema/facts-bundle.schema.json), and `<n>` is the byte length of the string line. The cap counts that line. Over the 48 KiB cap, sections are shed lowest priority first (`file_index`, `schema_coverage`, `interface_diff`, `area_rules`), never `tool_findings` or `candidates`.
-- `full`: the tool findings and candidates alone are over the cap, or the injected rule text is over its 24 KiB budget. It writes no file and gives the reason on stderr.
+- `judgment`: it wrote `--out` and `--injection`. Both files must not exist yet; when the second write fails, the first file is removed.
+- `full`: the tool findings and candidates alone are over the 48 KiB cap, or the injected rule text is over its 24 KiB budget. It writes no file and gives the reason on stderr.
+
+`--out` is not plain JSON. It is a framed region:
+
+```text
+FACTS-BUNDLE-BYTES <n>
+FACTS-BUNDLE BEGIN
+<json-string>
+FACTS-BUNDLE END
+```
+
+`<json-string>` is one line holding the bundle as a JSON string with every byte outside printable ASCII escaped. The bundle inside that string has the shape of [facts-bundle.schema.json](schema/facts-bundle.schema.json), and `<n>` is the byte length of the string line. The 48 KiB cap counts that line. Over the cap, sections are shed lowest priority first (`file_index`, `schema_coverage`, `interface_diff`, `area_rules`), never `tool_findings` or `candidates`.
 
 ### merge
 
@@ -123,9 +143,26 @@ mtf-facts ledger path/to/module --schema-files schema.json [--schema-files more.
   [--check coverage-ledger.json] [--registry rule-facts.md]
 ```
 
-It reads only that directory, not `modules/*` or `examples/*`. At least one `--schema-files` is required. The run exits 2, with no inventory, when a provider the module uses is in no schema file, a type is not in its provider's schema, the directory has no `.tf` file or no resource or data block, a block is an ephemeral resource, or a file is one the parser cannot model. The JSON output has an `envelope` (the tool, `registry_sha256`, which is `null` without `--registry`, the hash of each schema file and of the ledger, each named by its base name), the `types` and their fields, and `problems`.
+It reads only that directory, not `modules/*` or `examples/*`. At least one `--schema-files` is required. The run exits 2, with no inventory, when:
 
-`--check` reads the author's coverage ledger, in the shape of [ledger.schema.json](schema/ledger.schema.json), and lists each problem it finds: a leaf field with no disposition or more than one, a field not in the schema, a type the module does not declare or one listed twice, an input or output the module lacks, an input on a computed-only field, and a disposition other than `intentional_omission` or `not_applicable` on a block or nested attribute that has fields. Without `--check`, `problems` is `null`.
+- a provider the module uses is in no schema file;
+- a type is not in its provider's schema;
+- the directory has no `.tf` file or no resource or data block;
+- a block is an ephemeral resource;
+- a file is one the parser cannot model.
+
+The JSON output has an `envelope`, the `types` and their fields, and `problems`. The envelope holds the tool, `registry_sha256` (`null` without `--registry`), and the hash of each schema file and of the ledger, each named by its base name.
+
+`--check` reads the author's coverage ledger, in the shape of [ledger.schema.json](schema/ledger.schema.json), and lists each problem it finds:
+
+- a leaf field with no disposition or more than one;
+- a field not in the schema;
+- a type the module does not declare, or one listed twice;
+- an input or output the module lacks;
+- an input on a computed-only field;
+- a disposition other than `intentional_omission` or `not_applicable` on a block or nested attribute that has fields.
+
+Without `--check`, `problems` is `null`.
 
 | Code | Meaning |
 |------|---------|
@@ -147,7 +184,25 @@ All three flags are required. It writes the report as JSON, in the shape of [sch
 
 All 42 tool and candidate rules of the reviewer's rule registry are implemented. CI checks that the `mtf-facts rules` listing equals the registry's tool and candidate rules, tier for tier, against a registry pinned by commit and SHA-256.
 
-Areas are the root module, each `modules/<name>` and each `examples/<name>`, parsed one directory at a time. A change under `.github/` or to a root profile file such as `.editorconfig` counts as the root. With a base tree, the root is in scope only when the change touches it; a cross-area rule still has its one entry under `.`. A cross-area pass reads every area of the module, in scope or not, and keeps only the findings and candidates of the areas in the change. When any area it reads cannot be evaluated, untouched areas included, that entry is `not_evaluated` with one reason code (`parse_error`, `unsupported_file`, `symlink` or `limit_exceeded`) and no findings or candidates. Files Terraform ignores (a leading `.`, a trailing `~`, `#...#`) are skipped. A directory with a parse error, a `.tf.json` file, an override file, a `.tf` file that is a link or cannot be read, or a file over the token, nesting or unary operator limits gets `not_evaluated` for its configuration rules, never `clean`. Path rules still run: a link where a path rule looks for a file counts as present and is never followed. An area directory that is a link or cannot be read gets `not_evaluated` for every rule. No area reads `tests/` or a directory more than one level under `modules/<name>/`, though both hold boundary directories for the scope rules. So `scope.module-call` and `scope.provider` are `not_evaluated(unsupported_file)` at the root when the change adds or edits a `.tf` or `.tf.json` file, or any link, special or unreadable entry, under `tests/`, or when `tests` itself is such an entry. They are `not_evaluated(unsupported_file)` at `modules/<name>` when it does the same in a nested directory there, or adds a link, special or unreadable entry directly in `modules/<name>/` that is not a `.tf` or `.tf.json` file (one that is keeps its own reason code), except a regular `.tf` file in a nested directory that parses with no issue and holds only `variable`, `output`, `locals`, `moved` and `removed` blocks. `scope.new-submodule` is `not_evaluated(unsupported_file)` at `modules/<name>` on the same entries when they lie in a nested directory the base lacks, or are a link, special or unreadable entry, with the same exception. For a new `modules/<name>`, a candidate from its own top level comes first, and the nested entries give `not_evaluated` only when that top level gives none. Candidate subjects are scoped to their area, `<area>:<address>`, such as `.:var.name`.
+### Areas
+
+Areas are the root module, each `modules/<name>` and each `examples/<name>`, parsed one directory at a time. A change under `.github/` or to a root profile file such as `.editorconfig` counts as the root. Candidate subjects are scoped to their area, `<area>:<address>`, such as `.:var.name`.
+
+With a base tree, the root is in scope only when the change touches it; a cross-area rule still has its one entry under `.`. A cross-area pass reads every area of the module, in scope or not, and keeps only the findings and candidates of the areas in the change. When any area it reads cannot be evaluated, untouched areas included, that entry is `not_evaluated` with one reason code (`parse_error`, `unsupported_file`, `symlink` or `limit_exceeded`) and no findings or candidates.
+
+Files Terraform ignores (a leading `.`, a trailing `~`, `#...#`) are skipped. A directory gets `not_evaluated` for its configuration rules, never `clean`, when it has a parse error, a `.tf.json` file, an override file, a `.tf` file that is a link or cannot be read, or a file over the token, nesting or unary operator limits. Path rules still run: a link where a path rule looks for a file counts as present and is never followed. An area directory that is a link or cannot be read gets `not_evaluated` for every rule.
+
+### Scope rules at area boundaries
+
+No area reads `tests/` or a directory more than one level under `modules/<name>/`, though both hold boundary directories for the scope rules. So these rules are `not_evaluated(unsupported_file)` in these cases:
+
+- `scope.module-call` and `scope.provider` at the root, when the change adds or edits a `.tf` or `.tf.json` file, or any link, special or unreadable entry, under `tests/`, or when `tests` itself is such an entry.
+- `scope.module-call` and `scope.provider` at `modules/<name>`, when the change adds or edits a `.tf` or `.tf.json` file, or any link, special or unreadable entry, in a nested directory there, or adds a link, special or unreadable entry directly in `modules/<name>/` that is not a `.tf` or `.tf.json` file (one that is keeps its own reason code).
+- `scope.new-submodule` at `modules/<name>`, on the same entries when they lie in a nested directory the base lacks, or are a link, special or unreadable entry.
+
+The `modules/<name>` cases exempt a regular `.tf` file in a nested directory that parses with no issue and holds only `variable`, `output`, `locals`, `moved` and `removed` blocks. For a new `modules/<name>`, a candidate from its own top level comes first, and the nested entries give `not_evaluated` only when that top level gives none.
+
+### Platform
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
@@ -199,7 +254,7 @@ A consumer, such as the verify job of a hosted review workflow, pins one version
 
 1. Verify the new release as above: the attestation and the rebuild.
 2. Read the SHA-256 of each platform the consumer runs on from that release's `SHA256SUMS`.
-3. Change the version and every SHA-256 in one commit. A version without its matching SHA-256 values fails the download check, which is the intended result.
+3. Change the version and every SHA-256 in one commit. A version without its matching SHA-256 values fails the download check, as intended.
 4. Keep the attestation check in the download step, with the same flags as above and the pinned tag, so the pin rests on both the hash and the provenance:
 
    ```sh
