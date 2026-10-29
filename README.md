@@ -56,6 +56,65 @@ Candidates are unconfirmed: the author confirms or rejects each one, and they ne
 
 `mtf-facts --help` lists the commands, and `mtf-facts <command> --help` gives the flags and exit codes of one. Help goes to stdout and exits 0. Long options take two dashes (`--json`); the single-dash form (`-json`) is not accepted. Every command exits 2 on an error. Ignore stdout on exit 2: a failed write to stdout can leave partial output.
 
+## Example: review a pull request
+
+These commands check pull request [#780](https://github.com/terraform-aws-modules/terraform-aws-lambda/pull/780) of `terraform-aws-modules/terraform-aws-lambda`. To check a change to your own module, put your repository and branch in place of the pull request.
+
+Get the rule registry and the `terraform-aws-modules` module profile from [modulestf/skills](https://github.com/modulestf/skills), at the commit this repository's CI pins:
+
+```sh
+git clone https://github.com/modulestf/skills.git
+git -C skills checkout eef38dcce3690920c0bcecab9aebfdd01b462f72
+REGISTRY=skills/.agents/skills/terraform-module-reviewer/references/rule-facts.md
+PROFILE=skills/.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules
+```
+
+Check out the head of the pull request and the commit it branched from, side by side:
+
+```sh
+git clone https://github.com/terraform-aws-modules/terraform-aws-lambda.git lambda
+git -C lambda fetch origin pull/780/head
+HEAD_SHA=$(git -C lambda rev-parse FETCH_HEAD)
+BASE_SHA=$(git -C lambda merge-base origin/master FETCH_HEAD)
+git -C lambda worktree add ../head "$HEAD_SHA"
+git -C lambda worktree add ../base "$BASE_SHA"
+```
+
+Write the provider schema, so the `coverage.*` rules run. This step runs Terraform and downloads the providers; `mtf-facts` does neither:
+
+```sh
+(cd head && terraform init -backend=false >/dev/null && terraform providers schema -json) > schema.json
+```
+
+Lint the areas the pull request touched:
+
+```sh
+mtf-facts lint head --base base \
+  --registry "$REGISTRY" --profile-dir "$PROFILE" --schema-files schema.json
+```
+
+With `v0.3.0-rc.2` it prints this and exits 1 (the `not evaluated` lines are cut):
+
+```text
+examples/fixtures: MEDIUM examples.versions-missing: Example "examples/fixtures" has no versions.tf, so its Terraform and provider constraints are not in the file the profile and its sibling examples use.
+  fix: Add `versions.tf` to `examples/fixtures`, copied from a sibling example, or rename the file that holds its `terraform` block to `versions.tf`.
+examples/function-url/main.tf:45: unconfirmed structure.version-floor-understated: examples/function-url:required_providers.external, confirm or reject
+examples/function-url/main.tf:45: unconfirmed structure.version-floor-understated: examples/function-url:required_providers.local, confirm or reject
+examples/function-url/main.tf:45: unconfirmed structure.version-floor-understated: examples/function-url:required_providers.null, confirm or reject
+1 findings, 3 candidates; manifest: 1 finding, 1 candidate, 75 clean, 2 not_evaluated, 68 not_applicable
+```
+
+Fix each finding, and confirm or reject each candidate. The two rules left `not_evaluated` need the declared minimum provider version, which a raw schema file does not record.
+
+For the JSON report a hosted review writes for the same two commits, add `--json` and the commits:
+
+```sh
+mtf-facts lint head --base base --json \
+  --registry "$REGISTRY" --profile-dir "$PROFILE" --schema-files schema.json \
+  --head-sha "$HEAD_SHA" --merge-base-sha "$BASE_SHA" > report.json
+jq '.findings[].summary, .candidates[].subject' report.json
+```
+
 ## Common tasks
 
 ### Lint a module you are writing
