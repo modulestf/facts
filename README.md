@@ -1,4 +1,4 @@
-# facts
+# Terraform Modules Facts
 
 `mtf-facts` is an offline Go CLI that parses Terraform module trees and reports deterministic facts: rule results, candidate findings with evidence, interface and schema diffs.
 
