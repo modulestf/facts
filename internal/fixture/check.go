@@ -288,7 +288,7 @@ func (c *checker) readTree(r *os.Root) ([]*facts.Entry, string, error) {
 // hardLinked reports a file with more than one name.
 func hardLinked(info fs.FileInfo) bool {
 	st, ok := info.Sys().(*syscall.Stat_t)
-	return !ok || uint64(st.Nlink) > 1
+	return !ok || st.Nlink > 1
 }
 
 // listRoot returns the names in the root directory, sorted, reading at most
