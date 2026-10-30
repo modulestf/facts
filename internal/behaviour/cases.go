@@ -281,8 +281,9 @@ func literalStates(ty cty.Type, ls literalSet, have []caseState, wrap func(any) 
 //  2. every combination of the other states, and one case per order state
 //     with the rest typical;
 //  3. for a strict trigger, nothing: no cases and a reason;
-//  4. every combination of the other states;
-//  5. one typical case and one case per other state of each input.
+//  4. with no order states, every combination of the states;
+//  5. one typical case and one case per other state of each input, order
+//     states included.
 func sweepCases(inputs []caseInput, strict bool) ([]Case, string) {
 	if len(inputs) == 0 {
 		return []Case{{ID: "typical", Inputs: map[string]CaseInput{}}}, ""
@@ -302,7 +303,9 @@ func sweepCases(inputs []caseInput, strict bool) ([]Case, string) {
 	if strict {
 		return []Case{}, fmt.Sprintf("the combined input sweep needs more than %d cases", maxSweepCases)
 	}
-	if productSize(inputs) <= maxSweepCases {
+	// Without order states the combination is enough; with them, a sweep
+	// that drops them could not show a reorder or a dedupe.
+	if extras == 0 && productSize(inputs) <= maxSweepCases {
 		return productCases(inputs), ""
 	}
 	oneAtATime := 1

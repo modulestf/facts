@@ -583,3 +583,21 @@ func TestCasesOrderAndDuplicates(t *testing.T) {
 		t.Errorf("count: %d cases, combined %v: %s", len(tr.Cases), both, mustJSON(t, tr.Cases))
 	}
 }
+
+// TestCasesKeepOrderStates: when the combinations fit only without the
+// order states, the sweep still holds them.
+func TestCasesKeepOrderStates(t *testing.T) {
+	vars := "variable \"l\" {\n  type = list(string)\n}\nvariable \"on\" {\n  type = bool\n}\n"
+	r := runPair(t, map[string]string{"variables.tf": vars, "main.tf": `locals { x = var.on ? var.l : ["z"] }` + "\n"},
+		map[string]string{"variables.tf": vars, "main.tf": `locals { x = var.on ? distinct(var.l) : ["z"] }` + "\n"}, "")
+	tr := r.Triggers[0]
+	dup := false
+	for _, c := range tr.Cases {
+		if string(c.Inputs["l"].Value) == `["a","a"]` {
+			dup = true
+		}
+	}
+	if !dup || len(tr.Cases) == 0 || len(tr.Cases) > maxSweepCases {
+		t.Errorf("%d cases, duplicate %v: %s", len(tr.Cases), dup, mustJSON(t, tr.Cases))
+	}
+}
