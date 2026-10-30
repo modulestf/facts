@@ -7,21 +7,40 @@ import (
 	"testing"
 )
 
-// subjectTF is a template whose head output value is the spliced expression.
-func subjectTF(expr string) string {
-	return "output \"base\" {\n  value = 1\n}\n\nresource \"terraform_data\" \"subject\" {\n  count = 1\n  input = 1\n}\n\noutput \"head\" {\n  value = " + expr + "\n}\n"
+// subjectTF is a template tree: main.tf holds the base output and the
+// wrapped subject, head.tf the head output whose value is the splice.
+func subjectTF(expr string) map[string]string {
+	return map[string]string{
+		"main.tf": "output \"base\" {\n  value = 1\n}\n\nresource \"terraform_data\" \"subject\" {\n  count = 1\n  input = 1\n}\n",
+		"head.tf": "output \"head\" {\n  value = " + expr + "\n}\n",
+	}
 }
 
-const subjectManifest = `{"schema_version": 1, "files": {"main.tf": {
-  "blocks": [
-    {"type": "output", "labels": ["base"]},
-    {"type": "output", "labels": ["head"]},
-    {"type": "resource", "labels": ["terraform_data", "subject"]}
-  ],
-  "single_expressions": [
-    {"block": "output", "labels": ["head"], "attribute": "value"},
-    {"block": "resource", "labels": ["terraform_data", "subject"], "attribute": "input"}
-  ]}}}`
+const subjectManifest = `{"schema_version": 1, "files": {
+  "main.tf": {
+    "blocks": [
+      {"type": "output", "labels": ["base"]},
+      {"type": "resource", "labels": ["terraform_data", "subject"]}
+    ],
+    "single_expressions": [{"block": "resource", "labels": ["terraform_data", "subject"], "attribute": "input"}]
+  },
+  "head.tf": {
+    "blocks": [{"type": "output", "labels": ["head"]}],
+    "single_expressions": [{"block": "output", "labels": ["head"], "attribute": "value"}]
+  }}}`
+
+// notLastManifest splices the first of two blocks in head.tf.
+const notLastManifest = `{"files": {
+  "main.tf": {"blocks": [{"type": "output", "labels": ["base"]}, {"type": "resource", "labels": ["terraform_data", "subject"]}]},
+  "head.tf": {
+    "blocks": [{"type": "output", "labels": ["head"]}, {"type": "output", "labels": ["tail"]}],
+    "single_expressions": [{"block": "output", "labels": ["head"], "attribute": "value"}]
+  }}}`
+
+func with(files map[string]string, name, data string) map[string]string {
+	files[name] = data
+	return files
+}
 
 type expectCase struct {
 	name     string
@@ -32,17 +51,23 @@ type expectCase struct {
 
 var expectCases = []expectCase{
 	// The spliced expression closes its block and opens another allowed one.
-	{name: "splice adds a block", files: l1(subjectTF("1\n}\n\noutput \"x\" {\n  value = 2")), rule: RuleManifestBlockSet},
-	{name: "splice repeats a block", files: l1(subjectTF("1\n}\n\noutput \"base\" {\n  value = 2")), rule: RuleManifestBlockSet},
-	{name: "block missing", files: l1(strings.Replace(subjectTF("1"), "output \"base\" {\n  value = 1\n}\n", "", 1)), rule: RuleManifestBlockSet},
-	{name: "labels differ", files: l1(strings.Replace(subjectTF("1"), `output "base"`, `output "base2"`, 1)), rule: RuleManifestBlockSet},
-	{name: "file not in manifest", files: map[string]string{"main.tf": subjectTF("1"), "extra.tf": "locals {}\n"}, rule: RuleManifestBlockSet},
-	{name: "file missing", files: map[string]string{"other.tf": subjectTF("1")}, rule: RuleManifestBlockSet},
+	{name: "splice adds a block", files: subjectTF("1\n}\n\noutput \"x\" {\n  value = 2"), rule: RuleManifestBlockSet},
+	{name: "splice repeats a block", files: subjectTF("1\n}\n\noutput \"base\" {\n  value = 2"), rule: RuleManifestBlockSet},
+	{name: "block missing", files: with(subjectTF("1"), "main.tf", "resource \"terraform_data\" \"subject\" {\n  input = 1\n}\n"), rule: RuleManifestBlockSet},
+	{name: "labels differ", files: with(subjectTF("1"), "head.tf", "output \"head2\" {\n  value = 1\n}\n"), rule: RuleManifestBlockSet},
+	{name: "file not in manifest", files: with(subjectTF("1"), "extra.tf", "locals {}\n"), rule: RuleManifestBlockSet},
+	{name: "file missing", files: map[string]string{"main.tf": subjectTF("1")["main.tf"]}, rule: RuleManifestBlockSet},
 
 	// The spliced expression ends its attribute and adds another argument.
-	{name: "splice adds an argument", files: l1(subjectTF("1\n  sensitive = true")), rule: RuleManifestExpression},
-	{name: "splice adds a nested block", files: l1(subjectTF("1\n  precondition {\n    condition = true\n    error_message = \"x\"\n  }")), rule: RuleManifestExpression},
-	{name: "attribute missing", files: l1(strings.Replace(subjectTF("1"), "  input = 1\n", "", 1)), rule: RuleManifestExpression},
+	{name: "splice adds an argument", files: subjectTF("1\n  sensitive = true"), rule: RuleManifestExpression},
+	{name: "splice adds a nested block", files: subjectTF("1\n  precondition {\n    condition = true\n    error_message = \"x\"\n  }"), rule: RuleManifestExpression},
+	{name: "attribute missing", files: with(subjectTF("1"), "main.tf", "output \"base\" {\n  value = 1\n}\n\nresource \"terraform_data\" \"subject\" {\n  count = 1\n}\n"), rule: RuleManifestExpression},
+	// A comment in the splice could swallow template text.
+	{name: "block comment in splice", files: subjectTF("1 /* x */"), rule: RuleManifestExpression},
+	{name: "line comment in splice", files: subjectTF("1 # x"), rule: RuleManifestExpression},
+	{name: "comment after splice", files: with(subjectTF("1"), "head.tf", "output \"head\" {\n  value = 1\n  // x\n}\n"), rule: RuleManifestExpression},
+	// The spliced block must be the last block of its file.
+	{name: "spliced block not last", manifest: notLastManifest, files: with(subjectTF("1"), "head.tf", "output \"head\" {\n  value = 1\n}\n\noutput \"tail\" {\n  value = 2\n}\n"), rule: RuleManifestExpression},
 }
 
 func TestCheckExpect(t *testing.T) {
@@ -68,10 +93,17 @@ func TestCheckExpect(t *testing.T) {
 			if r.OK {
 				t.Fatalf("passes: %+v", r)
 			}
+			// A splice that adds a block also leaves its block not last:
+			// the case's rule must be among the violations, all manifest rules.
+			found := false
 			for _, v := range r.Violations {
-				if v.Rule != tc.rule {
-					t.Errorf("violation %+v, want rule %s only", v, tc.rule)
+				found = found || v.Rule == tc.rule
+				if !strings.HasPrefix(v.Rule, "manifest.") {
+					t.Errorf("violation %+v, want manifest rules only", v)
 				}
+			}
+			if !found {
+				t.Errorf("no %s in %+v", tc.rule, r.Violations)
 			}
 		})
 	}
@@ -87,7 +119,9 @@ func cmpOr(a, b string) string {
 func TestCheckExpectPasses(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustDo(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(subjectTF("compact(concat([terraform_data.subject[0].output], []))")), 0o644))
+	for name, data := range subjectTF("compact(concat([terraform_data.subject[0].output], []))") {
+		mustDo(t, os.WriteFile(filepath.Join(dir, name), []byte(data), 0o644))
+	}
 	mf := filepath.Join(t.TempDir(), "expect.json")
 	mustDo(t, os.WriteFile(mf, []byte(subjectManifest), 0o644))
 	exp, err := ReadManifest(mf)
@@ -134,6 +168,7 @@ func TestReadManifestErrors(t *testing.T) {
 		"empty type":       `{"files":{"main.tf":{"blocks":[{"type":"","labels":[]}]}}}`,
 		"no labels":        `{"files":{"main.tf":{"blocks":[{"type":"output"}]}}}`,
 		"attribute":        `{"files":{"main.tf":{"blocks":[{"type":"output","labels":["a"]}],"single_expressions":[{"block":"output","labels":["a"],"attribute":"a b"}]}}}`,
+		"two splices":      `{"files":{"main.tf":{"blocks":[{"type":"output","labels":["a"]},{"type":"output","labels":["b"]}],"single_expressions":[{"block":"output","labels":["a"],"attribute":"value"},{"block":"output","labels":["b"],"attribute":"value"}]}}}`,
 		"block not listed": `{"files":{"main.tf":{"blocks":[],"single_expressions":[{"block":"output","labels":["a"],"attribute":"value"}]}}}`,
 		"unknown inner":    `{"files":{"main.tf":{"blocks":[{"type":"output","labels":["a"],"x":1}]}}}`,
 		"trailing":         `{"files":{}} {}`,

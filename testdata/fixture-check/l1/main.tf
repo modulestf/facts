@@ -34,11 +34,3 @@ resource "terraform_data" "probe" {
     tag    = "${var.tags.name}-${each.value}"
   }
 }
-
-output "base" {
-  value = local.base
-}
-
-output "head" {
-  value = local.head
-}

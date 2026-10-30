@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "fixture-manifest.schema.json",
   "title": "mtf-facts fixture-check --expect manifest",
-  "description": "Written by the trusted template: the exact top-level block set of each file of a ladder scratch tree, and the attributes that each hold one spliced expression and must be the last item of their block.",
+  "description": "Written by the trusted template: the exact top-level block set of each file of a ladder scratch tree, and per file at most one attribute holding a spliced expression, which must be the last item of the last block of its file with no comment from its start on.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -79,7 +79,8 @@
                 "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
               }
             }
-          }
+          },
+          "maxItems": 1
         }
       }
     }

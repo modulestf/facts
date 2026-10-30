@@ -66,8 +66,16 @@ func TestTreeSHA256(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi, _ := os.Stat(filepath.Join(td, "l1", "main.tf")); fi.Mode().Perm() == 0o644 && ref.TreeSHA256 != base {
-		t.Errorf("same tree, other directory: %s != %s", ref.TreeSHA256, base)
+	all := map[string]string{}
+	for _, name := range []string{"main.tf", "base.tf", "head.tf"} {
+		data, err := os.ReadFile(filepath.Join(td, "l1", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		all[name] = string(data)
+	}
+	if got := hash(all, 0o644); got != ref.TreeSHA256 {
+		t.Errorf("same tree, other directory: %s != %s", ref.TreeSHA256, got)
 	}
 	if hash(map[string]string{"main.tf": string(src)}, 0o644) != base {
 		t.Error("hash is not deterministic")

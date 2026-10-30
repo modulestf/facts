@@ -1,0 +1,36 @@
+{
+  "files": {
+    "main.tf": {
+      "blocks": [
+        {
+          "type": "output",
+          "labels": [
+            "a"
+          ]
+        },
+        {
+          "type": "output",
+          "labels": [
+            "b"
+          ]
+        }
+      ],
+      "single_expressions": [
+        {
+          "block": "output",
+          "labels": [
+            "a"
+          ],
+          "attribute": "value"
+        },
+        {
+          "block": "output",
+          "labels": [
+            "b"
+          ],
+          "attribute": "value"
+        }
+      ]
+    }
+  }
+}

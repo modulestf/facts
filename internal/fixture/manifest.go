@@ -35,8 +35,10 @@ type BlockRef struct {
 	Labels []string `json:"labels"`
 }
 
-// SingleExpr is an attribute of a listed block that holds exactly one
-// expression and nothing after it: it must be the last item of its block.
+// SingleExpr is the one attribute of a file that holds a spliced
+// expression. Its block must be the last block of the file and the attribute
+// the last item of its block, and no comment may follow its start: nothing a
+// splice appends, and no template text a comment could swallow, survives.
 type SingleExpr struct {
 	Block     string   `json:"block"`
 	Labels    []string `json:"labels"`
@@ -101,6 +103,9 @@ func (m *Manifest) validate() error {
 			}
 			listed[b.key()] = true
 		}
+		if len(mf.SingleExpressions) > 1 {
+			return fmt.Errorf("%s: at most one single expression a file", name)
+		}
 		for _, s := range mf.SingleExpressions {
 			if !identifier.MatchString(s.Attribute) {
 				return fmt.Errorf("%s: attribute %q is not an identifier", name, s.Attribute)
@@ -129,7 +134,7 @@ func (c *checker) expect(m *Manifest) {
 		mf := m.Files[name]
 		c.blockSet(name, body, mf.Blocks)
 		for _, s := range mf.SingleExpressions {
-			c.singleExpr(name, body, s)
+			c.singleExpr(name, body, c.tokens[name], s)
 		}
 	}
 }
@@ -158,9 +163,10 @@ func (c *checker) blockSet(file string, body *hclsyntax.Body, want []BlockRef) {
 	}
 }
 
-// singleExpr checks that the one block s names has the attribute as its
-// last item: anything a spliced expression adds after it is refused.
-func (c *checker) singleExpr(file string, body *hclsyntax.Body, s SingleExpr) {
+// singleExpr checks that the one block s names is the last block of the
+// file, has the attribute as its last item, and that no comment starts at or
+// after the attribute.
+func (c *checker) singleExpr(file string, body *hclsyntax.Body, tokens hclsyntax.Tokens, s SingleExpr) {
 	var match []*hclsyntax.Block
 	for _, b := range body.Blocks {
 		if b.Type == s.Block && slices.Equal(b.Labels, s.Labels) {
@@ -176,7 +182,17 @@ func (c *checker) singleExpr(file string, body *hclsyntax.Body, s SingleExpr) {
 		c.add(file, b.TypeRange.Start.Line, RuleManifestExpression, s.Attribute)
 		return
 	}
+	for _, other := range body.Blocks {
+		if other.TypeRange.Start.Byte > b.TypeRange.Start.Byte {
+			c.add(file, other.TypeRange.Start.Line, RuleManifestExpression, s.Attribute)
+		}
+	}
 	end := a.SrcRange.Start.Byte
+	for _, tk := range tokens {
+		if tk.Type == hclsyntax.TokenComment && tk.Range.Start.Byte >= end {
+			c.add(file, tk.Range.Start.Line, RuleManifestExpression, s.Attribute)
+		}
+	}
 	for _, other := range b.Body.Attributes {
 		if other != a && other.SrcRange.Start.Byte > end {
 			c.add(file, other.NameRange.Start.Line, RuleManifestExpression, s.Attribute)

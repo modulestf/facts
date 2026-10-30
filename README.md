@@ -391,12 +391,13 @@ The output, in the shape of [fixture-check.schema.json](schema/fixture-check.sch
 `--expect` takes the manifest the trusted template wrote, in the shape of [fixture-manifest.schema.json](schema/fixture-manifest.schema.json):
 
 ```json
-{"schema_version": 1, "files": {"main.tf": {
-  "blocks": [{"type": "output", "labels": ["head"]}, {"type": "resource", "labels": ["terraform_data", "subject"]}],
-  "single_expressions": [{"block": "output", "labels": ["head"], "attribute": "value"}]}}}
+{"schema_version": 1, "files": {
+  "main.tf": {"blocks": [{"type": "resource", "labels": ["terraform_data", "ref_0"]}]},
+  "head.tf": {"blocks": [{"type": "output", "labels": ["head"]}],
+    "single_expressions": [{"block": "output", "labels": ["head"], "attribute": "value"}]}}}
 ```
 
-With it, each file's top-level blocks must be exactly the listed set, by type and labels in any order, and no other `.tf` file may exist (`manifest.block-set`). Each single expression attribute must exist and be the last argument or block of its block (`manifest.expression`). A spliced expression that closes its block to add another, or ends its attribute to add an argument, fails one of the two.
+With it, each file's top-level blocks must be exactly the listed set, by type and labels in any order, and no other `.tf` file may exist (`manifest.block-set`). A file has at most one single expression, so each splice (base and head) goes in its own file. Its attribute must exist, its block must be the last block of the file, the attribute the last argument or block of its block, and no comment may start at or after the attribute (`manifest.expression`). A spliced expression that closes its block to add another, ends its attribute to add an argument, or opens a comment to swallow template text fails one of the two.
 
 `--pins` takes `{"providers":[{"source","version"}]}`, optionally with a `sha256` per entry: the provider versions the host installed, each version exact and each source once.
 

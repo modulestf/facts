@@ -157,9 +157,10 @@ allocate.
 --expect takes the manifest the trusted template wrote:
 {"files":{"main.tf":{"blocks":[{"type","labels"}],"single_expressions":
 [{"block","labels","attribute"}]}}}. Each file's top-level blocks must then be
-exactly that set (type and labels, any order), no other .tf file may exist,
-and each single expression attribute must be the last item of its block, so
-a spliced expression cannot add a block or an argument.
+exactly that set (type and labels, any order) and no other .tf file may exist.
+A file has at most one single expression: its block must be the last of the
+file, the attribute the last item of its block, with no comment from its
+start on, so a splice cannot add a block or argument or swallow template text.
 
 tree_sha256 is the SHA-256 of one "name NUL type NUL content-sha256 LF" line
 per directory entry, sorted by name, the type file, file+x, dir, symlink or

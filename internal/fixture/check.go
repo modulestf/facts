@@ -190,7 +190,8 @@ type checker struct {
 	providerBlocks map[string]int             // provider blocks by local name
 	endpoints      map[string]map[string]bool // endpoint keys by provider local name
 	bodies         map[string]*hclsyntax.Body // parsed files by name
-	tested         []place                    // resources of the type under test
+	tokens         map[string]hclsyntax.Tokens
+	tested         []place // resources of the type under test
 }
 
 type place struct {
@@ -200,7 +201,8 @@ type place struct {
 
 func newChecker(lv level, underTest string, pins []Pin) *checker {
 	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
-		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{}}
+		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{},
+		tokens: map[string]hclsyntax.Tokens{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -325,7 +327,7 @@ func (c *checker) file(name string, src []byte) {
 		c.add(name, 0, rule, "")
 		return
 	}
-	c.bodies[name] = body
+	c.bodies[name], c.tokens[name] = body, tokens
 	c.heredocs(name, tokens)
 	c.top(name, body)
 }
