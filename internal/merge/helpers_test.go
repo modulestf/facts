@@ -70,14 +70,14 @@ func testRegistry(t *testing.T) *registry.Registry {
 
 // regionForm wraps bundle JSON in the region form mtf-facts bundle writes:
 // the byte-count header line, then one region whose one payload line is
-// the compact JSON as a JSON string.
+// the ai JSON as a JSON string.
 func regionForm(t testing.TB, text []byte) []byte {
 	t.Helper()
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, text); err != nil {
+	var ai bytes.Buffer
+	if err := json.Compact(&ai, text); err != nil {
 		t.Fatal(err)
 	}
-	payload, err := json.Marshal(compact.String())
+	payload, err := json.Marshal(ai.String())
 	if err != nil {
 		t.Fatal(err)
 	}

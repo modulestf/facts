@@ -48,6 +48,9 @@ func ReadReport(p string) (*Report, error) {
 	if err != nil {
 		return nil, fmt.Errorf("report: %w", err)
 	}
+	if facts.IsAIReport(data) {
+		return nil, fmt.Errorf("report: %w", facts.ErrAIReport)
+	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	var r Report

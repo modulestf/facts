@@ -218,6 +218,73 @@ func TestLintDiff(t *testing.T) {
 	}
 }
 
+// TestLintAI runs lint --json --ai on a change: the exit code and
+// the text report are those of the full run, the manifest keeps the entries
+// that are not clean or not_applicable, in order, the summary counts every
+// entry, and the file lists, the index and the interface diff are left out.
+func TestLintAI(t *testing.T) {
+	const dir = "../../testdata/diff-base"
+	args := []string{"lint", dir + "/head", "--diff", dir + "/files.json"}
+	code, out, _ := runCLI(append(args, "--json"))
+	cCode, cOut, errOut := runCLI(append(args, "--json", "--ai"))
+	if cCode != code {
+		t.Fatalf("exit %d, full run exit %d, stderr %q", cCode, code, errOut)
+	}
+	var full facts.Report
+	var ai facts.AIReport
+	if err := json.Unmarshal([]byte(out), &full); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(cOut), &ai); err != nil {
+		t.Fatal(err)
+	}
+	var kept []facts.ManifestEntry
+	var counts facts.StatusCounts
+	for _, e := range full.Manifest {
+		switch e.Status {
+		case facts.StatusClean:
+			counts.Clean++
+			continue
+		case facts.StatusNotApplicable:
+			counts.NotApplicable++
+			continue
+		case facts.StatusFinding:
+			counts.Finding++
+		case facts.StatusCandidate:
+			counts.Candidate++
+		case facts.StatusNotEvaluated:
+			counts.NotEvaluated++
+		}
+		kept = append(kept, e)
+	}
+	if len(kept) == 0 || !slices.Equal(ai.Manifest, kept) || ai.ManifestSummary.Status != counts {
+		t.Errorf("manifest %+v, summary %+v", ai.Manifest, ai.ManifestSummary)
+	}
+	in := ai.Envelope.Inputs
+	if in.Head.TreeSHA256 != full.Envelope.Inputs.Head.TreeSHA256 || in.Head.FileCount != len(full.Envelope.Inputs.Head.Files) ||
+		in.Base == nil || in.Base.TreeSHA256 != full.Envelope.Inputs.Base.TreeSHA256 || in.Diff == nil {
+		t.Errorf("inputs %+v", in)
+	}
+	if ai.Scope == nil || ai.Callers == nil || len(ai.Candidates) != len(full.Candidates) {
+		t.Errorf("scope %+v, callers %+v, candidates %d", ai.Scope, ai.Callers, len(ai.Candidates))
+	}
+	for _, k := range []string{`"index"`, `"interface_diff"`, `"files"`} {
+		if strings.Contains(cOut, k) {
+			t.Errorf("AI report has %s", k)
+		}
+	}
+	if strings.Count(cOut, "\n") != 1 || !strings.HasSuffix(cOut, "}\n") {
+		t.Errorf("AI report is not one line:\n%s", cOut)
+	}
+	if len(cOut) >= len(out) {
+		t.Errorf("ai %d bytes, full %d", len(cOut), len(out))
+	}
+	_, text, _ := runCLI(args)
+	if _, cText, _ := runCLI(append(args, "--ai")); cText != text {
+		t.Errorf("--ai changed the text report:\n%s", cText)
+	}
+}
+
 // TestBundleFullModeWritesNoFile builds the bundle of a report whose tool
 // findings alone are over the cap: it prints full and creates no file.
 func TestBundleFullModeWritesNoFile(t *testing.T) {

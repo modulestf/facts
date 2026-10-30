@@ -29,6 +29,7 @@ func newLintCmd() *cobra.Command {
 	var (
 		o       = facts.Options{Limits: facts.DefaultLimits}
 		asJSON  bool
+		ai      bool
 		timeout time.Duration
 	)
 	cmd := &cobra.Command{
@@ -40,7 +41,7 @@ func newLintCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Head = args[0]
-			return status(lint(cmd, o, asJSON, timeout))
+			return status(lint(cmd, o, asJSON, ai, timeout))
 		},
 	}
 	f := cmd.Flags()
@@ -49,6 +50,7 @@ func newLintCmd() *cobra.Command {
 	f.StringVar(&o.Diff, "diff", "", lintDiffUsage)
 	f.BoolVar(&o.FullTree, "full-tree", false, lintFullTreeUsage)
 	f.BoolVar(&asJSON, "json", false, lintJSONUsage)
+	f.BoolVar(&ai, "ai", false, lintAIUsage)
 	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
 	f.StringVar(&o.RegistryFile, "registry", "", lintRegistryUsage)
 	f.StringVar(&o.ProfileDir, "profile-dir", "", lintProfileDirUsage)
@@ -62,7 +64,7 @@ func newLintCmd() *cobra.Command {
 
 // lint returns one of the exit codes above. Candidates are unconfirmed and
 // never change the exit code.
-func lint(cmd *cobra.Command, o facts.Options, asJSON bool, timeout time.Duration) int {
+func lint(cmd *cobra.Command, o facts.Options, asJSON, ai bool, timeout time.Duration) int {
 	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
 	if timeout <= 0 {
 		return usageError(cmd, timeoutNotPositive)
@@ -72,7 +74,7 @@ func lint(cmd *cobra.Command, o facts.Options, asJSON bool, timeout time.Duratio
 	o.Limits.Deadline = time.Now().Add(timeout)
 
 	done := make(chan lintResult, 1) // buffered: a late worker never blocks
-	go func() { done <- lintWork(o, asJSON) }()
+	go func() { done <- lintWork(o, asJSON, ai) }()
 	timer := time.NewTimer(timeout)
 	var res lintResult
 	select {
@@ -108,8 +110,9 @@ type lintResult struct {
 	err  error
 }
 
-// lintWork runs the engine and renders the report. It writes nothing.
-func lintWork(o facts.Options, asJSON bool) lintResult {
+// lintWork runs the engine and renders the report, the AI form of the
+// JSON report when ai is set. It writes nothing.
+func lintWork(o facts.Options, asJSON, ai bool) lintResult {
 	sum, err := binarySHA256()
 	if err != nil {
 		return lintResult{err: err}
@@ -120,12 +123,19 @@ func lintWork(o facts.Options, asJSON bool) lintResult {
 		return lintResult{err: err}
 	}
 	var out []byte
-	if asJSON {
+	switch {
+	case asJSON && ai:
+		// One line: indentation is a third of the bytes a reader pays for.
+		if out, err = json.Marshal(r.AIReport()); err != nil {
+			return lintResult{err: err}
+		}
+		out = append(out, '\n')
+	case asJSON:
 		if out, err = json.MarshalIndent(r, "", "  "); err != nil {
 			return lintResult{err: err}
 		}
 		out = append(out, '\n')
-	} else {
+	default:
 		out = []byte(human(r))
 	}
 	if len(out) > o.Limits.MaxOutputBytes {

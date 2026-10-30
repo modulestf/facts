@@ -26,8 +26,8 @@
       "additionalProperties": false,
       "required": ["head", "base"],
       "properties": {
-        "head": {"$ref": "#/$defs/tree"},
-        "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}]},
+        "head": {"oneOf": [{"$ref": "#/$defs/tree"}, {"$ref": "#/$defs/ai_tree"}]},
+        "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}, {"$ref": "#/$defs/ai_tree"}]},
         "diff": {
           "description": "Present when the base tree was rebuilt from a diff, lint --diff: its format and the SHA-256 of the file as read. A file the diff gives no patch for is in base with kind no_patch.",
           "type": "object",
@@ -95,7 +95,18 @@
         }
       }
     },
+    "ai_tree": {
+      "description": "A tree in a lint --json --ai report: its tree_sha256, the same hash the full report writes over every path, kind and file hash, and the number of entries in the file list the full report writes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tree_sha256", "file_count"],
+      "properties": {
+        "tree_sha256": {"$ref": "#/$defs/sha256"},
+        "file_count": {"type": "integer", "minimum": 0}
+      }
+    },
     "tree": {
+      "description": "A tree in a full report: its hash and every file the run read.",
       "type": "object",
       "additionalProperties": false,
       "required": ["tree_sha256", "files"],

@@ -2,6 +2,7 @@ package merge
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -591,6 +592,9 @@ func TestParseTemplatesAndIndex(t *testing.T) {
 	}
 	if _, err := ParseIndex([]byte(`[`)); err == nil {
 		t.Error("a broken report is accepted")
+	}
+	if _, err := ParseIndex([]byte(`{"manifest_summary":{}}`)); !errors.Is(err, facts.ErrAIReport) {
+		t.Errorf("a AI report, which has no index, gives %v", err)
 	}
 }
 

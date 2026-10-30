@@ -105,7 +105,8 @@ func ParseTemplates(data []byte) (map[string]Template, error) {
 const MaxReportBytes = 64 << 20
 
 // ParseIndex reads the index of a lint report, as mtf-facts lint --json
-// writes it. A report with no index has none.
+// writes it. A report with no index has none; a AI report, which leaves
+// its index out, is an error.
 func ParseIndex(data []byte) ([]facts.IndexEntry, error) {
 	if len(data) > MaxReportBytes {
 		return nil, fmt.Errorf("report is larger than %d bytes", MaxReportBytes)
@@ -115,6 +116,9 @@ func ParseIndex(data []byte) ([]facts.IndexEntry, error) {
 	}
 	if err := json.Unmarshal(data, &r); err != nil {
 		return nil, fmt.Errorf("report: %w", err)
+	}
+	if facts.IsAIReport(data) {
+		return nil, fmt.Errorf("report: %w", facts.ErrAIReport)
 	}
 	for i, e := range r.Index {
 		if e.Subject == "" || !validPath(e.File) || e.StartLine < 1 || e.EndLine < e.StartLine {

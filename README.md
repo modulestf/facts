@@ -49,6 +49,12 @@ Write the full report as JSON:
 mtf-facts lint path/to/module --base path/to/base-tree --json > report.json
 ```
 
+Or the AI report a model reviewer reads, which leaves out what a reviewer never decides on (see [AI report](#ai-report)):
+
+```sh
+mtf-facts lint path/to/module --base path/to/base-tree --json --ai > report.json
+```
+
 `lint` exits with one of these codes:
 
 | Code | Meaning |
@@ -172,7 +178,7 @@ Each schema file is a `terraform providers schema -json` output. See [schema-dif
 
 A hosted review runs the commands in this order:
 
-1. `lint --json` on the head tree with `--base`, `--registry`, `--profile-dir`, `--schema-handoff`, `--head-sha` and `--merge-base-sha`.
+1. `lint --json`, without `--ai`, on the head tree with `--base`, `--registry`, `--profile-dir`, `--schema-handoff`, `--head-sha` and `--merge-base-sha`.
 2. `bundle` on that report, with `--head-sha`, `--merge-base-sha`, `--binary-sha256` and the schema and profile flags the lint run had. It prints `judgment` and writes the facts bundle and the injected rule text, or prints `full` and writes no file. Steps 3 to 6 run only after `judgment`.
 3. The model reviewer reads the bundle and the injected text and writes its reply.
 4. `merge check` on the bundle and the reply. Exit 1 means the reply needs the repair turn.
@@ -191,7 +197,7 @@ Host contract:
 ### lint
 
 ```sh
-mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json] [--timeout <duration>]
+mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]] [--timeout <duration>]
   [--registry <rule-facts.md>] [--profile-dir <dir>]
   [--schema-files <file>]... [--schema-handoff <file>]
   [--head-sha <sha>] [--merge-base-sha <sha>]
@@ -203,6 +209,7 @@ mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json] [--ti
 | `--diff <file>` | The change as a file, to rebuild the base tree from, when there is no base tree. Not with `--base`. See [Change as a diff](#change-as-a-diff). |
 | `--full-tree` | Check every area, not only those the change touched. The change still decides which lines are judged. |
 | `--json` | Write the full report as JSON. |
+| `--ai` | With `--json`, write the AI report on one line. See [AI report](#ai-report). The text report is the same with or without it. |
 | `--timeout <duration>` | Stop a run that takes longer. Default `60s`. |
 | `--registry <rule-facts.md>` | Record the registry hash. |
 | `--profile-dir <dir>` | The module profile directory. |
@@ -217,6 +224,18 @@ The `--json` report holds the envelope, one manifest entry per rule and area (se
 - `callers`, with a change only: each root or submodule area the change touches whose `versions.tf` or `terraform` block, or `variables.tf` or a `variable` block, changed, with its version floors at base (`null` for a new module) and at head, and every area that calls it by a local path: the call's file and line, whether that area is checked, the floors it declares, and the ids of the `structure.version-floor-understated` candidates filed in it. A floor is an `address` (`required_version` or `required_providers.<name>`), the provider `source` and the `constraint` as written. Callers under `wrappers/` are not listed: no area reads that directory.
 
 The text report prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](schema/).
+
+#### AI report
+
+`--json --ai` writes the parts of the report a reviewer decides on, as one line of JSON. The exit code is the same as without `--ai`. Compared with the full report:
+
+- `manifest` keeps only its `finding`, `candidate` and `not_evaluated` entries, in the same order and shape.
+- `manifest_summary` is added. `status` counts every manifest entry of the full report by status. `omitted_by_family` counts the `clean` and `not_applicable` entries left out, per rule family: the rule id up to its first dot, such as `structure`. `areas` lists every area with a manifest entry, sorted. A rule with no entry in a listed area was `clean` or `not_applicable` there, or has no entry there in the full report either.
+- `envelope.inputs.head` and `envelope.inputs.base` keep `tree_sha256` and give `file_count` in place of the `files` list. Every other envelope key is unchanged, `schema_inputs` with its handoff hash, commits and tree hashes included.
+- `index`, `interface_diff` and `schema_coverage` are left out.
+- `findings`, `candidates`, `scope` and `callers` are unchanged.
+
+The report keeps `schema_version` 2 and the keys `envelope`, `manifest`, `findings` and `candidates` with their types, and `manifest_summary` is present only in the AI form. `bundle` and `merge final --report` need the index and the file lists, so they refuse a AI report and exit 2.
 
 #### Change as a diff
 
