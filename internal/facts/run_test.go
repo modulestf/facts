@@ -114,6 +114,54 @@ func TestRunDiffNoPatch(t *testing.T) {
 	}
 }
 
+// TestRunDiffModeOnly: a files list entry modified with no patch and no
+// added or removed line, on a text file, is a change of the exec bit only.
+// The base is the head content with the bit flipped, so the rules of its
+// area are evaluated, not left not_evaluated with no_base.
+func TestRunDiffModeOnly(t *testing.T) {
+	head := writeTree(t, map[string]string{"modules/m/main.tf": "resource \"aws_demo_widget\" \"this\" {}\n", "main.tf": "locals {\n  a = 1\n}\n"})
+	diff := filepath.Join(writeTree(t, map[string]string{"files.json": `[{"filename":"modules/m/main.tf","status":"modified","additions":0,"deletions":0}]`}), "files.json")
+	ht := mustTree(t, head)
+	base, _, err := ReadDiffBase(ht, diff, DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, b := ht.Entries["modules/m/main.tf"], base.Entries["modules/m/main.tf"]
+	if b == nil || b.Kind != KindFile || b.SHA256 != h.SHA256 || b.Executable() == h.Executable() {
+		t.Fatalf("base entry %+v, head %+v: want the head content with the exec bit flipped", b, h)
+	}
+	r, err := Run(Options{Head: head, Diff: diff, Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(r.Scope.AreasChecked, "modules/m") {
+		t.Errorf("modules/m not checked: %+v", r.Scope)
+	}
+	for _, f := range r.Envelope.Inputs.Base.Files {
+		if f.Path == "modules/m/main.tf" && (f.Kind != KindFile || f.SHA256 != h.SHA256) {
+			t.Errorf("base input %+v", f)
+		}
+	}
+	found := false
+	for _, e := range r.Manifest {
+		if e.Area != "modules/m" {
+			continue
+		}
+		if e.ReasonCode == ReasonNoBase {
+			t.Errorf("entry left no_base: %+v", e)
+		}
+		if e.RuleID == "compat.variable-removed" {
+			found = true
+			if e.Status == StatusNotEvaluated {
+				t.Errorf("entry %+v", e)
+			}
+		}
+	}
+	if !found {
+		t.Error("no compat.variable-removed entry in modules/m")
+	}
+}
+
 // TestRunScope checks which areas a change checks, which it reaches only as
 // callers of a changed module, and which it leaves out; --full-tree checks
 // every area; without a change every area is checked.

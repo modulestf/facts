@@ -97,7 +97,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 		&cobra.Group{ID: groupPipeline, Title: groupPipelineTitle},
 		&cobra.Group{ID: groupOther, Title: groupOtherTitle},
 	)
-	root.AddCommand(newLintCmd(), newLedgerCmd(), newSchemaDiffCmd(), newBundleCmd(), newMergeCmd(), newRulesCmd(), newVersionCmd())
+	root.AddCommand(newLintCmd(), newLedgerCmd(), newSchemaDiffCmd(), newAffectedCmd(), newBundleCmd(), newMergeCmd(), newRulesCmd(), newVersionCmd())
 	root.SetHelpCommand(newHelpCmd(root))
 	root.SetHelpCommandGroupID(groupOther)
 	root.SetCompletionCommandGroupID(groupOther)

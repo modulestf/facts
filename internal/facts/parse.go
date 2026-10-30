@@ -346,24 +346,9 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 			err = fmt.Errorf("internal error while parsing")
 		}
 	}()
-	tokens, diags := hclsyntax.LexConfig(src, name, hcl.InitialPos)
-	if diags.HasErrors() {
-		return fmt.Errorf("parse error")
-	}
-	// The parser recurses on nesting and on unary operators, and a stack
-	// overflow is fatal, so both are bounded before it runs.
-	if len(tokens) > lim.MaxTokens {
-		return limitError(fmt.Sprintf("%d tokens over the limit %d", len(tokens), lim.MaxTokens))
-	}
-	if d := nestingDepth(tokens); d > lim.MaxDepth {
-		return limitError(fmt.Sprintf("nesting depth %d over the limit %d", d, lim.MaxDepth))
-	}
-	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
-		return limitError(fmt.Sprintf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps))
-	}
-	f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
-	if diags.HasErrors() {
-		return fmt.Errorf("parse error")
+	body, tokens, err := parseSyntax(name, src, lim)
+	if err != nil {
+		return err
 	}
 	var comments []hclsyntax.Token
 	for _, tk := range tokens {
@@ -371,12 +356,42 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 			comments = append(comments, tk)
 		}
 	}
-	body, ok := f.Body.(*hclsyntax.Body)
-	if !ok {
-		return fmt.Errorf("parse error: unexpected body type %T", f.Body)
-	}
 	collect(m, name, src, body, comments)
 	return nil
+}
+
+// parseSyntax parses one file within the limits and returns its body and
+// tokens. A panic in the parser is recovered and reported as an error.
+func parseSyntax(name string, src []byte, lim Limits) (body *hclsyntax.Body, tokens hclsyntax.Tokens, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			body, tokens, err = nil, nil, fmt.Errorf("internal error while parsing")
+		}
+	}()
+	tokens, diags := hclsyntax.LexConfig(src, name, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, nil, fmt.Errorf("parse error")
+	}
+	// The parser recurses on nesting and on unary operators, and a stack
+	// overflow is fatal, so both are bounded before it runs.
+	if len(tokens) > lim.MaxTokens {
+		return nil, nil, limitError(fmt.Sprintf("%d tokens over the limit %d", len(tokens), lim.MaxTokens))
+	}
+	if d := nestingDepth(tokens); d > lim.MaxDepth {
+		return nil, nil, limitError(fmt.Sprintf("nesting depth %d over the limit %d", d, lim.MaxDepth))
+	}
+	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
+		return nil, nil, limitError(fmt.Sprintf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps))
+	}
+	f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, nil, fmt.Errorf("parse error")
+	}
+	body, ok := f.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, nil, fmt.Errorf("parse error: unexpected body type %T", f.Body)
+	}
+	return body, tokens, nil
 }
 
 func nestingDepth(tokens hclsyntax.Tokens) int {

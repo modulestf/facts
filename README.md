@@ -241,7 +241,7 @@ The report keeps `schema_version` 2 and the keys `envelope`, `manifest`, `findin
 
 `--diff` reads a GitHub pull request files list, the JSON array `gh api repos/<owner>/<repo>/pulls/<number>/files --paginate --slurp | jq add` writes, or a unified diff as `git diff` writes it, with or without `diff --git` lines. The format is detected from the first byte. Paths must be relative to `<dir>`. The base tree is the head tree with each changed file rebuilt by reversing its hunks: a removed file comes back from its removed lines, an added file is left out, and a renamed file moves back to its old path. Every context and added line must match the head file, line ending included, or the run exits 2, and so does a path that is not clean and relative, a path listed twice, or a status the tool does not know.
 
-A file the diff gives no patch for, as GitHub does for a binary or very large file, has no known base content. It is in `inputs.base` with kind `no_patch`, and the configuration rules of its area are `not_evaluated` with `no_base` and a reason that says the diff has no patch for it. A GitHub rename with no patch and no added or removed line is a pure rename when the head file is text, as git judges it (no NUL byte in the first 8000 bytes), and a binary one is `no_patch`. The envelope records the diff in `inputs.diff`: its `format`, `github-files` or `unified`, and its SHA-256. A report from `--diff` has a base tree, so `bundle` accepts it.
+A file the diff gives no patch for, as GitHub does for a binary or very large file, has no known base content. It is in `inputs.base` with kind `no_patch`, and the configuration rules of its area are `not_evaluated` with `no_base` and a reason that says the diff has no patch for it. A GitHub rename with no patch and no added or removed line is a pure rename when the head file is text, as git judges it (no NUL byte in the first 8000 bytes), and a binary one is `no_patch`. A modified entry with no patch and no added or removed line is, for a text file, a change of its exec bit only: its base content is the head's. A unified diff's `old mode` and `deleted file mode` lines set the base exec bit, and a changed exec bit alone makes a path changed. The envelope records the diff in `inputs.diff`: its `format`, `github-files` or `unified`, and its SHA-256. A report from `--diff` has a base tree, so `bundle` accepts it.
 
 Two schema files with one base name exit 2. The schema handoff and the schema files are read offline under size caps; a missing, oversized or malformed one exits 2. The handoff is read only when `--head-sha`, `--merge-base-sha` and the `.tf` tree hashes of the head and `--base` trees equal the ones it records; otherwise every lookup in it is `schema_unavailable`.
 
@@ -254,6 +254,30 @@ The `coverage.*` rules read the bound handoff when one is given, and never fall 
 `--timeout` must be greater than zero. A run that takes longer writes `mtf-facts: timeout` to stderr and exits with code 2.
 
 The exit codes are in [Quick start](#quick-start).
+
+### affected
+
+`mtf-facts affected` lists the examples a change can affect, most likely first, so a host can plan them in that order within its time budget.
+
+```sh
+mtf-facts affected <dir> [--base <dir> | --diff <file>] [--json] [--timeout <duration>]
+```
+
+`--base` and `--diff` read the change as `lint` does (see [Change as a diff](#change-as-a-diff)). With `--json` it writes one JSON document in the shape of [affected.schema.json](schema/affected.schema.json):
+
+```json
+{"schema_version": 1, "inert": false, "fallback": null,
+ "examples": [{"dir": "examples/c", "reason": "touched"}, {"dir": "examples/a", "reason": "caller"}, {"dir": "examples/b", "reason": "all"}],
+ "changed": ["examples/c/main.tf", "modules/log/main.tf"]}
+```
+
+- `examples` holds every example: each first-level directory under `examples/` with a `.tf` file in it. First those with a changed path under them (`touched`), then those whose local module sources reach a changed module directory, transitively and the root module included, as with `source = "../../"` (`caller`), then the rest (`all`), each group in path order. Registry and git sources are not callers of the local tree; a local source written with backslashes, as on Windows, is read with slashes. A changed file Terraform loads by its directory (`.tf`, `.tf.json`, `.tfvars`, `.tftest.hcl`, `.terraform.lock.hcl`, or an entry that is not a regular file) is a change of that directory. Any other changed file, such as a script, a template or a README, is a change of every module whose read sites reach it, and of none when no read site does.
+- `inert` is true only when every changed path is a documentation or metadata path (Markdown and other docs files, `LICENSE`, `.gitignore`, anything under `docs/` or `.github/` that is not configuration), its content changed but not its exec bit, and no HCL read site in the whole tree reaches it. Read sites are the first argument of `file`, `templatefile`, `fileset` and the other file functions, the file calls inside every template a `templatefile` call reaches, the file attributes of `local_file`, `archive_file` and the provisioners, and any other string that is a path from `path.module`, `path.root` or `path.cwd`, or a plain literal resolved against the repository root and each example. A read site with a dynamic path, a shell command (`local-exec` `command` and `interpreter`, `external` `program`), a template that does not parse, and a path that leaves the tree, such as `${path.module}/../x`, reach every file. A docs file a read site reaches is not inert, so a README a module reads with `file()` makes its callers `caller`.
+- A change of the exec bit alone is a change. The exec bit comes from the file mode with `--base`, from `old mode` and `deleted file mode` lines in a unified diff, and for a GitHub files list entry that is modified with no patch and no added or removed line, from the head file with its bit flipped when the file is text. Such an entry for a binary file, like any file the diff gives no patch for, is never inert. The tree hashes a `lint` report records do not include the exec bit, so they stay as they were.
+- `fallback` says why the examples could not be ranked, and then every example has reason `all` and `inert` is false: `unparsed` when a `.tf` file of the head tree does not parse or a `.tf.json` or override file is present, `dynamic-source` when a module call has no literal source, `no-change-input` when neither `--base` nor `--diff` is given.
+- `changed` lists the changed paths, both paths of a rename.
+
+It exits 0 with the list, or 2 on bad input, a limit, an example directory whose name is outside `[A-Za-z0-9._-]`, or the timeout, with nothing on stdout. Without `--json` it prints one `<reason> <dir>` line per example and a summary line.
 
 ### bundle
 

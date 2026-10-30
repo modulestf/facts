@@ -1,0 +1,1 @@
+{"schema_version": 1, "inert": false, "fallback": "dynamic-source", "examples": [{"dir": "examples/complete", "reason": "touched"}], "changed": ["main.tf"]}
