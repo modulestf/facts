@@ -1,0 +1,11 @@
+{
+  "files": {
+    "main.tf": {
+      "blocks": [
+        {
+          "type": "output"
+        }
+      ]
+    }
+  }
+}

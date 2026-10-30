@@ -5,7 +5,7 @@
 It serves two uses:
 
 - Module authoring: `lint`, a provider coverage `ledger` check, and `schema-diff` for provider upgrades.
-- Module review: a facts bundle that lets a model reviewer skip the rules a parser can decide.
+- Module review: a facts bundle that lets a model reviewer skip the rules a parser can decide, and `fixture-check`, the allowlist a verification ladder scratch tree passes before Terraform runs on it.
 
 It reads files only. It makes no network call and runs no Terraform or other program.
 
@@ -374,6 +374,50 @@ mtf-facts schema-diff --from current.json --to target.json --types-from path/to/
 ```
 
 All three flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
+
+### fixture-check
+
+`mtf-facts fixture-check` checks the scratch tree a verification ladder level will run against a default-deny allowlist, before any Terraform command runs on it, and hashes the tree:
+
+```sh
+mtf-facts fixture-check scratch/head --json
+mtf-facts fixture-check scratch/l3 --level L3 --resource aws_rds_cluster --pins pins.json --json
+```
+
+The output, in the shape of [fixture-check.schema.json](schema/fixture-check.schema.json), is `{"schema_version":1,"ok":...,"tree_sha256":"...","violations":[{"file","line","rule","detail"}]}`. `line` is 0 for a whole file and `file` is `.` for the whole tree. `detail` names the refused function, block type or argument when that name is a plain identifier; it is left out otherwise, so no text from the tree is echoed. At most 200 violations are listed, then one `limit.violations` entry.
+
+`tree_sha256` is the SHA-256 of one `name NUL type NUL content-sha256 LF` line per directory entry, sorted by name. The type is `file`, `file+x` (any exec bit set), `dir`, `symlink` or `special`, so a umask does not change the hash. It identifies a tree that passes; on a violation it covers what was read.
+
+`--expect` takes the manifest the trusted template wrote, in the shape of [fixture-manifest.schema.json](schema/fixture-manifest.schema.json):
+
+```json
+{"schema_version": 1, "files": {
+  "main.tf": {"blocks": [{"type": "resource", "labels": ["terraform_data", "ref_0"]}]},
+  "head.tf": {"blocks": [{"type": "output", "labels": ["head"]}],
+    "single_expressions": [{"block": "output", "labels": ["head"], "attribute": "value"}]}}}
+```
+
+With it, each file's top-level blocks must be exactly the listed set, by type and labels in any order, and no other `.tf` file may exist (`manifest.block-set`). A file has at most one single expression, so each splice (base and head) goes in its own file. Its attribute must exist, its block must be the last block of the file, the attribute the last argument or block of its block, and no comment may start at or after the attribute (`manifest.expression`). A spliced expression that closes its block to add another, ends its attribute to add an argument, or opens a comment to swallow template text fails one of the two.
+
+`--pins` takes `{"providers":[{"source","version"}]}`, optionally with a `sha256` per entry: the provider versions the host installed, each version exact and each source once.
+
+The grammar, by level (`--level`, default `L1`):
+
+- Files: only names matching `^[A-Za-z0-9][A-Za-z0-9_.-]*\.tf$` directly in the directory, no `override.tf` or `*_override.tf`. Any subdirectory (`.terraform` included), symbolic or hard link, special, hidden, `.tf.json`, `.tfvars` or lock file is a violation. At most 64 entries, 256 KiB a file and 1 MiB in all.
+- Top-level blocks: `terraform`, `variable`, `locals`, `output`, `provider` and `resource`. `data`, `module`, `moved`, `import`, `removed`, `check`, `ephemeral`, `action` and every other block are refused.
+- `terraform`: only `required_providers`, each entry `{ source, version }` as literal strings equal to a pin, with the local name equal to the last part of the source and a provider of the level. `backend`, `cloud`, `provider_meta` and `required_version` are refused.
+- `variable`: `type`, `default`, `description`, `sensitive`, `nullable` and `validation`. `output`: `value`, `description`, `sensitive`, `depends_on` and `precondition`.
+- `resource`: `terraform_data` at every level. L3 adds exactly one resource of the `--resource` type, which must be a curated type: `aws_rds_cluster` for now. No resource argument, nested ones included, may be named `filename`, `source`, `file`, `path`, `content_base64` or end in `_file`, `_filename` or `_path`. `provisioner` and `connection` blocks are refused, also as `dynamic` labels; `lifecycle` takes `create_before_destroy`, `prevent_destroy`, `ignore_changes`, `replace_triggered_by`, `precondition` and `postcondition`. The `provider` argument names a provider of the level.
+- `provider`: `terraform` with no argument, at every level. At L3, `aws`, which must be set: `region` as a literal matching `^[a-z]{2}(-[a-z]+)+-[0-9]$`, `access_key` and `secret_key` as nonempty literal strings, `skip_credentials_validation`, `skip_requesting_account_id`, `skip_metadata_api_check` and `skip_region_validation` as literal `true`, and an `endpoints` block that has the key of the service under test (`rds` for `aws_rds_cluster`) and whose every entry is `http://127.0.0.1:1` or `http://[::1]:1`. Every other argument or block, `alias` included, is refused.
+- Expressions: every function call is on a pinned pure-function list (no `file*`, `templatefile`, `templatestring`, `abspath`, `pathexpand`, `dirname`, `basename`, `timestamp`, `plantimestamp`, `uuid`, `uuidv5`, `bcrypt`, `rsadecrypt`, `yamldecode`, `ephemeralasnull` or `provider::` function). Every reference starts with `var`, `local`, `each`, `count`, `self`, `terraform_data` or the type under test, and a `for` expression, template `for` directive or `dynamic` iterator may not bind one of those names or `path`, `terraform`, `data`, `module`, `ephemeral`, `provider` or `resource`. A heredoc may only be a plain string.
+
+The check reads syntax only and evaluates nothing. It does not bound what a passing tree can make Terraform allocate, such as a large `count` or `range`: the host runs plan under its own memory and time limits.
+
+| Code | Meaning |
+|------|---------|
+| 0 | The tree passes. |
+| 1 | At least one violation. |
+| 2 | An error: bad flags, a bad pins file or a directory that cannot be read. |
 
 ### rules, version and completion
 

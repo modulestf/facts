@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture-manifest.schema.json",
+  "title": "mtf-facts fixture-check --expect manifest",
+  "description": "Written by the trusted template: the exact top-level block set of each file of a ladder scratch tree, and per file at most one attribute holding a spliced expression, which must be the last item of the last block of its file with no comment from its start on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "files"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "files": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*\\.tf$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/file"
+      }
+    }
+  },
+  "$defs": {
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocks"
+      ],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "labels"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+              },
+              "labels": {
+                "$ref": "#/$defs/labels"
+              }
+            }
+          }
+        },
+        "single_expressions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "block",
+              "labels",
+              "attribute"
+            ],
+            "properties": {
+              "block": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+              },
+              "labels": {
+                "$ref": "#/$defs/labels"
+              },
+              "attribute": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+              }
+            }
+          },
+          "maxItems": 1
+        }
+      }
+    }
+  }
+}

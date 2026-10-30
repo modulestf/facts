@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture-check.schema.json",
+  "title": "mtf-facts fixture-check result",
+  "description": "The result of checking one ladder scratch tree against the default-deny allowlist of its level. ok is true exactly when violations is empty. tree_sha256 hashes one 'name NUL type NUL content-sha256 LF' line per directory entry, sorted by name.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ok",
+    "tree_sha256",
+    "violations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "tree_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "violations": {
+      "type": "array",
+      "maxItems": 201,
+      "items": {
+        "$ref": "#/$defs/violation"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "violations": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "violations": {
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "violation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "line",
+        "rule"
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Base name of the entry, or . for the whole tree."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0 for the whole file or tree."
+        },
+        "rule": {
+          "enum": [
+            "file.not-tf",
+            "file.override",
+            "file.subdirectory",
+            "file.symlink",
+            "file.special",
+            "limit.file-size",
+            "limit.file-count",
+            "limit.total-size",
+            "limit.hcl",
+            "hcl.parse-error",
+            "block.denied",
+            "block.attribute-denied",
+            "terraform.provider-not-pinned",
+            "provider.denied",
+            "provider.value-denied",
+            "resource.type-denied",
+            "resource.under-test-count",
+            "expr.function-denied",
+            "expr.reference-denied",
+            "expr.heredoc-template",
+            "manifest.block-set",
+            "manifest.expression",
+            "limit.violations"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,64}$",
+          "description": "What was refused, such as a function name or block type, when that is a plain identifier."
+        }
+      }
+    }
+  }
+}

@@ -312,6 +312,14 @@ func readFile(r *os.Root, e *Entry, limit int64) {
 	e.Kind, e.Data, e.SHA256 = KindFile, data, hex.EncodeToString(sum[:])
 }
 
+// ReadRegular reads name under r as ReadTree reads a listed file: a link,
+// special, unreadable or oversize path is returned with that kind and no data.
+func ReadRegular(r *os.Root, name string, limit int64) *Entry {
+	e := &Entry{Path: name}
+	readFile(r, e, limit)
+	return e
+}
+
 // DirEntries returns the entries directly in dir, sorted by path.
 func (t *Tree) DirEntries(dir string) []*Entry { return t.byDir[dir] }
 
