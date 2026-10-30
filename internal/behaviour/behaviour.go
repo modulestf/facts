@@ -302,7 +302,8 @@ func (c *classifier) decomposed(ch change) bool {
 
 // trigger turns a spec into a trigger without its id.
 func (c *classifier) trigger(s spec) Trigger {
-	t := Trigger{File: s.file, Category: s.cat, ChangeKind: s.kind, ReferencedInputs: []Input{}, ContextualRefs: []string{}}
+	t := Trigger{File: s.file, Category: s.cat, ChangeKind: s.kind, ReferencedInputs: []Input{}, ContextualRefs: []string{},
+		ForEachOnly: s.forEachOnly}
 	if s.line > 0 {
 		line := s.line
 		t.Line = &line
@@ -338,7 +339,10 @@ func (c *classifier) trigger(s spec) Trigger {
 	t.ContextualRefDetails = c.refDetails(path.Dir(s.file), s.b, s.h)
 	t.Pure = (s.b != nil || s.h != nil) && isPure(s.b, s.h)
 	t.Levels = []string{}
-	if !s.noLevels {
+	switch {
+	case s.levels != nil:
+		t.Levels = append(t.Levels, s.levels...)
+	case !s.noLevels:
 		t.Levels = append(t.Levels, levelsOf[s.cat]...)
 	}
 	if slices.Contains(t.Levels, LevelL1) {

@@ -55,7 +55,8 @@ var optionalKeys = map[string][]string{
 var neverFromL2 = []string{PredExprUnknown, PredExprLengthKnown, PredPlanUnknown}
 
 // scopeStates are the states a cases_where entry can name.
-var scopeStates = []string{"wholly_unknown", "unknown_element", "empty", "known", "null", "omitted"}
+// "known" also matches the finer "single" and "multiple" of a collection.
+var scopeStates = []string{"wholly_unknown", "unknown_element", "empty", "known", "single", "multiple", "null", "omitted"}
 
 // predicateLevels are the ladder levels whose runs a predicate reads.
 var predicateLevels = map[string][]string{
@@ -303,7 +304,11 @@ func (c *Claim) scope(raw json.RawMessage, t *Trigger, caseInputs map[string]boo
 func (c Claim) inScope(inputs map[string]json.RawMessage) bool {
 	for name, want := range c.Scope {
 		var in CaseInput
-		if raw := inputs[name]; raw == nil || decodeStrict(raw, &in) != nil || scopeState(in) != want {
+		if raw := inputs[name]; raw == nil || decodeStrict(raw, &in) != nil {
+			return false
+		}
+		got := scopeState(in)
+		if got != want && (want != "known" || got != "single" && got != "multiple") {
 			return false
 		}
 	}
@@ -325,6 +330,20 @@ func scopeState(in CaseInput) string {
 	switch string(bytes.TrimSpace(in.Value)) {
 	case "[]", "{}", `""`:
 		return "empty"
+	}
+	var list []json.RawMessage
+	var obj map[string]json.RawMessage
+	n := -1
+	if json.Unmarshal(in.Value, &list) == nil {
+		n = len(list)
+	} else if json.Unmarshal(in.Value, &obj) == nil {
+		n = len(obj)
+	}
+	switch {
+	case n == 1:
+		return "single"
+	case n > 1:
+		return "multiple"
 	}
 	return "known"
 }

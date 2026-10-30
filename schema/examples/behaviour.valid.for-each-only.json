@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "inert": false,
+  "entries": [
+    {
+      "path": "main.tf",
+      "change_kind": "modified",
+      "inert": false,
+      "trigger_ids": [
+        "T-001"
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "T-001",
+      "file": "main.tf",
+      "line": 5,
+      "category": "dynamic-block-change",
+      "change_kind": "modified",
+      "address": "aws_s3_bucket.b",
+      "attribute": "dynamic.rule",
+      "base_expr": "var.m",
+      "head_expr": "{ for k, v in var.m : k =\u003e v if v != \"\" }",
+      "referenced_inputs": [
+        {
+          "name": "m",
+          "type": "map(string)"
+        }
+      ],
+      "contextual_refs": [],
+      "contextual_ref_details": [],
+      "pure": true,
+      "cases": [
+        {
+          "id": "typical",
+          "inputs": {
+            "m": {
+              "value": {
+                "k": "a"
+              },
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "empty",
+          "inputs": {
+            "m": {
+              "value": {},
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "empty-element",
+          "inputs": {
+            "m": {
+              "value": {
+                "k": ""
+              },
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "null-element",
+          "inputs": {
+            "m": {
+              "value": {
+                "k": null
+              },
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "unknown-element",
+          "inputs": {
+            "m": {
+              "value": {
+                "k": null
+              },
+              "unknown": false,
+              "null": false,
+              "omitted": false,
+              "unknown_elements": [
+                "k"
+              ]
+            }
+          }
+        },
+        {
+          "id": "unknown",
+          "inputs": {
+            "m": {
+              "value": null,
+              "unknown": true,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "null",
+          "inputs": {
+            "m": {
+              "value": null,
+              "unknown": false,
+              "null": true,
+              "omitted": false
+            }
+          }
+        }
+      ],
+      "levels": [
+        "L1"
+      ],
+      "reason": null,
+      "for_each_only": true
+    }
+  ],
+  "capped": 0
+}

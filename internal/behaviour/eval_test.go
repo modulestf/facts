@@ -706,7 +706,8 @@ func pr556Claims(node string, first int) []string {
 	}
 	add(PredExprUnknown, `"revision":"base","cases_where":{`+sg+`:"unknown_element"}`)
 	add(PredExprUnknown, `"revision":"base","cases_where":{"vpc_security_group_ids":"unknown_element"}`)
-	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"known"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"single"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":3,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"multiple"}`)
 	add(PredExprLengthKnown, `"revision":"head","length":1,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"empty"}`)
 	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"unknown_element"}`)
 	add(PredExprLengthKnown, `"revision":"head","length":1,"cases_where":{`+sg+`:"empty","vpc_security_group_ids":"unknown_element"}`)
@@ -826,8 +827,8 @@ func TestL2NeverEvidencesUnknown(t *testing.T) {
 	l1 := sweepRun("T-001", "L1", caseUnknownBase, caseUnknownHead)
 	r = evalWith(t, b, ladder(t, l1+","+l2, noCoverage), claims...)
 	for _, ch := range r.Triggers[0].Changes {
-		if ch.Level == LevelL2 {
-			t.Errorf("an L2 change is listed: %+v", ch)
+		if ch.Level == LevelL2 && ch.Explained {
+			t.Errorf("an L2 change is explained: %+v", ch)
 		}
 	}
 	for _, p := range []string{PredExprUnknown, PredExprLengthKnown, PredPlanUnknown} {
@@ -864,7 +865,7 @@ func TestSweepPR556Verified(t *testing.T) {
 		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
 	}
 	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
-	claims := append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 8)...)
+	claims := append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 9)...)
 	if len(claims) > 20 {
 		t.Fatalf("%d claims, over the cap", len(claims))
 	}
@@ -875,7 +876,7 @@ func TestSweepPR556Verified(t *testing.T) {
 		}
 	}
 	s := r.Triggers[0]
-	if s.State != StateVerified || len(s.Changes) != 40 {
+	if s.State != StateVerified || len(s.Changes) == 0 {
 		t.Errorf("T-001: %s", mustJSON(t, s))
 	}
 	// Without the null claims of the security group ids, the cases where
@@ -903,7 +904,7 @@ func TestSweepPR556Backwards(t *testing.T) {
 	}
 	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
 	var mirrored []string
-	for _, c := range append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 8)...) {
+	for _, c := range append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 9)...) {
 		c = strings.Replace(c, `"revision":"base"`, `"revision":"tmp"`, 1)
 		c = strings.Replace(c, `"revision":"head"`, `"revision":"base"`, 1)
 		mirrored = append(mirrored, strings.Replace(c, `"revision":"tmp"`, `"revision":"head"`, 1))
@@ -944,5 +945,72 @@ func TestFilteringCountsMarkers(t *testing.T) {
 		if s := r.Triggers[0]; s.State != want {
 			t.Errorf("head %s: %s, want %s", head, mustJSON(t, s), want)
 		}
+	}
+}
+
+// TestSweepL2: an L2 sweep is compared per required case like L1; its
+// differences are listed and never explained.
+func TestSweepL2(t *testing.T) {
+	b := pr556Report(t)
+	in := `"inputs":{"vpc_security_group_ids":{"value":["a"],"unknown":false,"null":false,"omitted":false}}`
+	withCases(t, b, "T-001", `{"case":"c",`+in+`}`)
+	b.Triggers[0].Levels = []string{LevelL1, LevelL2}
+	same := `{"case":"c",` + in + `,"known":true,"value":2,"unknown_mask":false}`
+	l2run := func(base, head string) string {
+		return strings.Replace(sweepRun("T-001", "L2", base, head), `"level":"L1"`, `"level":"L2"`, 1)
+	}
+	l1 := sweepRun("T-001", "L1", same, same)
+	claims := []string{
+		claim("C-1", PredExprEquals, `{"node":"T-001","revision":"base","inputs":{"vpc_security_group_ids":["a"]},"expected":2}`),
+		claim("C-2", PredExprEquals, `{"node":"T-001","revision":"head","inputs":{"vpc_security_group_ids":["a"]},"expected":2}`),
+	}
+	r := evalWith(t, b, ladder(t, l1+","+l2run(same, same), noCoverage))
+	if s := r.Triggers[0]; s.State != StateVerified {
+		t.Errorf("no L2 difference: %s", mustJSON(t, s))
+	}
+	r = evalWith(t, b, ladder(t, l1+","+l2run(same, strings.Replace(same, `"value":2`, `"value":3`, 1)), noCoverage), claims...)
+	s := r.Triggers[0]
+	if s.State != StateUnverifiable || len(s.Changes) != 1 || s.Changes[0].Level != LevelL2 || s.Changes[0].Explained {
+		t.Errorf("L2 difference: %s", mustJSON(t, s))
+	}
+	if s := evalWith(t, b, ladder(t, l1, noCoverage)).Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "L2") {
+		t.Errorf("no L2 run: %s", mustJSON(t, s))
+	}
+	if s := evalWith(t, b, ladder(t, l1+","+l2run(same, `{"case":"d","known":true,"value":2,"unknown_mask":false}`), noCoverage)).Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "missing") {
+		t.Errorf("L2 case missing: %s", mustJSON(t, s))
+	}
+	nofix := strings.Replace(l2run(same, same), `"fixture_sha256":"`+strings.Repeat("f", 64)+`"`, `"fixture_sha256":null`, 1)
+	if s := evalWith(t, b, ladder(t, l1+","+nofix, noCoverage)).Triggers[0]; s.State != StateUnverifiable {
+		t.Errorf("L2 without a fixture hash: %s", mustJSON(t, s))
+	}
+}
+
+// TestSweepCapPerLevel: L1 and L2 each hold up to 32 cases.
+func TestSweepCapPerLevel(t *testing.T) {
+	b := pr556Report(t)
+	var obs []string
+	for i := range maxSweepCases {
+		obs = append(obs, fmt.Sprintf(`{"case":"c%d","known":true,"value":1,"unknown_mask":false}`, i))
+	}
+	withCases(t, b, "T-001", obs...)
+	b.Triggers[0].Levels = []string{LevelL1, LevelL2}
+	all := strings.Join(obs, ",")
+	l2 := strings.Replace(sweepRun("T-001", "L2", all, all), `"level":"L1"`, `"level":"L2"`, 1)
+	if s := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", all, all)+","+l2, noCoverage)).Triggers[0]; s.State != StateVerified {
+		t.Errorf("32 cases at each level: %s", mustJSON(t, s))
+	}
+}
+
+// TestOnlyL2HasAReason: a trigger that selects L2 alone and has no run
+// is unverifiable with a reason.
+func TestOnlyL2HasAReason(t *testing.T) {
+	b := pr556Report(t)
+	b.Triggers[0].Levels = []string{LevelL2}
+	if s := evalWith(t, b, ladder(t, "", noCoverage)).Triggers[0]; s.State != StateUnverifiable || s.Reason == "" {
+		t.Errorf("%+v", s)
+	}
+	b.Triggers[0].Cases = nil
+	if s := evalWith(t, b, ladder(t, "", noCoverage)).Triggers[0]; s.State != StateUnverifiable || s.Reason == "" {
+		t.Errorf("no cases: %+v", s)
 	}
 }

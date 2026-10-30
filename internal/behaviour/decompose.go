@@ -223,13 +223,15 @@ func objectField(e hclsyntax.Expression, key string) hclsyntax.Expression {
 
 // spec is a trigger being built.
 type spec struct {
-	file       string
-	line       int // 0 for a change to a file as a whole
-	cat, kind  string
-	addr, attr string
-	b, h       *exprInfo
-	reason     string
-	noLevels   bool
+	file        string
+	line        int // 0 for a change to a file as a whole
+	cat, kind   string
+	addr, attr  string
+	b, h        *exprInfo
+	reason      string
+	noLevels    bool
+	levels      []string // overrides the category's levels when set
+	forEachOnly bool
 }
 
 // decomposer compares the base and head views of one directory.
@@ -482,7 +484,13 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 		p := append(slices.Clone(prefix), name)
 		s := d.at(bi, hi, bb, hb, name, bx, hx)
 		s.cat, s.attr = cat, strings.Join(p, ".")
+		if top && (name == "count" || name == "for_each") &&
+			(bi.kind == itemResource || bi.kind == itemData || bi.kind == itemModule) {
+			// The instances a block plans: terraform test plans them too.
+			s.levels = []string{LevelL1, LevelL2}
+		}
 		d.add(s)
+		s.levels = nil
 		if ctx != nil && !forced && (hx == nil || !isLiteral(bx) || !isLiteral(hx)) {
 			if emit, why := d.c.optionalComputed(ctx, p); emit {
 				s.cat, s.reason = CatUnknownPropagation, why
@@ -559,6 +567,10 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 		case strings.HasPrefix(k, "dynamic."):
 			s.cat = CatDynamic
 			s.b, s.h = forEachOf(first.base, bi.src), forEachOf(first.head, hi.src)
+			if onlyForEach(bi.src, hi.src, bl, hl) {
+				// Only the for_each changed: L1 evaluates it.
+				s.levels, s.forEachOnly = []string{LevelL1}, true
+			}
 			d.add(s)
 		case strings.HasPrefix(k, "provisioner.") || k == "connection":
 			s.cat, s.reason, s.noLevels = CatUnclassified, reasonApplyTime, true
@@ -592,6 +604,44 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 			d.add(s)
 		}
 	}
+}
+
+// onlyForEach reports two lists of one dynamic block group that differ
+// only in the for_each of one block: same labels, iterator, content and
+// every other argument and nested block.
+func onlyForEach(bsrc, hsrc []byte, bl, hl []*hclsyntax.Block) bool {
+	if len(bl) != len(hl) {
+		return false
+	}
+	changed := 0
+	for i := range bl {
+		b, h := bl[i], hl[i]
+		if normKey(b.Range().SliceBytes(bsrc), true) == normKey(h.Range().SliceBytes(hsrc), true) {
+			continue
+		}
+		changed++
+		bf, hf := b.Body.Attributes["for_each"], h.Body.Attributes["for_each"]
+		if changed > 1 || bf == nil || hf == nil || !slices.Equal(b.Labels, h.Labels) ||
+			withoutAttr(b.Body, "for_each", bsrc) != withoutAttr(h.Body, "for_each", hsrc) {
+			return false
+		}
+	}
+	return changed == 1
+}
+
+// withoutAttr is a key of a body's arguments but one, and its nested
+// blocks.
+func withoutAttr(b *hclsyntax.Body, skip string, src []byte) string {
+	var parts []string
+	for _, name := range sortedAttrNames(b) {
+		if name != skip {
+			parts = append(parts, name+"="+normKey(b.Attributes[name].Expr.Range().SliceBytes(src), false))
+		}
+	}
+	for _, nb := range b.Blocks {
+		parts = append(parts, normKey(nb.Range().SliceBytes(src), true))
+	}
+	return strings.Join(parts, "\x00")
 }
 
 // blockPair is one position of a block group at each revision.

@@ -309,7 +309,7 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 		return ts
 	}
 	var why []string
-	if slices.Contains(t.Levels, LevelL1) || slices.Contains(t.Levels, LevelL3) {
+	if slices.Contains(t.Levels, LevelL1) || slices.Contains(t.Levels, LevelL2) || slices.Contains(t.Levels, LevelL3) {
 		w, changes := sweep(t, l, claims, verified)
 		ts.Changes = changes
 		if w == "" {
@@ -337,7 +337,7 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 	if slices.Contains(t.Levels, LevelCompat) {
 		why = append(why, "the compat rules decide a version floor change")
 	}
-	ts.Reason = strings.Join(why, "; ")
+	ts.Reason = cmp.Or(strings.Join(why, "; "), "no level the trigger selects decided it")
 	return ts
 }
 
@@ -406,8 +406,8 @@ func addressMatch(plan, trig, dir string, e CoverageExample) bool {
 func validRuns(l *Ladder, id string, levels []string) []LadderRun {
 	var out []LadderRun
 	for _, r := range l.Runs {
-		// An L1 or L3 run counts only with the hash of the fixture it ran.
-		fixture := r.Level != LevelL1 && r.Level != LevelL3 || r.FixtureSHA256 != nil && *r.FixtureSHA256 != ""
+		// An L1, L2 or L3 run counts only with the hash of the fixture it ran.
+		fixture := r.Level != LevelL1 && r.Level != LevelL2 && r.Level != LevelL3 || r.FixtureSHA256 != nil && *r.FixtureSHA256 != ""
 		if r.TriggerID == id && slices.Contains(levels, r.Level) && r.State == "ran" &&
 			r.Control != nil && *r.Control == "valid" && fixture {
 			out = append(out, r)

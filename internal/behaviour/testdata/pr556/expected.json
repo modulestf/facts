@@ -624,6 +624,100 @@
               "omitted": false
             }
           }
+        },
+        {
+          "id": "two.unknown-element",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                null
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false,
+              "unknown_elements": [
+                0
+              ]
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a",
+                "b"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "duplicate.unknown-element",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                null
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false,
+              "unknown_elements": [
+                0
+              ]
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a",
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "typical.two",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                "a",
+                "b"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "typical.duplicate",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                "a",
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
         }
       ],
       "levels": [
@@ -1239,6 +1333,100 @@
               "value": null,
               "unknown": false,
               "null": true,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "two.unknown-element",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                null
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false,
+              "unknown_elements": [
+                0
+              ]
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a",
+                "b"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "duplicate.unknown-element",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                null
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false,
+              "unknown_elements": [
+                0
+              ]
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a",
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "typical.two",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                "a",
+                "b"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "typical.duplicate",
+          "inputs": {
+            "aws_security_group.this[*].id": {
+              "value": [
+                "a",
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            },
+            "vpc_security_group_ids": {
+              "value": [
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
               "omitted": false
             }
           }

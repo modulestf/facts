@@ -75,7 +75,7 @@
           "cases": {
             "type": "array",
             "maxItems": 32,
-            "description": "The required cases of the L1 sweep: every combination of the input states when at most 32, else one typical case and one per other state of each input. claims-eval needs base and head observations of each.",
+            "description": "The required cases of the L1 sweep, and of L2 when selected (at most 32 at each level): the combination of the input states as the README describes. claims-eval needs base and head observations of each.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -100,8 +100,9 @@
               }
             }
           },
-          "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L3", "L4", "compat"]}},
-          "reason": {"type": ["string", "null"]}
+          "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L2", "L3", "L4", "compat"]}},
+          "reason": {"type": ["string", "null"]},
+          "for_each_only": {"type": "boolean", "description": "A dynamic-block-change whose for_each alone changed, routed to L1 on that for_each."}
         },
         "if": {"type": "object", "required": ["levels"], "properties": {"levels": {"type": "array", "maxItems": 0}}},
         "then": {"type": "object", "properties": {"reason": {"type": "string"}}}

@@ -43,6 +43,9 @@ type CaseInput struct {
 type caseInput struct {
 	name   string
 	states []caseState
+	// extra are the order states of a list or set: two distinct elements
+	// and a duplicate. They join the combination when it fits the cap.
+	extra []caseState
 }
 
 type caseState struct {
@@ -77,7 +80,8 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 			return
 		}
 		seen[name] = true
-		inputs = append(inputs, caseInput{name: name, states: varStates(parseType(typ), omittable, lits)})
+		ty := parseType(typ)
+		inputs = append(inputs, caseInput{name: name, states: varStates(ty, omittable, lits), extra: orderStates(ty)})
 	}
 	if t.Address != nil && (t.Category == CatDefault || t.Category == CatTypeValidation) {
 		if name, ok := strings.CutPrefix(*t.Address, "var."); ok {
@@ -103,10 +107,56 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 			return []Case{}, why
 		}
 		if st != nil {
-			inputs = append(inputs, caseInput{name: d.Text, states: st})
+			inputs = append(inputs, caseInput{name: d.Text, states: st, extra: refOrderStates(d)})
 		}
 	}
-	return sweepCases(inputs)
+	// Instances and dynamic blocks follow the order and the duplicates of
+	// a collection, so those triggers need the order states and the full
+	// combination of the others.
+	strict := slices.Contains(t.Levels, LevelL2) || t.Category == CatDynamic
+	return sweepCases(inputs, strict)
+}
+
+// orderStates are the order states of a list or set type: two distinct
+// elements and a duplicate.
+func orderStates(ty cty.Type) []caseState {
+	if !ty.IsListType() && !ty.IsSetType() {
+		return nil
+	}
+	el := ty.ElementType()
+	a, b := sample(el), second(el)
+	st := []caseState{{"duplicate", CaseInput{Value: raw([]any{a, a})}}}
+	if !jsonEqual(raw(a), raw(b)) {
+		st = append([]caseState{{"two", CaseInput{Value: raw([]any{a, b})}}}, st...)
+	}
+	return st
+}
+
+// refOrderStates are the order states of a splat reference: two instances
+// with distinct values, and two with the same.
+func refOrderStates(d RefDetail) []caseState {
+	if !strings.Contains(d.Text, "[*]") || d.Kind != "resource" && d.Kind != "data" {
+		return nil
+	}
+	el := cty.String
+	if d.Type != nil {
+		el = parseType(*d.Type)
+	}
+	return orderStates(cty.List(el))
+}
+
+// second is a known value of a type that differs from sample's where it
+// can.
+func second(ty cty.Type) any {
+	switch ty {
+	case cty.String, cty.DynamicPseudoType:
+		return "b"
+	case cty.Number:
+		return 2
+	case cty.Bool:
+		return false
+	}
+	return zero(ty)
 }
 
 // comparisons are the operations that compare their operands.
@@ -225,38 +275,56 @@ func literalStates(ty cty.Type, ls literalSet, have []caseState, wrap func(any) 
 	return out
 }
 
-// sweepCases combines the input states: every combination when there are
-// at most maxSweepCases, else one typical case and one case per other state
-// of each input with the rest typical, else none and a reason.
-func sweepCases(inputs []caseInput) ([]Case, string) {
-	product := 1
-	oneAtATime := 1
-	for _, in := range inputs {
-		product *= len(in.states)
-		oneAtATime += len(in.states) - 1
-		if product > maxSweepCases {
-			product = maxSweepCases + 1 // no overflow; only the cap matters
-		}
-	}
+// sweepCases combines the input states, taking the first that fits the
+// cap of maxSweepCases:
+//  1. every combination of all states, order states included;
+//  2. every combination of the other states, and one case per order state
+//     with the rest typical;
+//  3. for a strict trigger, nothing: no cases and a reason;
+//  4. with no order states, every combination of the states;
+//  5. one typical case and one case per other state of each input, order
+//     states included.
+func sweepCases(inputs []caseInput, strict bool) ([]Case, string) {
 	if len(inputs) == 0 {
 		return []Case{{ID: "typical", Inputs: map[string]CaseInput{}}}, ""
 	}
-	if product <= maxSweepCases {
+	full := make([]caseInput, len(inputs))
+	extras := 0
+	for i, in := range inputs {
+		full[i] = caseInput{name: in.name, states: append(slices.Clone(in.states), in.extra...)}
+		extras += len(in.extra)
+	}
+	if productSize(full) <= maxSweepCases {
+		return productCases(full), ""
+	}
+	if n := productSize(inputs); n+extras <= maxSweepCases {
+		return append(productCases(inputs), orderCases(inputs)...), ""
+	}
+	if strict {
+		return []Case{}, fmt.Sprintf("the combined input sweep needs more than %d cases", maxSweepCases)
+	}
+	// Without order states the combination is enough; with them, a sweep
+	// that drops them could not show a reorder or a dedupe.
+	if extras == 0 && productSize(inputs) <= maxSweepCases {
 		return productCases(inputs), ""
+	}
+	oneAtATime := 1
+	for _, in := range full {
+		oneAtATime += len(in.states) - 1
 	}
 	if oneAtATime > maxSweepCases {
 		return []Case{}, fmt.Sprintf("the input sweep needs %d cases, over the cap of %d", oneAtATime, maxSweepCases)
 	}
 	typical := func() map[string]CaseInput {
 		m := map[string]CaseInput{}
-		for _, in := range inputs {
+		for _, in := range full {
 			m[in.name] = in.states[0].in
 		}
 		return m
 	}
 	out := []Case{{ID: "typical", Inputs: typical()}}
 	used := map[string]bool{"typical": true}
-	for _, in := range inputs {
+	for _, in := range full {
 		for _, st := range in.states[1:] {
 			m := typical()
 			m[in.name] = st.in
@@ -269,6 +337,40 @@ func sweepCases(inputs []caseInput) ([]Case, string) {
 		}
 	}
 	return out, ""
+}
+
+// productSize is the number of combinations, capped past maxSweepCases.
+func productSize(inputs []caseInput) int {
+	n := 1
+	for _, in := range inputs {
+		n *= len(in.states)
+		if n > maxSweepCases {
+			return maxSweepCases + 1
+		}
+	}
+	return n
+}
+
+// orderCases are one case per order state of each input, every other
+// input in its typical state, with ids in the product's label form.
+func orderCases(inputs []caseInput) []Case {
+	var out []Case
+	for i, in := range inputs {
+		for _, st := range in.extra {
+			m := map[string]CaseInput{}
+			labels := make([]string, len(inputs))
+			for j, other := range inputs {
+				m[other.name], labels[j] = other.states[0].in, other.states[0].label
+			}
+			m[in.name], labels[i] = st.in, st.label
+			id := strings.Join(labels, ".")
+			if len(id) > 64 {
+				id = fmt.Sprintf("o-%02d", len(out)+1)
+			}
+			out = append(out, Case{ID: id, Inputs: m})
+		}
+	}
+	return out
 }
 
 // productCases lists every combination of the input states, in input
