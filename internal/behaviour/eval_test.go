@@ -183,15 +183,15 @@ func TestEvaluatePR556(t *testing.T) {
 		}
 	}
 
-	// L1 only: the claims decide themselves; T-001's sample-1 differs in
-	// value and length with no claim stating both sides.
+	// L1 only: the claims decide themselves; the triggers miss their
+	// required cases.
 	r = evalWith(t, b, ladder(t, l1Runs, noCoverage), base...)
 	tr, cl = states(r)
 	if tr["T-001"] != StateUnverifiable || tr["T-002"] != StateUnverifiable || cl["C-1"] != StateVerified ||
 		cl["C-2"] != StateVerified || cl["C-6"] != StateVerified || cl["C-4"] != StateUnverifiable {
 		t.Errorf("L1: triggers %v claims %v\n%s", tr, cl, mustJSON(t, r))
 	}
-	if !strings.Contains(r.Triggers[0].Reason, `"sample-1"`) {
+	if !strings.Contains(r.Triggers[0].Reason, "missing") {
 		t.Errorf("L1: T-001 reason %q", r.Triggers[0].Reason)
 	}
 
@@ -236,8 +236,21 @@ const (
 	caseIDsHead     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":["x",""]},"length":2,"value":["x",""]}`
 )
 
+// withCases sets the required L1 cases of a trigger of b to ids.
+func withCases(b *Report, id string, ids ...string) {
+	for i := range b.Triggers {
+		if b.Triggers[i].ID == id {
+			b.Triggers[i].Cases = nil
+			for _, c := range ids {
+				b.Triggers[i].Cases = append(b.Triggers[i].Cases, Case{ID: c, Inputs: map[string]CaseInput{}})
+			}
+		}
+	}
+}
+
 func TestSweep(t *testing.T) {
 	b := pr556Report(t)
+	withCases(b, "T-001", "unknown-element", "ids")
 	run := sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead+","+caseIDsHead)
 	unknown := []string{
 		claim("C-1", PredExprUnknown, `{"node":"T-001","revision":"base"}`),
@@ -262,14 +275,17 @@ func TestSweep(t *testing.T) {
 		changes    int
 		explained  int
 	}{
-		{"no difference needs no claim", sweepRun("T-001", "L1", caseIDsBase, caseIDsBase), nil, StateVerified, 0, 0},
+		{"no difference needs no claim", sweepRun("T-001", "L1", caseIDsBase+","+caseUnknownBase, caseIDsBase+","+caseUnknownBase), nil, StateVerified, 0, 0},
 		{"differences without claims", run, nil, StateUnverifiable, 3, 0},
 		{"unknown case explained only", run, unknown, StateUnverifiable, 3, 1},
 		{"every difference explained", run, append(slices.Clone(unknown), equals...), StateVerified, 3, 3},
 		{"a case missing at the head", sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead), nil, StateUnverifiable, 0, 0},
+		{"a required case missing at both", sweepRun("T-001", "L1", caseIDsBase, caseIDsBase), nil, StateUnverifiable, 0, 0},
+		{"an extra case is ignored", sweepRun("T-001", "L1", caseIDsBase+","+caseUnknownBase+`,{"case":"extra","known":true,"value":1}`,
+			caseIDsBase+","+caseUnknownBase+`,{"case":"extra","known":true,"value":2}`), nil, StateVerified, 0, 0},
 		{"no head observations", sweepRun("T-001", "L1", caseIDsBase, ""), nil, StateUnverifiable, 0, 0},
-		{"sensitive at both", sweepRun("T-001", "L1", `{"case":"s","known":true,"sensitive":true}`, `{"case":"s","known":true,"sensitive":true}`), nil, StateUnverifiable, 0, 0},
-		{"unknown inputs differ", sweepRun("T-001", "L1", `{"case":"u","known":false,"unknown_inputs":["a"]}`, `{"case":"u","known":false,"unknown_inputs":["b"]}`), nil, StateUnverifiable, 1, 0},
+		{"sensitive at both", sweepRun("T-001", "L1", caseIDsBase+`,{"case":"unknown-element","known":true,"sensitive":true}`, caseIDsBase+`,{"case":"unknown-element","known":true,"sensitive":true}`), nil, StateUnverifiable, 0, 0},
+		{"unknown inputs differ", sweepRun("T-001", "L1", caseIDsBase+`,{"case":"unknown-element","known":false,"unknown_inputs":["a"]}`, caseIDsBase+`,{"case":"unknown-element","known":false,"unknown_inputs":["b"]}`), nil, StateUnverifiable, 1, 0},
 		{"an invalid run", run + `,{"trigger_id":"T-001","level":"L1","state":"unverifiable","reason":"canary","fixture_sha256":null,"control":"invalid","observations":null}`,
 			append(slices.Clone(unknown), equals...), StateUnverifiable, 0, 0},
 	}
@@ -288,13 +304,87 @@ func TestSweep(t *testing.T) {
 			}
 		})
 	}
-	var many []string
-	for i := range maxSweepCases + 1 {
-		many = append(many, `{"case":"c`+itoa(i)+`","known":false}`)
+	withCases(b, "T-001")
+	r := evalWith(t, b, ladder(t, run, noCoverage))
+	if s := stateOf(r, "T-001"); s.State != StateUnverifiable || !strings.Contains(s.Reason, "no required case") {
+		t.Errorf("no required cases: %+v", s)
 	}
-	r := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", strings.Join(many, ","), strings.Join(many, ",")), noCoverage))
-	if s := stateOf(r, "T-001"); s.State != StateUnverifiable || !strings.Contains(s.Reason, "over") {
-		t.Errorf("over the case cap: %+v", s)
+}
+
+// simulate is the L1 output of vpc_security_group_ids for one required case
+// of the PR 556 sweep: concat at the head, compact(concat) at the base.
+func simulate(c Case, compact bool) string {
+	type elem struct {
+		v       any
+		unknown bool
+	}
+	var list []elem
+	whole, fail := false, false
+	for _, name := range []string{"aws_security_group.this[*].id", "vpc_security_group_ids"} {
+		in := c.Inputs[name]
+		switch {
+		case in.Unknown:
+			whole = true
+		case in.Null:
+			fail = true
+		default:
+			var vs []any
+			_ = json.Unmarshal(in.Value, &vs)
+			for i, v := range vs {
+				list = append(list, elem{v: v, unknown: len(in.UnknownElements) > 0 && i == 0})
+			}
+		}
+	}
+	unknownElem := false
+	for _, e := range list {
+		unknownElem = unknownElem || e.unknown
+	}
+	if compact && unknownElem {
+		whole = true
+	}
+	switch {
+	case fail, whole:
+		return `{"case":"` + c.ID + `","known":false}`
+	case unknownElem:
+		return `{"case":"` + c.ID + `","known":false,"length":` + itoa(len(list)) + `}`
+	}
+	out := []any{}
+	for _, e := range list {
+		if !compact || e.v != nil && e.v != "" {
+			out = append(out, e.v)
+		}
+	}
+	v, _ := json.Marshal(out)
+	return `{"case":"` + c.ID + `","known":true,"length":` + itoa(len(out)) + `,"value":` + string(v) + `}`
+}
+
+// TestSweepPR556Required: one case is not enough; the full required sweep,
+// with the real compact and concat behaviour, lists the differences.
+func TestSweepPR556Required(t *testing.T) {
+	b := pr556Report(t)
+	cases := b.Triggers[0].Cases
+	one := sweepRun("T-001", "L1", simulate(cases[0], true), simulate(cases[0], false))
+	r := evalWith(t, b, ladder(t, one, noCoverage))
+	if s := r.Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "missing") {
+		t.Errorf("one case: %s", mustJSON(t, s))
+	}
+	var base, head []string
+	for _, c := range cases {
+		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
+	}
+	r = evalWith(t, b, ladder(t, sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ",")), noCoverage))
+	s := r.Triggers[0]
+	if s.State != StateUnverifiable || len(s.Changes) == 0 {
+		t.Fatalf("full sweep: %s", mustJSON(t, s))
+	}
+	found := false
+	for _, c := range s.Changes {
+		if c.Case == "empty-element.empty" && c.Attribute == "value" && !c.Explained {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no unexplained value change for an empty-string element: %s", mustJSON(t, s.Changes))
 	}
 }
 
@@ -302,6 +392,7 @@ func TestSweep(t *testing.T) {
 // apply at head, explained by the plan claims.
 func TestSweepL3(t *testing.T) {
 	b := pr556Report(t)
+	withCases(b, "T-002", "unknown-element")
 	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownHead)
 	l3 := sweepRun("T-002", "L3", `{"case":"prior","known":true,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}`,
 		`{"case":"prior","known":false,"action":"update","unchanged_vs_prior":false}`)

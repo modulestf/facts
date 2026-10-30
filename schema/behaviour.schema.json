@@ -72,6 +72,34 @@
             }
           },
           "pure": {"type": "boolean"},
+          "cases": {
+            "type": "array",
+            "maxItems": 32,
+            "description": "The required cases of the L1 sweep: every combination of the input states when at most 32, else one typical case and one per other state of each input. claims-eval needs base and head observations of each.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "inputs"],
+              "properties": {
+                "id": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$"},
+                "inputs": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["value", "unknown", "null", "omitted"],
+                    "properties": {
+                      "value": {"description": "A known value of the input's type, null unless the other three are false."},
+                      "unknown": {"type": "boolean"},
+                      "null": {"type": "boolean"},
+                      "omitted": {"type": "boolean"},
+                      "unknown_elements": {"type": "array", "items": {"oneOf": [{"type": "integer"}, {"type": "string"}]}}
+                    }
+                  }
+                }
+              }
+            }
+          },
           "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L3", "L4", "compat"]}},
           "reason": {"type": ["string", "null"]}
         },

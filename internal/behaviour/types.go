@@ -120,7 +120,10 @@ type Trigger struct {
 	ContextualRefDetails []RefDetail `json:"contextual_ref_details"`
 	// Pure is set when every function the expressions call is on the pure
 	// function allowlist and neither reads self.
-	Pure   bool     `json:"pure"`
+	Pure bool `json:"pure"`
+	// Cases are the required cases of the L1 sweep, for a trigger that
+	// selects L1. An optional field.
+	Cases  []Case   `json:"cases,omitempty"`
 	Levels []string `json:"levels"`
 	Reason *string  `json:"reason"`
 }

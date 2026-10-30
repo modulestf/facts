@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -352,5 +353,104 @@ func TestDeterministic(t *testing.T) {
 		if got := mustJSON(t, runPair(t, base, head, "")); !bytes.Equal(got, first) {
 			t.Fatalf("output differs between runs:\n%s\n%s", got, first)
 		}
+	}
+}
+
+// TestDiffUnchangedOversizeFile: a large file a local-exec reads, which the
+// diff does not list, is no entry and no trigger.
+func TestDiffUnchangedOversizeFile(t *testing.T) {
+	main := "resource \"terraform_data\" \"x\" {\n  provisioner \"local-exec\" {\n    command = \"unzip backup.zip\"\n  }\n}\n"
+	head := writeTree(t, map[string]string{"main.tf": main, "README.md": "b\n",
+		"examples/s3-import/backup.zip": strings.Repeat("z", int(facts.DefaultLimits.MaxFileBytes)+1)})
+	diff := filepath.Join(t.TempDir(), "change.diff")
+	if err := os.WriteFile(diff, []byte("diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-a\n+b\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Run(Options{Head: head, Diff: diff, Limits: facts.DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Entries) != 1 || r.Entries[0].Path != "README.md" {
+		t.Errorf("want only README.md: %s", mustJSON(t, r))
+	}
+	for _, tr := range r.Triggers {
+		if strings.Contains(tr.File, "backup.zip") {
+			t.Errorf("trigger on the unchanged file: %s", mustJSON(t, tr))
+		}
+	}
+}
+
+// TestCases: an L1 trigger carries its required input sweep.
+func TestCases(t *testing.T) {
+	r := pr556Report(t)
+	for _, tr := range r.Triggers {
+		ids := map[string]bool{}
+		for _, c := range tr.Cases {
+			if ids[c.ID] || !regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`).MatchString(c.ID) {
+				t.Errorf("%s: case id %q duplicate or malformed", tr.ID, c.ID)
+			}
+			ids[c.ID] = true
+			for name, in := range c.Inputs {
+				set := 0
+				for _, b := range []bool{in.Unknown, in.Null, in.Omitted, in.Value != nil} {
+					if b {
+						set++
+					}
+				}
+				if set != 1 {
+					t.Errorf("%s %s %s: want exactly one of value, unknown, null, omitted: %+v", tr.ID, c.ID, name, in)
+				}
+			}
+		}
+		if len(tr.Cases) != 21 {
+			t.Errorf("%s: %d cases, want 7 list states times 3 splat states", tr.ID, len(tr.Cases))
+		}
+		for _, want := range []string{"typical.unknown-element", "empty.unknown-element", "empty-element.empty",
+			"null-element.known", "unknown-element.empty", "unknown.unknown-element", "null.known"} {
+			if !ids[want] {
+				t.Errorf("%s: no case %q in %s", tr.ID, want, mustJSON(t, tr.Cases))
+			}
+		}
+	}
+	typical := r.Triggers[0].Cases[0]
+	if typical.ID != "typical.unknown-element" || string(typical.Inputs["vpc_security_group_ids"].Value) != `["a"]` ||
+		string(mustJSON(t, typical.Inputs["aws_security_group.this[*].id"].UnknownElements)) != "[\n  0\n]\n" {
+		t.Errorf("typical case: %s", mustJSON(t, typical))
+	}
+
+	// Three list inputs are too many to combine: one state at a time.
+	var lists, listRefs []string
+	for i := range 3 {
+		lists = append(lists, fmt.Sprintf("variable \"l%d\" {\n  type = list(string)\n}\n", i))
+		listRefs = append(listRefs, fmt.Sprintf("var.l%d", i))
+	}
+	f := runPair(t, map[string]string{"main.tf": strings.Join(lists, "") + "locals { x = concat(" + strings.Join(listRefs, ", ") + ") }\n"},
+		map[string]string{"main.tf": strings.Join(lists, "") + "locals { x = compact(concat(" + strings.Join(listRefs, ", ") + ")) }\n"}, "")
+	if c := f.Triggers[0].Cases; len(c) != 19 || c[0].ID != "typical" || c[1].ID != "l0:empty" {
+		t.Errorf("one at a time: %d cases %s", len(c), mustJSON(t, c))
+	}
+
+	// A default change adds an omitted case for the variable itself.
+	d := runPair(t, map[string]string{"variables.tf": "variable \"n\" {\n  type    = number\n  default = 1\n}\n"},
+		map[string]string{"variables.tf": "variable \"n\" {\n  type    = number\n  default = 2\n}\n"}, "")
+	if !slices.ContainsFunc(d.Triggers[0].Cases, func(c Case) bool { return c.ID == "omitted" && c.Inputs["n"].Omitted }) {
+		t.Errorf("default change: %s", mustJSON(t, d.Triggers[0].Cases))
+	}
+	// Triggers without L1 carry no cases.
+	l := runPair(t, map[string]string{"main.tf": "resource \"aws_s3_bucket\" \"b\" {\n  bucket = \"a\"\n}\n"},
+		map[string]string{"main.tf": "resource \"aws_s3_bucket\" \"b\" {\n  bucket = \"b\"\n}\n"}, "")
+	if len(l.Triggers[0].Cases) != 0 {
+		t.Errorf("literal change: %s", mustJSON(t, l.Triggers[0]))
+	}
+	// Over the cap: no cases and a reason.
+	var vars, refs []string
+	for i := range 6 {
+		vars = append(vars, fmt.Sprintf("variable \"v%d\" {\n  type = list(string)\n}\n", i))
+		refs = append(refs, fmt.Sprintf("var.v%d", i))
+	}
+	o := runPair(t, map[string]string{"main.tf": strings.Join(vars, "") + "locals { x = concat(" + strings.Join(refs, ", ") + ") }\n"},
+		map[string]string{"main.tf": strings.Join(vars, "") + "locals { x = compact(concat(" + strings.Join(refs, ", ") + ")) }\n"}, "")
+	if len(o.Triggers[0].Cases) != 0 || !strings.Contains(str(o.Triggers[0].Reason), "cap") {
+		t.Errorf("over the cap: %s", mustJSON(t, o.Triggers[0]))
 	}
 }

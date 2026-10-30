@@ -39,7 +39,16 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 		if lv != LevelL1 && lv != LevelL3 {
 			continue
 		}
-		p, why := levelPairs(t.ID, lv, l)
+		var required []string
+		if lv == LevelL1 {
+			if len(t.Cases) == 0 {
+				return "the trigger has no required case for L1", nil
+			}
+			for _, c := range t.Cases {
+				required = append(required, c.ID)
+			}
+		}
+		p, why := levelPairs(t.ID, lv, l, required)
 		if why != "" {
 			return why, nil
 		}
@@ -75,7 +84,9 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 }
 
 // levelPairs pairs the base and head observations of a level by case id.
-func levelPairs(id, lv string, l *Ladder) ([]casePair, string) {
+// With required ids, each must be observed at both revisions and other
+// cases are ignored; without, both revisions must have the same cases.
+func levelPairs(id, lv string, l *Ladder, required []string) ([]casePair, string) {
 	for _, r := range l.Runs {
 		if r.TriggerID == id && r.Level == lv && r.Control != nil && *r.Control == "invalid" {
 			return nil, lv + " has a run with an invalid control"
@@ -102,6 +113,20 @@ func levelPairs(id, lv string, l *Ladder) ([]casePair, string) {
 		return nil, lv + " has no base and head run with a valid control"
 	}
 	var pairs []casePair
+	if required != nil {
+		for _, k := range required {
+			b, okB := base[k]
+			h, okH := head[k]
+			switch {
+			case !okB:
+				return nil, fmt.Sprintf("%s case %q is missing at the base", lv, k)
+			case !okH:
+				return nil, fmt.Sprintf("%s case %q is missing at the head", lv, k)
+			}
+			pairs = append(pairs, casePair{level: lv, id: k, base: b, head: h})
+		}
+		return pairs, ""
+	}
 	for _, k := range slices.Sorted(keysOfObs(base)) {
 		h, ok := head[k]
 		if !ok {

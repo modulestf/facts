@@ -3,19 +3,8 @@
   "triggers": [
     {
       "id": "T-001",
-      "state": "verified",
-      "reason": "verified claims state both sides of all 1 differences",
-      "changes": [
-        {
-          "level": "L1",
-          "case": "empty",
-          "attribute": "length",
-          "explained": true,
-          "inputs": {
-            "vpc_security_group_ids": []
-          }
-        }
-      ]
+      "state": "unverifiable",
+      "reason": "L1 case \"typical.unknown-element\" is missing at the base"
     },
     {
       "id": "T-002",
