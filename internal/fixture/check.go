@@ -61,6 +61,11 @@ const (
 	RuleExprHeredocTemplate    = "expr.heredoc-template"
 	RuleManifestBlockSet       = "manifest.block-set"
 	RuleManifestExpression     = "manifest.expression"
+	RuleTestFileCount          = "test.file-count"
+	RuleTestCommandNotPlan     = "test.command-not-plan"
+	RuleTestPlanOptionsDenied  = "test.plan-options-denied"
+	RuleTestProviderNotMocked  = "test.provider-not-mocked"
+	RuleTestValueNotLiteral    = "test.value-not-literal"
 	// RuleLimitViolations marks a list cut at MaxViolations.
 	RuleLimitViolations = "limit.violations"
 )
@@ -73,6 +78,7 @@ var Rules = []string{
 	RuleResourceTypeDenied, RuleResourceUnderTestCount,
 	RuleExprFunctionDenied, RuleExprReferenceDenied, RuleExprHeredocTemplate,
 	RuleManifestBlockSet, RuleManifestExpression,
+	RuleTestFileCount, RuleTestCommandNotPlan, RuleTestPlanOptionsDenied, RuleTestProviderNotMocked, RuleTestValueNotLiteral,
 }
 
 // Options select the tree and its grammar.
@@ -107,8 +113,9 @@ type Violation struct {
 }
 
 var (
-	tfName    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*\.tf$`)
-	plainName = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
+	tfName     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*\.tf$`)
+	tftestName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*\.tftest\.hcl$`)
+	plainName  = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
 )
 
 // Check reads the tree in o.Dir and checks it. An error is bad options or a
@@ -192,6 +199,12 @@ type checker struct {
 	bodies         map[string]*hclsyntax.Body // parsed files by name
 	tokens         map[string]hclsyntax.Tokens
 	tested         []place // resources of the type under test
+
+	// At a mocked level: the test files, the providers resources and data
+	// sources use, and the mock_provider blocks, by provider local name.
+	testFiles int
+	used      map[string][]place
+	mocks     map[string][]place
 }
 
 type place struct {
@@ -202,7 +215,7 @@ type place struct {
 func newChecker(lv level, underTest string, pins []Pin) *checker {
 	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
 		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{},
-		tokens: map[string]hclsyntax.Tokens{}}
+		tokens: map[string]hclsyntax.Tokens{}, used: map[string][]place{}, mocks: map[string][]place{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -272,6 +285,9 @@ func (c *checker) readTree(r *os.Root) ([]*facts.Entry, string, error) {
 			}
 			sum = e.SHA256
 			switch {
+			case c.lv.mocked && tftestName.MatchString(name):
+				c.testFiles++
+				files = append(files, e)
 			case !tfName.MatchString(name):
 				c.add(name, 0, RuleFileNotTF, "")
 			case name == "override.tf" || strings.HasSuffix(name, "_override.tf"):
@@ -327,8 +343,12 @@ func (c *checker) file(name string, src []byte) {
 		c.add(name, 0, rule, "")
 		return
 	}
-	c.bodies[name], c.tokens[name] = body, tokens
 	c.heredocs(name, tokens)
+	if tftestName.MatchString(name) {
+		c.testTop(name, body) // never in c.bodies: an --expect manifest binds the .tf files
+		return
+	}
+	c.bodies[name], c.tokens[name] = body, tokens
 	c.top(name, body)
 }
 
@@ -354,6 +374,9 @@ func (c *checker) heredocs(name string, tokens hclsyntax.Tokens) {
 // finish checks what spans files: the resource under test, once, and its
 // provider declared in required_providers.
 func (c *checker) finish() {
+	if c.lv.mocked {
+		c.finishMocked()
+	}
 	if !c.lv.underTest {
 		return
 	}
@@ -377,6 +400,37 @@ func (c *checker) finish() {
 		c.add(".", 0, RuleProviderValueDenied, p)
 	case !c.endpoints[p][svc]:
 		c.add(".", 0, RuleProviderValueDenied, svc)
+	}
+}
+
+// finishMocked checks a mocked level: one test file, and every provider a
+// resource or data source uses, or required_providers declares, pinned and
+// mocked, so no real provider is ever configured.
+func (c *checker) finishMocked() {
+	if c.testFiles != 1 {
+		c.add(".", 0, RuleTestFileCount, "")
+	}
+	for _, name := range slices.Sorted(maps.Keys(c.used)) {
+		for _, p := range c.used[name] {
+			switch {
+			case !c.declared[name]:
+				c.add(p.file, p.line, RuleProviderNotPinned, name)
+			case len(c.mocks[name]) == 0:
+				c.add(p.file, p.line, RuleTestProviderNotMocked, name)
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(c.declared)) {
+		if len(c.mocks[name]) == 0 {
+			c.add(".", 0, RuleTestProviderNotMocked, name)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(c.mocks)) {
+		if !c.declared[name] {
+			for _, p := range c.mocks[name] {
+				c.add(p.file, p.line, RuleProviderNotPinned, name)
+			}
+		}
 	}
 }
 

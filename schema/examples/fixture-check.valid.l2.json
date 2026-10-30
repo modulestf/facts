@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "ok": false,
+  "tree_sha256": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9",
+  "violations": [
+    {
+      "file": ".",
+      "line": 0,
+      "rule": "test.provider-not-mocked",
+      "detail": "aws"
+    },
+    {
+      "file": "main.tftest.hcl",
+      "line": 4,
+      "rule": "test.command-not-plan"
+    },
+    {
+      "file": "main.tftest.hcl",
+      "line": 9,
+      "rule": "test.value-not-literal",
+      "detail": "defaults"
+    }
+  ]
+}

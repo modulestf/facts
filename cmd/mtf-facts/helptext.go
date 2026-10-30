@@ -145,9 +145,18 @@ Top-level blocks: terraform (required_providers entries equal to a pin of
 --pins, nothing else), variable, locals, output, provider (the arguments its
 allowlist names, literal values only) and resource of type terraform_data.
 L1 uses the built-in provider only. L3 adds exactly one resource of the
-curated --resource type (aws_rds_cluster) and a provider "aws" block that must
+curated --resource type (aws_rds_cluster or aws_db_instance) and a
+provider "aws" block that must
 set region, fake credentials, every skip_* flag to true and endpoints at
 http://127.0.0.1:1 or http://[::1]:1, the service under test included.
+L2 runs module logic under terraform test: exactly one .tftest.hcl file, no
+provider block anywhere, resources and data sources of any pinned provider
+that has a mock_provider (terraform_remote_state refused), and moved blocks.
+In the test file: mock_provider with literal mock defaults, override_resource
+and override_data with literal values (each may set override_during = plan),
+variables of literals, and run blocks that set command = plan, with assert,
+plan_options mode = normal only and expect_failures into the tree; no
+module, providers or mock source.
 Resource arguments that name a local file or source are refused.
 Every function call must be on the pure-function allowlist and every reference
 start with var, local, each, count, self or an allowed resource type; a heredoc
@@ -157,7 +166,8 @@ allocate.
 --expect takes the manifest the trusted template wrote:
 {"files":{"main.tf":{"blocks":[{"type","labels"}],"single_expressions":
 [{"block","labels","attribute"}]}}}. Each file's top-level blocks must then be
-exactly that set (type and labels, any order) and no other .tf file may exist.
+exactly that set (type and labels, any order) and no other .tf file may exist;
+the manifest binds .tf files only.
 A file has at most one single expression: its block must be the last of the
 file, the attribute the last item of its block, with no comment from its
 start on, so a splice cannot add a block or argument or swallow template text.
@@ -172,10 +182,11 @@ Exit codes:
      for the whole tree) and rule
   2  an error: bad flags, a bad pins file or a directory that cannot be read`
 	fixtureCheckExample = `  mtf-facts fixture-check scratch/head --json
+  mtf-facts fixture-check scratch/l2 --level L2 --pins pins.json --json
   mtf-facts fixture-check scratch/l3 --level L3 --resource aws_rds_cluster \
     --pins pins.json --json`
 	fixtureCheckLevelUsage    = "grammar `level` of the tree"
-	fixtureCheckResourceUsage = "resource `type` under test, at L3"
+	fixtureCheckResourceUsage = "resource `type` under test, at L3 (aws_rds_cluster or aws_db_instance)"
 	fixtureCheckPinsUsage     = "pins `file`, {\"providers\":[{\"source\",\"version\"}]}, of the provider versions the host installed"
 	fixtureCheckJSONUsage     = "write the result as JSON"
 	fixtureCheckExpectUsage   = "manifest `file` of the block set and single expressions the template wrote"
