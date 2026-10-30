@@ -481,14 +481,9 @@ type oracleCheck struct {
 
 func (c *oracleCheck) fail(f string, a ...any) { c.problems = append(c.problems, fmt.Sprintf(f, a...)) }
 
-// home is the area an item's manifest entry is in: a cross-area rule has one
-// entry, under ., for the pass over every area.
-func (c *oracleCheck) home(rule, file string) string {
-	if c.rules[rule].cross {
-		return "."
-	}
-	return c.f.pathArea(file)
-}
+// home is the area an item's manifest entry is in: the area of its file, for
+// a cross-area rule too, whose entry under . is the pass over every area.
+func (c *oracleCheck) home(_, file string) string { return c.f.pathArea(file) }
 
 func checkOracleFixture(dir string, rules map[string]oracleRule, order []string, positive map[string]bool) []string {
 	c := &oracleCheck{dir: dir, rules: rules, order: order, seen: map[oracleKey]string{}}
@@ -556,8 +551,8 @@ func (c *oracleCheck) checkManifest(positive map[string]bool) {
 		if oracleAreaKind(m.Area) == "" {
 			c.fail("area %s is not ., modules/<name> or examples/<name>", m.Area)
 		}
-		if r.cross && m.Area != "." {
-			c.fail("%v: a cross-area rule has its one entry under .", k)
+		if r.cross && m.Area != "." && m.Status != "finding" && m.Status != "candidate" {
+			c.fail("%v: a cross-area rule has an entry outside . only where its items are", k)
 		}
 		na := !r.cross && !slices.Contains(r.kinds, oracleAreaKind(m.Area))
 		if na != (m.Status == "not_applicable") {

@@ -42,8 +42,19 @@ It reads files only: no network, no Terraform, no other program.`
 
 const (
 	lintShort = "Check a module tree, or only the areas a change touched"
-	lintLong  = `Check a module tree. With --base, check only the areas the change touched,
-against the tree the change started from.
+	lintLong  = `Check a module tree. With a change, check only the areas the change touched,
+against the tree the change started from: give that tree with --base, or the
+change itself with --diff, a GitHub pull request files list or a unified diff
+that the base tree is rebuilt from. A file the diff gives no patch for, such
+as a binary or very large one, has no known base content: the rules that read
+it are not_evaluated with no_base. --full-tree checks every area, and the
+change still decides which lines are judged.
+
+A cross-area rule has one manifest entry under . for its pass, and one under
+each other area that holds one of its findings or candidates. With a change,
+the report lists each module whose versions or inputs it touches, with every
+area that calls it and the version floors each declares, and says which
+areas it checked, reached only as callers, or left out.
 
 It prints the findings, the candidates, the rules not evaluated and a summary,
 or with --json the full report: the envelope, the manifest, the findings and
@@ -61,8 +72,11 @@ Exit codes:
      writes nothing to stdout
   3  no findings, but at least one rule was not_evaluated in some area`
 	lintExample = `  mtf-facts lint path/to/module
-  mtf-facts lint path/to/module --base path/to/base-tree --json`
+  mtf-facts lint path/to/module --base path/to/base-tree --json
+  mtf-facts lint path/to/module --diff files.json --json`
 	lintBaseUsage          = "the `tree` the change started from; only the areas the change touched are checked"
+	lintDiffUsage          = "the change as a `file`, a GitHub pull request files list or a unified diff, to rebuild the base tree from; not with --base"
+	lintFullTreeUsage      = "check every area, not only those the change touched"
 	lintJSONUsage          = "write the full report as JSON"
 	lintTimeoutUsage       = "stop with an error after this long; must be greater than zero"
 	lintRegistryUsage      = "rule registry `file` (rule-facts.md) whose hash the report records"

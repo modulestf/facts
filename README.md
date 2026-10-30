@@ -37,6 +37,12 @@ Check only the areas a change touched, against the tree the change started from:
 mtf-facts lint path/to/module --base path/to/base-tree
 ```
 
+Or give the change itself, a GitHub pull request files list or a unified diff, when you have no base tree:
+
+```sh
+mtf-facts lint path/to/module --diff files.json
+```
+
 Write the full report as JSON:
 
 ```sh
@@ -185,7 +191,7 @@ Host contract:
 ### lint
 
 ```sh
-mtf-facts lint <dir> [--base <dir>] [--json] [--timeout <duration>]
+mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json] [--timeout <duration>]
   [--registry <rule-facts.md>] [--profile-dir <dir>]
   [--schema-files <file>]... [--schema-handoff <file>]
   [--head-sha <sha>] [--merge-base-sha <sha>]
@@ -194,6 +200,8 @@ mtf-facts lint <dir> [--base <dir>] [--json] [--timeout <duration>]
 | Flag | Meaning |
 |------|---------|
 | `--base <dir>` | The tree the change started from. Only the areas the change touched are checked. |
+| `--diff <file>` | The change as a file, to rebuild the base tree from, when there is no base tree. Not with `--base`. See [Change as a diff](#change-as-a-diff). |
+| `--full-tree` | Check every area, not only those the change touched. The change still decides which lines are judged. |
 | `--json` | Write the full report as JSON. |
 | `--timeout <duration>` | Stop a run that takes longer. Default `60s`. |
 | `--registry <rule-facts.md>` | Record the registry hash. |
@@ -203,7 +211,18 @@ mtf-facts lint <dir> [--base <dir>] [--json] [--timeout <duration>]
 | `--head-sha <sha>` | Record the commit the head tree came from. |
 | `--merge-base-sha <sha>` | Record the commit the base tree came from. |
 
-The `--json` report holds the envelope, one manifest entry per rule and area (one under `.` for a cross-area rule), findings in the reviewer's findings schema, and candidates. The JSON schemas are in [schema/](schema/).
+The `--json` report holds the envelope, one manifest entry per rule and area (see [Areas](#areas) for a cross-area rule), findings in the reviewer's findings schema, and candidates. It also holds:
+
+- `scope`: how the change was given (`none`, `base` or `diff`), `full_tree`, and three disjoint lists of areas. `areas_checked` have their own manifest entries. `areas_calling` are the other areas that call a module listed in `callers`. `areas_left_out` are the rest, so no area is dropped without a trace.
+- `callers`, with a change only: each root or submodule area the change touches whose `versions.tf` or `terraform` block, or `variables.tf` or a `variable` block, changed, with its version floors at base (`null` for a new module) and at head, and every area that calls it by a local path: the call's file and line, whether that area is checked, the floors it declares, and the ids of the `structure.version-floor-understated` candidates filed in it. A floor is an `address` (`required_version` or `required_providers.<name>`), the provider `source` and the `constraint` as written. Callers under `wrappers/` are not listed: no area reads that directory.
+
+The text report prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](schema/).
+
+#### Change as a diff
+
+`--diff` reads a GitHub pull request files list, the JSON array `gh api repos/<owner>/<repo>/pulls/<number>/files --paginate --slurp | jq add` writes, or a unified diff as `git diff` writes it, with or without `diff --git` lines. The format is detected from the first byte. Paths must be relative to `<dir>`. The base tree is the head tree with each changed file rebuilt by reversing its hunks: a removed file comes back from its removed lines, an added file is left out, and a renamed file moves back to its old path. Every context and added line must match the head file, line ending included, or the run exits 2, and so does a path that is not clean and relative, a path listed twice, or a status the tool does not know.
+
+A file the diff gives no patch for, as GitHub does for a binary or very large file, has no known base content. It is in `inputs.base` with kind `no_patch`, and the configuration rules of its area are `not_evaluated` with `no_base` and a reason that says the diff has no patch for it. A GitHub rename with no patch and no added or removed line is a pure rename when the head file is text, as git judges it (no NUL byte in the first 8000 bytes), and a binary one is `no_patch`. The envelope records the diff in `inputs.diff`: its `format`, `github-files` or `unified`, and its SHA-256. A report from `--diff` has a base tree, so `bundle` accepts it.
 
 Two schema files with one base name exit 2. The schema handoff and the schema files are read offline under size caps; a missing, oversized or malformed one exits 2. The handoff is read only when `--head-sha`, `--merge-base-sha` and the `.tf` tree hashes of the head and `--base` trees equal the ones it records; otherwise every lookup in it is `schema_unavailable`.
 
@@ -331,7 +350,7 @@ All 42 tool and candidate rules of the reviewer's rule registry are implemented.
 
 Areas are the root module, each `modules/<name>` and each `examples/<name>`, parsed one directory at a time. A change under `.github/` or to a root profile file such as `.editorconfig` counts as the root. Candidate subjects are scoped to their area, `<area>:<address>`, such as `.:var.name`.
 
-With a base tree, the root is in scope only when the change touches it; a cross-area rule still has its one entry under `.`. A cross-area pass reads every area of the module, in scope or not, and keeps only the findings and candidates of the areas in the change. When any area it reads cannot be evaluated, untouched areas included, that entry is `not_evaluated` with one reason code (`parse_error`, `unsupported_file`, `symlink` or `limit_exceeded`) and no findings or candidates.
+With a base tree, the root is in scope only when the change touches it. A cross-area rule has one entry under `.` for its pass, whether or not the root is in scope, and one more under each other area that holds one of its findings or candidates: the deepest area directory that holds the item's `file`. The `.` entry is `not_evaluated` when the pass is, and otherwise has the status of the items in the root area, `clean` when there are none. A `structure.version-floor-understated` candidate points at the caller's own floor, or at the call when the caller declares none, so it is filed under the caller's area; it is in the change when the caller's floor, the callee's floor or the call is a changed line. A cross-area pass reads every area of the module, in scope or not, and keeps only the findings and candidates of the areas in the change. When any area it reads cannot be evaluated, untouched areas included, that entry is `not_evaluated` with one reason code (`parse_error`, `unsupported_file`, `symlink` or `limit_exceeded`) and no findings or candidates.
 
 Files Terraform ignores (a leading `.`, a trailing `~`, `#...#`) are skipped. A directory gets `not_evaluated` for its configuration rules, never `clean`, when it has a parse error, a `.tf.json` file, an override file, a `.tf` file that is a link or cannot be read, or a file over the token, nesting or unary operator limits. Path rules still run: a link where a path rule looks for a file counts as present and is never followed. An area directory that is a link or cannot be read gets `not_evaluated` for every rule.
 

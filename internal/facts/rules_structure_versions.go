@@ -243,9 +243,11 @@ func addFloor(out map[string]*floorDecl, file string, at Attribute) {
 // than a local module it calls, or no release that module admits. Provider
 // floors are compared per source address. A constraint that is not a plain
 // string is a candidate. One candidate per caller and floor, subject
-// <area>:required_version or <area>:required_providers.<name>, lands on the
-// caller's declaration, else the callee's, else the call's source, whichever
-// the change touches first.
+// <area>:required_version or <area>:required_providers.<name>, points at the
+// caller's declaration, or at the call's source when the caller declares no
+// such floor, so it lies in the caller's area. It is in the change when the
+// caller's declaration, the callee's or the call's source is a changed line:
+// a callee's raise brings in every caller it leaves understated.
 func checkVersionFloorUnderstated(a *Area) Result {
 	const id = "structure.version-floor-understated"
 	callerFloors := moduleFloors(a.Head)
@@ -303,8 +305,16 @@ func checkVersionFloorUnderstated(a *Area) Result {
 				base = joined(bf.text)
 			}
 		}
+		at := f.calls[0]
+		if len(anchors) > 0 {
+			at = anchors[0]
+		}
 		anchors = slices.Concat(anchors, f.callees, f.calls)
-		res.Candidates = append(res.Candidates, crossCandidate(a, lc, id, addr, anchors, base, head))
+		c := crossCandidate(a, lc, id, addr, anchors, base, head)
+		if cause := (anchor{c.File, *c.Line}); cause != at {
+			c.cause, c.File, c.Line = &cause, at.file, &at.line
+		}
+		res.Candidates = append(res.Candidates, c)
 	}
 	return res
 }

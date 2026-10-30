@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -45,6 +46,8 @@ func newLintCmd() *cobra.Command {
 	f := cmd.Flags()
 	f.SortFlags = false
 	f.StringVar(&o.Base, "base", "", lintBaseUsage)
+	f.StringVar(&o.Diff, "diff", "", lintDiffUsage)
+	f.BoolVar(&o.FullTree, "full-tree", false, lintFullTreeUsage)
 	f.BoolVar(&asJSON, "json", false, lintJSONUsage)
 	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
 	f.StringVar(&o.RegistryFile, "registry", "", lintRegistryUsage)
@@ -53,6 +56,7 @@ func newLintCmd() *cobra.Command {
 	f.StringVar(&o.SchemaHandoff, "schema-handoff", "", lintSchemaHandoffUsage)
 	f.StringVar(&o.HeadSHA, "head-sha", "", lintHeadSHAUsage)
 	f.StringVar(&o.MergeBaseSHA, "merge-base-sha", "", lintMergeBaseSHAUsage)
+	cmd.MarkFlagsMutuallyExclusive("base", "diff")
 	return cmd
 }
 
@@ -158,12 +162,18 @@ func human(r *facts.Report) string {
 		}
 		fmt.Fprintf(&b, "%s: unconfirmed %s: %s, confirm or reject\n", clean(loc), c.RuleID, clean(c.Subject))
 	}
+	if r.Callers != nil {
+		writeCallers(&b, *r.Callers)
+	}
 	counts := map[string]int{}
 	for _, e := range r.Manifest {
 		counts[e.Status]++
 		if e.Status == facts.StatusNotEvaluated {
 			fmt.Fprintf(&b, "not evaluated: %s in %s: %s\n", e.RuleID, clean(e.Area), clean(e.Reason))
 		}
+	}
+	if r.Scope != nil {
+		writeScope(&b, r.Scope)
 	}
 	fmt.Fprintf(&b, "%d findings, %d candidates; manifest: %d finding, %d candidate, %d clean, %d not_evaluated, %d not_applicable\n",
 		len(r.Findings), len(r.Candidates), counts[facts.StatusFinding], counts[facts.StatusCandidate],
@@ -174,6 +184,76 @@ func human(r *facts.Report) string {
 	}
 	fmt.Fprintf(&b, "mtf-facts %s, binary sha256 %s, registry sha256 %s\n", r.Envelope.Tool.Version, r.Envelope.Tool.BinarySHA256, reg)
 	return b.String()
+}
+
+// writeScope writes the scope line: how the change was given, and how many
+// areas the run checked, reached only as callers, or left out, naming those.
+func writeScope(b *strings.Builder, s *facts.Scope) {
+	switch {
+	case s.Change == facts.ChangeNone:
+		fmt.Fprintf(b, "scope: no change; %d areas checked\n", len(s.AreasChecked))
+	case s.FullTree:
+		fmt.Fprintf(b, "scope: change from %s, full tree; %d areas checked\n", s.Change, len(s.AreasChecked))
+	default:
+		fmt.Fprintf(b, "scope: change from %s; %d areas checked, %d calling a changed module, %d left out", s.Change,
+			len(s.AreasChecked), len(s.AreasCalling), len(s.AreasLeftOut))
+		if len(s.AreasLeftOut) > 0 {
+			fmt.Fprintf(b, ": %s (--full-tree checks every area)", clean(strings.Join(s.AreasLeftOut, ", ")))
+		}
+		b.WriteString("\n")
+	}
+}
+
+// writeCallers writes each changed module with the floors the change moves,
+// and each caller with its own floor at those addresses and the version floor
+// candidates filed in its area. The JSON report has every floor.
+func writeCallers(b *strings.Builder, mods []facts.ChangedModule) {
+	for _, m := range mods {
+		base := map[string]string{}
+		for _, f := range m.BaseFloors {
+			base[f.Address] = constraint(f)
+		}
+		var moved, addrs []string
+		for _, f := range m.HeadFloors {
+			was, ok := base[f.Address]
+			switch {
+			case m.BaseFloors == nil:
+				moved = append(moved, f.Address+" "+constraint(f))
+			case !ok || was != constraint(f):
+				moved = append(moved, f.Address+" "+cmp.Or(was, "none")+" -> "+constraint(f))
+			default:
+				continue
+			}
+			addrs = append(addrs, f.Address)
+		}
+		fmt.Fprintf(b, "changed module %s (%s): %s\n", clean(m.Module), strings.Join(m.Changed, ", "),
+			clean(cmp.Or(strings.Join(moved, ", "), "floors unchanged")))
+		for _, c := range m.Callers {
+			own := map[string]string{}
+			for _, f := range c.Floors {
+				own[f.Address] = constraint(f)
+			}
+			var parts []string
+			for _, a := range addrs {
+				parts = append(parts, a+" "+cmp.Or(own[a], "none"))
+			}
+			if len(c.Candidates) > 0 {
+				parts = append(parts, "candidates "+strings.Join(c.Candidates, " "))
+			}
+			line := fmt.Sprintf("  called from %s:%d", c.File, c.Line)
+			if len(parts) > 0 {
+				line += ": " + strings.Join(parts, ", ")
+			}
+			fmt.Fprintf(b, "%s\n", clean(line))
+		}
+	}
+}
+
+func constraint(f facts.Floor) string {
+	if f.Constraint == nil {
+		return "no version"
+	}
+	return *f.Constraint
 }
 
 // clean makes a string from the tree safe for a terminal: control and

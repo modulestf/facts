@@ -27,7 +27,17 @@
       "required": ["head", "base"],
       "properties": {
         "head": {"$ref": "#/$defs/tree"},
-        "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}]}
+        "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/tree"}]},
+        "diff": {
+          "description": "Present when the base tree was rebuilt from a diff, lint --diff: its format and the SHA-256 of the file as read. A file the diff gives no patch for is in base with kind no_patch.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["format", "sha256"],
+          "properties": {
+            "format": {"enum": ["github-files", "unified"]},
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
       }
     },
     "schema_inputs": {"description": "Null when the run read no schema input. With raw provider schema files and no handoff, the handoff keys are null and schema_files lists the files.", "oneOf": [{"type": "null"}, {"$ref": "#/$defs/schema_inputs"}, {"$ref": "#/$defs/schema_files_inputs"}]},
@@ -99,7 +109,7 @@
             "required": ["path", "kind"],
             "properties": {
               "path": {"type": "string", "minLength": 1},
-              "kind": {"enum": ["file", "symlink", "special", "unreadable", "oversize"]},
+              "kind": {"enum": ["file", "symlink", "special", "unreadable", "oversize", "no_patch"]},
               "sha256": {"$ref": "#/$defs/sha256"}
             }
           }

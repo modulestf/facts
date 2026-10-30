@@ -6,11 +6,11 @@ package facts
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"regexp"
-	"slices"
 )
 
 // SchemaVersion is the version of the report format in schema/.
@@ -22,8 +22,15 @@ var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 
 // Options are the inputs of one run.
 type Options struct {
-	Head         string // directory of the head tree
-	Base         string // optional directory of the tree the change started from
+	Head string // directory of the head tree
+	Base string // optional directory of the tree the change started from
+	// Diff is the optional change as a file, a GitHub pull request files
+	// list or a unified diff, that the base tree is rebuilt from when there
+	// is no Base; see ReadDiffBase.
+	Diff string
+	// FullTree checks every area of the head tree, not only those the change
+	// touches. The change still decides which lines are judged.
+	FullTree     bool
 	HeadSHA      string // optional commit the head tree was extracted from
 	MergeBaseSHA string // optional commit the base tree was extracted from
 	RegistryFile string // optional rule-facts.md to hash
@@ -50,6 +57,11 @@ type Report struct {
 	// SchemaCoverage is left out unless a schema handoff binds to the run,
 	// and is empty when it binds and the change touches no block.
 	SchemaCoverage *[]SchemaCoverage `json:"schema_coverage,omitempty"`
+	// Scope says which areas the run checked and which it left out.
+	Scope *Scope `json:"scope,omitempty"`
+	// Callers lists the callers of each module whose versions or inputs the
+	// change touches. It is left out without a change.
+	Callers *[]ChangedModule `json:"callers,omitempty"`
 }
 
 // IndexEntry maps the lines of one block or argument to its area-scoped
@@ -106,9 +118,12 @@ type Tool struct {
 	BinarySHA256 string `json:"binary_sha256"`
 }
 
+// Inputs are the trees a run read. Diff is set when the base tree was rebuilt
+// from a diff.
 type Inputs struct {
 	Head TreeInput  `json:"head"`
 	Base *TreeInput `json:"base"`
+	Diff *DiffInput `json:"diff,omitempty"`
 }
 
 type TreeInput struct {
@@ -149,16 +164,37 @@ func run(o Options, rules []Rule) (*Report, error) {
 	}
 	env.Inputs.Head = treeInput(head)
 	var base *Tree
-	if o.Base != "" {
+	change := ChangeNone
+	switch {
+	case o.Base != "" && o.Diff != "":
+		return nil, errors.New("a base tree and a diff cannot be given together")
+	case o.Base != "":
 		if base, err = ReadTree(o.Base, o.Limits); err != nil {
 			return nil, fmt.Errorf("base tree: %w", err)
 		}
+		change = ChangeBase
+	case o.Diff != "":
+		if base, env.Inputs.Diff, err = ReadDiffBase(head, o.Diff, o.Limits); err != nil {
+			return nil, err
+		}
+		change = ChangeDiff
+	}
+	if base != nil {
 		bi := treeInput(base)
 		env.Inputs.Base = &bi
 	}
-	areas, err := FindAreas(head, base, o.Limits, needsUntouched(rules))
+	// With a change, the untouched areas are read too: the cross-area pass
+	// and the callers of a changed module need them.
+	areas, err := FindAreas(head, base, o.Limits, true)
 	if err != nil {
 		return nil, err
+	}
+	touched := map[string]bool{}
+	for _, a := range areas {
+		touched[a.Path] = !a.Untouched
+		if o.FullTree {
+			a.Untouched = false
+		}
 	}
 	if env.SchemaInputs, err = applySchema(o, head, base, areas); err != nil {
 		return nil, err
@@ -174,14 +210,14 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if err := CheckManifest(manifest, rules, areas); err != nil {
 		return nil, err
 	}
+	var callers *[]ChangedModule
+	if base != nil {
+		cs := BuildCallers(areas, ch, candidates)
+		callers = &cs
+	}
 	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates, Index: BuildIndex(areas),
-		InterfaceDiff: BuildInterfaceDiff(env.HeadSHA, env.MergeBaseSHA, areas), SchemaCoverage: BuildSchemaCoverage(areas)}, nil
-}
-
-// needsUntouched reports whether any rule is cross-area. Untouched areas
-// matter only to a cross-area pass, so they are parsed only then.
-func needsUntouched(rules []Rule) bool {
-	return slices.ContainsFunc(rules, func(r Rule) bool { return r.CrossArea })
+		InterfaceDiff: BuildInterfaceDiff(env.HeadSHA, env.MergeBaseSHA, areas), SchemaCoverage: BuildSchemaCoverage(areas),
+		Scope: buildScope(change, o.FullTree, areas, touched, callers), Callers: callers}, nil
 }
 
 func optionalSHA(name, s string) (*string, error) {

@@ -1,0 +1,140 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.default-changed",
+      "area": "examples/c",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.default-changed",
+      "area": "examples/old",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.default-changed",
+      "area": "modules/log",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": "examples/c",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": "examples/old",
+      "status": "not_applicable"
+    },
+    {
+      "rule_id": "compat.version-constraint-raised",
+      "area": "modules/log",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.version-floor-understated",
+      "area": ".",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "structure.version-floor-understated",
+      "area": "examples/a",
+      "status": "candidate"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "structure.version-floor-understated",
+      "file": "examples/a/versions.tf",
+      "line": 7,
+      "subject": "examples/a:required_providers.aws",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "examples/a/versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 5.81\""
+          },
+          {
+            "revision": "head",
+            "file": "modules/log/versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 6.25\""
+          },
+          {
+            "revision": "head",
+            "file": "examples/a/main.tf",
+            "line": 2,
+            "text": "  source = \"../../modules/log\""
+          }
+        ],
+        "base": "\"\u003e= 5.81\"",
+        "head": "\"\u003e= 5.81\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.version-constraint-raised",
+      "file": "modules/log/versions.tf",
+      "line": 7,
+      "subject": "modules/log:required_providers.aws",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "modules/log/versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 5.81\""
+          },
+          {
+            "revision": "head",
+            "file": "modules/log/versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 6.25\""
+          }
+        ],
+        "base": "\u003e= 5.81",
+        "head": "\u003e= 6.25",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-003",
+      "rule_id": "structure.version-floor-understated",
+      "file": "versions.tf",
+      "line": 7,
+      "subject": ".:required_providers.aws",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 5.81\""
+          },
+          {
+            "revision": "head",
+            "file": "modules/log/versions.tf",
+            "line": 7,
+            "text": "      version = \"\u003e= 6.25\""
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 2,
+            "text": "  source = \"./modules/log\""
+          }
+        ],
+        "base": "\"\u003e= 5.81\"",
+        "head": "\"\u003e= 5.81\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

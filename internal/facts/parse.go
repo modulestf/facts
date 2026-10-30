@@ -318,6 +318,8 @@ func kindCode(k string) string {
 		return ReasonSymlink
 	case KindOversize:
 		return ReasonLimitExceeded
+	case KindNoPatch:
+		return ReasonNoBase
 	}
 	return ReasonUnsupportedFile
 }
@@ -330,6 +332,8 @@ func kindText(k string) string {
 		return "a special file"
 	case KindOversize:
 		return "over the file size limit"
+	case KindNoPatch:
+		return "a file the diff gives no patch for, so its base content is unknown"
 	}
 	return "unreadable"
 }

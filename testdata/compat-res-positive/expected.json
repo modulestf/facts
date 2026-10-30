@@ -28,6 +28,11 @@
       "status": "candidate"
     },
     {
+      "rule_id": "compat.resource-address-changed",
+      "area": "modules/child",
+      "status": "candidate"
+    },
+    {
       "rule_id": "compat.version-constraint-raised",
       "area": ".",
       "status": "candidate"

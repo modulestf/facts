@@ -1,0 +1,83 @@
+[
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "examples/c/README.md",
+    "status": "added",
+    "additions": 3,
+    "deletions": 0,
+    "changes": 3,
+    "patch": "@@ -0,0 +1,3 @@\n+# Example c\n+\n+Shows deletion protection."
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "examples/c/main.tf",
+    "status": "modified",
+    "additions": 3,
+    "deletions": 2,
+    "changes": 5,
+    "patch": "@@ -1,5 +1,6 @@\n module \"log\" {\n   source = \"../../modules/log\"\n \n-  name = \"c\"\n-}\n+  name                        = \"c\"\n+  deletion_protection_enabled = true\n+}\n\\ No newline at end of file"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "examples/c/versions.tf",
+    "status": "modified",
+    "additions": 1,
+    "deletions": 1,
+    "changes": 2,
+    "patch": "@@ -4,7 +4,7 @@ terraform {\n   required_providers {\n     aws = {\n       source  = \"hashicorp/aws\"\n-      version = \">= 5.81\"\n+      version = \">= 6.25\"\n     }\n   }\n }"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "examples/old/main.tf",
+    "status": "removed",
+    "additions": 0,
+    "deletions": 5,
+    "changes": 5,
+    "patch": "@@ -1,5 +0,0 @@\n-module \"log\" {\n-  source = \"../../modules/log\"\n-\n-  name = \"old\"\n-}"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "examples/old/versions.tf",
+    "status": "removed",
+    "additions": 0,
+    "deletions": 10,
+    "changes": 10,
+    "patch": "@@ -1,10 +0,0 @@\n-terraform {\n-  required_version = \">= 1.5.7\"\n-\n-  required_providers {\n-    aws = {\n-      source  = \"hashicorp/aws\"\n-      version = \">= 5.81\"\n-    }\n-  }\n-}"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "modules/log/main.tf",
+    "status": "modified",
+    "additions": 2,
+    "deletions": 1,
+    "changes": 3,
+    "patch": "@@ -1,3 +1,4 @@\n resource \"aws_demo_widget\" \"this\" {\n-  name = var.name\n+  name                        = var.name\n+  deletion_protection_enabled = var.deletion_protection_enabled\n }"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "modules/log/output.tf",
+    "status": "renamed",
+    "additions": 0,
+    "deletions": 0,
+    "changes": 0,
+    "previous_filename": "modules/log/outputs.tf"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "modules/log/variables.tf",
+    "status": "modified",
+    "additions": 6,
+    "deletions": 0,
+    "changes": 6,
+    "patch": "@@ -2,3 +2,9 @@ variable \"name\" {\n   description = \"Name of the log group\"\n   type        = string\n }\n+\n+variable \"deletion_protection_enabled\" {\n+  description = \"Whether deletion protection is enabled\"\n+  type        = bool\n+  default     = null\n+}"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "modules/log/versions.tf",
+    "status": "modified",
+    "additions": 1,
+    "deletions": 1,
+    "changes": 2,
+    "patch": "@@ -4,7 +4,7 @@ terraform {\n   required_providers {\n     aws = {\n       source  = \"hashicorp/aws\"\n-      version = \">= 5.81\"\n+      version = \">= 6.25\"\n     }\n   }\n }"
+  }
+]

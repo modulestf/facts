@@ -93,37 +93,43 @@ func TestEvaluateCrossArea(t *testing.T) {
 	for name, tc := range map[string]struct {
 		rule        Rule
 		areas       []*Area
-		want        ManifestEntry
+		want        []ManifestEntry
 		nFindings   int
 		nCandidates int
 	}{
 		"clean, no area of its kinds": {
 			rule: crossRule(AreaExample), areas: []*Area{root, modA},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusClean},
+			want: []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusClean}},
 		},
-		"finding in a submodule": {
+		"finding in a submodule, filed under it": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, exX},
-			want:      ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusFinding},
+			want:      []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusClean}, {RuleID: "test.cross", Area: "modules/a", Status: StatusFinding}},
 			nFindings: 1,
+		},
+		"finding and candidate, each in its area": {
+			rule: crossRule(AreaRoot, AreaSubmodule, AreaExample), areas: []*Area{root, modA, exX},
+			want: []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusClean}, {RuleID: "test.cross", Area: "examples/x", Status: StatusCandidate},
+				{RuleID: "test.cross", Area: "modules/a", Status: StatusFinding}},
+			nFindings: 1, nCandidates: 1,
 		},
 		"candidate in an example, root not in scope": {
 			rule: crossRule(AreaExample), areas: []*Area{exX},
-			want:        ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusCandidate},
+			want:        []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusClean}, {RuleID: "test.cross", Area: "examples/x", Status: StatusCandidate}},
 			nCandidates: 1,
 		},
 		"parse error in one area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modBad},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError},
+			want: []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError}},
 		},
 		"unreadable area drops every finding": {
 			rule: crossRule(AreaRoot, AreaSubmodule), areas: []*Area{root, modA, modLink},
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink, ReasonCode: ReasonSymlink},
+			want: []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonSymlink, ReasonCode: ReasonSymlink}},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			m, fs, cs := Evaluate(tc.areas, []Rule{tc.rule}, changeFor(t, tc.areas, "modules/a/main.tf", "examples/x/main.tf"))
-			if !reflect.DeepEqual(m, []ManifestEntry{tc.want}) {
-				t.Errorf("manifest\n got %+v\nwant %+v", m, []ManifestEntry{tc.want})
+			if !reflect.DeepEqual(m, tc.want) {
+				t.Errorf("manifest\n got %+v\nwant %+v", m, tc.want)
 			}
 			if len(fs) != tc.nFindings || len(cs) != tc.nCandidates {
 				t.Errorf("findings %+v candidates %+v", fs, cs)
@@ -143,11 +149,18 @@ func TestEvaluateCrossArea(t *testing.T) {
 func TestCheckManifestCrossArea(t *testing.T) {
 	areas := []*Area{{Path: ".", Kind: AreaRoot, Head: &Module{}}, {Path: "modules/a", Kind: AreaSubmodule, Head: &Module{}}}
 	rules := []Rule{crossRule(AreaRoot, AreaSubmodule)}
+	root := ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusClean}
+	inA := ManifestEntry{RuleID: "test.cross", Area: "modules/a", Status: StatusFinding}
+	if err := CheckManifest([]ManifestEntry{root, inA}, rules, areas); err != nil {
+		t.Errorf("an entry under . and one where a finding is: %v", err)
+	}
 	for name, m := range map[string][]ManifestEntry{
-		"entry per area":  {{RuleID: "test.cross", Area: ".", Status: StatusClean}, {RuleID: "test.cross", Area: "modules/a", Status: StatusFinding}},
-		"no root entry":   {{RuleID: "test.cross", Area: "modules/a", Status: StatusFinding}},
-		"no entry":        {},
-		"duplicate entry": {{RuleID: "test.cross", Area: ".", Status: StatusClean}, {RuleID: "test.cross", Area: ".", Status: StatusClean}},
+		"no root entry":             {inA},
+		"no entry":                  {},
+		"duplicate entry":           {root, root},
+		"duplicate entry outside .": {root, inA, inA},
+		"clean entry outside .":     {root, {RuleID: "test.cross", Area: "modules/a", Status: StatusClean}},
+		"not evaluated outside .":   {root, {RuleID: "test.cross", Area: "modules/a", Status: StatusNotEvaluated, Reason: "x", ReasonCode: ReasonParseError}},
 	} {
 		if err := CheckManifest(m, rules, areas); err == nil {
 			t.Errorf("%s: passed", name)
@@ -162,17 +175,17 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 	const sub = "variable \"x\" {}\n"
 	for name, tc := range map[string]struct {
 		baseRoot, headRoot string
-		want               ManifestEntry
+		want               []ManifestEntry
 		wantFindings       []string
 	}{
 		"untouched root is read, its finding dropped": {
 			baseRoot: "", headRoot: "",
-			want:         ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusFinding},
+			want:         []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusClean}, {RuleID: "test.cross", Area: "modules/a", Status: StatusFinding}},
 			wantFindings: []string{"modules/a/variables.tf"},
 		},
 		"untouched root that cannot be parsed": {
 			baseRoot: "variable {", headRoot: "variable {",
-			want: ManifestEntry{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError},
+			want: []ManifestEntry{{RuleID: "test.cross", Area: ".", Status: StatusNotEvaluated, Reason: ReasonParseError, ReasonCode: ReasonParseError}},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -191,13 +204,13 @@ func TestCrossAreaPassReadsUntouchedRoot(t *testing.T) {
 					return Result{Findings: []Finding{finding("test.cross", a.Path, "variables.tf", line, "s", "f")}}
 				}}
 			m, fs, cs := Evaluate(areas, []Rule{rule}, mustChange(t, head, base, areas))
-			if !reflect.DeepEqual(m, []ManifestEntry{tc.want}) {
-				t.Errorf("manifest\n got %+v\nwant %+v", m, []ManifestEntry{tc.want})
+			if !reflect.DeepEqual(m, tc.want) {
+				t.Errorf("manifest\n got %+v\nwant %+v", m, tc.want)
 			}
 			if err := CheckManifest(m, []Rule{rule}, areas); err != nil {
 				t.Error(err)
 			}
-			if tc.want.Status != StatusNotEvaluated && !reflect.DeepEqual(read, []string{".", "modules/a"}) {
+			if tc.want[0].Status != StatusNotEvaluated && !reflect.DeepEqual(read, []string{".", "modules/a"}) {
 				t.Errorf("pass read %v, want the root and modules/a", read)
 			}
 			var files []string
@@ -257,24 +270,7 @@ func TestCrossAreaPassNotEvaluated(t *testing.T) {
 	}
 }
 
-func TestNeedsUntouched(t *testing.T) {
-	plain := Rule{ID: "test.plain"}
-	for name, tc := range map[string]struct {
-		rules []Rule
-		want  bool
-	}{
-		"no rules":            {rules: nil, want: false},
-		"no cross-area rule":  {rules: []Rule{plain}, want: false},
-		"one cross-area rule": {rules: []Rule{plain, crossRule(AreaRoot)}, want: true},
-		"implemented rules":   {rules: Rules, want: true}, // examples.stale-reference and examples.submodule-missing are cross-area
-	} {
-		if got := needsUntouched(tc.rules); got != tc.want {
-			t.Errorf("%s: got %v, want %v", name, got, tc.want)
-		}
-	}
-}
-
-// Run hands the flag to FindAreas: with a cross-area rule implemented, an
+// Run reads the untouched areas of a change: with a cross-area rule, an
 // untouched root that cannot be parsed makes its entry not_evaluated.
 func TestRunReadsUntouchedAreasForCrossAreaRule(t *testing.T) {
 	saved := Rules

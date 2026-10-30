@@ -28,6 +28,11 @@
     {
       "rule_id": "examples.submodule-missing",
       "area": ".",
+      "status": "clean"
+    },
+    {
+      "rule_id": "examples.submodule-missing",
+      "area": "modules/gadget",
       "status": "candidate"
     }
   ],

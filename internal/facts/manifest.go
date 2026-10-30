@@ -2,6 +2,7 @@ package facts
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"slices"
 	"sort"
@@ -93,6 +94,18 @@ type Candidate struct {
 	Subject          string   `json:"subject"`
 	Evidence         Evidence `json:"evidence"`
 	EvidenceComplete bool     `json:"evidence_complete"`
+	// cause, when set, is the changed line that brings a cross-area candidate
+	// into the change, where File and Line are the defect it points at, such
+	// as a caller's floor that a callee's raise makes too low.
+	cause *anchor
+}
+
+// scopeAt is the place the engine judges a candidate's scope by.
+func (c Candidate) scopeAt() (string, *int) {
+	if c.cause != nil {
+		return c.cause.file, &c.cause.line
+	}
+	return c.File, c.Line
 }
 
 // Finding has the seven fields of the reviewer's findings schema.
@@ -117,8 +130,10 @@ type ManifestEntry struct {
 }
 
 // Evaluate runs every rule on every area in scope and returns one manifest
-// entry per (rule, area), or one under the root for a cross-area rule, whose
-// pass also reads the untouched areas, the findings
+// entry per (rule, area). A cross-area rule, whose pass also reads the
+// untouched areas, has one entry under the root for the pass, and one more
+// under each other area that holds one of its findings or candidates; see
+// crossEntries. It returns the findings
 // ordered and numbered as the findings schema says, and the candidates
 // numbered by file and line. Each rule keeps only the findings and
 // candidates its scope judges in ch; see scoped. ch must not be nil.
@@ -137,7 +152,7 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 	for _, r := range rules {
 		if r.CrossArea {
 			res := evaluateCrossArea(r, areas, ch)
-			manifest = append(manifest, manifestEntry(r.ID, rootArea, res))
+			manifest = append(manifest, crossEntries(r.ID, res, peers)...)
 			findings = append(findings, res.Findings...)
 			candidates = append(candidates, res.Candidates...)
 			continue
@@ -157,6 +172,52 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 	sortFindings(findings)
 	sortCandidates(candidates)
 	return manifest, findings, candidates
+}
+
+// crossEntries files the result of a cross-area pass: the root entry for the
+// pass, not_evaluated when the pass was incomplete and otherwise from the
+// items in the root area, and one entry per other area that holds an item,
+// so each item is under the deepest area directory that holds its file.
+func crossEntries(rule string, res Result, peers map[string]*Area) []ManifestEntry {
+	if res.NotEvaluated != "" {
+		return []ManifestEntry{manifestEntry(rule, rootArea, res)}
+	}
+	by := map[string]*Result{rootArea: {}}
+	in := func(file string) *Result {
+		a := itemArea(file, peers)
+		if by[a] == nil {
+			by[a] = &Result{}
+		}
+		return by[a]
+	}
+	for _, f := range res.Findings {
+		r := in(f.File)
+		r.Findings = append(r.Findings, f)
+	}
+	for _, c := range res.Candidates {
+		r := in(c.File)
+		r.Candidates = append(r.Candidates, c)
+	}
+	out := []ManifestEntry{manifestEntry(rule, rootArea, *by[rootArea])}
+	for _, a := range slices.Sorted(maps.Keys(by)) {
+		if a != rootArea {
+			out = append(out, manifestEntry(rule, a, *by[a]))
+		}
+	}
+	return out
+}
+
+// itemArea is the area of an item's file: an area directory itself, such as
+// the subject of a path rule, or the modules/<name> or examples/<name> that
+// holds the file; anything else is the root's.
+func itemArea(file string, peers map[string]*Area) string {
+	if peers[file] != nil {
+		return file
+	}
+	if parts := strings.SplitN(file, "/", 3); len(parts) == 3 && (parts[0] == "modules" || parts[0] == "examples") {
+		return parts[0] + "/" + parts[1]
+	}
+	return rootArea
 }
 
 // evaluate runs one rule in one area after the shared gate.
@@ -189,7 +250,7 @@ func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
 		res := scoped(r, evaluate(r, a), ch)
 		if a.Untouched && res.NotEvaluated == "" {
 			res.Findings = slices.DeleteFunc(res.Findings, func(f Finding) bool { return !ch.paths[f.File] })
-			res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { return !ch.paths[c.File] })
+			res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { f, _ := c.scopeAt(); return !ch.paths[f] })
 		}
 		switch res.NotEvaluated {
 		case StatusNotApplicable:
@@ -226,7 +287,7 @@ func scoped(r Rule, res Result, ch *ChangeMap) Result {
 		return !in
 	}
 	res.Findings = slices.DeleteFunc(res.Findings, func(f Finding) bool { return drop(f.File, f.Line) })
-	res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { return drop(c.File, c.Line) })
+	res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { return drop(c.scopeAt()) })
 	if unknown {
 		return Result{NotEvaluated: "a changed file is past the line diff limit", Code: ReasonLimitExceeded}
 	}
@@ -340,15 +401,18 @@ func sortStrings(ss ...[]string) {
 
 // CheckManifest is the integrity check: exactly one entry per (rule, area in
 // scope) for every tool and candidate rule, one under the root for a cross-area
-// rule, no other entry, and a reason code on every not_evaluated entry.
+// rule plus at most one finding or candidate entry per other area, no other
+// entry, and a reason code on every not_evaluated entry.
 func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 	want := map[[2]string]bool{}
+	cross := map[string]bool{}
 	for _, r := range rules {
 		if r.Tier != "tool" && r.Tier != "candidate" {
 			continue
 		}
 		if r.CrossArea {
 			want[[2]string{r.ID, rootArea}] = true
+			cross[r.ID] = true
 			continue
 		}
 		for _, a := range areas {
@@ -359,18 +423,23 @@ func CheckManifest(m []ManifestEntry, rules []Rule, areas []*Area) error {
 		}
 	}
 	seen := map[[2]string]bool{}
+	filed := 0 // cross-area entries outside the root
 	for _, e := range m {
 		k := [2]string{e.RuleID, e.Area}
-		if !want[k] || seen[k] {
+		item := cross[e.RuleID] && e.Area != rootArea && (e.Status == StatusFinding || e.Status == StatusCandidate)
+		if !want[k] && !item || seen[k] {
 			return fmt.Errorf("integrity: unexpected or duplicate manifest entry %s in %s", e.RuleID, e.Area)
 		}
 		if e.Status == StatusNotEvaluated && !reasonCodes[e.ReasonCode] {
 			return fmt.Errorf("integrity: %s in %s is not evaluated with reason code %q", e.RuleID, e.Area, e.ReasonCode)
 		}
 		seen[k] = true
+		if !want[k] {
+			filed++
+		}
 	}
-	if len(seen) != len(want) {
-		return fmt.Errorf("integrity: %d manifest entries, want %d", len(seen), len(want))
+	if len(seen)-filed != len(want) {
+		return fmt.Errorf("integrity: %d manifest entries, want %d", len(seen)-filed, len(want))
 	}
 	return nil
 }
