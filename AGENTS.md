@@ -27,6 +27,10 @@ The following Go skills from `samber/cc-skills-golang` MUST always be applied wh
 - `samber/cc-skills-golang@golang-continuous-integration`
 - `samber/cc-skills-golang@golang-dependency-management`
 
+## Hard decisions
+
+On a hard decision, such as a report format, a flag name, a rule's severity or a schema change, ask several independent models for a consensus review before you choose. Give them the options and the constraints, weigh their objections one by one, and record why you dismissed any. The owner does not always have the best idea, and a consensus review is how a weak one gets caught before it ships.
+
 ## Checks
 
 Run all of these before you hand off a change:

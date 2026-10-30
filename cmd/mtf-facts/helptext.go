@@ -58,7 +58,11 @@ areas it checked, reached only as callers, or left out.
 
 It prints the findings, the candidates, the rules not evaluated and a summary,
 or with --json the full report: the envelope, the manifest, the findings and
-the candidates.
+the candidates. --ai with --json keeps what a reviewer decides on: the
+manifest keeps its finding, candidate and not_evaluated entries and
+manifest_summary counts the rest, each tree keeps its hash and a file count
+in place of its file list, and the index, the interface diff and the schema
+coverage are left out, on one line. bundle needs the full report.
 Candidates are unconfirmed and never change the exit code. The envelope
 records the hash of --registry and the commits of --head-sha and
 --merge-base-sha, each null when its flag is absent. A missing, oversized or
@@ -73,11 +77,13 @@ Exit codes:
   3  no findings, but at least one rule was not_evaluated in some area`
 	lintExample = `  mtf-facts lint path/to/module
   mtf-facts lint path/to/module --base path/to/base-tree --json
-  mtf-facts lint path/to/module --diff files.json --json`
+  mtf-facts lint path/to/module --diff files.json --json
+  mtf-facts lint path/to/module --diff files.json --json --ai`
 	lintBaseUsage          = "the `tree` the change started from; only the areas the change touched are checked"
 	lintDiffUsage          = "the change as a `file`, a GitHub pull request files list or a unified diff, to rebuild the base tree from; not with --base"
 	lintFullTreeUsage      = "check every area, not only those the change touched"
 	lintJSONUsage          = "write the full report as JSON"
+	lintAIUsage            = "with --json, write the AI report a reviewer reads; bundle needs the full one"
 	lintTimeoutUsage       = "stop with an error after this long; must be greater than zero"
 	lintRegistryUsage      = "rule registry `file` (rule-facts.md) whose hash the report records"
 	lintProfileDirUsage    = "module profile `dir`; must exist and not be a link (links in parent components resolve)"

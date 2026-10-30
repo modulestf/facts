@@ -22,11 +22,11 @@ func regionFile(t *testing.T, fixture string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, data); err != nil {
+	var ai bytes.Buffer
+	if err := json.Compact(&ai, data); err != nil {
 		t.Fatal(err)
 	}
-	payload, err := json.Marshal(compact.String())
+	payload, err := json.Marshal(ai.String())
 	if err != nil {
 		t.Fatal(err)
 	}

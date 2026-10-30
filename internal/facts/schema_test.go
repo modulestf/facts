@@ -466,27 +466,59 @@ func TestReportMatchesSchemas(t *testing.T) {
 	}
 }
 
-// checkReport validates a report against the lint, envelope and manifest
-// schemas, and requires one not_evaluated entry with a reason code.
+// checkReport validates a report and its AI form against the lint,
+// envelope and manifest schemas, and requires one not_evaluated entry with a
+// reason code in each.
 func checkReport(t *testing.T, set schemaSet, r *Report) {
 	t.Helper()
-	data, err := json.Marshal(r)
+	for _, form := range []any{r, r.AIReport()} {
+		data, err := json.Marshal(form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := decodeJSON(t, data)
+		if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
+			t.Errorf("lint schema: %v\n%s", errs, data)
+		}
+		m := v.(map[string]any)
+		if errs := set.validate("envelope.schema.json", m["envelope"]); len(errs) > 0 {
+			t.Errorf("envelope schema: %v", errs)
+		}
+		if errs := set.validate("manifest.schema.json", m["manifest"]); len(errs) > 0 {
+			t.Errorf("manifest schema: %v", errs)
+		}
+		if !strings.Contains(string(data), `"reason_code":"parse_error"`) {
+			t.Errorf("no not_evaluated entry with a reason code: %s", data)
+		}
+	}
+}
+
+// TestAISchemaRejectsMixedForms refuses a report that mixes the full
+// and AI forms: a manifest summary with file lists, or file counts
+// without a manifest summary.
+func TestAISchemaRejectsMixedForms(t *testing.T) {
+	set := loadSchemas(t)
+	head := writeTree(t, map[string]string{"main.tf": "variable {"})
+	r, err := Run(Options{Head: head, Version: "test", BinarySHA256: strings.Repeat("0", 64), Limits: DefaultLimits})
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := decodeJSON(t, data)
-	if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
-		t.Errorf("lint schema: %v\n%s", errs, data)
+	full, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
 	}
-	m := v.(map[string]any)
-	if errs := set.validate("envelope.schema.json", m["envelope"]); len(errs) > 0 {
-		t.Errorf("envelope schema: %v", errs)
+	ai, err := json.Marshal(r.AIReport())
+	if err != nil {
+		t.Fatal(err)
 	}
-	if errs := set.validate("manifest.schema.json", m["manifest"]); len(errs) > 0 {
-		t.Errorf("manifest schema: %v", errs)
+	f, c := decodeJSON(t, full).(map[string]any), decodeJSON(t, ai).(map[string]any)
+	f["manifest_summary"] = c["manifest_summary"]
+	if errs := set.validate("lint.schema.json", f); len(errs) == 0 {
+		t.Error("a manifest summary with file lists is valid")
 	}
-	if !strings.Contains(string(data), `"reason_code":"parse_error"`) {
-		t.Errorf("no not_evaluated entry with a reason code: %s", data)
+	delete(c, "manifest_summary")
+	if errs := set.validate("lint.schema.json", c); len(errs) == 0 {
+		t.Error("file counts without a manifest summary are valid")
 	}
 }
 

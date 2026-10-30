@@ -133,3 +133,16 @@ func TestProfileSHA256MatchesLint(t *testing.T) {
 		t.Error("a file passed as the profile directory")
 	}
 }
+
+// TestReadReportRefusesAI refuses a lint --ai report by name,
+// before the strict decode trips on its first ai key.
+func TestReadReportRefusesAI(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "report.json")
+	doc := `{"envelope":{"inputs":{"head":{"tree_sha256":"","file_count":1}}},"manifest_summary":{}}`
+	if err := os.WriteFile(p, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadReport(p); !errors.Is(err, facts.ErrAIReport) {
+		t.Errorf("AI report gives %v", err)
+	}
+}
