@@ -497,3 +497,14 @@ func TestCasesContextualRefs(t *testing.T) {
 		t.Errorf("path.module: %v %q", st, why)
 	}
 }
+
+// TestBaseIdenticalOversizeFile: with --base, a large file identical in
+// both trees is no entry.
+func TestBaseIdenticalOversizeFile(t *testing.T) {
+	big := strings.Repeat("z", int(facts.DefaultLimits.MaxFileBytes)+1)
+	r := runPair(t, map[string]string{"main.tf": rds, "README.md": "a\n", "examples/s3-import/backup.zip": big},
+		map[string]string{"main.tf": rds, "README.md": "b\n", "examples/s3-import/backup.zip": big}, "")
+	if len(r.Entries) != 1 || r.Entries[0].Path != "README.md" || !r.Inert {
+		t.Errorf("%s", mustJSON(t, r))
+	}
+}

@@ -326,9 +326,11 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 	case "known":
 		return pair(side("base", p.base), side("head", p.head))
 	case "wholly_unknown", "unknown_mask":
-		// Only the change between wholly unknown and partly known, at L1,
-		// stated by scoped claims with the known length pinned.
-		if p.level != LevelL1 || whollyUnknown(p.base) == whollyUnknown(p.head) || !transitionSide(p.base) || !transitionSide(p.head) {
+		// Only the change from wholly unknown at the base to partly known at
+		// the head, at L1, stated by scoped claims with the known length
+		// pinned. The reverse makes a known length unknown again, which no
+		// claim can make a pass.
+		if p.level != LevelL1 || !whollyUnknown(p.base) || whollyUnknown(p.head) || !transitionSide(p.base) || !transitionSide(p.head) {
 			return nil
 		}
 		return pair(side("base", p.base), side("head", p.head))
@@ -368,9 +370,13 @@ func filtering(p casePair, claims []Claim, verified map[string]bool) []string {
 			kept, drop, filterRev = p.base, p.head, "head"
 		}
 		var ids, markers []string
+		inputMarkers := map[string]int{} // marker -> its elements in the kept inputs
 		for _, k := range claims {
 			if k.PredicateType != PredInputFiltered || !k.Kept || k.Revision != keptRev || !verified[k.ClaimID] || judge(k, kept) != vSupport {
 				continue
+			}
+			if v, ok := caseValue(kept.Inputs[k.Input]); ok {
+				inputMarkers[k.Value] += countMarker(v, k.Value)
 			}
 			for _, f := range claims {
 				if f.PredicateType == PredInputFiltered && !f.Kept && f.Revision == filterRev && verified[f.ClaimID] &&
@@ -381,12 +387,28 @@ func filtering(p casePair, claims []Claim, verified map[string]bool) []string {
 				}
 			}
 		}
-		if ids != nil && known(kept) && known(drop) && stripped(kept.Value, markers, drop.Value) {
+		within := !slices.ContainsFunc(markers, func(m string) bool { return countMarker(kept.Value, m) > inputMarkers[m] })
+		if ids != nil && within && known(kept) && known(drop) && stripped(kept.Value, markers, drop.Value) {
 			slices.Sort(ids)
 			return slices.Compact(ids)
 		}
 	}
 	return nil
+}
+
+// countMarker counts the marker elements of a list.
+func countMarker(list json.RawMessage, marker string) int {
+	var els []json.RawMessage
+	if json.Unmarshal(list, &els) != nil {
+		return 0
+	}
+	n := 0
+	for _, el := range els {
+		if holdsAny([]json.RawMessage{el}, marker) {
+			n++
+		}
+	}
+	return n
 }
 
 // stripped reports whether the list kept with every marker element

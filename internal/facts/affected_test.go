@@ -505,9 +505,16 @@ func TestAffectedOversize(t *testing.T) {
 			}
 		})
 	}
-	t.Run("base tree: oversize stays unknown, so changed", func(t *testing.T) {
+	t.Run("base tree: an identical oversize file is unchanged", func(t *testing.T) {
 		base := writeTree(t, with(affectedHead, map[string]string{"examples/complete/backup.zip": big}))
 		r := runAffectedDirs(t, writeTree(t, with(affectedHead, map[string]string{"examples/complete/backup.zip": big})), base)
+		if len(r.Changed) != 0 {
+			t.Errorf("changed = %q", r.Changed)
+		}
+	})
+	t.Run("base tree: a changed oversize file is changed", func(t *testing.T) {
+		base := writeTree(t, with(affectedHead, map[string]string{"examples/complete/backup.zip": big + "1"}))
+		r := runAffectedDirs(t, writeTree(t, with(affectedHead, map[string]string{"examples/complete/backup.zip": big + "2"})), base)
 		if !slices.Equal(r.Changed, []string{"examples/complete/backup.zip"}) || r.Inert {
 			t.Errorf("changed = %q, inert %v", r.Changed, r.Inert)
 		}

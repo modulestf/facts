@@ -891,3 +891,58 @@ func TestSweepPR556Verified(t *testing.T) {
 		t.Errorf("wrong filter claim: %s", mustJSON(t, r))
 	}
 }
+
+// TestSweepPR556Backwards: putting compact() back, with the mirrored
+// claims, never verifies: partly known to wholly unknown is never
+// explained.
+func TestSweepPR556Backwards(t *testing.T) {
+	b := pr556Report(t)
+	var base, head []string
+	for _, c := range b.Triggers[0].Cases {
+		base, head = append(base, simulate(c, false)), append(head, simulate(c, true))
+	}
+	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
+	var mirrored []string
+	for _, c := range append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 8)...) {
+		c = strings.Replace(c, `"revision":"base"`, `"revision":"tmp"`, 1)
+		c = strings.Replace(c, `"revision":"head"`, `"revision":"base"`, 1)
+		mirrored = append(mirrored, strings.Replace(c, `"revision":"tmp"`, `"revision":"head"`, 1))
+	}
+	r := evalWith(t, b, ladder(t, run, noCoverage), mirrored...)
+	for _, c := range r.Claims {
+		if c.State != StateVerified {
+			t.Errorf("mirrored %s: %s %s", c.ClaimID, c.State, c.Reason)
+		}
+	}
+	s := r.Triggers[0]
+	if s.State != StateUnverifiable {
+		t.Errorf("backwards: %s", mustJSON(t, s))
+	}
+	for _, ch := range s.Changes {
+		if (ch.Attribute == "wholly_unknown" || ch.Attribute == "unknown_mask") && ch.Explained {
+			t.Errorf("a regression to wholly unknown is explained: %+v", ch)
+		}
+	}
+}
+
+// TestFilteringCountsMarkers: the kept side may hold no more marker
+// elements than the input has.
+func TestFilteringCountsMarkers(t *testing.T) {
+	b := pr556Report(t)
+	in := `"inputs":{"vpc_security_group_ids":{"value":[""],"unknown":false,"null":false,"omitted":false}}`
+	withCases(t, b, "T-001", `{"case":"c",`+in+`}`)
+	base := `{"case":"c",` + in + `,"known":true,"length":1,"value":["a"],"unknown_mask":false}`
+	claims := []string{
+		claim("C-1", PredInputFiltered, `{"node":"T-001","revision":"base","input":"vpc_security_group_ids","value":"empty-string"}`),
+		claim("C-2", PredInputFiltered, `{"node":"T-001","revision":"head","input":"vpc_security_group_ids","value":"empty-string","filtered":false}`),
+	}
+	for head, want := range map[string]string{
+		`{"case":"c",` + in + `,"known":true,"length":2,"value":["a",""],"unknown_mask":false}`:    StateVerified,
+		`{"case":"c",` + in + `,"known":true,"length":3,"value":["a","",""],"unknown_mask":false}`: StateUnverifiable,
+	} {
+		r := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", base, head), noCoverage), claims...)
+		if s := r.Triggers[0]; s.State != want {
+			t.Errorf("head %s: %s, want %s", head, mustJSON(t, s), want)
+		}
+	}
+}
