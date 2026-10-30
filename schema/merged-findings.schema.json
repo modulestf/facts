@@ -122,7 +122,7 @@
             ],
             "properties": {
               "subject": {
-                "pattern": "^(compat|coverage|structure|examples|profile|scope|review)\\.[a-z0-9]+(-[a-z0-9]+)*@.",
+                "pattern": "^(compat|coverage|structure|examples|profile|scope|review|claim)\\.[a-z0-9]+(-[a-z0-9]+)*@.",
                 "type": "string"
               },
               "candidate_id": false
@@ -172,7 +172,7 @@
       "description": "A subject with no rule_id prefix. Only a host review.check-not-run has one.",
       "type": "string",
       "not": {
-        "pattern": "^(compat|coverage|structure|examples|profile|scope|review)\\.[a-z0-9]+(-[a-z0-9]+)*@"
+        "pattern": "^(compat|coverage|structure|examples|profile|scope|review|claim)\\.[a-z0-9]+(-[a-z0-9]+)*@"
       }
     }
   }

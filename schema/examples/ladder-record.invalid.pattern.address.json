@@ -1,0 +1,1 @@
+{"schema_version": 1, "head_sha": "0000000000000000000000000000000000000000", "base_sha": "1111111111111111111111111111111111111111", "terraform_version": null, "pins": [], "runs": [], "coverage": {"class": "none", "examples": [{"dir": "examples/a", "head": "planned", "base": null, "addresses": ["module.a[\"k\"].x"]}]}}

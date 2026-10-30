@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claims-eval.schema.json",
+  "title": "mtf-facts claims-eval",
+  "description": "The state of every behaviour trigger and every valid claim, from a ladder record, and the claims discarded with a reason. Refuted outranks covered.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "triggers", "capped", "claims", "discarded_claims"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "state", "reason"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^T-[0-9]{3}$"},
+          "state": {"enum": ["inert", "verified", "covered", "refuted", "unverifiable"]},
+          "reason": {"type": "string", "minLength": 1},
+          "changes": {
+            "type": "array",
+            "description": "The (case, attribute) pairs of the tool's sweep that differ between base and head. explained means verified claims state both sides exactly, not that the change is compatible.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["level", "case", "attribute", "explained", "inputs"],
+              "properties": {
+                "level": {"enum": ["L1", "L3"]},
+                "case": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$"},
+                "attribute": {"enum": ["known", "wholly_unknown", "unknown_mask", "length", "value", "sensitive", "redacted", "unknown_inputs", "action", "unchanged_vs_prior", "error"]},
+                "explained": {"type": "boolean"},
+                "explained_by": {"type": "array", "items": {"type": "string", "pattern": "^C-[0-9]{1,6}$"}, "description": "The claims that stated the sides of an explained change."},
+                "inputs": {"type": "object"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "capped": {"type": "integer", "minimum": 0, "description": "The behaviour report's capped: triggers past the cap, unverifiable."},
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "state", "reason"],
+        "properties": {
+          "claim_id": {"type": "string", "pattern": "^C-[0-9]{1,6}$"},
+          "state": {"enum": ["verified", "refuted", "unverifiable"]},
+          "reason": {"type": "string", "minLength": 1},
+          "trigger_id": {"type": "string", "pattern": "^T-[0-9]{3}$", "description": "The trigger params.node names."},
+          "revision": {"enum": ["base", "head"]}
+        }
+      }
+    },
+    "discarded_claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "reason"],
+        "properties": {
+          "claim_id": {"type": "string", "pattern": "^(C-[0-9]{1,6}|claims\\[[0-9]+\\])$"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

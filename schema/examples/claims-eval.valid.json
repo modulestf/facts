@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "triggers": [
+    {
+      "id": "T-001",
+      "state": "unverifiable",
+      "reason": "L1 case \"typical.unknown-element\" is missing at the base"
+    },
+    {
+      "id": "T-002",
+      "state": "unverifiable",
+      "reason": "L1 has no base and head run with a valid control"
+    }
+  ],
+  "capped": 0,
+  "claims": [
+    {
+      "claim_id": "C-1",
+      "state": "verified",
+      "reason": "1 observations support it",
+      "trigger_id": "T-001",
+      "revision": "base"
+    },
+    {
+      "claim_id": "C-2",
+      "state": "verified",
+      "reason": "1 observations support it",
+      "trigger_id": "T-001",
+      "revision": "head"
+    },
+    {
+      "claim_id": "C-3",
+      "state": "unverifiable",
+      "reason": "no L3 or L4 run of T-002 with a valid control",
+      "trigger_id": "T-002",
+      "revision": "base"
+    },
+    {
+      "claim_id": "C-4",
+      "state": "unverifiable",
+      "reason": "no L3 or L4 run of T-002 with a valid control",
+      "trigger_id": "T-002",
+      "revision": "head"
+    },
+    {
+      "claim_id": "C-5",
+      "state": "unverifiable",
+      "reason": "no observation is about the claim",
+      "trigger_id": "T-001",
+      "revision": "base"
+    },
+    {
+      "claim_id": "C-6",
+      "state": "unverifiable",
+      "reason": "no observation is about the claim",
+      "trigger_id": "T-001",
+      "revision": "head"
+    }
+  ],
+  "discarded_claims": []
+}

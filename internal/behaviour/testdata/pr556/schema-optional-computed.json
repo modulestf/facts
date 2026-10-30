@@ -1,0 +1,62 @@
+{
+ "format_version": "1.0",
+ "provider_schemas": {
+  "registry.terraform.io/hashicorp/aws": {
+   "resource_schemas": {
+    "aws_rds_cluster": {
+     "version": 0,
+     "block": {
+      "attributes": {
+       "vpc_security_group_ids": {
+        "type": [
+         "set",
+         "string"
+        ],
+        "optional": true,
+        "computed": true
+       },
+       "cluster_identifier": {
+        "type": "string",
+        "optional": true,
+        "computed": true
+       },
+       "engine": {
+        "type": "string",
+        "required": true
+       },
+       "tags": {
+        "type": [
+         "map",
+         "string"
+        ],
+        "optional": true
+       }
+      }
+     }
+    },
+    "aws_security_group": {
+     "version": 0,
+     "block": {
+      "attributes": {
+       "name_prefix": {
+        "type": "string",
+        "optional": true,
+        "computed": true
+       },
+       "vpc_id": {
+        "type": "string",
+        "optional": true,
+        "computed": true
+       },
+       "id": {
+        "type": "string",
+        "optional": true,
+        "computed": true
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

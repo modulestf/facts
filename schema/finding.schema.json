@@ -42,7 +42,7 @@
   "$defs": {
     "rule_id": {
       "type": "string",
-      "pattern": "^(compat|coverage|structure|examples|profile|scope|review)\\.[a-z0-9]+(-[a-z0-9]+)*$"
+      "pattern": "^(compat|coverage|structure|examples|profile|scope|review|claim)\\.[a-z0-9]+(-[a-z0-9]+)*$"
     },
     "severity": {
       "enum": [

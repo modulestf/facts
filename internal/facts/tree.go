@@ -73,6 +73,11 @@ type Entry struct {
 	// linkSHA256 hashes a link's target text so a retarget is a change. The
 	// text itself never leaves the reader.
 	linkSHA256 string
+	// oversizeSHA256 hashes an oversize regular file's bytes, read in a
+	// stream and never kept, so an unchanged large file is the same entry.
+	// Empty when the file is over oversizeHashCap or the tree's hash budget.
+	// TreeSHA256 does not include it.
+	oversizeSHA256 string
 	// exec is set for a regular file with any execute bit. sameEntry
 	// compares it; TreeSHA256 does not hash it, so a tree hash a report or a
 	// schema handoff recorded stays what it was.
@@ -96,6 +101,14 @@ type Tree struct {
 // skipDir names directories that are never read: VCS metadata and local
 // Terraform working state, neither of which is module source.
 func skipDir(name string) bool { return name == ".git" || name == ".terraform" }
+
+// Bounds of hashing oversize files: a file over oversizeHashCap, or past
+// oversizeHashBudget hashed bytes in one tree, keeps no hash and so stays
+// changed. Variables so a test can lower them.
+var (
+	oversizeHashCap    int64 = 64 << 20
+	oversizeHashBudget int64 = 256 << 20
+)
 
 // readDirBatch is how many directory entries one ReadDir call returns at most.
 const readDirBatch = 256
@@ -136,11 +149,12 @@ func (t *Tree) index() {
 
 // treeReader holds the state of one depth-first ReadTree walk.
 type treeReader struct {
-	root  *os.Root
-	lim   Limits
-	t     *Tree
-	count int   // directory entries seen, the MaxFiles budget
-	total int64 // bytes read, the MaxTotalBytes budget
+	root   *os.Root
+	lim    Limits
+	t      *Tree
+	count  int   // directory entries seen, the MaxFiles budget
+	total  int64 // bytes read, the MaxTotalBytes budget
+	hashed int64 // oversize bytes hashed, the oversizeHashBudget
 }
 
 // walk reads dir and everything below it. Only the root failing to list is
@@ -258,6 +272,9 @@ func (w *treeReader) addEntry(p string, typ fs.FileMode) error {
 		e.Kind = KindSpecial
 	default:
 		readFile(w.root, e, w.lim.MaxFileBytes)
+		if e.Kind == KindOversize {
+			w.hashOversize(e)
+		}
 	}
 	if e.Kind == KindFile {
 		w.total += int64(len(e.Data))
@@ -267,6 +284,27 @@ func (w *treeReader) addEntry(p string, typ fs.FileMode) error {
 	}
 	w.t.add(e)
 	return nil
+}
+
+// hashOversize sets the stream hash of an oversize regular file within the
+// per-file cap and the tree's budget. It opens the file as readFile does.
+func (w *treeReader) hashOversize(e *Entry) {
+	before, err := w.root.Lstat(e.Path)
+	if err != nil || !before.Mode().IsRegular() || before.Size() > oversizeHashCap || w.hashed+before.Size() > oversizeHashBudget {
+		return
+	}
+	f, _, err := openUnchanged(w.root, e.Path, before, 0)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	h := sha256.New()
+	n, err := io.Copy(h, io.LimitReader(f, oversizeHashCap+1))
+	w.hashed += n
+	if err != nil || n != before.Size() {
+		return
+	}
+	e.oversizeSHA256 = hex.EncodeToString(h.Sum(nil))
 }
 
 func (t *Tree) add(e *Entry) {
@@ -351,6 +389,8 @@ func sameEntry(a, b *Entry) bool {
 		return a.linkSHA256 != "" && a.linkSHA256 == b.linkSHA256
 	case KindSpecial:
 		return true
+	case KindOversize:
+		return a.oversizeSHA256 != "" && a.oversizeSHA256 == b.oversizeSHA256 && a.exec == b.exec
 	}
-	return false // unreadable or oversize: unknown, so treated as changed
+	return false // unreadable, or oversize with no hash: unknown, so treated as changed
 }

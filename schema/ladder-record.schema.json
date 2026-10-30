@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ladder-record.schema.json",
+  "title": "Verification ladder record",
+  "description": "What the ladder ran for each behaviour trigger, and the example plan coverage. mtf-facts claims-eval reads it; a run counts only with state ran and control valid.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "head_sha", "base_sha", "terraform_version", "pins", "runs", "coverage"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "head_sha": {"$ref": "#/$defs/sha"},
+    "base_sha": {"$ref": "#/$defs/sha"},
+    "terraform_version": {"type": ["string", "null"]},
+    "pins": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "version", "sha256"],
+        "properties": {"source": {"type": "string"}, "version": {"type": "string"}, "sha256": {"type": "string"}}
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["trigger_id", "level", "state", "reason", "fixture_sha256", "control", "observations"],
+        "properties": {
+          "trigger_id": {"type": "string", "pattern": "^T-[0-9]{3}$"},
+          "level": {"type": "string", "pattern": "^(L[0-9]|compat)$"},
+          "state": {"enum": ["ran", "unverifiable"]},
+          "reason": {"type": ["string", "null"]},
+          "fixture_sha256": {"type": ["string", "null"]},
+          "control": {"enum": ["valid", "invalid", null]},
+          "observations": {
+            "oneOf": [
+              {"type": "null"},
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["base", "head"],
+                "properties": {
+                  "base": {"type": "array", "items": {"$ref": "#/$defs/observation"}},
+                  "head": {"type": "array", "items": {"$ref": "#/$defs/observation"}},
+                  "fixture": {"description": "Not read by claims-eval."},
+                  "sandbox": {"description": "Not read by claims-eval."}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "examples"],
+      "properties": {
+        "class": {"enum": ["complete", "partial", "none"]},
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["dir", "head", "base", "addresses"],
+            "properties": {
+              "dir": {"type": "string"},
+              "head": {"type": "string"},
+              "base": {"type": ["string", "null"]},
+              "addresses": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/address"}},
+              "attributes": {"type": "object", "propertyNames": {"pattern": "^[A-Za-z0-9_.-]+$"},
+                "additionalProperties": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}}},
+              "module_calls": {"type": "object", "description": "Each module call of the example whose local source resolves into the repository, to the directory it resolves to (. for the root module). Coverage outside the example's own directory needs it.",
+                "propertyNames": {"pattern": "^[A-Za-z0-9_-]+$"}, "additionalProperties": {"type": "string", "minLength": 1}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{40}$"}]},
+    "address": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"},
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case", "known"],
+      "properties": {
+        "case": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$"},
+        "known": {"type": "boolean", "description": "True only when the whole value is known."},
+        "wholly_unknown": {"type": "boolean"},
+        "unknown_inputs": {"type": "array", "items": {"type": "string"}},
+        "inputs": {"type": "object"},
+        "length": {"type": ["integer", "null"], "minimum": 0},
+        "value": {"description": "The value, with null at the unknown parts of a partly unknown one; absent when wholly unknown, sensitive or redacted."},
+        "sensitive": {"type": "boolean"},
+        "redacted": {"type": "boolean"},
+        "action": {"enum": ["no-op", "create", "update", "replace", "delete", null]},
+        "unchanged_vs_prior": {"type": ["boolean", "null"]},
+        "unknown_mask": {"description": "The after_unknown projection: true for a wholly unknown value, else the value's shape with true where it is unknown. Required to compare a value that is not known."},
+        "error": {"type": "boolean", "description": "The plan of the case failed in the subject; the case has no output."}
+      }
+    }
+  }
+}

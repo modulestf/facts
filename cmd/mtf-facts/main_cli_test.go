@@ -48,7 +48,7 @@ func TestRootHelp(t *testing.T) {
 	last := -1
 	for _, line := range []string{
 		"Check a module:", "  lint ", "  ledger ", "  schema-diff ",
-		"Review pipeline (run by hosts):", "  affected ", "  bundle ", "  merge ", "  fixture-check ",
+		"Review pipeline (run by hosts):", "  affected ", "  bundle ", "  merge ", "  fixture-check ", "  behaviour ", "  claims-eval ",
 		"Other commands:", "  rules ", "  version ", "  completion ", "  help ",
 	} {
 		i := strings.Index(want, "\n"+line)
@@ -428,6 +428,8 @@ Review pipeline (run by hosts):
   bundle         Build the facts bundle a model reviewer reads
   merge          Check a model reply and merge it into the final findings
   fixture-check  Check a ladder scratch tree against its allowlist
+  behaviour      Classify a change into triggers and the verification levels each needs
+  claims-eval    Validate review claims and evaluate them and the triggers against a ladder record
 
 Other commands:
   rules          List the implemented rules and their tier
