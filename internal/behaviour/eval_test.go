@@ -2,6 +2,8 @@ package behaviour
 
 import (
 	"encoding/json"
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -360,7 +362,17 @@ func simulate(c Case, compact bool) string {
 		whole = true
 	}
 	in, _ := json.Marshal(c.Inputs)
+	var unknownInputs []string
+	for _, name := range slices.Sorted(maps.Keys(c.Inputs)) {
+		if c.Inputs[name].Unknown || len(c.Inputs[name].UnknownElements) > 0 {
+			unknownInputs = append(unknownInputs, name)
+		}
+	}
+	ui, _ := json.Marshal(unknownInputs)
 	head := `{"case":"` + c.ID + `","inputs":` + string(in)
+	if unknownInputs != nil {
+		head += `,"unknown_inputs":` + string(ui)
+	}
 	switch {
 	case fail:
 		return head + `,"known":false,"error":true}`
@@ -644,5 +656,145 @@ func TestEvaluateCoveredDynamic(t *testing.T) {
 	tr, _ := states(evalWith(t, b, ladder(t, "", cov)))
 	if tr["T-001"] != StateCovered || tr["T-002"] != StateUnverifiable {
 		t.Errorf("dynamic and lifecycle: %v", tr)
+	}
+}
+
+func TestClaimsScopeValidation(t *testing.T) {
+	b := pr556Report(t)
+	sg := "aws_security_group.this[*].id"
+	cases := []struct {
+		name, params, why string
+	}{
+		{"valid", `{"node":"T-001","revision":"base","cases_where":{"` + sg + `":"unknown_element"}}`, ""},
+		{"valid two", `{"node":"T-001","revision":"head","length":2,"cases_where":{"` + sg + `":"unknown_element","vpc_security_group_ids":"known"}}`, ""},
+		{"empty scope", `{"node":"T-001","revision":"base","cases_where":{}}`, "cases_where"},
+		{"unknown input", `{"node":"T-001","revision":"base","cases_where":{"tags":"known"}}`, "cases_where"},
+		{"bad state", `{"node":"T-001","revision":"base","cases_where":{"vpc_security_group_ids":"partly"}}`, "cases_where"},
+		{"null state value", `{"node":"T-001","revision":"base","cases_where":{"vpc_security_group_ids":null}}`, "cases_where"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pred := PredExprUnknown
+			if strings.Contains(c.params, `"length"`) {
+				pred = PredExprLengthKnown
+			}
+			valid, discarded, err := ReadClaims(writeJSON(t, "c.json", claimsDoc(claim("C-1", pred, c.params))), b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (c.why == "") != (len(valid) == 1) || c.why != "" && !strings.Contains(discarded[0].Reason, c.why) {
+				t.Errorf("valid %d discarded %v", len(valid), discarded)
+			}
+		})
+	}
+	// Only the two unknown-ness predicates take a scope.
+	_, discarded, _ := ReadClaims(writeJSON(t, "c.json", claimsDoc(claim("C-1", PredPlanUnknown,
+		`{"node":"T-002","revision":"head","cases_where":{"vpc_security_group_ids":"known"}}`))), b)
+	if len(discarded) != 1 {
+		t.Errorf("plan-attribute-unknown with a scope: %v", discarded)
+	}
+}
+
+// pr556Claims are the honest claims about one PR 556 trigger: compact()
+// makes the list wholly unknown when an element is unknown, and concat()
+// keeps its length.
+func pr556Claims(node string, first int) []string {
+	sg := `"aws_security_group.this[*].id"`
+	var out []string
+	add := func(pred, params string) {
+		out = append(out, claim(fmt.Sprintf("C-%d", first+len(out)), pred, `{"node":"`+node+`",`+params+`}`))
+	}
+	add(PredExprUnknown, `"revision":"base","cases_where":{`+sg+`:"unknown_element"}`)
+	add(PredExprUnknown, `"revision":"base","cases_where":{"vpc_security_group_ids":"unknown_element"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"known"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":1,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"empty"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"unknown_element"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":1,"cases_where":{`+sg+`:"empty","vpc_security_group_ids":"unknown_element"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"known","vpc_security_group_ids":"unknown_element"}`)
+	return out
+}
+
+// TestSweepPR556Explained: the scoped unknown-ness claims explain every
+// change of unknown-ness; the head now keeps empty-string and null
+// elements a known security group list sits next to, which only exact
+// claims on those cases explain.
+func TestSweepPR556Explained(t *testing.T) {
+	b := pr556Report(t)
+	var base, head []string
+	for _, c := range b.Triggers[0].Cases {
+		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
+	}
+	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
+	r := evalWith(t, b, ladder(t, run, noCoverage), pr556Claims("T-001", 1)...)
+	s := r.Triggers[0]
+	for _, c := range r.Claims {
+		if c.State != StateVerified {
+			t.Errorf("%s: %s %s", c.ClaimID, c.State, c.Reason)
+		}
+	}
+	for _, ch := range s.Changes {
+		unknownness := ch.Attribute == "wholly_unknown" || ch.Attribute == "unknown_mask"
+		if unknownness && (!ch.Explained || len(ch.ExplainedBy) != 2) {
+			t.Errorf("unknown-ness change not explained by two claims: %+v", ch)
+		}
+		if ch.Attribute == "value" && ch.Explained {
+			t.Errorf("value change explained without equals claims: %+v", ch)
+		}
+	}
+	if s.State != StateUnverifiable {
+		t.Errorf("value changes stay unexplained: %s", mustJSON(t, s))
+	}
+	for _, ch := range s.Changes {
+		if !ch.Explained && ch.Attribute != "value" && ch.Attribute != "length" {
+			t.Errorf("unexplained %s change: %+v", ch.Attribute, ch)
+		}
+	}
+	// Exact claims on every case whose value differs complete the proof.
+	claims := pr556Claims("T-001", 1)
+	n := len(claims)
+	for _, ch := range s.Changes {
+		if ch.Attribute != "value" {
+			continue
+		}
+		var c Case
+		for _, rc := range b.Triggers[0].Cases {
+			if rc.ID == ch.Case {
+				c = rc
+			}
+		}
+		inputs := map[string]json.RawMessage{}
+		for k, v := range c.Inputs {
+			inputs[k] = v.Value
+		}
+		in, _ := json.Marshal(inputs)
+		for _, rev := range []string{"base", "head"} {
+			var o struct {
+				Value json.RawMessage `json:"value"`
+			}
+			src := simulate(c, rev == "base")
+			_ = json.Unmarshal([]byte(src), &o)
+			n++
+			claims = append(claims, claim(fmt.Sprintf("C-%d", n), PredExprEquals,
+				`{"node":"T-001","revision":"`+rev+`","inputs":`+string(in)+`,"expected":`+string(o.Value)+`}`))
+		}
+	}
+	r = evalWith(t, b, ladder(t, run, noCoverage), claims...)
+	if s := r.Triggers[0]; s.State != StateVerified {
+		t.Errorf("with exact value claims: %s", mustJSON(t, s))
+	}
+}
+
+// TestCasesComputedConstant: comparing an input with an input-free
+// function call hides a magic value from the sweep, so no cases.
+func TestCasesComputedConstant(t *testing.T) {
+	v := "variable \"cidr\" {\n  type = string\n}\n"
+	for _, head := range []string{
+		`locals { x = var.cidr == lower("EVIL") ? "0.0.0.0/0" : var.cidr }`,
+		`locals { x = sha256(var.cidr) == sha256("x") ? "0.0.0.0/0" : var.cidr }`,
+	} {
+		r := runPair(t, map[string]string{"main.tf": v + "locals { x = var.cidr }\n"}, map[string]string{"main.tf": v + head + "\n"}, "")
+		if c := r.Triggers[0]; len(c.Cases) != 0 || !strings.Contains(str(c.Reason), "computed") {
+			t.Errorf("%s: %s", head, mustJSON(t, c))
+		}
 	}
 }

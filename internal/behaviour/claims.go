@@ -44,7 +44,13 @@ var predicateKeys = map[string][]string{
 	PredInputFiltered:   {"node", "revision", "input", "value"},
 }
 
-var optionalKeys = map[string][]string{PredExprLengthKnown: {"length"}}
+var optionalKeys = map[string][]string{
+	PredExprUnknown:     {"cases_where"},
+	PredExprLengthKnown: {"length", "cases_where"},
+}
+
+// scopeStates are the states a cases_where entry can name.
+var scopeStates = []string{"wholly_unknown", "unknown_element", "empty", "known", "null", "omitted"}
 
 // predicateLevels are the ladder levels whose runs a predicate reads.
 var predicateLevels = map[string][]string{
@@ -72,6 +78,9 @@ type Claim struct {
 	Action        string
 	Input         string
 	Value         string // empty-string or null
+	// Scope limits an unknown-ness claim to the required cases whose inputs
+	// are all in the named states.
+	Scope map[string]string
 }
 
 // Discarded is a claim the validation refused.
@@ -208,6 +217,19 @@ func (c *Claim) params(raw json.RawMessage, triggers map[string]*Trigger) string
 	for _, in := range t.ReferencedInputs {
 		inputs[in.Name] = true
 	}
+	// The case inputs: variables and the contextual references the sweep
+	// stands in for.
+	caseInputs := maps.Clone(inputs)
+	for _, cs := range t.Cases {
+		for name := range cs.Inputs {
+			caseInputs[name] = true
+		}
+	}
+	if raw, has := p["cases_where"]; has {
+		if why := c.scope(raw, t, caseInputs); why != "" {
+			return why
+		}
+	}
 	switch c.PredicateType {
 	case PredExprLengthKnown:
 		if raw, has := p["length"]; has {
@@ -222,7 +244,7 @@ func (c *Claim) params(raw json.RawMessage, triggers map[string]*Trigger) string
 			return "params.inputs is not an object"
 		}
 		for name := range c.Inputs {
-			if !inputs[name] {
+			if !caseInputs[name] {
 				return fmt.Sprintf("params.inputs names %q, which trigger %s does not read", name, c.Node)
 			}
 		}
@@ -240,6 +262,57 @@ func (c *Claim) params(raw json.RawMessage, triggers map[string]*Trigger) string
 		}
 	}
 	return ""
+}
+
+// scope decodes and checks params.cases_where: a non-empty object of case
+// input names to scope states.
+func (c *Claim) scope(raw json.RawMessage, t *Trigger, caseInputs map[string]bool) string {
+	if len(t.Cases) == 0 {
+		return "params.cases_where needs a trigger with required cases"
+	}
+	if err := decodeStrict(raw, &c.Scope); err != nil || len(c.Scope) == 0 {
+		return "params.cases_where is not a non-empty object of input names to states"
+	}
+	for name, st := range c.Scope {
+		if !caseInputs[name] {
+			return fmt.Sprintf("params.cases_where names %q, which is no input of trigger %s's cases", name, c.Node)
+		}
+		if !slices.Contains(scopeStates, st) {
+			return fmt.Sprintf("params.cases_where state %q is not one of %s", st, strings.Join(scopeStates, ", "))
+		}
+	}
+	return ""
+}
+
+// inScope reports whether a case's inputs are all in the scope's states.
+// An unscoped claim is judged on every case.
+func (c Claim) inScope(inputs map[string]json.RawMessage) bool {
+	for name, want := range c.Scope {
+		var in CaseInput
+		if raw := inputs[name]; raw == nil || decodeStrict(raw, &in) != nil || scopeState(in) != want {
+			return false
+		}
+	}
+	return true
+}
+
+// scopeState is the scope state of a case input.
+func scopeState(in CaseInput) string {
+	switch {
+	case in.Unknown:
+		return "wholly_unknown"
+	case in.Omitted:
+		return "omitted"
+	case in.Null:
+		return "null"
+	case len(in.UnknownElements) > 0:
+		return "unknown_element"
+	}
+	switch string(bytes.TrimSpace(in.Value)) {
+	case "[]", "{}", `""`:
+		return "empty"
+	}
+	return "known"
 }
 
 // safeRelPath accepts a clean relative path with no control character.

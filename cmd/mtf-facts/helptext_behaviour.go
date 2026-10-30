@@ -53,8 +53,8 @@ and changed attribute are in a planned example and no claim of it is
 unverifiable. An inert entry's triggers are inert; anything else is
 unverifiable. Refuted outranks covered.
 
-With --head-sha and --base-sha the record must name those commits, so a
-record of another run cannot decide anything.
+A record with runs needs --head-sha and --base-sha, and must name those
+commits, so a record of another run cannot decide anything.
 
 Exit 0 with the report, 2 on bad input or a record of other commits.`
 	claimsEvalExample = `  mtf-facts claims-eval --behaviour behaviour.json --ladder ladder.json \

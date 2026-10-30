@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"path"
@@ -184,9 +185,12 @@ func ReadLadder(file string) (*Ladder, error) {
 	return &l, nil
 }
 
-// Bind refuses a record that does not name the given commits. An empty
-// commit is not checked.
+// Bind refuses a record that does not name the given commits. A record
+// with runs needs both; an empty record may be read without them.
 func (l *Ladder) Bind(headSHA, baseSHA string) error {
+	if len(l.Runs) > 0 && (headSHA == "" || baseSHA == "") {
+		return errors.New("ladder: a record with runs needs --head-sha and --base-sha")
+	}
 	if headSHA != "" && deref(l.HeadSHA) != headSHA {
 		return fmt.Errorf("ladder: head_sha %q is not the head commit %q", deref(l.HeadSHA), headSHA)
 	}
@@ -460,8 +464,8 @@ func evalClaim(c Claim, l *Ladder) (string, string) {
 
 // judge is the verdict of one observation on a claim.
 func judge(c Claim, o Observation) verdict {
-	if failed(o) {
-		return vSkip // a failed plan has no output to judge
+	if failed(o) || !c.inScope(o.Inputs) {
+		return vSkip // a failed plan has no output; a case out of scope is not judged
 	}
 	known := o.Known != nil && *o.Known
 	hidden := o.Sensitive || o.Redacted || !known || o.Value == nil

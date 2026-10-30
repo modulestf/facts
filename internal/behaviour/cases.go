@@ -63,6 +63,9 @@ const maxLiterals = 8
 // states, as a local, module or self reference, or the sweep is over
 // maxSweepCases.
 func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, string) {
+	if why := computedConstant(xs...); why != "" {
+		return []Case{}, why
+	}
 	lits, why := literals(xs...)
 	if why != "" {
 		return []Case{}, why
@@ -104,6 +107,47 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 		}
 	}
 	return sweepCases(inputs)
+}
+
+// comparisons are the operations that compare their operands.
+var comparisons = []*hclsyntax.Operation{hclsyntax.OpEqual, hclsyntax.OpNotEqual, hclsyntax.OpLessThan,
+	hclsyntax.OpLessThanOrEqual, hclsyntax.OpGreaterThan, hclsyntax.OpGreaterThanOrEqual}
+
+// computedConstant returns why the sweep cannot cover an expression that
+// compares an input with an input-free function call, such as
+// var.cidr == lower("EVIL"): the value it singles out is computed, so no
+// literal state reaches it.
+func computedConstant(xs ...*exprInfo) string {
+	why := ""
+	for _, x := range xs {
+		if x == nil {
+			continue
+		}
+		_ = hclsyntax.VisitAll(x.expr, func(n hclsyntax.Node) hcl.Diagnostics {
+			op, ok := n.(*hclsyntax.BinaryOpExpr)
+			if !ok || why != "" || !slices.Contains(comparisons, op.Op) {
+				return nil
+			}
+			for _, sides := range [][2]hclsyntax.Expression{{op.LHS, op.RHS}, {op.RHS, op.LHS}} {
+				if len(sides[0].Variables()) > 0 && len(sides[1].Variables()) == 0 && callsFunction(sides[1]) {
+					why = "an input is compared with a computed constant, which no case of the sweep reaches"
+				}
+			}
+			return nil
+		})
+	}
+	return why
+}
+
+func callsFunction(e hclsyntax.Expression) bool {
+	found := false
+	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics {
+		if _, ok := n.(*hclsyntax.FunctionCallExpr); ok {
+			found = true
+		}
+		return nil
+	})
+	return found
 }
 
 // literalSet holds the distinct literals of the expressions, by kind.

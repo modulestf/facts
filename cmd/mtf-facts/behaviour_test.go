@@ -45,8 +45,9 @@ func TestBehaviourCLI(t *testing.T) {
 
 func TestClaimsEvalCLI(t *testing.T) {
 	const ex = "../../schema/examples"
-	code, out, errOut := runCLI([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json",
-		"--ladder", ex + "/ladder-record.valid.l1.json", "--claims", ex + "/claims.valid.json", "--json"})
+	shas := []string{"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)}
+	code, out, errOut := runCLI(append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json",
+		"--ladder", ex + "/ladder-record.valid.l1.json", "--claims", ex + "/claims.valid.json", "--json"}, shas...))
 	want, err := os.ReadFile(ex + "/claims-eval.valid.json")
 	if err != nil {
 		t.Fatal(err)
@@ -71,6 +72,8 @@ func TestClaimsEvalCLI(t *testing.T) {
 		{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.invalid.enum.control.json", "--json"},
 		{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--claims", ex + "/claims.invalid.const.schema-version.json", "--json"},
 		{"claims-eval", "--behaviour", ex + "/claims.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"},
+		{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.l1.json", "--json"},
+		{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.l1.json", "--json", "--head-sha", strings.Repeat("0", 40)},
 		{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json", "--head-sha", strings.Repeat("2", 40)},
 		{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json", "--base-sha", strings.Repeat("0", 40)},
 	} {
