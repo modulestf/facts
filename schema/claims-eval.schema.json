@@ -26,7 +26,7 @@
               "additionalProperties": false,
               "required": ["level", "case", "attribute", "explained", "inputs"],
               "properties": {
-                "level": {"enum": ["L1", "L3"]},
+                "level": {"enum": ["L1", "L2", "L3"]},
                 "case": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$"},
                 "attribute": {"enum": ["known", "wholly_unknown", "unknown_mask", "length", "value", "sensitive", "redacted", "unknown_inputs", "action", "unchanged_vs_prior", "error"]},
                 "explained": {"type": "boolean"},

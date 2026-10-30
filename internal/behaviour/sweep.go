@@ -39,13 +39,13 @@ type casePair struct {
 func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why string, changes []Change) {
 	var pairs []casePair
 	for _, lv := range t.Levels {
-		if lv != LevelL1 && lv != LevelL3 {
+		if lv != LevelL1 && lv != LevelL2 && lv != LevelL3 {
 			continue
 		}
 		var required []Case
-		if lv == LevelL1 {
+		if lv == LevelL1 || lv == LevelL2 {
 			if len(t.Cases) == 0 {
-				return "the trigger has no required case for L1", nil
+				return "the trigger has no required case for " + lv, nil
 			}
 			required = t.Cases
 		}
@@ -253,6 +253,9 @@ func sortedCopy(s []string) []string {
 // explained returns the verified claims that state both sides of a pair
 // exactly, each on that case's observation at its own revision, or nil.
 func explained(p casePair, attr string, claims []Claim, verified map[string]bool) []string {
+	if p.level == LevelL2 {
+		return nil // mock providers: an L2 difference is listed, never explained
+	}
 	unknownPred := PredPlanUnknown
 	if p.level == LevelL1 {
 		unknownPred = PredExprUnknown

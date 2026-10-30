@@ -106,7 +106,13 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 			inputs = append(inputs, caseInput{name: d.Text, states: st})
 		}
 	}
-	return sweepCases(inputs)
+	// The cases are required at L1 and, when selected, again at L2; both
+	// count toward one sweep's cap.
+	limit := maxSweepCases
+	if slices.Contains(t.Levels, LevelL2) {
+		limit /= 2
+	}
+	return sweepCases(inputs, limit)
 }
 
 // comparisons are the operations that compare their operands.
@@ -228,24 +234,24 @@ func literalStates(ty cty.Type, ls literalSet, have []caseState, wrap func(any) 
 // sweepCases combines the input states: every combination when there are
 // at most maxSweepCases, else one typical case and one case per other state
 // of each input with the rest typical, else none and a reason.
-func sweepCases(inputs []caseInput) ([]Case, string) {
+func sweepCases(inputs []caseInput, limit int) ([]Case, string) {
 	product := 1
 	oneAtATime := 1
 	for _, in := range inputs {
 		product *= len(in.states)
 		oneAtATime += len(in.states) - 1
-		if product > maxSweepCases {
-			product = maxSweepCases + 1 // no overflow; only the cap matters
+		if product > limit {
+			product = limit + 1 // no overflow; only the cap matters
 		}
 	}
 	if len(inputs) == 0 {
 		return []Case{{ID: "typical", Inputs: map[string]CaseInput{}}}, ""
 	}
-	if product <= maxSweepCases {
+	if product <= limit {
 		return productCases(inputs), ""
 	}
-	if oneAtATime > maxSweepCases {
-		return []Case{}, fmt.Sprintf("the input sweep needs %d cases, over the cap of %d", oneAtATime, maxSweepCases)
+	if oneAtATime > limit {
+		return []Case{}, fmt.Sprintf("the input sweep needs %d cases, over the cap of %d", oneAtATime, limit)
 	}
 	typical := func() map[string]CaseInput {
 		m := map[string]CaseInput{}

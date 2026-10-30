@@ -826,8 +826,8 @@ func TestL2NeverEvidencesUnknown(t *testing.T) {
 	l1 := sweepRun("T-001", "L1", caseUnknownBase, caseUnknownHead)
 	r = evalWith(t, b, ladder(t, l1+","+l2, noCoverage), claims...)
 	for _, ch := range r.Triggers[0].Changes {
-		if ch.Level == LevelL2 {
-			t.Errorf("an L2 change is listed: %+v", ch)
+		if ch.Level == LevelL2 && ch.Explained {
+			t.Errorf("an L2 change is explained: %+v", ch)
 		}
 	}
 	for _, p := range []string{PredExprUnknown, PredExprLengthKnown, PredPlanUnknown} {
@@ -944,5 +944,42 @@ func TestFilteringCountsMarkers(t *testing.T) {
 		if s := r.Triggers[0]; s.State != want {
 			t.Errorf("head %s: %s, want %s", head, mustJSON(t, s), want)
 		}
+	}
+}
+
+// TestSweepL2: an L2 sweep is compared per required case like L1; its
+// differences are listed and never explained.
+func TestSweepL2(t *testing.T) {
+	b := pr556Report(t)
+	in := `"inputs":{"vpc_security_group_ids":{"value":["a"],"unknown":false,"null":false,"omitted":false}}`
+	withCases(t, b, "T-001", `{"case":"c",`+in+`}`)
+	b.Triggers[0].Levels = []string{LevelL1, LevelL2}
+	same := `{"case":"c",` + in + `,"known":true,"value":2,"unknown_mask":false}`
+	l2run := func(base, head string) string {
+		return strings.Replace(sweepRun("T-001", "L2", base, head), `"level":"L1"`, `"level":"L2"`, 1)
+	}
+	l1 := sweepRun("T-001", "L1", same, same)
+	claims := []string{
+		claim("C-1", PredExprEquals, `{"node":"T-001","revision":"base","inputs":{"vpc_security_group_ids":["a"]},"expected":2}`),
+		claim("C-2", PredExprEquals, `{"node":"T-001","revision":"head","inputs":{"vpc_security_group_ids":["a"]},"expected":2}`),
+	}
+	r := evalWith(t, b, ladder(t, l1+","+l2run(same, same), noCoverage))
+	if s := r.Triggers[0]; s.State != StateVerified {
+		t.Errorf("no L2 difference: %s", mustJSON(t, s))
+	}
+	r = evalWith(t, b, ladder(t, l1+","+l2run(same, strings.Replace(same, `"value":2`, `"value":3`, 1)), noCoverage), claims...)
+	s := r.Triggers[0]
+	if s.State != StateUnverifiable || len(s.Changes) != 1 || s.Changes[0].Level != LevelL2 || s.Changes[0].Explained {
+		t.Errorf("L2 difference: %s", mustJSON(t, s))
+	}
+	if s := evalWith(t, b, ladder(t, l1, noCoverage)).Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "L2") {
+		t.Errorf("no L2 run: %s", mustJSON(t, s))
+	}
+	if s := evalWith(t, b, ladder(t, l1+","+l2run(same, `{"case":"d","known":true,"value":2,"unknown_mask":false}`), noCoverage)).Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "missing") {
+		t.Errorf("L2 case missing: %s", mustJSON(t, s))
+	}
+	nofix := strings.Replace(l2run(same, same), `"fixture_sha256":"`+strings.Repeat("f", 64)+`"`, `"fixture_sha256":null`, 1)
+	if s := evalWith(t, b, ladder(t, l1+","+nofix, noCoverage)).Triggers[0]; s.State != StateUnverifiable {
+		t.Errorf("L2 without a fixture hash: %s", mustJSON(t, s))
 	}
 }

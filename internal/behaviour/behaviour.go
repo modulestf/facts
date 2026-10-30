@@ -338,7 +338,10 @@ func (c *classifier) trigger(s spec) Trigger {
 	t.ContextualRefDetails = c.refDetails(path.Dir(s.file), s.b, s.h)
 	t.Pure = (s.b != nil || s.h != nil) && isPure(s.b, s.h)
 	t.Levels = []string{}
-	if !s.noLevels {
+	switch {
+	case s.levels != nil:
+		t.Levels = append(t.Levels, s.levels...)
+	case !s.noLevels:
 		t.Levels = append(t.Levels, levelsOf[s.cat]...)
 	}
 	if slices.Contains(t.Levels, LevelL1) {

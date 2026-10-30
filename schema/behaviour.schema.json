@@ -100,7 +100,7 @@
               }
             }
           },
-          "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L3", "L4", "compat"]}},
+          "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L2", "L3", "L4", "compat"]}},
           "reason": {"type": ["string", "null"]}
         },
         "if": {"type": "object", "required": ["levels"], "properties": {"levels": {"type": "array", "maxItems": 0}}},

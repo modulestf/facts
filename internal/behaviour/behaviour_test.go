@@ -277,7 +277,7 @@ func TestCategories(t *testing.T) {
 		{"local added", ``, `locals { x = var.a }`, CatLocalsOutputs, []string{"L1"}, "local.x", "", true},
 		{"output changed", `output "o" { value = var.a }`, `output "o" { value = var.n }`, CatLocalsOutputs, []string{"L1"}, "output.o", "value", true},
 		{"conditional", `locals { x = var.n > 1 ? "a" : "b" }`, `locals { x = var.n > 2 ? "a" : "b" }`, CatCountForEach, []string{"L1"}, "local.x", "", true},
-		{"count", "resource \"aws_s3_bucket\" \"b\" {\n  count = var.n\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  count = var.n + 1\n}\n", CatCountForEach, []string{"L1"}, "aws_s3_bucket.b", "count", true},
+		{"count", "resource \"aws_s3_bucket\" \"b\" {\n  count = var.n\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  count = var.n + 1\n}\n", CatCountForEach, []string{"L1", "L2"}, "aws_s3_bucket.b", "count", true},
 		{"default", "variable \"d\" {\n  default = 1\n}\n", "variable \"d\" {\n  default = 2\n}\n", CatDefault, []string{"L1"}, "var.d", "default", true},
 		{"type", "variable \"d\" {\n  type = string\n}\n", "variable \"d\" {\n  type = number\n}\n", CatTypeValidation, []string{"L1"}, "var.d", "type", true},
 		{"validation", "variable \"d\" {\n  type = string\n}\n", "variable \"d\" {\n  type = string\n  validation {\n    condition     = length(var.d) > 0\n    error_message = \"x\"\n  }\n}\n", CatTypeValidation, []string{"L1"}, "var.d", "validation", true},
@@ -285,7 +285,7 @@ func TestCategories(t *testing.T) {
 		{"resource added", ``, "resource \"aws_s3_bucket\" \"b\" {\n  bucket = \"b\"\n}\n", CatResourceAddRemove, []string{"L4"}, "aws_s3_bucket.b", "", true},
 		{"module removed", "module \"m\" {\n  source = \"./m\"\n}\n", ``, CatResourceAddRemove, []string{"L4"}, "module.m", "", true},
 		{"lifecycle", "resource \"aws_s3_bucket\" \"b\" {\n  lifecycle {\n    prevent_destroy = false\n  }\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  lifecycle {\n    prevent_destroy = true\n  }\n}\n", CatLifecycle, []string{"L4"}, "aws_s3_bucket.b", "lifecycle.prevent_destroy", true},
-		{"dynamic", "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"x\" {\n    for_each = var.a\n    content {}\n  }\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"x\" {\n    for_each = var.n\n    content {}\n  }\n}\n", CatDynamic, []string{"L4"}, "aws_s3_bucket.b", "dynamic.x", true},
+		{"dynamic", "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"x\" {\n    for_each = var.a\n    content {}\n  }\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"x\" {\n    for_each = var.n\n    content {}\n  }\n}\n", CatDynamic, []string{"L1"}, "aws_s3_bucket.b", "dynamic.x", true},
 		{"moved", ``, "moved {\n  from = aws_s3_bucket.a\n  to   = aws_s3_bucket.b\n}\n", CatMoved, []string{}, "aws_s3_bucket.b", "", false},
 		{"renamed resource", "resource \"aws_s3_bucket\" \"a\" {\n  bucket = \"x\"\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  bucket = \"x\"\n}\n", CatMoved, []string{}, "aws_s3_bucket.b", "", false},
 		{"version floor", "terraform {\n  required_version = \">= 1.0\"\n}\n", "terraform {\n  required_version = \">= 1.5\"\n}\n", CatVersionFloor, []string{"compat"}, "terraform", "required_version", true},
@@ -506,5 +506,39 @@ func TestBaseIdenticalOversizeFile(t *testing.T) {
 		map[string]string{"main.tf": rds, "README.md": "b\n", "examples/s3-import/backup.zip": big}, "")
 	if len(r.Entries) != 1 || r.Entries[0].Path != "README.md" || !r.Inert {
 		t.Errorf("%s", mustJSON(t, r))
+	}
+}
+
+// TestL2Selection: only count and for_each of a resource, data source or
+// module select L2; a dynamic block whose for_each alone changed selects L1.
+func TestL2Selection(t *testing.T) {
+	vars := "variable \"n\" {\n  type = number\n}\nvariable \"m\" {\n  type = map(string)\n}\n"
+	cases := []struct {
+		name, base, head string
+		levels           []string
+		attr             string
+	}{
+		{"resource count", "resource \"aws_s3_bucket\" \"b\" {\n  count = var.n\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  count = var.n > 0 ? 1 : 0\n}\n", []string{"L1", "L2"}, "count"},
+		{"module for_each", "module \"m\" {\n  source   = \"./m\"\n  for_each = var.m\n}\n", "module \"m\" {\n  source   = \"./m\"\n  for_each = { for k, v in var.m : k => v if v != \"\" }\n}\n", []string{"L1", "L2"}, "for_each"},
+		{"conditional local", `locals { x = var.n > 1 ? "a" : "b" }`, `locals { x = var.n > 2 ? "a" : "b" }`, []string{"L1"}, ""},
+		{"dynamic for_each only", "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"rule\" {\n    for_each = var.m\n    content {\n      id = rule.key\n    }\n  }\n}\n",
+			"resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"rule\" {\n    for_each = { for k, v in var.m : k => v if v != \"\" }\n    content {\n      id = rule.key\n    }\n  }\n}\n", []string{"L1"}, "dynamic.rule"},
+		{"dynamic content", "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"rule\" {\n    for_each = var.m\n    content {\n      id = rule.key\n    }\n  }\n}\n",
+			"resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"rule\" {\n    for_each = var.m\n    content {\n      id = rule.value\n    }\n  }\n}\n", []string{"L4"}, "dynamic.rule"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := runPair(t, map[string]string{"variables.tf": vars, "main.tf": c.base}, map[string]string{"variables.tf": vars, "main.tf": c.head}, "")
+			tr := r.Triggers[0]
+			if !slices.Equal(tr.Levels, c.levels) || c.attr != "" && str(tr.Attribute) != c.attr {
+				t.Fatalf("%s %v %s, want %v %s", tr.Category, tr.Levels, str(tr.Attribute), c.levels, c.attr)
+			}
+			if slices.Contains(c.levels, LevelL1) && len(tr.Cases) == 0 {
+				t.Errorf("no cases: %s", mustJSON(t, tr))
+			}
+			if slices.Contains(c.levels, LevelL2) && len(tr.Cases) > maxSweepCases/2 {
+				t.Errorf("%d cases, over half the cap with L2", len(tr.Cases))
+			}
+		})
 	}
 }
