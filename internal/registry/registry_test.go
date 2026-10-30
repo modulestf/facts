@@ -10,7 +10,7 @@ import (
 )
 
 // registryEnv names a local copy of the reviewer skill's rule-facts.md. CI
-// fetches it from the public skills repository at a pinned commit.
+// fetches it from the public modulestf repository at a pinned commit.
 const registryEnv = "MTF_FACTS_REGISTRY"
 
 const ruleHeader = "| `rule_id` | Carry | `engine` | `class` | `scope` | `cross_area` | `area_kinds` | `bundle_sections` | `severities` | `confirm_class` | `proposed_confirm_class` |\n" +

@@ -15,7 +15,7 @@ import (
 )
 
 // registryEnv names a local copy of the reviewer skill's rule-facts.md. CI
-// fetches it, without a token, from the public skills repository at the
+// fetches it, without a token, from the public modulestf repository at the
 // commit pinned in .github/workflows/ci.yml.
 const registryEnv = "MTF_FACTS_REGISTRY"
 

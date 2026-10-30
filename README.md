@@ -60,11 +60,11 @@ Candidates are unconfirmed: the author confirms or rejects each one, and they ne
 
 These commands check pull request [#780](https://github.com/terraform-aws-modules/terraform-aws-lambda/pull/780) of `terraform-aws-modules/terraform-aws-lambda`. To check a change to your own module, put your repository and branch in place of the pull request.
 
-Get the rule registry and the `terraform-aws-modules` module profile from [modulestf/skills](https://github.com/modulestf/skills), at the commit this repository's CI pins:
+Get the rule registry and the `terraform-aws-modules` module profile from [modulestf/modulestf](https://github.com/modulestf/modulestf), at the commit this repository's CI pins:
 
 ```sh
-git clone https://github.com/modulestf/skills.git
-git -C skills checkout eef38dcce3690920c0bcecab9aebfdd01b462f72
+git clone https://github.com/modulestf/modulestf.git skills
+git -C skills checkout de257cfac1df0bcf91db77bba665fdfc626f45fd
 REGISTRY=skills/.agents/skills/terraform-module-reviewer/references/rule-facts.md
 PROFILE=skills/.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules
 ```

@@ -8,7 +8,7 @@
 //
 // The skills-side policy checks of the registry, such as lead on every
 // candidate rule and no small confirm class on a rule that allows CRITICAL,
-// live in the skills repository's tests, not here.
+// live in the modulestf repository's tests, not here.
 package registry
 
 import (
