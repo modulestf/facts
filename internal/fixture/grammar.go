@@ -330,7 +330,9 @@ func (c *checker) requiredProvider(file string, a *hclsyntax.Attribute) {
 	src, ver := got["source"], got["version"]
 	if !pinned || !c.pins[[2]string{src, ver}] || path.Base(src) != a.Name {
 		c.add(file, line, RuleProviderNotPinned, a.Name)
+		return
 	}
+	c.sources[a.Name] = src
 }
 
 // provider checks a provider block against the allowlist of its provider.

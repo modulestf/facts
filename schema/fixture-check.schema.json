@@ -111,6 +111,7 @@
             "test.value-not-literal",
             "test.data-not-mocked",
             "test.resource-not-mocked",
+            "test.schema-required",
             "limit.violations"
           ]
         },

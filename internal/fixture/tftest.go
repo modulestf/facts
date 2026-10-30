@@ -35,12 +35,6 @@ func (c *checker) planOverride(a *hclsyntax.Attribute) bool {
 	return ok
 }
 
-// filled reports a literal object with at least one item.
-func filled(e hclsyntax.Expression) bool {
-	o, ok := e.(*hclsyntax.ObjectConsExpr)
-	return ok && len(o.Items) > 0 && isLiteral(o)
-}
-
 // testTop checks the top-level body of a test file.
 func (c *checker) testTop(file string, body *hclsyntax.Body) {
 	for _, a := range sortedAttrs(body) {
@@ -93,7 +87,7 @@ func (c *checker) mockProvider(file string, b *hclsyntax.Block) {
 }
 
 // mockDefaults checks a mock_resource or mock_data block of the mock of
-// provider: literal defaults. A mock_data with some fixes its data type.
+// provider: literal defaults, kept to check against the provider schema.
 func (c *checker) mockDefaults(file string, b *hclsyntax.Block, provider string) {
 	for _, a := range sortedAttrs(b.Body) {
 		switch {
@@ -102,9 +96,10 @@ func (c *checker) mockDefaults(file string, b *hclsyntax.Block, provider string)
 			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
 		default:
 			c.literal(file, a)
-			if len(b.Labels) == 1 && filled(a.Expr) {
+			if len(b.Labels) == 1 && isLiteral(a.Expr) {
 				kind := map[string]string{"mock_data": "data", "mock_resource": "resource"}[b.Type]
-				c.mocked[kind+"\x00"+provider+"\x00"+b.Labels[0]] = true
+				key := kind + "\x00" + provider + "\x00" + b.Labels[0]
+				c.mocked[key] = append(c.mocked[key], a.Expr)
 			}
 		}
 	}
@@ -139,9 +134,9 @@ func wholeBlock(e hclsyntax.Expression, data bool) (string, bool) {
 // with values on a whole block, no instance key, fixes its values.
 func (c *checker) override(file string, b *hclsyntax.Block, everyRun bool) {
 	target, values := b.Body.Attributes["target"], b.Body.Attributes["values"]
-	if everyRun && target != nil && values != nil && filled(values.Expr) {
+	if everyRun && target != nil && values != nil && isLiteral(values.Expr) {
 		if key, ok := wholeBlock(target.Expr, b.Type == "override_data"); ok {
-			c.overrides[key] = true
+			c.overrides[key] = append(c.overrides[key], values.Expr)
 		}
 	}
 	for _, a := range sortedAttrs(b.Body) {

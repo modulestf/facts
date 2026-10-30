@@ -1,0 +1,422 @@
+{
+ "format_version": "1.0",
+ "provider_schemas": {
+  "registry.terraform.io/hashicorp/aws": {
+   "data_source_schemas": {
+    "aws_caller_identity": {
+     "block": {
+      "attributes": {
+       "account_id": {
+        "computed": true,
+        "type": "string"
+       },
+       "arn": {
+        "computed": true,
+        "type": "string"
+       },
+       "id": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "user_id": {
+        "computed": true,
+        "type": "string"
+       }
+      }
+     },
+     "version": 0
+    },
+    "aws_vpc": {
+     "block": {
+      "attributes": {
+       "arn": {
+        "computed": true,
+        "type": "string"
+       },
+       "cidr_block": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "cidr_block_associations": {
+        "computed": true,
+        "type": [
+         "list",
+         [
+          "object",
+          {
+           "association_id": "string",
+           "cidr_block": "string",
+           "state": "string"
+          }
+         ]
+        ]
+       },
+       "default": {
+        "computed": true,
+        "optional": true,
+        "type": "bool"
+       },
+       "dhcp_options_id": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "enable_dns_hostnames": {
+        "computed": true,
+        "type": "bool"
+       },
+       "enable_dns_support": {
+        "computed": true,
+        "type": "bool"
+       },
+       "enable_network_address_usage_metrics": {
+        "computed": true,
+        "type": "bool"
+       },
+       "id": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "instance_tenancy": {
+        "computed": true,
+        "type": "string"
+       },
+       "ipv6_association_id": {
+        "computed": true,
+        "deprecation_message": "ipv6_association_id is deprecated. Use ipv6_cidr_block_associations instead.",
+        "type": "string"
+       },
+       "ipv6_cidr_block": {
+        "computed": true,
+        "deprecation_message": "ipv6_cidr_block is deprecated. Use ipv6_cidr_block_associations instead.",
+        "type": "string"
+       },
+       "ipv6_cidr_block_associations": {
+        "computed": true,
+        "type": [
+         "set",
+         [
+          "object",
+          {
+           "association_id": "string",
+           "ip_source": "string",
+           "ipv6_address_attribute": "string",
+           "ipv6_cidr_block": "string",
+           "ipv6_pool": "string",
+           "network_border_group": "string",
+           "state": "string"
+          }
+         ]
+        ]
+       },
+       "main_route_table_id": {
+        "computed": true,
+        "type": "string"
+       },
+       "owner_id": {
+        "computed": true,
+        "type": "string"
+       },
+       "region": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "state": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "tags": {
+        "computed": true,
+        "optional": true,
+        "type": [
+         "map",
+         "string"
+        ]
+       }
+      },
+      "block_types": {
+       "filter": {
+        "block": {
+         "attributes": {
+          "name": {
+           "required": true,
+           "type": "string"
+          },
+          "values": {
+           "required": true,
+           "type": [
+            "set",
+            "string"
+           ]
+          }
+         }
+        },
+        "nesting_mode": "set"
+       },
+       "timeouts": {
+        "block": {
+         "attributes": {
+          "read": {
+           "optional": true,
+           "type": "string"
+          }
+         }
+        },
+        "nesting_mode": "single"
+       }
+      }
+     },
+     "version": 0
+    },
+    "aws_x": {
+     "block": {
+      "attributes": {
+       "id": {
+        "computed": true,
+        "type": "string"
+       },
+       "name": {
+        "optional": true,
+        "type": "string"
+       }
+      }
+     },
+     "version": 0
+    },
+    "aws_y": {
+     "block": {
+      "attributes": {
+       "id": {
+        "computed": true,
+        "type": "string"
+       }
+      }
+     },
+     "version": 0
+    }
+   },
+   "provider": {
+    "block": {},
+    "version": 0
+   },
+   "resource_schemas": {
+    "aws_n": {
+     "block": {
+      "attributes": {
+       "conf": {
+        "computed": true,
+        "nested_type": {
+         "attributes": {
+          "k": {
+           "computed": true,
+           "type": "string"
+          },
+          "o": {
+           "optional": true,
+           "type": "string"
+          }
+         },
+         "nesting_mode": "single"
+        },
+        "optional": true
+       },
+       "id": {
+        "computed": true,
+        "type": "string"
+       }
+      },
+      "block_types": {
+       "rule": {
+        "block": {
+         "attributes": {
+          "id": {
+           "computed": true,
+           "type": "string"
+          },
+          "name": {
+           "optional": true,
+           "type": "string"
+          }
+         }
+        },
+        "nesting_mode": "list"
+       },
+       "timeouts": {
+        "block": {
+         "attributes": {
+          "read": {
+           "optional": true,
+           "type": "string"
+          }
+         }
+        },
+        "nesting_mode": "single"
+       }
+      }
+     },
+     "version": 0
+    },
+    "aws_s3_bucket": {
+     "block": {
+      "attributes": {
+       "arn": {
+        "computed": true,
+        "type": "string"
+       },
+       "bucket": {
+        "optional": true,
+        "type": "string"
+       }
+      }
+     },
+     "version": 0
+    },
+    "aws_security_group": {
+     "block": {
+      "attributes": {
+       "arn": {
+        "computed": true,
+        "type": "string"
+       },
+       "egress": {
+        "computed": true,
+        "optional": true,
+        "type": [
+         "set",
+         [
+          "object",
+          {
+           "cidr_blocks": [
+            "list",
+            "string"
+           ],
+           "from_port": "number",
+           "ipv6_cidr_blocks": [
+            "list",
+            "string"
+           ],
+           "prefix_list_ids": [
+            "list",
+            "string"
+           ],
+           "protocol": "string",
+           "security_groups": [
+            "set",
+            "string"
+           ],
+           "self": "bool",
+           "to_port": "number"
+          }
+         ]
+        ]
+       },
+       "id": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "ingress": {
+        "computed": true,
+        "optional": true,
+        "type": [
+         "set",
+         [
+          "object",
+          {
+           "cidr_blocks": [
+            "list",
+            "string"
+           ],
+           "from_port": "number",
+           "ipv6_cidr_blocks": [
+            "list",
+            "string"
+           ],
+           "prefix_list_ids": [
+            "list",
+            "string"
+           ],
+           "protocol": "string",
+           "security_groups": [
+            "set",
+            "string"
+           ],
+           "self": "bool",
+           "to_port": "number"
+          }
+         ]
+        ]
+       },
+       "name": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "name_prefix": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "owner_id": {
+        "computed": true,
+        "type": "string"
+       },
+       "region": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       },
+       "revoke_rules_on_delete": {
+        "optional": true,
+        "type": "bool"
+       },
+       "tags": {
+        "optional": true,
+        "type": [
+         "map",
+         "string"
+        ]
+       },
+       "tags_all": {
+        "computed": true,
+        "optional": true,
+        "type": [
+         "map",
+         "string"
+        ]
+       },
+       "vpc_id": {
+        "computed": true,
+        "optional": true,
+        "type": "string"
+       }
+      },
+      "block_types": {
+       "timeouts": {
+        "block": {
+         "attributes": {
+          "create": {
+           "optional": true,
+           "type": "string"
+          },
+          "delete": {
+           "optional": true,
+           "type": "string"
+          }
+         }
+        },
+        "nesting_mode": "single"
+       }
+      }
+     },
+     "version": 1
+    }
+   }
+  }
+ }
+}

@@ -68,6 +68,7 @@ const (
 	RuleTestValueNotLiteral    = "test.value-not-literal"
 	RuleTestDataNotMocked      = "test.data-not-mocked"
 	RuleTestResourceNotMocked  = "test.resource-not-mocked"
+	RuleTestSchemaRequired     = "test.schema-required"
 	// RuleLimitViolations marks a list cut at MaxViolations.
 	RuleLimitViolations = "limit.violations"
 )
@@ -81,7 +82,7 @@ var Rules = []string{
 	RuleExprFunctionDenied, RuleExprReferenceDenied, RuleExprHeredocTemplate,
 	RuleManifestBlockSet, RuleManifestExpression,
 	RuleTestFileCount, RuleTestCommandNotPlan, RuleTestPlanOptionsDenied, RuleTestProviderNotMocked, RuleTestValueNotLiteral,
-	RuleTestDataNotMocked, RuleTestResourceNotMocked,
+	RuleTestDataNotMocked, RuleTestResourceNotMocked, RuleTestSchemaRequired,
 }
 
 // Options select the tree and its grammar.
@@ -93,6 +94,9 @@ type Options struct {
 	// Expect, when set, is the block set and single expressions the trusted
 	// template wrote; the tree must match it exactly.
 	Expect *Manifest
+	// Schemas, at L2, are the provider schemas the host acquired: mock
+	// values must cover every computed attribute they list.
+	Schemas Schemas
 }
 
 // Result is the report of one check.
@@ -147,6 +151,7 @@ func Check(o Options) (*Result, error) {
 	defer r.Close()
 
 	c := newChecker(lv, o.Resource, o.Pins)
+	c.schemas = o.Schemas
 	files, sum, err := c.readTree(r)
 	if err != nil {
 		return nil, err
@@ -171,6 +176,8 @@ func (o Options) level() (level, error) {
 		return level{}, fmt.Errorf("unknown level %q, want one of %s", o.Level, strings.Join(Levels(), ", "))
 	}
 	switch {
+	case o.Schemas != nil && !lv.mocked:
+		return level{}, fmt.Errorf("level %s takes no provider schemas", name)
 	case !lv.underTest && o.Resource != "":
 		return level{}, fmt.Errorf("level %s takes no resource under test", name)
 	case lv.underTest && o.Resource == "":
@@ -214,13 +221,15 @@ type checker struct {
 	mocks        map[string][]place
 	dataUses     []blockUse
 	resourceUses []blockUse
-	// "data\x00provider\x00type" or "resource\x00provider\x00type" of a
-	// mock_data or mock_resource with nonempty defaults.
-	mocked map[string]bool
-	// "data.type.name" or "type.name" of an override with nonempty values on
-	// a whole block, outside run blocks.
-	overrides  map[string]bool
+	// Literal defaults of each mock_data or mock_resource, by
+	// "data\x00provider\x00type" or "resource\x00provider\x00type".
+	mocked map[string][]hclsyntax.Expression
+	// Literal values of each override of a whole block outside run blocks,
+	// by "data.type.name" or "type.name".
+	overrides  map[string][]hclsyntax.Expression
 	duringPlan bool
+	schemas    Schemas
+	sources    map[string]string // pinned source by required_providers local name
 }
 
 // blockUse is one data or resource block of a mocked provider.
@@ -238,7 +247,8 @@ func newChecker(lv level, underTest string, pins []Pin) *checker {
 	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
 		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{},
 		tokens: map[string]hclsyntax.Tokens{}, used: map[string][]place{}, mocks: map[string][]place{},
-		mocked: map[string]bool{}, overrides: map[string]bool{}}
+		mocked: map[string][]hclsyntax.Expression{}, overrides: map[string][]hclsyntax.Expression{},
+		sources: map[string]string{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -456,22 +466,45 @@ func (c *checker) finishMocked() {
 			}
 		}
 	}
-	// A mocked data source with neither gets random values each run, and so
-	// does a resource once override_during = plan applies mock values at plan.
-	c.fixedValues(c.dataUses, "data", "data.", RuleTestDataNotMocked)
+	// A mocked data source gets random values for each computed attribute
+	// no mock value covers, on each run; so does a resource once
+	// override_during = plan applies mock values at plan. Only the provider
+	// schema says which attributes are computed.
+	resources := []blockUse(nil)
 	if c.duringPlan {
-		c.fixedValues(c.resourceUses, "resource", "", RuleTestResourceNotMocked)
+		resources = c.mockedUses(c.resourceUses)
 	}
+	data := c.mockedUses(c.dataUses)
+	if c.schemas == nil {
+		if len(data) > 0 || len(resources) > 0 {
+			c.add(".", 0, RuleTestSchemaRequired, "")
+		}
+		return
+	}
+	c.fixedValues(data, "data", "data.", RuleTestDataNotMocked)
+	c.fixedValues(resources, "resource", "", RuleTestResourceNotMocked)
 }
 
-// fixedValues reports each use of a pinned, mocked provider that has neither
-// mock defaults for its type nor an override of its whole block.
+// mockedUses returns the uses of a pinned and mocked provider; the others
+// are reported already.
+func (c *checker) mockedUses(uses []blockUse) []blockUse {
+	var out []blockUse
+	for _, u := range uses {
+		if c.declared[u.provider] && len(c.mocks[u.provider]) > 0 {
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// fixedValues reports each use whose type is not in the schemas, or that
+// has neither mock defaults of its type nor an override of its whole block
+// covering every computed attribute.
 func (c *checker) fixedValues(uses []blockUse, kind, prefix, rule string) {
 	for _, u := range uses {
-		if !c.declared[u.provider] || len(c.mocks[u.provider]) == 0 {
-			continue // reported above
-		}
-		if !c.mocked[kind+"\x00"+u.provider+"\x00"+u.typ] && !c.overrides[prefix+u.typ+"."+u.name] {
+		b := c.typeBlock(kind, u.provider, u.typ)
+		values := slices.Concat(c.mocked[kind+"\x00"+u.provider+"\x00"+u.typ], c.overrides[prefix+u.typ+"."+u.name])
+		if b == nil || !slices.ContainsFunc(values, func(e hclsyntax.Expression) bool { return covers(b, e) }) {
 			c.add(u.file, u.line, rule, u.typ)
 		}
 	}

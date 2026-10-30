@@ -18,7 +18,7 @@ func TestFixtureCheckPasses(t *testing.T) {
 	for _, args := range [][]string{
 		{filepath.Join(fixtureTD, "l1"), "--json"},
 		{filepath.Join(fixtureTD, "l3"), "--level", "L3", "--resource", "aws_rds_cluster", "--pins", filepath.Join(fixtureTD, "pins.json"), "--json"},
-		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--pins", filepath.Join(fixtureTD, "pins.json"), "--expect", filepath.Join(fixtureTD, "l2.expect.json"), "--json"},
+		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--pins", filepath.Join(fixtureTD, "pins.json"), "--expect", filepath.Join(fixtureTD, "l2.expect.json"), "--schema", filepath.Join(fixtureTD, "schema.json"), "--json"},
 	} {
 		code, out, errOut := runCLI(append([]string{"fixture-check"}, args...))
 		if code != exitClean || errOut != "" {
@@ -90,6 +90,9 @@ func TestFixtureCheckErrors(t *testing.T) {
 		{filepath.Join(fixtureTD, "none")},
 		{l1, "--level", "L4"},
 		{l1, "--level", "L2", "--resource", "aws_rds_cluster"},
+		{l1, "--schema", filepath.Join(fixtureTD, "schema.json")},
+		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--schema", filepath.Join(fixtureTD, "pins.json")},
+		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--schema", filepath.Join(fixtureTD, "none.json")},
 		{l3, "--level", "L3"},
 		{l1, "--resource", "aws_rds_cluster"},
 		{l3, "--level", "L3", "--resource", "aws_rds_cluster", "--pins", bad},

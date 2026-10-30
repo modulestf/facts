@@ -381,7 +381,7 @@ All three flags are required. It writes the report as JSON, in the shape of [sch
 
 ```sh
 mtf-facts fixture-check scratch/head --json
-mtf-facts fixture-check scratch/l2 --level L2 --pins pins.json --json
+mtf-facts fixture-check scratch/l2 --level L2 --pins pins.json --schema schema.json --json
 mtf-facts fixture-check scratch/l3 --level L3 --resource aws_rds_cluster --pins pins.json --json
 ```
 
@@ -423,8 +423,9 @@ The test file holds only these blocks:
 - `mock_provider "<name>"`, with no argument (no `source` of mock files, no `alias`), holding `mock_resource` and `mock_data` blocks with only `defaults`, and `override_resource` and `override_data` blocks.
 - `override_resource` and `override_data` with `target`, a static address of a resource or data source in the tree, and `values`.
 - Each mock and override block, `mock_provider` included, may also set `override_during = plan`, so a plan-only run sees the mock values. `apply`, the default, is refused. The result then carries `"override_during_plan": true`.
-- Every data source a run reads must have fixed values: a `mock_data` block of its type with nonempty `defaults` in its provider's mock, or an `override_data` with nonempty `values` targeting the whole block (no instance key), at the top level or in the mock. An override inside one `run` does not count. Otherwise a mock generates random values on each run (`test.data-not-mocked`).
-- When the test file sets `override_during = plan`, every resource of a mocked provider needs fixed values the same way: a `mock_resource` of its type with nonempty `defaults`, or an `override_resource` with nonempty `values` on the whole block (`test.resource-not-mocked`). Without it, computed resource values stay unknown at plan and need nothing.
+- Every data source a run reads must have fixed values. A mock generates a random value, on each run, for every computed attribute no mock value covers. So a `mock_data` block of its type in its provider's mock, or an `override_data` targeting the whole block (no instance key) at the top level or in the mock, must give a non-null literal to every computed attribute of the type (`test.data-not-mocked`). That includes optional and computed ones, nested attributes, and every nested block that holds a computed attribute (with at least one element for a list, set or map). An override inside one `run` does not count.
+- When the test file sets `override_during = plan`, every resource of a mocked provider needs the same cover, from a `mock_resource` or a whole-block `override_resource` (`test.resource-not-mocked`). Without it, computed resource values stay unknown at plan and need nothing.
+- Which attributes are computed comes from `--schema`: the `terraform providers schema -json` file the acquisition phase wrote for the pinned providers. A type it lacks is not covered. Without `--schema`, a tree with a data source of a mocked provider, or a mocked resource under `override_during = plan`, fails with `test.schema-required`. `--schema` is refused at L1 and L3.
 - `variables`.
 - `run`, which must set `command = plan` (`test.command-not-plan`, also when the command is left out, since the default is apply), with `assert` (`condition`, `error_message`), `variables`, `override_resource`, `override_data`, `plan_options` with only `mode = normal` (`test.plan-options-denied`), and `expect_failures` naming `var`, `output`, data or resource addresses. `module`, `override_module`, `providers`, `state_key` and every other argument or block are refused.
 
