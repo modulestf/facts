@@ -388,6 +388,16 @@ The output, in the shape of [fixture-check.schema.json](schema/fixture-check.sch
 
 `tree_sha256` is the SHA-256 of one `name NUL type NUL content-sha256 LF` line per directory entry, sorted by name. The type is `file`, `file+x` (any exec bit set), `dir`, `symlink` or `special`, so a umask does not change the hash. It identifies a tree that passes; on a violation it covers what was read.
 
+`--expect` takes the manifest the trusted template wrote, in the shape of [fixture-manifest.schema.json](schema/fixture-manifest.schema.json):
+
+```json
+{"schema_version": 1, "files": {"main.tf": {
+  "blocks": [{"type": "output", "labels": ["head"]}, {"type": "resource", "labels": ["terraform_data", "subject"]}],
+  "single_expressions": [{"block": "output", "labels": ["head"], "attribute": "value"}]}}}
+```
+
+With it, each file's top-level blocks must be exactly the listed set, by type and labels in any order, and no other `.tf` file may exist (`manifest.block-set`). Each single expression attribute must exist and be the last argument or block of its block (`manifest.expression`). A spliced expression that closes its block to add another, or ends its attribute to add an argument, fails one of the two.
+
 `--pins` takes `{"providers":[{"source","version"}]}`, optionally with a `sha256` per entry: the provider versions the host installed, each version exact and each source once.
 
 The grammar, by level (`--level`, default `L1`):

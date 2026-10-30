@@ -14,6 +14,7 @@ func newFixtureCheckCmd() *cobra.Command {
 	var (
 		o      fixture.Options
 		pins   string
+		expect string
 		asJSON bool
 	)
 	cmd := &cobra.Command{
@@ -25,7 +26,7 @@ func newFixtureCheckCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Dir = args[0]
-			return status(fixtureCheck(cmd, o, pins, asJSON))
+			return status(fixtureCheck(cmd, o, pins, expect, asJSON))
 		},
 	}
 	f := cmd.Flags()
@@ -33,13 +34,14 @@ func newFixtureCheckCmd() *cobra.Command {
 	f.StringVar(&o.Level, "level", "L1", fixtureCheckLevelUsage+" ("+strings.Join(fixture.Levels(), ", ")+")")
 	f.StringVar(&o.Resource, "resource", "", fixtureCheckResourceUsage)
 	f.StringVar(&pins, "pins", "", fixtureCheckPinsUsage)
+	f.StringVar(&expect, "expect", "", fixtureCheckExpectUsage)
 	f.BoolVar(&asJSON, "json", false, fixtureCheckJSONUsage)
 	return cmd
 }
 
 // fixtureCheck checks one scratch tree and writes the result. It exits 0
 // when the tree passes, 1 with violations and 2 on bad input.
-func fixtureCheck(cmd *cobra.Command, o fixture.Options, pins string, asJSON bool) int {
+func fixtureCheck(cmd *cobra.Command, o fixture.Options, pins, expect string, asJSON bool) int {
 	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
 	if pins != "" {
 		p, err := fixture.ReadPins(pins)
@@ -48,6 +50,14 @@ func fixtureCheck(cmd *cobra.Command, o fixture.Options, pins string, asJSON boo
 			return exitError
 		}
 		o.Pins = p
+	}
+	if expect != "" {
+		m, err := fixture.ReadManifest(expect)
+		if err != nil {
+			fmt.Fprintln(stderr, "mtf-facts: fixture-check:", err)
+			return exitError
+		}
+		o.Expect = m
 	}
 	r, err := fixture.Check(o)
 	if err != nil {

@@ -328,6 +328,9 @@ func TestEveryRuleTested(t *testing.T) {
 	for _, tc := range ruleCases {
 		seen[tc.rule] = true
 	}
+	for _, tc := range expectCases {
+		seen[tc.rule] = true
+	}
 	for _, r := range Rules {
 		if !seen[r] {
 			t.Errorf("rule %s has no case", r)

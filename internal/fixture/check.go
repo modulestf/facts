@@ -59,6 +59,8 @@ const (
 	RuleExprFunctionDenied     = "expr.function-denied"
 	RuleExprReferenceDenied    = "expr.reference-denied"
 	RuleExprHeredocTemplate    = "expr.heredoc-template"
+	RuleManifestBlockSet       = "manifest.block-set"
+	RuleManifestExpression     = "manifest.expression"
 	// RuleLimitViolations marks a list cut at MaxViolations.
 	RuleLimitViolations = "limit.violations"
 )
@@ -70,6 +72,7 @@ var Rules = []string{
 	RuleBlockDenied, RuleBlockAttributeDenied, RuleProviderNotPinned, RuleProviderDenied, RuleProviderValueDenied,
 	RuleResourceTypeDenied, RuleResourceUnderTestCount,
 	RuleExprFunctionDenied, RuleExprReferenceDenied, RuleExprHeredocTemplate,
+	RuleManifestBlockSet, RuleManifestExpression,
 }
 
 // Options select the tree and its grammar.
@@ -78,6 +81,9 @@ type Options struct {
 	Level    string // a key of levels; "" is L1
 	Resource string // the one resource type under test, at a level with one
 	Pins     []Pin  // the provider versions required_providers may name
+	// Expect, when set, is the block set and single expressions the trusted
+	// template wrote; the tree must match it exactly.
+	Expect *Manifest
 }
 
 // Result is the report of one check.
@@ -136,6 +142,9 @@ func Check(o Options) (*Result, error) {
 	}
 	if files != nil {
 		c.finish()
+		if o.Expect != nil {
+			c.expect(o.Expect)
+		}
 	}
 	return c.result(sum), nil
 }
@@ -180,6 +189,7 @@ type checker struct {
 	declared       map[string]bool            // local names required_providers declares
 	providerBlocks map[string]int             // provider blocks by local name
 	endpoints      map[string]map[string]bool // endpoint keys by provider local name
+	bodies         map[string]*hclsyntax.Body // parsed files by name
 	tested         []place                    // resources of the type under test
 }
 
@@ -190,7 +200,7 @@ type place struct {
 
 func newChecker(lv level, underTest string, pins []Pin) *checker {
 	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
-		endpoints: map[string]map[string]bool{}}
+		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -315,6 +325,7 @@ func (c *checker) file(name string, src []byte) {
 		c.add(name, 0, rule, "")
 		return
 	}
+	c.bodies[name] = body
 	c.heredocs(name, tokens)
 	c.top(name, body)
 }

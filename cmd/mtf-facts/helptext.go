@@ -154,6 +154,13 @@ start with var, local, each, count, self or an allowed resource type; a heredoc
 must be a plain string. Nothing is evaluated, so the host bounds what plan may
 allocate.
 
+--expect takes the manifest the trusted template wrote:
+{"files":{"main.tf":{"blocks":[{"type","labels"}],"single_expressions":
+[{"block","labels","attribute"}]}}}. Each file's top-level blocks must then be
+exactly that set (type and labels, any order), no other .tf file may exist,
+and each single expression attribute must be the last item of its block, so
+a spliced expression cannot add a block or an argument.
+
 tree_sha256 is the SHA-256 of one "name NUL type NUL content-sha256 LF" line
 per directory entry, sorted by name, the type file, file+x, dir, symlink or
 special; it identifies a tree that passes.
@@ -170,6 +177,7 @@ Exit codes:
 	fixtureCheckResourceUsage = "resource `type` under test, at L3"
 	fixtureCheckPinsUsage     = "pins `file`, {\"providers\":[{\"source\",\"version\"}]}, of the provider versions the host installed"
 	fixtureCheckJSONUsage     = "write the result as JSON"
+	fixtureCheckExpectUsage   = "manifest `file` of the block set and single expressions the template wrote"
 )
 
 const (

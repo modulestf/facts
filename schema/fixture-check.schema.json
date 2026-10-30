@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "fixture-check.schema.json",
   "title": "mtf-facts fixture-check result",
-  "description": "The result of checking one ladder scratch tree against the default-deny allowlist of its level. ok is true exactly when violations is empty. tree_sha256 hashes one 'name NUL mode NUL content-sha256 LF' line per directory entry, sorted by name.",
+  "description": "The result of checking one ladder scratch tree against the default-deny allowlist of its level. ok is true exactly when violations is empty. tree_sha256 hashes one 'name NUL type NUL content-sha256 LF' line per directory entry, sorted by name.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -98,6 +98,8 @@
             "expr.function-denied",
             "expr.reference-denied",
             "expr.heredoc-template",
+            "manifest.block-set",
+            "manifest.expression",
             "limit.violations"
           ]
         },

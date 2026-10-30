@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "files": {
+    "main.tf": {
+      "blocks": [
+        {"type": "variable", "labels": ["vpc_security_group_ids"]},
+        {"type": "variable", "labels": ["tags"]},
+        {"type": "resource", "labels": ["terraform_data", "unknown_sg"]},
+        {"type": "locals", "labels": []},
+        {"type": "resource", "labels": ["terraform_data", "probe"]},
+        {"type": "output", "labels": ["base"]},
+        {"type": "output", "labels": ["head"]}
+      ],
+      "single_expressions": [
+        {"block": "output", "labels": ["base"], "attribute": "value"},
+        {"block": "output", "labels": ["head"], "attribute": "value"}
+      ]
+    }
+  }
+}

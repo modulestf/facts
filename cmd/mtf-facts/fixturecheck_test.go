@@ -53,6 +53,25 @@ func TestFixtureCheckViolations(t *testing.T) {
 	}
 }
 
+func TestFixtureCheckExpect(t *testing.T) {
+	t.Parallel()
+	l1, m := filepath.Join(fixtureTD, "l1"), filepath.Join(fixtureTD, "l1.expect.json")
+	if code, out, errOut := runCLI([]string{"fixture-check", l1, "--expect", m, "--json"}); code != exitClean || errOut != "" {
+		t.Errorf("exit %d, stderr %q, stdout %s", code, errOut, out)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("output \"x\" {\n  value = 1\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, _ := runCLI([]string{"fixture-check", dir, "--expect", m, "--json"})
+	if code != exitFindings || !strings.Contains(out, `"rule": "manifest.block-set"`) {
+		t.Errorf("other blocks: exit %d, %s", code, out)
+	}
+	if code, out, errOut := runCLI([]string{"fixture-check", l1, "--expect", filepath.Join(fixtureTD, "pins.json")}); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: fixture-check: expect:") {
+		t.Errorf("bad manifest: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+}
+
 func TestFixtureCheckErrors(t *testing.T) {
 	t.Parallel()
 	bad := filepath.Join(t.TempDir(), "pins.json")
