@@ -43,6 +43,7 @@ const (
 // Verification levels a trigger can select.
 const (
 	LevelL1     = "L1"
+	LevelL2     = "L2" // terraform test with mock providers: computed values are known at plan
 	LevelL3     = "L3"
 	LevelL4     = "L4"
 	LevelCompat = "compat"

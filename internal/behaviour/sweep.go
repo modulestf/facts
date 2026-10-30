@@ -267,7 +267,8 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 		}
 		for _, c := range claims {
 			if c.Revision != rev || !verified[c.ClaimID] || !slices.Contains(preds, c.PredicateType) ||
-				!slices.Contains(predicateLevels[c.PredicateType], p.level) || scoped && len(c.Scope) == 0 {
+				!slices.Contains(predicateLevels[c.PredicateType], p.level) || scoped && len(c.Scope) == 0 ||
+				p.level == LevelL2 && slices.Contains(neverFromL2, c.PredicateType) {
 				continue
 			}
 			if judge(c, o) != vSupport {
@@ -317,7 +318,12 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 		return ""
 	}
 	switch attr {
-	case "known", "length":
+	case "length":
+		if ids := pair(side("base", p.base), side("head", p.head)); ids != nil {
+			return ids
+		}
+		return filtering(p, claims, verified)
+	case "known":
 		return pair(side("base", p.base), side("head", p.head))
 	case "wholly_unknown", "unknown_mask":
 		// Only the change between wholly unknown and partly known, at L1,
@@ -327,7 +333,10 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 		}
 		return pair(side("base", p.base), side("head", p.head))
 	case "value":
-		return both(PredExprEquals)
+		if ids := both(PredExprEquals); ids != nil {
+			return ids
+		}
+		return filtering(p, claims, verified)
 	case "action":
 		return both(PredPlanAction)
 	case "unchanged_vs_prior":
@@ -341,6 +350,63 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 	}
 	// sensitive, redacted, unknown_inputs and error are never explained.
 	return nil
+}
+
+// filtering explains a value or length pair at L1 where one revision drops
+// marker elements of an input that the other keeps: verified input-filtered
+// claims state that one side filters and the other keeps the same input's
+// markers, each holding on the case, and the keeping side's value with
+// those markers removed is the filtering side's value.
+func filtering(p casePair, claims []Claim, verified map[string]bool) []string {
+	if p.level != LevelL1 {
+		return nil
+	}
+	for _, keptRev := range []string{"base", "head"} {
+		kept, drop := p.head, p.base
+		filterRev := "base"
+		if keptRev == "base" {
+			kept, drop, filterRev = p.base, p.head, "head"
+		}
+		var ids, markers []string
+		for _, k := range claims {
+			if k.PredicateType != PredInputFiltered || !k.Kept || k.Revision != keptRev || !verified[k.ClaimID] || judge(k, kept) != vSupport {
+				continue
+			}
+			for _, f := range claims {
+				if f.PredicateType == PredInputFiltered && !f.Kept && f.Revision == filterRev && verified[f.ClaimID] &&
+					f.Input == k.Input && f.Value == k.Value && judge(f, drop) == vSupport {
+					ids = append(ids, k.ClaimID, f.ClaimID)
+					markers = append(markers, k.Value)
+					break
+				}
+			}
+		}
+		if ids != nil && known(kept) && known(drop) && stripped(kept.Value, markers, drop.Value) {
+			slices.Sort(ids)
+			return slices.Compact(ids)
+		}
+	}
+	return nil
+}
+
+// stripped reports whether the list kept with every marker element
+// removed equals the list drop.
+func stripped(kept json.RawMessage, markers []string, drop json.RawMessage) bool {
+	var list []json.RawMessage
+	if json.Unmarshal(kept, &list) != nil {
+		return false
+	}
+	var out []json.RawMessage
+	for _, el := range list {
+		if !slices.ContainsFunc(markers, func(m string) bool { return holdsAny([]json.RawMessage{el}, m) }) {
+			out = append(out, el)
+		}
+	}
+	b, err := json.Marshal(out)
+	if out == nil {
+		b = []byte("[]")
+	}
+	return err == nil && jsonEqual(b, drop)
 }
 
 // transitionSide reports a side of an unknown-ness transition: wholly

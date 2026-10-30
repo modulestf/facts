@@ -429,6 +429,9 @@ const (
 // evalClaim decides one claim from the valid runs at its levels.
 func evalClaim(c Claim, l *Ladder) (string, string) {
 	levels := predicateLevels[c.PredicateType]
+	if slices.Contains(neverFromL2, c.PredicateType) {
+		levels = slices.DeleteFunc(slices.Clone(levels), func(lv string) bool { return lv == LevelL2 })
+	}
 	runs := validRuns(l, c.Node, levels)
 	if len(runs) == 0 {
 		return StateUnverifiable, fmt.Sprintf("no %s run of %s with a valid control", strings.Join(levels, " or "), c.Node)
@@ -513,7 +516,7 @@ func judge(c Claim, o Observation) verdict {
 		if json.Unmarshal(o.Value, &out) != nil {
 			return vUnknown
 		}
-		return pick(!holdsAny(out, c.Value))
+		return pick(holdsAny(out, c.Value) == c.Kept)
 	case PredPlanUnknown:
 		return pick(!known)
 	case PredPlanUnchanged:

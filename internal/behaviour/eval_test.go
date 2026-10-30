@@ -798,3 +798,96 @@ func TestCasesComputedConstant(t *testing.T) {
 		}
 	}
 }
+
+// TestL2NeverEvidencesUnknown: mock providers make computed attributes
+// known at plan, so an L2 run never evidences an unknown-ness claim and
+// never explains an unknown-ness change, whatever it observed.
+func TestL2NeverEvidencesUnknown(t *testing.T) {
+	b := pr556Report(t)
+	for i := range b.Triggers {
+		b.Triggers[i].Levels = []string{LevelL1, LevelL2}
+	}
+	withCases(t, b, "T-001", caseUnknownBase)
+	l2 := strings.ReplaceAll(sweepRun("T-001", "L2", caseUnknownBase, caseUnknownHead), `"level":"L1"`, `"level":"L2"`)
+	l2 += "," + strings.ReplaceAll(sweepRun("T-002", "L2",
+		`{"case":"prior","known":false,"unknown_mask":true}`, `{"case":"prior","known":false,"unknown_mask":true}`), `"level":"L1"`, `"level":"L2"`)
+	claims := []string{
+		claim("C-1", PredExprUnknown, `{"node":"T-001","revision":"base"}`),
+		claim("C-2", PredExprLengthKnown, `{"node":"T-001","revision":"head","length":1}`),
+		claim("C-3", PredPlanUnknown, `{"node":"T-002","revision":"head"}`),
+	}
+	r := evalWith(t, b, ladder(t, l2, noCoverage), claims...)
+	for _, c := range r.Claims {
+		if c.State != StateUnverifiable {
+			t.Errorf("%s from an L2 run: %s %s", c.ClaimID, c.State, c.Reason)
+		}
+	}
+	// With the L1 run beside it, the L2 run still explains nothing.
+	l1 := sweepRun("T-001", "L1", caseUnknownBase, caseUnknownHead)
+	r = evalWith(t, b, ladder(t, l1+","+l2, noCoverage), claims...)
+	for _, ch := range r.Triggers[0].Changes {
+		if ch.Level == LevelL2 {
+			t.Errorf("an L2 change is listed: %+v", ch)
+		}
+	}
+	for _, p := range []string{PredExprUnknown, PredExprLengthKnown, PredPlanUnknown} {
+		if slices.Contains(predicateLevels[p], LevelL2) {
+			t.Errorf("%s reads L2", p)
+		}
+	}
+}
+
+// pr556FilterClaims state what compact() filtered and concat() keeps:
+// empty strings and nulls of the variable, and nulls of the security
+// group ids.
+func pr556FilterClaims(node string, first int) []string {
+	var out []string
+	for _, f := range []struct{ input, value string }{
+		{"vpc_security_group_ids", "empty-string"}, {"vpc_security_group_ids", "null"}, {"aws_security_group.this[*].id", "null"},
+	} {
+		for _, rev := range []string{"base", "head"} {
+			filtered := rev == "base"
+			out = append(out, claim(fmt.Sprintf("C-%d", first+len(out)), PredInputFiltered,
+				fmt.Sprintf(`{"node":%q,"revision":%q,"input":%q,"value":%q,"filtered":%v}`, node, rev, f.input, f.value, filtered)))
+		}
+	}
+	return out
+}
+
+// TestSweepPR556Verified: seven scoped unknown-ness claims and six
+// filtering claims, within the host's cap of 20, verify T-001; every
+// change stays listed.
+func TestSweepPR556Verified(t *testing.T) {
+	b := pr556Report(t)
+	var base, head []string
+	for _, c := range b.Triggers[0].Cases {
+		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
+	}
+	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
+	claims := append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 8)...)
+	if len(claims) > 20 {
+		t.Fatalf("%d claims, over the cap", len(claims))
+	}
+	r := evalWith(t, b, ladder(t, run, noCoverage), claims...)
+	for _, c := range r.Claims {
+		if c.State != StateVerified {
+			t.Errorf("%s: %s %s", c.ClaimID, c.State, c.Reason)
+		}
+	}
+	s := r.Triggers[0]
+	if s.State != StateVerified || len(s.Changes) != 40 {
+		t.Errorf("T-001: %s", mustJSON(t, s))
+	}
+	// Without the null claims of the security group ids, the cases where
+	// they hold a null still differ.
+	r = evalWith(t, b, ladder(t, run, noCoverage), claims[:len(claims)-2]...)
+	if s := r.Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "null-element") {
+		t.Errorf("without the ids null claims: %s", mustJSON(t, s))
+	}
+	// A wrong filtering claim is refuted: the head keeps empty strings.
+	r = evalWith(t, b, ladder(t, run, noCoverage), claim("C-1", PredInputFiltered,
+		`{"node":"T-001","revision":"head","input":"vpc_security_group_ids","value":"empty-string"}`))
+	if r.Claims[0].State != StateRefuted || r.Triggers[0].State != StateRefuted {
+		t.Errorf("wrong filter claim: %s", mustJSON(t, r))
+	}
+}

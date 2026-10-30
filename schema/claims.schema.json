@@ -63,6 +63,9 @@
         "action": {"enum": ["no-op", "create", "update", "replace", "delete"]}}},
     "filtered": {"type": "object", "additionalProperties": false, "required": ["node", "revision", "input", "value"],
       "properties": {"node": {"$ref": "#/$defs/node"}, "revision": {"$ref": "#/$defs/revision"},
-        "input": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"}, "value": {"enum": ["empty-string", "null"]}}}
+        "input": {"type": "string", "minLength": 1, "maxLength": 256, "description": "A case input: a variable or a contextual reference."},
+        "value": {"enum": ["empty-string", "null"]},
+        "filtered": {"type": "boolean", "description": "false: the marker elements of the input reach the output. Default true."},
+        "cases_where": {"$ref": "#/$defs/cases_where"}}}
   }
 }

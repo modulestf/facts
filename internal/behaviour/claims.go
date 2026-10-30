@@ -47,7 +47,12 @@ var predicateKeys = map[string][]string{
 var optionalKeys = map[string][]string{
 	PredExprUnknown:     {"cases_where"},
 	PredExprLengthKnown: {"length", "cases_where"},
+	PredInputFiltered:   {"filtered", "cases_where"},
 }
+
+// neverFromL2 are the predicates about unknown values. A mock provider
+// makes computed values known at plan, so an L2 run never evidences them.
+var neverFromL2 = []string{PredExprUnknown, PredExprLengthKnown, PredPlanUnknown}
 
 // scopeStates are the states a cases_where entry can name.
 var scopeStates = []string{"wholly_unknown", "unknown_element", "empty", "known", "null", "omitted"}
@@ -62,7 +67,6 @@ var predicateLevels = map[string][]string{
 var (
 	claimIDPattern   = regexp.MustCompile(`^C-[0-9]{1,6}$`)
 	triggerIDPattern = regexp.MustCompile(`^T-[0-9]{3}$`)
-	inputNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 	planActions      = []string{"no-op", "create", "update", "replace", "delete"}
 )
 
@@ -81,6 +85,9 @@ type Claim struct {
 	// Scope limits an unknown-ness claim to the required cases whose inputs
 	// are all in the named states.
 	Scope map[string]string
+	// Kept inverts input-filtered: the marker elements of the input reach
+	// the output (params.filtered false).
+	Kept bool
 }
 
 // Discarded is a claim the validation refused.
@@ -254,8 +261,15 @@ func (c *Claim) params(raw json.RawMessage, triggers map[string]*Trigger) string
 			return "params.action is not one of " + strings.Join(planActions, ", ")
 		}
 	case PredInputFiltered:
-		if c.Input, ok = str("input"); !ok || !inputNamePattern.MatchString(c.Input) || !inputs[c.Input] {
-			return "params.input is not a variable trigger " + c.Node + " reads"
+		if c.Input, ok = str("input"); !ok || !caseInputs[c.Input] {
+			return "params.input is not an input of trigger " + c.Node
+		}
+		if raw, has := p["filtered"]; has {
+			var f bool
+			if json.Unmarshal(raw, &f) != nil {
+				return "params.filtered is not a boolean"
+			}
+			c.Kept = !f
 		}
 		if c.Value, ok = str("value"); !ok || c.Value != "empty-string" && c.Value != "null" {
 			return `params.value is not "empty-string" or "null"`
