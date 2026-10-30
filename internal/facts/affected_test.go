@@ -462,3 +462,63 @@ func TestAffectedModeChange(t *testing.T) {
 		}
 	})
 }
+
+// TestAffectedOversize: a file over MaxFileBytes the diff does not list is
+// unchanged, its base being the head's own entry; one the diff lists is
+// changed and never inert.
+func TestAffectedOversize(t *testing.T) {
+	big := strings.Repeat("x", int(DefaultLimits.MaxFileBytes)+1)
+	head := writeTree(t, with(affectedHead, map[string]string{
+		"README.md": "# changed\n", "examples/complete/backup.zip": big, "docs/big.md": big,
+	}))
+	all := []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"}
+	for name, tc := range map[string]struct {
+		diff    string
+		inert   bool
+		changed []string
+	}{
+		"unlisted, files list": {
+			diff:  `[{"filename":"README.md","status":"modified","additions":1,"deletions":1,"patch":"@@ -1 +1 @@\n-# module\n+# changed"}]`,
+			inert: true, changed: []string{"README.md"},
+		},
+		"unlisted, unified diff": {
+			diff:  "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-# module\n+# changed\n",
+			inert: true, changed: []string{"README.md"},
+		},
+		"listed with no patch": {
+			diff:    `[{"filename":"docs/big.md","status":"modified","additions":5,"deletions":1}]`,
+			changed: []string{"docs/big.md"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := filepath.Join(t.TempDir(), "change")
+			if err := os.WriteFile(f, []byte(tc.diff), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r, err := Affected(AffectedOptions{Head: head, Diff: f, Limits: DefaultLimits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantAffected(t, r, tc.inert, "", all...)
+			if !slices.Equal(r.Changed, tc.changed) {
+				t.Errorf("changed = %q, want %q", r.Changed, tc.changed)
+			}
+		})
+	}
+	t.Run("base tree: oversize stays unknown, so changed", func(t *testing.T) {
+		base := writeTree(t, with(affectedHead, map[string]string{"examples/complete/backup.zip": big}))
+		r := runAffectedDirs(t, writeTree(t, with(affectedHead, map[string]string{"examples/complete/backup.zip": big})), base)
+		if !slices.Equal(r.Changed, []string{"examples/complete/backup.zip"}) || r.Inert {
+			t.Errorf("changed = %q, inert %v", r.Changed, r.Inert)
+		}
+	})
+}
+
+func runAffectedDirs(t *testing.T, head, base string) *AffectedReport {
+	t.Helper()
+	r, err := Affected(AffectedOptions{Head: head, Base: base, Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}

@@ -326,9 +326,15 @@ func (t *Tree) TreeSHA256() string {
 }
 
 // sameEntry reports whether two entries are unchanged between trees.
+// One entry is the same as itself: a base rebuilt from a diff holds the
+// head's own entry for every path the diff does not list, so an oversize or
+// unreadable file the change leaves alone is unchanged.
 func sameEntry(a, b *Entry) bool {
 	if a == nil || b == nil || a.Kind != b.Kind {
 		return false
+	}
+	if a == b {
+		return true
 	}
 	switch a.Kind {
 	case KindFile:
