@@ -72,11 +72,15 @@ func TestTreeSHA256(t *testing.T) {
 	if hash(map[string]string{"main.tf": string(src)}, 0o644) != base {
 		t.Error("hash is not deterministic")
 	}
+	// Permission bits other than the exec bit, such as a umask leaves, do not count.
+	if hash(map[string]string{"main.tf": string(src)}, 0o600) != base || hash(map[string]string{"main.tf": string(src)}, 0o664) != base {
+		t.Error("read and write bits change the hash")
+	}
 	for name, got := range map[string]string{
-		"content": hash(map[string]string{"main.tf": string(src) + "\n"}, 0o644),
-		"name":    hash(map[string]string{"other.tf": string(src)}, 0o644),
-		"mode":    hash(map[string]string{"main.tf": string(src)}, 0o600),
-		"file":    hash(map[string]string{"main.tf": string(src), "b.tf": ""}, 0o644),
+		"content":  hash(map[string]string{"main.tf": string(src) + "\n"}, 0o644),
+		"name":     hash(map[string]string{"other.tf": string(src)}, 0o644),
+		"exec bit": hash(map[string]string{"main.tf": string(src)}, 0o755),
+		"file":     hash(map[string]string{"main.tf": string(src), "b.tf": ""}, 0o644),
 	} {
 		if got == base {
 			t.Errorf("a change of %s keeps the hash", name)
@@ -153,6 +157,9 @@ var ruleCases = []ruleCase{
 	{name: "symlink", files: l1(okTF), setup: func(t *testing.T, dir string) {
 		mustDo(t, os.Symlink("main.tf", filepath.Join(dir, "link.tf")))
 	}, rule: RuleFileSymlink},
+	{name: "hard link", files: l1(okTF), setup: func(t *testing.T, dir string) {
+		mustDo(t, os.Link(filepath.Join(dir, "main.tf"), filepath.Join(dir, "other.tf")))
+	}, rule: RuleFileSpecial},
 	{name: "fifo", files: l1(okTF), setup: func(t *testing.T, dir string) {
 		mustDo(t, syscall.Mkfifo(filepath.Join(dir, "pipe.tf"), 0o644))
 	}, rule: RuleFileSpecial},
@@ -207,13 +214,24 @@ var ruleCases = []ruleCase{
 	{name: "credential reference", level: "L3", files: l3sub(`access_key                  = "fake"`, "access_key = var.k"), rule: RuleProviderValueDenied},
 	{name: "credential interpolation", level: "L3", files: l3sub(`access_key                  = "fake"`, `access_key = "${"fake"}"`), rule: RuleProviderValueDenied},
 	{name: "imds endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://169.254.169.254"`), rule: RuleProviderValueDenied},
-	{name: "https endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"https://localhost:1"`), rule: RuleProviderValueDenied},
+	{name: "https endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"https://127.0.0.1:1"`), rule: RuleProviderValueDenied},
 	{name: "userinfo endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://u@127.0.0.1:1"`), rule: RuleProviderValueDenied},
 	{name: "open port endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://127.0.0.1:8080"`), rule: RuleProviderValueDenied},
-	{name: "no port endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://localhost"`), rule: RuleProviderValueDenied},
+	{name: "no port endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://127.0.0.1"`), rule: RuleProviderValueDenied},
+	{name: "localhost endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://localhost:1"`), rule: RuleProviderValueDenied},
+	{name: "nip.io endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://127.0.0.1.nip.io:1"`), rule: RuleProviderValueDenied},
+	{name: "mapped v4 endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://[::ffff:127.0.0.1]:1"`), rule: RuleProviderValueDenied},
+	{name: "decimal ip endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://2130706433:1"`), rule: RuleProviderValueDenied},
+	{name: "service endpoint missing", level: "L3", files: l3sub(`rds = "http://127.0.0.1:1"`, `sts = "http://127.0.0.1:1"`), rule: RuleProviderValueDenied},
+	{name: "region malformed", level: "L3", files: l3sub(`"us-east-1"`, `"us-east-1.evil"`), rule: RuleProviderValueDenied},
 	{name: "path endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://127.0.0.1:1/x"`), rule: RuleProviderValueDenied},
 	{name: "query endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://[::1]:1/?a=b"`), rule: RuleProviderValueDenied},
 
+	{name: "filename argument", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  filename = \"~/.aws/credentials\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "source argument", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  source = \"/etc/passwd\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "file suffix argument", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  x {\n    ca_cert_file = \"x\"\n  }\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "path suffix argument", files: l1("resource \"terraform_data\" \"a\" {\n  key_path = \"x\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "content_base64 argument", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  content_base64 = \"eA==\"\n}\n"), rule: RuleBlockAttributeDenied},
 	{name: "aws resource in L1", files: l1(okTF + "resource \"aws_s3_bucket\" \"b\" {}\n"), rule: RuleResourceTypeDenied},
 	{name: "second type in L3", level: "L3", files: l3("resource \"aws_s3_bucket\" \"b\" {}\n"), rule: RuleResourceTypeDenied},
 	{name: "no resource under test", level: "L3", files: l3sub(l3Resource, okTF), rule: RuleResourceUnderTestCount},
@@ -228,6 +246,8 @@ var ruleCases = []ruleCase{
 	{name: "uuid", files: l1("locals {\n  a = uuid()\n}\n"), rule: RuleExprFunctionDenied},
 	{name: "bcrypt", files: l1("locals {\n  a = bcrypt(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
 	{name: "provider function", files: l1("locals {\n  a = provider::aws::arn_parse(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "core namespace", files: l1("locals {\n  a = core::abs(1)\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "templatestring", files: l1("locals {\n  a = templatestring(\"x\", {})\n}\n"), rule: RuleExprFunctionDenied},
 	{name: "function in template", files: l1("locals {\n  a = \"${file(\"x\")}\"\n}\n"), rule: RuleExprFunctionDenied},
 	{name: "function in resource", files: l1("resource \"terraform_data\" \"a\" {\n  input = filebase64(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
 
@@ -236,6 +256,8 @@ var ruleCases = []ruleCase{
 	{name: "terraform.workspace", files: l1("locals {\n  a = terraform.workspace\n}\n"), rule: RuleExprReferenceDenied},
 	{name: "data reference", files: l1("locals {\n  a = data.x.y.id\n}\n"), rule: RuleExprReferenceDenied},
 	{name: "module reference", files: l1("locals {\n  a = module.m.o\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "lookalike var root", files: l1("locals {\n  a = v\u0430r.x\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "lookalike path root", files: l1("locals {\n  a = p\u0430th.module\n}\n"), rule: RuleExprReferenceDenied},
 	{name: "unknown root", files: l1("locals {\n  a = aws_s3_bucket.b.id\n}\n"), rule: RuleExprReferenceDenied},
 	{name: "for binds path", files: l1("locals {\n  a = [for path in [1] : path]\n}\n"), rule: RuleExprReferenceDenied},
 	{name: "for binds var", files: l1("locals {\n  a = {for k, var in {} : k => var}\n}\n"), rule: RuleExprReferenceDenied},
@@ -352,6 +374,7 @@ func TestCheckErrors(t *testing.T) {
 		"terraform_data":     {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "terraform_data"},
 		"provider unknown":   {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "google_sql_database"},
 		"resource malformed": {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "aws-rds"},
+		"not curated":        {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "aws_lambda_function"},
 	} {
 		if _, err := Check(o); err == nil {
 			t.Errorf("%s: no error", name)

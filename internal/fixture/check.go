@@ -15,10 +15,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/facts"
@@ -99,9 +101,8 @@ type Violation struct {
 }
 
 var (
-	tfName     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*\.tf$`)
-	plainName  = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
-	resourceRE = regexp.MustCompile(`^[a-z][a-z0-9]*_[a-z0-9_]+$`)
+	tfName    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*\.tf$`)
+	plainName = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
 )
 
 // Check reads the tree in o.Dir and checks it. An error is bad options or a
@@ -154,8 +155,9 @@ func (o Options) level() (level, error) {
 	case !lv.underTest:
 		return lv, nil
 	}
-	if !resourceRE.MatchString(o.Resource) || o.Resource == "terraform_data" {
-		return level{}, fmt.Errorf("resource type %q is not a provider resource type", o.Resource)
+	if _, ok := curated[o.Resource]; !ok {
+		return level{}, fmt.Errorf("resource type %q is not a curated resource type, want one of %s",
+			o.Resource, strings.Join(slices.Sorted(maps.Keys(curated)), ", "))
 	}
 	if p := providerOf(o.Resource); p == "terraform" || !lv.allows(p) {
 		return level{}, fmt.Errorf("resource type %q: provider %q has no allowlist at level %s", o.Resource, p, name)
@@ -175,9 +177,10 @@ type checker struct {
 	pins       map[[2]string]bool
 	violations []Violation
 
-	declared       map[string]bool // local names required_providers declares
-	providerBlocks map[string]int  // provider blocks by local name
-	tested         []place         // resources of the type under test
+	declared       map[string]bool            // local names required_providers declares
+	providerBlocks map[string]int             // provider blocks by local name
+	endpoints      map[string]map[string]bool // endpoint keys by provider local name
+	tested         []place                    // resources of the type under test
 }
 
 type place struct {
@@ -186,7 +189,8 @@ type place struct {
 }
 
 func newChecker(lv level, underTest string, pins []Pin) *checker {
-	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{}}
+	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
+		endpoints: map[string]map[string]bool{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -202,9 +206,11 @@ func (c *checker) add(file string, line int, rule, detail string) {
 
 // readTree lists the directory, hashes every entry and reads the regular
 // files. It returns the .tf files to parse, or nil when a tree limit stops
-// the read, and the tree hash: SHA-256 over one "name NUL mode NUL
+// the read, and the tree hash: SHA-256 over one "name NUL type NUL
 // content-sha256 LF" line per entry, sorted by name, the content hash empty
-// for an entry not read. The hash covers a tree that passes completely.
+// for an entry not read. The type is file, file+x (any exec bit), dir,
+// symlink or special, so no umask changes the hash. The hash covers a tree
+// that passes completely.
 func (c *checker) readTree(r *os.Root) ([]*facts.Entry, string, error) {
 	h := sha256.New()
 	ents, err := listRoot(r)
@@ -219,22 +225,24 @@ func (c *checker) readTree(r *os.Root) ([]*facts.Entry, string, error) {
 	total := 0
 	for _, name := range ents {
 		info, err := r.Lstat(name)
-		var mode fs.FileMode
-		sum := ""
+		tag, sum := "special", ""
 		switch {
 		case err != nil:
 			c.add(name, 0, RuleFileSpecial, "")
 		case info.IsDir():
-			mode = info.Mode()
+			tag = "dir"
 			c.add(name, 0, RuleFileSubdirectory, "")
 		case info.Mode()&fs.ModeSymlink != 0:
-			mode = info.Mode()
+			tag = "symlink"
 			c.add(name, 0, RuleFileSymlink, "")
-		case !info.Mode().IsRegular():
-			mode = info.Mode()
+		case !info.Mode().IsRegular(), hardLinked(info):
+			// A second name for a file is a way to change it from outside.
 			c.add(name, 0, RuleFileSpecial, "")
 		default:
-			mode = info.Mode()
+			tag = "file"
+			if info.Mode().Perm()&0o111 != 0 {
+				tag = "file+x"
+			}
 			e := facts.ReadRegular(r, name, MaxFileBytes)
 			switch e.Kind {
 			case facts.KindFile:
@@ -260,9 +268,15 @@ func (c *checker) readTree(r *os.Root) ([]*facts.Entry, string, error) {
 				files = append(files, e)
 			}
 		}
-		fmt.Fprintf(h, "%s\x00%s\x00%s\n", name, mode, sum)
+		fmt.Fprintf(h, "%s\x00%s\x00%s\n", name, tag, sum)
 	}
 	return files, hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// hardLinked reports a file with more than one name.
+func hardLinked(info fs.FileInfo) bool {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	return !ok || uint64(st.Nlink) > 1
 }
 
 // listRoot returns the names in the root directory, sorted, reading at most
@@ -345,8 +359,11 @@ func (c *checker) finish() {
 			c.add(t.file, t.line, RuleProviderNotPinned, p)
 		}
 	}
-	if c.providerBlocks[p] == 0 {
+	switch svc := curated[c.underTest].service; {
+	case c.providerBlocks[p] == 0:
 		c.add(".", 0, RuleProviderValueDenied, p)
+	case !c.endpoints[p][svc]:
+		c.add(".", 0, RuleProviderValueDenied, svc)
 	}
 }
 

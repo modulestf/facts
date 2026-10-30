@@ -4,6 +4,7 @@ import (
 	"maps"
 	"net/url"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -37,14 +38,42 @@ type valueKind int
 const (
 	kindString valueKind = iota // a nonempty literal string
 	kindTrue                    // true, or "true"
+	kindRegion                  // a literal region name
 )
+
+var regionName = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]$`)
+
+// curatedResource is a resource type a level may put under test, with the
+// endpoint key of its service. Phases 4 and 5 add types here.
+type curatedResource struct {
+	service string
+}
+
+var curated = map[string]curatedResource{
+	"aws_rds_cluster": {service: "rds"},
+}
+
+// deniedArg reports a resource argument name a provider may read a local
+// file or other local source from.
+func deniedArg(name string) bool {
+	switch name {
+	case "content_base64", "file", "filename", "path", "source":
+		return true
+	}
+	for _, suffix := range []string{"_file", "_filename", "_path"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
 
 // builtinTerraform is the provider of terraform_data: it takes no arguments.
 var builtinTerraform = providerRule{}
 
 var awsProvider = providerRule{
 	args: map[string]valueKind{
-		"region":                      kindString,
+		"region":                      kindRegion,
 		"access_key":                  kindString,
 		"secret_key":                  kindString,
 		"skip_credentials_validation": kindTrue,
@@ -296,6 +325,10 @@ func (c *checker) provider(file string, b *hclsyntax.Block) {
 		}
 		for _, a := range sortedAttrs(nb.Body) {
 			endpoints++
+			if c.endpoints[b.Labels[0]] == nil {
+				c.endpoints[b.Labels[0]] = map[string]bool{}
+			}
+			c.endpoints[b.Labels[0]][a.Name] = true
 			if v, ok := literalString(a.Expr); !ok || !closedLoopback(v) {
 				c.add(file, a.NameRange.Start.Line, RuleProviderValueDenied, a.Name)
 			}
@@ -315,6 +348,9 @@ func (k valueKind) accepts(e hclsyntax.Expression) bool {
 		return ok && v == "true"
 	}
 	v, ok := literalString(e)
+	if k == kindRegion {
+		return ok && regionName.MatchString(v)
+	}
 	return ok && v != ""
 }
 
@@ -336,8 +372,9 @@ func literalString(e hclsyntax.Expression) (string, bool) {
 	return b.String(), true
 }
 
-// closedLoopback reports an http URL to port 1 of a loopback host, the
-// closed port the design names, with no user info, path beyond "/", query
+// closedLoopback reports an http URL to port 1 of the loopback address
+// 127.0.0.1 or ::1, the closed port the design names: an IP literal, so no
+// resolver decides the host, with no user info, path beyond "/", query
 // or fragment: no endpoint can reach a service listening on the host.
 func closedLoopback(s string) bool {
 	u, err := url.Parse(s)
@@ -346,7 +383,7 @@ func closedLoopback(s string) bool {
 		return false
 	}
 	switch u.Hostname() {
-	case "localhost", "127.0.0.1", "::1":
+	case "127.0.0.1", "::1":
 		return true
 	}
 	return false
@@ -374,6 +411,10 @@ func (c *checker) resource(file string, b *hclsyntax.Block, s scope) {
 // set for the resource's own body, where provider names a provider.
 func (c *checker) resourceBody(file string, body *hclsyntax.Body, s scope, meta bool) {
 	for _, a := range sortedAttrs(body) {
+		if deniedArg(a.Name) {
+			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
+			continue
+		}
 		if meta && a.Name == "provider" {
 			if name := hcl.ExprAsKeyword(a.Expr); name == "" || !c.lv.allows(name) {
 				c.add(file, a.NameRange.Start.Line, RuleProviderDenied, name)

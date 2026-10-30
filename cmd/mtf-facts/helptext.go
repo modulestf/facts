@@ -138,21 +138,25 @@ const (
 	fixtureCheckLong  = `Check the scratch tree a verification ladder level will run against a
 default-deny allowlist, before any Terraform runs on it, and hash the tree.
 
-Only .tf files directly in <dir> pass: no subdirectory, link, special, hidden,
-override or JSON file, at most 64 entries, 256 KiB a file and 1 MiB in all.
+Only .tf files directly in <dir> pass: no subdirectory, link, hard link,
+special, hidden, override or JSON file, at most 64 entries, 256 KiB a file and
+1 MiB in all.
 Top-level blocks: terraform (required_providers entries equal to a pin of
 --pins, nothing else), variable, locals, output, provider (the arguments its
 allowlist names, literal values only) and resource of type terraform_data.
 L1 uses the built-in provider only. L3 adds exactly one resource of the
---resource type and a provider "aws" block that must set region, fake
-credentials, every skip_* flag to true and endpoints at http loopback port 1.
+curated --resource type (aws_rds_cluster) and a provider "aws" block that must
+set region, fake credentials, every skip_* flag to true and endpoints at
+http://127.0.0.1:1 or http://[::1]:1, the service under test included.
+Resource arguments that name a local file or source are refused.
 Every function call must be on the pure-function allowlist and every reference
 start with var, local, each, count, self or an allowed resource type; a heredoc
 must be a plain string. Nothing is evaluated, so the host bounds what plan may
 allocate.
 
-tree_sha256 is the SHA-256 of one "name NUL mode NUL content-sha256 LF" line
-per directory entry, sorted by name; it identifies a tree that passes.
+tree_sha256 is the SHA-256 of one "name NUL type NUL content-sha256 LF" line
+per directory entry, sorted by name, the type file, file+x, dir, symlink or
+special; it identifies a tree that passes.
 
 Exit codes:
   0  the tree passes
