@@ -255,6 +255,29 @@ The `coverage.*` rules read the bound handoff when one is given, and never fall 
 
 The exit codes are in [Quick start](#quick-start).
 
+### affected
+
+`mtf-facts affected` lists the examples a change can affect, most likely first, so a host can plan them in that order within its time budget.
+
+```sh
+mtf-facts affected <dir> [--base <dir> | --diff <file>] [--json] [--timeout <duration>]
+```
+
+`--base` and `--diff` read the change as `lint` does (see [Change as a diff](#change-as-a-diff)). With `--json` it writes one JSON document in the shape of [affected.schema.json](schema/affected.schema.json):
+
+```json
+{"schema_version": 1, "inert": false, "fallback": null,
+ "examples": [{"dir": "examples/c", "reason": "touched"}, {"dir": "examples/a", "reason": "caller"}, {"dir": "examples/b", "reason": "all"}],
+ "changed": ["examples/c/main.tf", "modules/log/main.tf"]}
+```
+
+- `examples` holds every example: each first-level directory under `examples/` with a `.tf` file in it. First those with a changed path under them (`touched`), then those whose local module sources reach a changed module directory, transitively and the root module included, as with `source = "../../"` (`caller`), then the rest (`all`), each group in path order. Registry and git sources are not callers of the local tree. A changed file that is not configuration, such as a script or a template, counts as a change of the nearest module directory above it.
+- `inert` is true only when every changed path is a documentation or metadata path (Markdown and other docs files, `LICENSE`, `.gitignore`, anything under `docs/` or `.github/` that is not configuration) and no HCL read site in the whole tree reaches it. Read sites are the first argument of `file`, `templatefile`, `fileset` and the other file functions, the file and program attributes of `local_file`, `archive_file`, `external` and the provisioners, and any other string that is a path from `path.module`, `path.root` or `path.cwd`, or a plain literal resolved against the repository root and each example. A read site with a dynamic path reaches every file. A docs file a read site reaches is not inert and counts as a change of the module that reads it, so a README a module reads with `file()` makes its callers `caller`.
+- `fallback` says why the examples could not be ranked, and then every example has reason `all` and `inert` is false: `unparsed` when a `.tf` file of the head tree does not parse or a `.tf.json` or override file is present, `dynamic-source` when a module call has no literal source, `no-change-input` when neither `--base` nor `--diff` is given.
+- `changed` lists the changed paths, both paths of a rename.
+
+It exits 0 with the list, or 2 on bad input, a limit, an example directory whose name is outside `[A-Za-z0-9._-]`, or the timeout, with nothing on stdout. Without `--json` it prints one `<reason> <dir>` line per example and a summary line.
+
 ### bundle
 
 `mtf-facts bundle` turns a `lint --json` report into the facts bundle a model reviewer reads, and the injected rule text for the rules the report left `not_evaluated`.

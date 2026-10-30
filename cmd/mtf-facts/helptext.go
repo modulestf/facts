@@ -225,3 +225,41 @@ const (
 	schemaDiffRequired = "--from, --to and --types-from are required"
 	registryRequired   = "--registry is required"
 )
+
+const (
+	affectedShort = "List the examples a change can affect, most likely first"
+	affectedLong  = `List the examples a change can affect, for a host that plans them. Give
+the tree the change started from with --base, or the change itself with
+--diff, a GitHub pull request files list or a unified diff that the base
+tree is rebuilt from.
+
+Every example is listed: a first-level directory under examples/ that holds
+a .tf file. First those the change touches (touched), then those that call a
+module it touches through local module sources, transitively, the root
+module included (caller), then every other example (all), each group in
+path order. Registry and git sources are not callers of the local tree. A
+changed file that is not configuration counts as a change of the module
+directory nearest above it.
+
+inert is true only when every changed path is a documentation or metadata
+path, such as a Markdown file or one under .github/, that no HCL read site
+reaches: file and templatefile arguments, local_file, archive_file and
+external attributes, provisioner commands and scripts, and any string that
+is a path. A docs file a read site reaches counts as a change of the module
+that reads it.
+
+When the examples cannot be ranked, fallback says why and every example has
+reason all: unparsed when an HCL file cannot be parsed, dynamic-source when
+a module call has no literal source, no-change-input when neither --base
+nor --diff is given.
+
+Exit codes:
+  0  the list was written
+  2  an error: bad input, a limit, an example name outside [A-Za-z0-9._-]
+     or the timeout; stdout is empty`
+	affectedExample = `  mtf-facts affected path/to/module --diff files.json --json
+  mtf-facts affected path/to/module --base path/to/base-tree`
+	affectedBaseUsage = "the `tree` the change started from"
+	affectedDiffUsage = "the change as a `file`, a GitHub pull request files list or a unified diff, to rebuild the base tree from; not with --base"
+	affectedJSONUsage = "write the list as JSON (schema/affected.schema.json)"
+)

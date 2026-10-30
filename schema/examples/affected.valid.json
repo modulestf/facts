@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "inert": false,
+  "fallback": null,
+  "examples": [
+    {"dir": "examples/sub", "reason": "touched"},
+    {"dir": "examples/complete", "reason": "caller"},
+    {"dir": "examples/registry", "reason": "all"}
+  ],
+  "changed": ["examples/sub/main.tf", "main.tf"]
+}

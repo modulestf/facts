@@ -48,7 +48,7 @@ func TestRootHelp(t *testing.T) {
 	last := -1
 	for _, line := range []string{
 		"Check a module:", "  lint ", "  ledger ", "  schema-diff ",
-		"Review pipeline (run by hosts):", "  bundle ", "  merge ",
+		"Review pipeline (run by hosts):", "  affected ", "  bundle ", "  merge ",
 		"Other commands:", "  rules ", "  version ", "  completion ", "  help ",
 	} {
 		i := strings.Index(want, "\n"+line)
@@ -420,6 +420,7 @@ Check a module:
   schema-diff  Compare two provider schemas for the types a module uses
 
 Review pipeline (run by hosts):
+  affected     List the examples a change can affect, most likely first
   bundle       Build the facts bundle a model reviewer reads
   merge        Check a model reply and merge it into the final findings
 

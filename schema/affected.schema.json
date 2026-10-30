@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "affected.schema.json",
+  "title": "mtf-facts affected",
+  "description": "The examples a change can affect, most likely first: touched, then caller, then every other example with reason all. With a fallback every example has reason all and inert is false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "inert", "fallback", "examples", "changed"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "inert": {"type": "boolean", "description": "True only when every changed path is a documentation or metadata path no HCL read site reaches."},
+    "fallback": {"enum": [null, "unparsed", "dynamic-source", "no-change-input"]},
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dir", "reason"],
+        "properties": {
+          "dir": {"type": "string", "pattern": "^examples/[A-Za-z0-9._-]+$", "not": {"enum": ["examples/.", "examples/.."]}},
+          "reason": {"enum": ["touched", "caller", "all"]}
+        }
+      }
+    },
+    "changed": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "if": {
+    "type": "object",
+    "required": ["fallback"],
+    "properties": {"fallback": {"type": "string"}}
+  },
+  "then": {
+    "type": "object",
+    "properties": {
+      "inert": {"const": false},
+      "examples": {"type": "array", "items": {"type": "object", "properties": {"reason": {"const": "all"}}}}
+    }
+  }
+}
