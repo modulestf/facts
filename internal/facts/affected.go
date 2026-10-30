@@ -60,9 +60,11 @@ type AffectedExample struct {
 // Affected reads the head tree and the change, and lists the examples the
 // change can affect: those it touches, and those that call a module it
 // touches through local module sources, transitively. Registry and git
-// sources are not callers of the local tree. A changed file that is not
-// configuration counts as a change of the module directory nearest above
-// it, and a reached documentation file as one of the module that reads it.
+// sources are not callers of the local tree. A changed file Terraform loads
+// by its directory (configuration, variables, tests, the lock file) is a
+// change of that directory; any other changed file, documentation included,
+// is a change of every module whose read sites reach it. A change of the
+// exec bit alone is a change and never inert.
 func Affected(o AffectedOptions) (*AffectedReport, error) {
 	if o.Base != "" && o.Diff != "" {
 		return nil, errors.New("a base tree and a diff cannot be given together")
@@ -107,37 +109,40 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	}
 
 	roots := append([]string{"."}, examples...)
-	config := configDirs(head)
-	for d := range configDirs(base) {
-		config[d] = true
-	}
 	changedDirs := map[string]bool{}
+	// readers marks the modules whose read sites reach p as changed.
+	readers := func(p string) (bool, error) {
+		reached := false
+		for i, s := range sites {
+			if i%1024 == 0 {
+				if err := o.Limits.expired(); err != nil {
+					return false, err
+				}
+			}
+			if s.Reaches(p, roots) {
+				reached = true
+				changedDirs[s.Dir] = true
+			}
+		}
+		return reached, nil
+	}
 	r.Inert = true
 	for _, p := range r.Changed {
 		if err := o.Limits.expired(); err != nil {
 			return nil, err
 		}
-		if InertDocPath(p) && inertEntry(head.Entries[p]) && inertEntry(base.Entries[p]) {
-			reached := false
-			for i, s := range sites {
-				if i%1024 == 0 {
-					if err := o.Limits.expired(); err != nil {
-						return nil, err
-					}
-				}
-				if s.Reaches(p, roots) {
-					reached = true
-					changedDirs[s.Dir] = true
-				}
-			}
-			if reached {
-				r.Inert = false // the modules that read it are changed, not its directory
-			}
+		h, b := head.Entries[p], base.Entries[p]
+		if dirLoaded(p, h, b) {
+			r.Inert = false
+			changedDirs[path.Dir(p)] = true
 			continue
 		}
-		r.Inert = false
-		if d, ok := nearestDir(p, config); ok {
-			changedDirs[d] = true
+		reached, err := readers(p)
+		if err != nil {
+			return nil, err
+		}
+		if reached || !InertDocPath(p) || !inertEntry(h) || !inertEntry(b) || modeChanged(h, b) {
+			r.Inert = false
 		}
 	}
 
@@ -170,24 +175,12 @@ func (r *AffectedReport) fallback(why string, examples []string) *AffectedReport
 // examples/ that hold a .tf file. A name a host could not use safely as a
 // path is an error.
 func exampleDirs(t *Tree) ([]string, error) {
-	var out []string
-	for d := range t.Dirs {
-		parts := strings.Split(d, "/")
-		if len(parts) != 2 || parts[0] != "examples" {
-			continue
-		}
-		if !slices.ContainsFunc(t.DirEntries(d), func(e *Entry) bool {
-			name := path.Base(e.Path)
-			return strings.HasSuffix(name, ".tf") && !ignoredName(name)
-		}) {
-			continue
-		}
-		if !exampleName.MatchString(parts[1]) {
+	out := exampleRoots(t)[1:]
+	for _, d := range out {
+		if name := path.Base(d); !exampleName.MatchString(name) {
 			return nil, fmt.Errorf("example directory %q has a name outside [A-Za-z0-9._-]", clean(d))
 		}
-		out = append(out, d)
 	}
-	slices.Sort(out)
 	return out, nil
 }
 
@@ -224,9 +217,35 @@ func changedPaths(head, base *Tree) []string {
 }
 
 // inertEntry reports whether an entry can be an inert documentation file:
-// absent, or a regular file. A link may point at anything.
+// absent, or a regular file. A link may point at anything, and a file a diff
+// gives no patch for may have changed its mode.
 func inertEntry(e *Entry) bool {
-	return e == nil || e.Kind == KindFile || e.Kind == KindOversize || e.Kind == KindNoPatch
+	return e == nil || e.Kind == KindFile || e.Kind == KindOversize
+}
+
+// modeChanged reports whether a file's exec bit differs between trees.
+func modeChanged(h, b *Entry) bool {
+	return h != nil && b != nil && h.exec != b.exec
+}
+
+// dirLoaded reports whether Terraform reads p because of the directory it is
+// in, so its change is one of that module directory: configuration, variable
+// definitions, test and lock files, and an entry that is not a regular file,
+// which may stand for a directory of configuration. Any other file changes
+// only the modules whose read sites reach it.
+func dirLoaded(p string, entries ...*Entry) bool {
+	name := path.Base(p)
+	if name == ".terraform.lock.hcl" {
+		return true
+	}
+	for _, ext := range []string{".tf", ".tf.json", ".tfvars", ".tfvars.json", ".tftest.hcl"} {
+		if strings.HasSuffix(name, ext) {
+			return true
+		}
+	}
+	return slices.ContainsFunc(entries, func(e *Entry) bool {
+		return e != nil && e.Kind != KindFile && e.Kind != KindOversize && e.Kind != KindNoPatch
+	})
 }
 
 // configDirs is the set of directories that hold a .tf or .tf.json file.
@@ -239,18 +258,6 @@ func configDirs(t *Tree) map[string]bool {
 		}
 	}
 	return out
-}
-
-// nearestDir returns the directory of config nearest above p.
-func nearestDir(p string, config map[string]bool) (string, bool) {
-	for d := path.Dir(p); ; d = path.Dir(d) {
-		if config[d] {
-			return d, true
-		}
-		if d == "." {
-			return "", false
-		}
-	}
 }
 
 // callGraph parses every module directory of the head tree and returns, per
@@ -268,11 +275,12 @@ func callGraph(head *Tree, lim Limits) (edges map[string][]string, fallback stri
 			return nil, FallbackUnparsed, nil
 		}
 		for _, c := range m.ModuleCalls {
+			src := strings.ReplaceAll(c.Source, `\`, "/") // a local path written as on Windows
 			switch {
-			case c.Source == "":
+			case src == "":
 				fallback = FallbackDynamicSource
-			case strings.HasPrefix(c.Source, "./") || strings.HasPrefix(c.Source, "../"):
-				if to := path.Join(d, c.Source); to != ".." && !strings.HasPrefix(to, "../") {
+			case strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../"):
+				if to := path.Join(d, src); to != ".." && !strings.HasPrefix(to, "../") {
 					edges[d] = append(edges[d], to)
 				}
 			}

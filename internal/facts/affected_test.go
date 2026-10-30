@@ -110,9 +110,9 @@ func TestAffectedSelection(t *testing.T) {
 			set:      map[string]string{"examples/chain/local/main.tf": "module \"root\" {\n  source = \"../../..\"\n}\n"},
 			examples: []string{"touched examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"},
 		},
-		"non-config file goes to the nearest module directory": {
+		"non-config file no read site reaches changes no module": {
 			set:      map[string]string{"modules/sub/files/run.py": "print(2)\n"},
-			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+			examples: []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"},
 		},
 		"docs only is inert": {
 			set:      map[string]string{"README.md": "# changed\n", "modules/sub/README.md": "# changed\n", ".github/workflows/ci.yml": "on: pull_request\n"},
@@ -194,6 +194,46 @@ func TestAffectedReadSites(t *testing.T) {
 			hcl:      map[string]string{"modules/sub/main.tf": "data \"local_file\" \"d\" {\n  filename = var.f\n}\n"},
 			change:   readme,
 			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"non-config file goes to the module that reads it": {
+			hcl:      map[string]string{"modules/sub/main.tf": "data \"archive_file\" \"z\" {\n  type       = \"zip\"\n  source_dir = \"${path.module}/files\"\n}\n"},
+			change:   map[string]string{"modules/sub/files/run.py": "print(2)\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"local-exec command is a shell string that reaches every file": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"null_resource\" \"x\" {\n  provisioner \"local-exec\" {\n    command = \"bash docs/run.sh\"\n  }\n}\n"},
+			change:   map[string]string{"docs/run.sh": "echo 2\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"a path leaving the tree reaches every file": {
+			hcl:      map[string]string{"main.tf": "locals {\n  d = file(\"${path.module}/../clone/README.md\")\n}\n"},
+			change:   readme,
+			examples: []string{"caller examples/chain", "caller examples/complete", "all examples/registry", "all examples/sub"},
+		},
+		"file call inside a template templatefile reads": {
+			hcl: map[string]string{
+				"modules/sub/main.tf":      "locals {\n  u = templatefile(\"${path.module}/tpl/user.tpl\", {})\n}\n",
+				"modules/sub/tpl/user.tpl": "x ${file(\"README.md\")}\n",
+			},
+			change:   readme,
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"template that does not parse reaches every file": {
+			hcl: map[string]string{
+				"modules/sub/main.tf":      "locals {\n  u = templatefile(\"${path.module}/tpl/user.tpl\", {})\n}\n",
+				"modules/sub/tpl/user.tpl": "x ${file(\n",
+			},
+			change:   readme,
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"template with no file call": {
+			hcl: map[string]string{
+				"modules/sub/main.tf":      "locals {\n  u = templatefile(\"${path.module}/tpl/user.tpl\", {})\n}\n",
+				"modules/sub/tpl/user.tpl": "x ${name}\n",
+			},
+			change:   readme,
+			inert:    true,
+			examples: []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"},
 		},
 		"local-exec command": {
 			hcl:      map[string]string{"modules/sub/main.tf": "resource \"null_resource\" \"x\" {\n  provisioner \"local-exec\" {\n    command = local.cmd\n  }\n}\n"},
@@ -338,4 +378,87 @@ func TestAffectedReadSiteCap(t *testing.T) {
 	base := with(affectedHead, map[string]string{"main.tf": "locals {\n  a = \"x.json\"\n  b = \"y.json\"\n}\n"})
 	r := runAffected(t, with(base, map[string]string{"README.md": "# changed\n"}), base)
 	wantAffected(t, r, false, FallbackUnparsed, "all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub")
+}
+
+// TestAffectedBackslashSource accepts a local source written with
+// backslashes, as on Windows.
+func TestAffectedBackslashSource(t *testing.T) {
+	base := with(affectedHead, map[string]string{"examples/sub/main.tf": "module \"sub\" {\n  source = \"..\\\\..\\\\modules\\\\sub\"\n}\n"})
+	head := with(base, map[string]string{"modules/sub/main.tf": "resource \"null_resource\" \"sub2\" {}\n"})
+	wantAffected(t, runAffected(t, head, base), false, "", "caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry")
+}
+
+// TestAffectedModeChange: a change of the exec bit alone is a change, and
+// never inert, whether the change is a base tree or a diff.
+func TestAffectedModeChange(t *testing.T) {
+	all := []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"}
+	chmod := func(t *testing.T, root, p string, mode os.FileMode) {
+		t.Helper()
+		if err := os.Chmod(filepath.Join(root, p), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("base tree", func(t *testing.T) {
+		head, base := writeTree(t, affectedHead), writeTree(t, affectedHead)
+		chmod(t, head, "README.md", 0o755)
+		r, err := Affected(AffectedOptions{Head: head, Base: base, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantAffected(t, r, false, "", all...)
+		if !slices.Equal(r.Changed, []string{"README.md"}) {
+			t.Errorf("changed = %q", r.Changed)
+		}
+		ht, bt := mustTree(t, head), mustTree(t, base)
+		if !ht.Entries["README.md"].Executable() || bt.Entries["README.md"].Executable() || ht.Entries["README.md"].Same(bt.Entries["README.md"]) {
+			t.Error("the exec bit is not read or not compared")
+		}
+		if ht.TreeSHA256() != bt.TreeSHA256() {
+			t.Error("TreeSHA256 must not include the exec bit")
+		}
+	})
+	diffs := map[string]string{
+		"unified diff":             "diff --git a/README.md b/README.md\nold mode 100644\nnew mode 100755\n",
+		"github list, no patch":    `[{"filename":"README.md","status":"modified","additions":0,"deletions":0}]`,
+		"github list, changed":     `[{"filename":"README.md","status":"changed","additions":0,"deletions":0}]`,
+		"github list, binary docs": `[{"filename":"docs/x.png","status":"modified","additions":0,"deletions":0}]`,
+	}
+	for name, d := range diffs {
+		t.Run(name, func(t *testing.T) {
+			head := writeTree(t, with(affectedHead, map[string]string{"docs/x.png": "\x00PNG"}))
+			chmod(t, head, "README.md", 0o755)
+			f := filepath.Join(t.TempDir(), "change")
+			if err := os.WriteFile(f, []byte(d), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r, err := Affected(AffectedOptions{Head: head, Diff: f, Limits: DefaultLimits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkAffectedSchema(t, r)
+			wantAffected(t, r, false, "", all...)
+			if len(r.Changed) != 1 {
+				t.Errorf("changed = %q", r.Changed)
+			}
+		})
+	}
+	t.Run("unified diff rebuilds the base mode", func(t *testing.T) {
+		head := writeTree(t, affectedHead)
+		chmod(t, head, "README.md", 0o755)
+		ht := mustTree(t, head)
+		f := filepath.Join(t.TempDir(), "change")
+		if err := os.WriteFile(f, []byte("diff --git a/README.md b/README.md\nold mode 100644\nnew mode 100755\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		base, _, err := ReadDiffBase(ht, f, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b := base.Entries["README.md"]; b == nil || b.Kind != KindFile || b.Executable() || b.SHA256 != ht.Entries["README.md"].SHA256 {
+			t.Errorf("base entry %+v", b)
+		}
+		if !base.Entries["main.tf"].Same(ht.Entries["main.tf"]) {
+			t.Error("an unchanged file differs")
+		}
+	})
 }

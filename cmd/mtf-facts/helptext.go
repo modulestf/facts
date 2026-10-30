@@ -237,16 +237,19 @@ Every example is listed: a first-level directory under examples/ that holds
 a .tf file. First those the change touches (touched), then those that call a
 module it touches through local module sources, transitively, the root
 module included (caller), then every other example (all), each group in
-path order. Registry and git sources are not callers of the local tree. A
-changed file that is not configuration counts as a change of the module
-directory nearest above it.
+path order. Registry and git sources are not callers of the local tree;
+a local source written with backslashes is read as one with slashes. A
+changed .tf, .tf.json, .tfvars, .tftest.hcl or lock file is a change of its
+directory; any other changed file is a change of every module whose read
+sites reach it.
 
 inert is true only when every changed path is a documentation or metadata
 path, such as a Markdown file or one under .github/, that no HCL read site
-reaches: file and templatefile arguments, local_file, archive_file and
-external attributes, provisioner commands and scripts, and any string that
-is a path. A docs file a read site reaches counts as a change of the module
-that reads it.
+reaches, and whose exec bit did not change. Read sites are file function
+arguments, file calls inside the templates templatefile reads, local_file,
+archive_file and external attributes, provisioner scripts, and any string
+that is a path. A shell command, a dynamic path, a template that does not
+parse and a path that leaves the tree reach every file.
 
 When the examples cannot be ranked, fallback says why and every example has
 reason all: unparsed when an HCL file cannot be parsed, dynamic-source when

@@ -1,7 +1,9 @@
 package facts
 
 import (
+	"errors"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -78,16 +80,22 @@ var readFuncs = map[string]bool{
 	"filebase64sha256": true, "filebase64sha512": true, "fileexists": true, "fileset": true, "templatefile": true,
 }
 
+// How a read attribute names what it reads.
+const (
+	readsPath  = 1 // a path
+	readsShell = 2 // a command line or program a shell or the OS runs: it may read any file
+)
+
 // readAttrs are, by resource or data source type, or by provisioner type, the
 // attributes that name a file the plan or apply reads or a program it runs.
-var readAttrs = map[string]map[string]bool{
-	"local_file":           {"filename": true, "source": true},
-	"local_sensitive_file": {"filename": true, "source": true},
-	"archive_file":         {"source_file": true, "source_dir": true},
-	"external":             {"program": true, "working_dir": true},
-	"local-exec":           {"command": true, "working_dir": true, "interpreter": true},
-	"remote-exec":          {"script": true, "scripts": true},
-	"file":                 {"source": true},
+var readAttrs = map[string]map[string]int{
+	"local_file":           {"filename": readsPath, "source": readsPath},
+	"local_sensitive_file": {"filename": readsPath, "source": readsPath},
+	"archive_file":         {"source_file": readsPath, "source_dir": readsPath},
+	"external":             {"program": readsShell, "working_dir": readsPath},
+	"local-exec":           {"command": readsShell, "working_dir": readsPath, "interpreter": readsShell},
+	"remote-exec":          {"script": readsPath, "scripts": readsPath},
+	"file":                 {"source": readsPath},
 }
 
 // maxReadSites bounds the read sites of one tree; a tree with more is
@@ -121,7 +129,92 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 			return nil, false, nil
 		}
 	}
-	return sites, true, nil
+	sites, err = templateSites(t, sites, lim)
+	if err != nil {
+		return nil, false, err
+	}
+	return sites, len(sites) <= maxReadSites, nil
+}
+
+// templateSites adds the read sites inside the templates templatefile reads:
+// a file function called in a template reads a path relative to the root
+// module, or any path when its argument is a template variable. A template
+// that does not parse may read any file. Each site is the module's that
+// calls templatefile. A templatefile site that reaches every file adds
+// nothing.
+func templateSites(t *Tree, sites []ReadSite, lim Limits) ([]ReadSite, error) {
+	roots := exampleRoots(t)
+	n := len(sites)
+	for _, call := range sites[:n] {
+		if call.Kind != "templatefile" || call.Anchor == AnchorNone {
+			continue
+		}
+		for _, p := range t.Paths {
+			if err := lim.expired(); err != nil {
+				return nil, err
+			}
+			e := t.Entries[p]
+			if !call.Reaches(p, roots) {
+				continue
+			}
+			s := siteScan{dir: call.Dir, file: p}
+			if e.Kind != KindFile {
+				s.sites = append(s.sites, ReadSite{File: p, Line: 1, Kind: "template", Anchor: AnchorNone, Dir: call.Dir})
+			} else if expr, err := parseTemplate(p, e.Data, lim); err != nil {
+				s.sites = append(s.sites, ReadSite{File: p, Line: 1, Kind: "template", Anchor: AnchorNone, Dir: call.Dir})
+			} else {
+				s.funcs(expr)
+			}
+			if sites = append(sites, s.sites...); len(sites) > maxReadSites {
+				return sites, nil
+			}
+		}
+	}
+	return sites, nil
+}
+
+// parseTemplate parses a template within the limits parseSyntax applies. A
+// panic in the parser is recovered and reported as an error.
+func parseTemplate(name string, src []byte, lim Limits) (expr hclsyntax.Expression, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			expr, err = nil, errors.New("internal error while parsing")
+		}
+	}()
+	tokens, diags := hclsyntax.LexTemplate(src, name, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, errors.New("parse error")
+	}
+	if len(tokens) > lim.MaxTokens || nestingDepth(tokens) > lim.MaxDepth || prefixRun(tokens) > lim.MaxPrefixOps {
+		return nil, errors.New("over a parser limit")
+	}
+	expr, diags = hclsyntax.ParseTemplate(src, name, hcl.InitialPos)
+	if diags.HasErrors() {
+		return nil, errors.New("parse error")
+	}
+	return expr, nil
+}
+
+// exampleRoots lists "." and every first-level directory under examples/
+// that holds a .tf file: the root modules a path from path.root or path.cwd
+// may be relative to.
+func exampleRoots(t *Tree) []string {
+	roots := []string{"."}
+	for d := range t.Dirs {
+		if parts := strings.Split(d, "/"); len(parts) == 2 && parts[0] == "examples" && holdsTF(t, d) {
+			roots = append(roots, d)
+		}
+	}
+	slices.Sort(roots[1:])
+	return roots
+}
+
+// holdsTF reports whether a directory holds a .tf entry directly.
+func holdsTF(t *Tree, d string) bool {
+	return slices.ContainsFunc(t.DirEntries(d), func(e *Entry) bool {
+		name := path.Base(e.Path)
+		return strings.HasSuffix(name, ".tf") && !ignoredName(name)
+	})
 }
 
 // siteScan collects the read sites of one file.
@@ -137,8 +230,12 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
 		if kind == "module" && (name == "source" || name == "version") {
 			continue // a local source is an edge of the call graph, not a file read
 		}
-		if readAttrs[label][name] && (kind == "resource" || kind == "data" || kind == "provisioner") {
-			s.add(name, a.Expr, true)
+		if how := readAttrs[label][name]; how != 0 && (kind == "resource" || kind == "data" || kind == "provisioner") {
+			if how == readsShell {
+				s.sites = append(s.sites, ReadSite{File: s.file, Line: a.Expr.Range().Start.Line, Kind: name, Anchor: AnchorNone, Dir: s.dir})
+			} else {
+				s.add(name, a.Expr, true)
+			}
 		}
 		s.expr(a.Expr)
 	}
@@ -149,6 +246,16 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
 		}
 		s.body(blk.Body, blk.Type, label)
 	}
+}
+
+// funcs adds the read function calls inside e, a template.
+func (s *siteScan) funcs(e hclsyntax.Expression) {
+	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics { // the walker returns no diagnostics
+		if x, ok := n.(*hclsyntax.FunctionCallExpr); ok && readFuncs[x.Name] && len(x.Args) > 0 {
+			s.add(x.Name, x.Args[0], true)
+		}
+		return nil
+	})
 }
 
 // expr adds the read function calls and the path strings inside e.
@@ -259,7 +366,7 @@ func (s ReadSite) Reaches(p string, roots []string) bool {
 		full := path.Join(base, s.Text)
 		switch {
 		case full == ".." || strings.HasPrefix(full, "../"):
-			// outside the tree
+			return true // it leaves the tree and may come back in by any path
 		case full == "." || p == full || strings.HasPrefix(p, full+"/"):
 			return true
 		case !s.Exact && strings.HasPrefix(p, full):

@@ -37,9 +37,12 @@ type DiffInput struct {
 
 // fileChange is one file of a diff. patch is nil when the diff has no patch
 // for the file, and empty when it shows no line, as for a pure rename.
+// oldMode is the base mode a unified diff gives in an "old mode" or
+// "deleted file mode" line, or "" when it gives none.
 type fileChange struct {
 	path, prev, status string
 	patch              []byte
+	oldMode            string
 }
 
 // ReadDiffBase rebuilds the tree a change started from out of the head tree
@@ -138,6 +141,8 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 			c.patch = []byte(*e.Patch)
 		case e.Status == "renamed" && e.Additions == 0 && e.Deletions == 0:
 			c.status = statusPureRename
+		case (e.Status == "modified" || e.Status == "changed") && e.Additions == 0 && e.Deletions == 0:
+			c.status = statusModeOnly
 		}
 		out = append(out, c)
 	}
@@ -147,6 +152,11 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 // statusPureRename marks a rename the diff shows with no line. For a files
 // list it still needs a text file at head; see applyChanges.
 const statusPureRename = "pure-rename"
+
+// statusModeOnly marks a files list entry changed with no patch and no added
+// or removed line: for a text file at head only its mode can have changed.
+// A binary one may have changed content too; see rebuildEntry.
+const statusModeOnly = "mode-only"
 
 func unifiedStart(t []byte) bool {
 	return bytes.HasPrefix(t, []byte("diff --git ")) || bytes.Contains(t, []byte("\n--- ")) ||
@@ -225,8 +235,11 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			i += n - 1
 		case strings.HasPrefix(l, "new file mode"):
 			cur.status, cur.prev = "added", ""
-		case strings.HasPrefix(l, "deleted file mode"):
+		case strings.HasPrefix(l, "deleted file mode "):
 			cur.status, cur.prev = "removed", ""
+			cur.oldMode = strings.TrimPrefix(l, "deleted file mode ")
+		case strings.HasPrefix(l, "old mode "):
+			cur.oldMode = strings.TrimPrefix(l, "old mode ")
 		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
 			cur.prev = l[strings.Index(l, "from ")+5:]
 			if strings.HasPrefix(l, "copy") {
@@ -356,7 +369,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			if head.Entries[c.path] != nil {
 				return nil, fmt.Errorf("%s is removed by the diff but still in the head tree", c.path)
 			}
-		case "modified", "changed":
+		case "modified", "changed", statusModeOnly:
 		case "renamed", statusPureRename:
 			if c.prev == "" {
 				return nil, fmt.Errorf("%s is renamed with no previous path", c.path)
@@ -370,7 +383,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		if c.status != "removed" && head.Entries[c.path] == nil {
 			return nil, fmt.Errorf("%s is in the diff but not in the head tree", c.path)
 		}
-		if c.status != "modified" && c.status != "changed" {
+		if c.status != "modified" && c.status != "changed" && c.status != statusModeOnly {
 			delete(entries, c.path) // added or renamed away; a rebuild below may put it back
 		}
 		if at == "" {
@@ -415,7 +428,37 @@ func skippedPath(p string) bool {
 // rebuildEntry returns the base entry at path at for one change, from the head
 // entry h (nil for a removed file).
 func rebuildEntry(at string, h *Entry, c fileChange, lim Limits) (*Entry, error) {
+	e, err := rebuildContent(at, h, c, lim)
+	if err != nil || e.Kind != KindFile {
+		return e, err
+	}
+	switch {
+	case c.oldMode != "":
+		m, err := strconv.ParseUint(c.oldMode, 8, 32)
+		if err != nil {
+			return nil, fmt.Errorf("mode %q", c.oldMode)
+		}
+		e.exec = m&0o111 != 0
+	case c.status == statusModeOnly:
+		e.exec = !h.exec // the content is the head's, so the mode changed
+	case h != nil:
+		e.exec = h.exec // a diff with no mode line keeps the mode
+	}
+	return e, nil
+}
+
+// rebuildContent returns the base entry at path at for one change, its mode
+// not yet set; see rebuildEntry.
+func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, error) {
 	noPatch := &Entry{Path: at, Kind: KindNoPatch}
+	if c.status == statusModeOnly {
+		if h.Kind != KindFile || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
+			return noPatch, nil // a binary file shows no line, changed or not
+		}
+		e := *h
+		e.Path = at
+		return &e, nil
+	}
 	if c.status == statusPureRename {
 		if h.Kind != KindFile || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
 			return noPatch, nil // a binary rename shows no line either, changed or not

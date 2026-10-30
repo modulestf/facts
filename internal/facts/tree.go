@@ -73,7 +73,17 @@ type Entry struct {
 	// linkSHA256 hashes a link's target text so a retarget is a change. The
 	// text itself never leaves the reader.
 	linkSHA256 string
+	// exec is set for a regular file with any execute bit. sameEntry
+	// compares it; TreeSHA256 does not hash it, so a tree hash a report or a
+	// schema handoff recorded stays what it was.
+	exec bool
 }
+
+// Executable reports whether e is a regular file with an execute bit.
+func (e *Entry) Executable() bool { return e.exec }
+
+// Same reports whether e and o are unchanged between trees, mode included.
+func (e *Entry) Same(o *Entry) bool { return sameEntry(e, o) }
 
 // Tree is a confined read of one directory tree.
 type Tree struct {
@@ -278,6 +288,7 @@ func readFile(r *os.Root, e *Entry, limit int64) {
 		e.Kind = KindSpecial
 		return
 	}
+	e.exec = before.Mode().Perm()&0o111 != 0
 	f, st, err := openUnchanged(r, e.Path, before, 0)
 	if err != nil {
 		e.Kind = KindUnreadable
@@ -321,7 +332,7 @@ func sameEntry(a, b *Entry) bool {
 	}
 	switch a.Kind {
 	case KindFile:
-		return a.SHA256 == b.SHA256
+		return a.SHA256 == b.SHA256 && a.exec == b.exec
 	case KindSymlink:
 		return a.linkSHA256 != "" && a.linkSHA256 == b.linkSHA256
 	case KindSpecial:
