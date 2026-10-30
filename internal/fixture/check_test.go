@@ -1,0 +1,434 @@
+package fixture
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"syscall"
+	"testing"
+)
+
+var testPins = []Pin{{Source: "hashicorp/aws", Version: "6.15.0"}}
+
+const td = "../../testdata/fixture-check"
+
+func TestCheckPositiveL1(t *testing.T) {
+	t.Parallel()
+	r, err := Check(Options{Dir: filepath.Join(td, "l1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.OK || len(r.Violations) != 0 || len(r.TreeSHA256) != 64 || r.SchemaVersion != SchemaVersion {
+		t.Fatalf("result %+v", r)
+	}
+}
+
+func TestCheckPositiveL3(t *testing.T) {
+	t.Parallel()
+	r, err := Check(Options{Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "aws_rds_cluster", Pins: testPins})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.OK || len(r.Violations) != 0 {
+		t.Fatalf("result %+v", r)
+	}
+}
+
+// The tree hash covers names, modes and contents, and nothing else.
+func TestTreeSHA256(t *testing.T) {
+	t.Parallel()
+	src, err := os.ReadFile(filepath.Join(td, "l1", "main.tf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := func(files map[string]string, mode os.FileMode) string {
+		t.Helper()
+		dir := t.TempDir()
+		for name, data := range files {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(data), mode); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(filepath.Join(dir, name), mode); err != nil { // umask
+				t.Fatal(err)
+			}
+		}
+		r, err := Check(Options{Dir: dir})
+		if err != nil || !r.OK {
+			t.Fatalf("check: %v %+v", err, r)
+		}
+		return r.TreeSHA256
+	}
+	base := hash(map[string]string{"main.tf": string(src)}, 0o644)
+	ref, err := Check(Options{Dir: filepath.Join(td, "l1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(filepath.Join(td, "l1", "main.tf")); fi.Mode().Perm() == 0o644 && ref.TreeSHA256 != base {
+		t.Errorf("same tree, other directory: %s != %s", ref.TreeSHA256, base)
+	}
+	if hash(map[string]string{"main.tf": string(src)}, 0o644) != base {
+		t.Error("hash is not deterministic")
+	}
+	for name, got := range map[string]string{
+		"content": hash(map[string]string{"main.tf": string(src) + "\n"}, 0o644),
+		"name":    hash(map[string]string{"other.tf": string(src)}, 0o644),
+		"mode":    hash(map[string]string{"main.tf": string(src)}, 0o600),
+		"file":    hash(map[string]string{"main.tf": string(src), "b.tf": ""}, 0o644),
+	} {
+		if got == base {
+			t.Errorf("a change of %s keeps the hash", name)
+		}
+	}
+}
+
+const okTF = "resource \"terraform_data\" \"a\" {}\n"
+
+// l3TF is a valid L3 tree to add one violation to: its terraform block,
+// provider block and resource under test.
+const (
+	l3Terraform = `terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "6.15.0"
+    }
+  }
+}
+`
+	l3Provider = `provider "aws" {
+  region                      = "us-east-1"
+  access_key                  = "fake"
+  secret_key                  = "fake"
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = "true"
+  skip_region_validation      = true
+  endpoints {
+    rds = "http://127.0.0.1:1"
+  }
+}
+`
+	l3Resource = "resource \"aws_rds_cluster\" \"this\" {}\n"
+	l3TF       = l3Terraform + l3Provider + l3Resource
+)
+
+// l3sub is l3TF with old replaced by repl.
+func l3sub(old, repl string) map[string]string {
+	if !strings.Contains(l3TF, old) {
+		panic(old)
+	}
+	return map[string]string{"main.tf": strings.Replace(l3TF, old, repl, 1)}
+}
+
+type ruleCase struct {
+	name  string
+	level string // "" is L1
+	files map[string]string
+	setup func(t *testing.T, dir string)
+	rule  string
+}
+
+func l3(extra string) map[string]string { return map[string]string{"main.tf": l3TF + extra} }
+func l1(src string) map[string]string   { return map[string]string{"main.tf": src} }
+
+func pad(n int) string { return "#" + strings.Repeat("x", n-2) + "\n" }
+
+var ruleCases = []ruleCase{
+	{name: "text file", files: map[string]string{"main.tf": okTF, "notes.txt": "x"}, rule: RuleFileNotTF},
+	{name: "json config", files: map[string]string{"main.tf": okTF, "x.tf.json": "{}"}, rule: RuleFileNotTF},
+	{name: "auto tfvars", files: map[string]string{"main.tf": okTF, "x.auto.tfvars": "a = 1\n", "terraform.tfvars": "a = 1\n"}, rule: RuleFileNotTF},
+	{name: "hidden tf", files: map[string]string{"main.tf": okTF, ".x.tf": okTF}, rule: RuleFileNotTF},
+	{name: "lock file", files: map[string]string{"main.tf": okTF, ".terraform.lock.hcl": ""}, rule: RuleFileNotTF},
+	{name: "override", files: map[string]string{"main.tf": okTF, "override.tf": "locals {}\n"}, rule: RuleFileOverride},
+	{name: "suffix override", files: map[string]string{"main.tf": okTF, "x_override.tf": "locals {}\n"}, rule: RuleFileOverride},
+	{name: "subdirectory", files: l1(okTF), setup: func(t *testing.T, dir string) {
+		mustDo(t, os.Mkdir(filepath.Join(dir, "sub"), 0o755))
+	}, rule: RuleFileSubdirectory},
+	{name: "terraform dir", files: l1(okTF), setup: func(t *testing.T, dir string) {
+		mustDo(t, os.Mkdir(filepath.Join(dir, ".terraform"), 0o755))
+	}, rule: RuleFileSubdirectory},
+	{name: "symlink", files: l1(okTF), setup: func(t *testing.T, dir string) {
+		mustDo(t, os.Symlink("main.tf", filepath.Join(dir, "link.tf")))
+	}, rule: RuleFileSymlink},
+	{name: "fifo", files: l1(okTF), setup: func(t *testing.T, dir string) {
+		mustDo(t, syscall.Mkfifo(filepath.Join(dir, "pipe.tf"), 0o644))
+	}, rule: RuleFileSpecial},
+	{name: "file size", files: map[string]string{"main.tf": okTF, "big.tf": pad(MaxFileBytes + 1)}, rule: RuleLimitFileSize},
+	{name: "file count", files: manyFiles(MaxFiles + 1), rule: RuleLimitFileCount},
+	{name: "total size", files: map[string]string{"main.tf": okTF, "a.tf": pad(MaxFileBytes), "b.tf": pad(MaxFileBytes),
+		"c.tf": pad(MaxFileBytes), "d.tf": pad(MaxFileBytes), "e.tf": pad(MaxFileBytes)}, rule: RuleLimitTotalSize},
+	{name: "parse error", files: l1("resource {\n"), rule: RuleHCLParseError},
+	{name: "nesting", files: l1("locals {\n  a = " + strings.Repeat("[", 80) + strings.Repeat("]", 80) + "\n}\n"), rule: RuleLimitHCL},
+
+	{name: "data", files: l1(okTF + "data \"terraform_remote_state\" \"x\" {}\n"), rule: RuleBlockDenied},
+	{name: "module", files: l1(okTF + "module \"m\" {\n  source = \"./m\"\n}\n"), rule: RuleBlockDenied},
+	{name: "moved", files: l1(okTF + "moved {\n  from = terraform_data.b\n  to = terraform_data.a\n}\n"), rule: RuleBlockDenied},
+	{name: "import", files: l1(okTF + "import {\n  to = terraform_data.a\n  id = \"x\"\n}\n"), rule: RuleBlockDenied},
+	{name: "removed", files: l1(okTF + "removed {\n  from = terraform_data.b\n}\n"), rule: RuleBlockDenied},
+	{name: "check", files: l1(okTF + "check \"c\" {}\n"), rule: RuleBlockDenied},
+	{name: "ephemeral", files: l1(okTF + "ephemeral \"random_password\" \"p\" {}\n"), rule: RuleBlockDenied},
+	{name: "action", files: l1(okTF + "action \"aws_lambda_invoke\" \"a\" {}\n"), rule: RuleBlockDenied},
+	{name: "backend", files: l1(okTF + "terraform {\n  backend \"local\" {}\n}\n"), rule: RuleBlockDenied},
+	{name: "cloud", files: l1(okTF + "terraform {\n  cloud {}\n}\n"), rule: RuleBlockDenied},
+	{name: "provider_meta", files: l1(okTF + "terraform {\n  provider_meta \"aws\" {}\n}\n"), rule: RuleBlockDenied},
+	{name: "provisioner", files: l1("resource \"terraform_data\" \"a\" {\n  provisioner \"local-exec\" {\n    command = \"id\"\n  }\n}\n"), rule: RuleBlockDenied},
+	{name: "connection", files: l1("resource \"terraform_data\" \"a\" {\n  connection {\n    host = \"h\"\n  }\n}\n"), rule: RuleBlockDenied},
+	{name: "dynamic provisioner", files: l1("resource \"terraform_data\" \"a\" {\n  dynamic \"provisioner\" {\n    for_each = []\n    content {}\n  }\n}\n"), rule: RuleBlockDenied},
+	{name: "top-level attribute", files: l1(okTF + "a = 1\n"), rule: RuleBlockDenied},
+
+	{name: "required_version", files: l1(okTF + "terraform {\n  required_version = \">= 1.0\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "variable ephemeral", files: l1(okTF + "variable \"v\" {\n  ephemeral = true\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "output ephemeral", files: l1(okTF + "output \"o\" {\n  value = 1\n  ephemeral = true\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "action_trigger", files: l1("resource \"terraform_data\" \"a\" {\n  lifecycle {\n    action_trigger {\n      events = [before_create]\n    }\n  }\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "ignore_changes call", files: l1("resource \"terraform_data\" \"a\" {\n  lifecycle {\n    ignore_changes = [file(\"x\")]\n  }\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "provider alias", level: "L3", files: l3sub(`region `, "alias = \"x\"\n  region "), rule: RuleBlockAttributeDenied},
+	{name: "provider assume_role", level: "L3", files: l3sub(`  endpoints {`, "  assume_role {}\n  endpoints {"), rule: RuleBlockAttributeDenied},
+	{name: "required provider extra key", level: "L3", files: l3sub(`version = "6.15.0"`, "version = \"6.15.0\"\n      configuration_aliases = []"), rule: RuleBlockAttributeDenied},
+
+	{name: "version constraint", level: "L3", files: l3sub(`"6.15.0"`, `"~> 6.0"`), rule: RuleProviderNotPinned},
+	{name: "other source", level: "L3", files: l3sub(`"hashicorp/aws"`, `"evil/aws"`), rule: RuleProviderNotPinned},
+	{name: "no required_providers", level: "L3", files: l3sub(l3Terraform, ""), rule: RuleProviderNotPinned},
+
+	{name: "aws in L1", files: l1(okTF + "provider \"aws\" {}\n"), rule: RuleProviderDenied},
+	{name: "required aws in L1", files: l1(okTF + "terraform {\n  required_providers {\n    aws = {\n      source = \"hashicorp/aws\"\n      version = \"6.15.0\"\n    }\n  }\n}\n"), rule: RuleProviderDenied},
+	{name: "google in L3", level: "L3", files: l3("provider \"google\" {}\n"), rule: RuleProviderDenied},
+	{name: "provider alias reference", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  provider = aws.x\n}\n"), rule: RuleProviderDenied},
+	{name: "provider meta other", files: l1("resource \"terraform_data\" \"a\" {\n  provider = google\n}\n"), rule: RuleProviderDenied},
+	{name: "terraform provider argument", files: l1(okTF + "provider \"terraform\" {\n  x = 1\n}\n"), rule: RuleBlockAttributeDenied},
+
+	{name: "skip false", level: "L3", files: l3sub(`skip_region_validation      = true`, `skip_region_validation = false`), rule: RuleProviderValueDenied},
+	{name: "skip missing", level: "L3", files: l3sub("  skip_region_validation      = true\n", ""), rule: RuleProviderValueDenied},
+	{name: "region missing", level: "L3", files: l3sub("  region                      = \"us-east-1\"\n", ""), rule: RuleProviderValueDenied},
+	{name: "endpoints missing", level: "L3", files: l3sub("  endpoints {\n    rds = \"http://127.0.0.1:1\"\n  }\n", ""), rule: RuleProviderValueDenied},
+	{name: "provider block missing", level: "L3", files: l3sub(l3Provider, ""), rule: RuleProviderValueDenied},
+	{name: "credential reference", level: "L3", files: l3sub(`access_key                  = "fake"`, "access_key = var.k"), rule: RuleProviderValueDenied},
+	{name: "credential interpolation", level: "L3", files: l3sub(`access_key                  = "fake"`, `access_key = "${"fake"}"`), rule: RuleProviderValueDenied},
+	{name: "imds endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://169.254.169.254"`), rule: RuleProviderValueDenied},
+	{name: "https endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"https://localhost:1"`), rule: RuleProviderValueDenied},
+	{name: "userinfo endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://u@127.0.0.1:1"`), rule: RuleProviderValueDenied},
+	{name: "open port endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://127.0.0.1:8080"`), rule: RuleProviderValueDenied},
+	{name: "no port endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://localhost"`), rule: RuleProviderValueDenied},
+	{name: "path endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://127.0.0.1:1/x"`), rule: RuleProviderValueDenied},
+	{name: "query endpoint", level: "L3", files: l3sub(`"http://127.0.0.1:1"`, `"http://[::1]:1/?a=b"`), rule: RuleProviderValueDenied},
+
+	{name: "aws resource in L1", files: l1(okTF + "resource \"aws_s3_bucket\" \"b\" {}\n"), rule: RuleResourceTypeDenied},
+	{name: "second type in L3", level: "L3", files: l3("resource \"aws_s3_bucket\" \"b\" {}\n"), rule: RuleResourceTypeDenied},
+	{name: "no resource under test", level: "L3", files: l3sub(l3Resource, okTF), rule: RuleResourceUnderTestCount},
+	{name: "two resources under test", level: "L3", files: l3("resource \"aws_rds_cluster\" \"that\" {}\n"), rule: RuleResourceUnderTestCount},
+
+	{name: "file", files: l1("locals {\n  a = file(\"/etc/passwd\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "templatefile", files: l1("locals {\n  a = templatefile(\"t\", {})\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "fileset", files: l1("locals {\n  a = fileset(\".\", \"*\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "abspath", files: l1("locals {\n  a = abspath(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "pathexpand", files: l1("locals {\n  a = pathexpand(\"~\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "timestamp", files: l1("locals {\n  a = timestamp()\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "uuid", files: l1("locals {\n  a = uuid()\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "bcrypt", files: l1("locals {\n  a = bcrypt(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "provider function", files: l1("locals {\n  a = provider::aws::arn_parse(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "function in template", files: l1("locals {\n  a = \"${file(\"x\")}\"\n}\n"), rule: RuleExprFunctionDenied},
+	{name: "function in resource", files: l1("resource \"terraform_data\" \"a\" {\n  input = filebase64(\"x\")\n}\n"), rule: RuleExprFunctionDenied},
+
+	{name: "path.module", files: l1("locals {\n  a = path.module\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "path in template", files: l1("locals {\n  a = \"${path.cwd}/x\"\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "terraform.workspace", files: l1("locals {\n  a = terraform.workspace\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "data reference", files: l1("locals {\n  a = data.x.y.id\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "module reference", files: l1("locals {\n  a = module.m.o\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "unknown root", files: l1("locals {\n  a = aws_s3_bucket.b.id\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "for binds path", files: l1("locals {\n  a = [for path in [1] : path]\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "for binds var", files: l1("locals {\n  a = {for k, var in {} : k => var}\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "template for binds path", files: l1("locals {\n  a = \"%{for path in [1]}${path}%{endfor}\"\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "dynamic iterator path", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  dynamic \"x\" {\n    for_each = [1]\n    iterator = path\n    content {}\n  }\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "dynamic label terraform", level: "L3", files: l3sub(l3Resource, "resource \"aws_rds_cluster\" \"this\" {\n  dynamic \"terraform\" {\n    for_each = [1]\n    content {}\n  }\n}\n"), rule: RuleExprReferenceDenied},
+	{name: "iterator out of scope", files: l1("locals {\n  a = [for x in [] : x]\n  b = x\n}\n"), rule: RuleExprReferenceDenied},
+
+	{name: "heredoc interpolation", files: l1("locals {\n  a = <<EOT\n${local.b}\nEOT\n  b = 1\n}\n"), rule: RuleExprHeredocTemplate},
+	{name: "heredoc directive", files: l1("locals {\n  a = <<-EOT\n  %{if true}x%{endif}\n  EOT\n}\n"), rule: RuleExprHeredocTemplate},
+}
+
+func manyFiles(n int) map[string]string {
+	m := map[string]string{}
+	for i := range n {
+		m[fmt.Sprintf("f%03d.tf", i)] = "locals {}\n"
+	}
+	return m
+}
+
+func mustDo(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Each case breaks exactly one rule and is reported with that rule only.
+func TestCheckRules(t *testing.T) {
+	t.Parallel()
+	for _, tc := range ruleCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			for name, data := range tc.files {
+				mustDo(t, os.WriteFile(filepath.Join(dir, name), []byte(data), 0o644))
+			}
+			if tc.setup != nil {
+				tc.setup(t, dir)
+			}
+			o := Options{Dir: dir, Level: tc.level, Pins: testPins}
+			if tc.level == "L3" {
+				o.Resource = "aws_rds_cluster"
+			}
+			r, err := Check(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.OK || len(r.Violations) == 0 {
+				t.Fatalf("passes: %+v", r)
+			}
+			for _, v := range r.Violations {
+				if v.Rule != tc.rule {
+					t.Errorf("violation %+v, want rule %s only", v, tc.rule)
+				}
+				if v.File == "" || v.Line < 0 {
+					t.Errorf("violation without a place: %+v", v)
+				}
+			}
+		})
+	}
+}
+
+// Every rule has a negative case.
+func TestEveryRuleTested(t *testing.T) {
+	t.Parallel()
+	seen := map[string]bool{}
+	for _, tc := range ruleCases {
+		seen[tc.rule] = true
+	}
+	for _, r := range Rules {
+		if !seen[r] {
+			t.Errorf("rule %s has no case", r)
+		}
+	}
+}
+
+func TestViolationPlaceAndCap(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := "locals {\n" + strings.Repeat("  a = file(\"x\")\n", 1) + "}\n"
+	for range MaxViolations {
+		src += "locals {\n  b = timestamp()\n}\n"
+	}
+	mustDo(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o644))
+	r, err := Check(Options{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Violations) != MaxViolations+1 {
+		t.Fatalf("%d violations", len(r.Violations))
+	}
+	if v := r.Violations[0]; v.File != "main.tf" || v.Line != 2 || v.Rule != RuleExprFunctionDenied || v.Detail != "file" {
+		t.Errorf("first %+v", v)
+	}
+	if v := r.Violations[MaxViolations]; v.Rule != RuleLimitViolations || v.File != "." {
+		t.Errorf("last %+v", v)
+	}
+}
+
+func TestCheckErrors(t *testing.T) {
+	t.Parallel()
+	file := filepath.Join(t.TempDir(), "f")
+	mustDo(t, os.WriteFile(file, nil, 0o644))
+	link := filepath.Join(t.TempDir(), "l")
+	mustDo(t, os.Symlink(filepath.Join(td, "l1"), link))
+	for name, o := range map[string]Options{
+		"missing":            {Dir: filepath.Join(td, "none")},
+		"file":               {Dir: file},
+		"link":               {Dir: link},
+		"level":              {Dir: filepath.Join(td, "l1"), Level: "L2"},
+		"L3 no resource":     {Dir: filepath.Join(td, "l3"), Level: "L3"},
+		"L1 resource":        {Dir: filepath.Join(td, "l1"), Resource: "aws_rds_cluster"},
+		"terraform_data":     {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "terraform_data"},
+		"provider unknown":   {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "google_sql_database"},
+		"resource malformed": {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "aws-rds"},
+	} {
+		if _, err := Check(o); err == nil {
+			t.Errorf("%s: no error", name)
+		}
+	}
+}
+
+func TestReadPins(t *testing.T) {
+	t.Parallel()
+	pins, err := ReadPins(filepath.Join(td, "pins.json"))
+	if err != nil || !slices.Equal(pins, testPins) {
+		t.Fatalf("%v %v", pins, err)
+	}
+	dir := t.TempDir()
+	for name, data := range map[string]string{
+		"syntax":      `{"providers":[`,
+		"unknown key": `{"providers":[],"x":1}`,
+		"no source":   `{"providers":[{"version":"6.15.0"}]}`,
+		"constraint":  `{"providers":[{"source":"hashicorp/aws","version":">= 6.0"}]}`,
+		"bad source":  `{"providers":[{"source":"aws","version":"6.15.0"}]}`,
+		"bad sha256":  `{"providers":[{"source":"hashicorp/aws","version":"6.15.0","sha256":"x"}]}`,
+		"trailing":    `{"providers":[]} {}`,
+		"duplicate":   `{"providers":[{"source":"hashicorp/aws","version":"6.15.0"},{"source":"hashicorp/aws","version":"6.16.0"}]}`,
+	} {
+		p := filepath.Join(dir, strings.ReplaceAll(name, " ", "-")+".json")
+		mustDo(t, os.WriteFile(p, []byte(data), 0o644))
+		if _, err := ReadPins(p); err == nil {
+			t.Errorf("%s: no error", name)
+		}
+	}
+	p := filepath.Join(dir, "sha.json")
+	mustDo(t, os.WriteFile(p, []byte(`{"providers":[{"source":"registry.terraform.io/hashicorp/aws","version":"6.15.0","sha256":"`+strings.Repeat("a", 64)+`"}]}`), 0o644))
+	if _, err := ReadPins(p); err != nil {
+		t.Errorf("pin with sha256: %v", err)
+	}
+}
+
+// The function allowlist is sorted and holds none of the functions that read
+// files, the clock, randomness or the environment.
+func TestPureFunctions(t *testing.T) {
+	t.Parallel()
+	if !slices.IsSorted(pureFunctions) || len(slices.Compact(slices.Clone(pureFunctions))) != len(pureFunctions) {
+		t.Error("pureFunctions is not sorted and unique")
+	}
+	for _, f := range []string{"file", "filebase64", "filebase64sha256", "filebase64sha512", "fileexists", "filemd5",
+		"filesha1", "filesha256", "filesha512", "fileset", "templatefile", "templatestring", "abspath", "pathexpand",
+		"dirname", "basename", "timestamp", "plantimestamp", "uuid", "uuidv5", "bcrypt", "rsadecrypt", "ephemeralasnull",
+		"yamldecode"} {
+		if slices.Contains(pureFunctions, f) {
+			t.Errorf("%s is on the allowlist", f)
+		}
+	}
+}
+
+// The schema's rule enum is the rule list.
+func TestSchemaRules(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../../schema/fixture-check.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s struct {
+		Defs struct {
+			Violation struct {
+				Properties struct {
+					Rule struct {
+						Enum []string `json:"enum"`
+					} `json:"rule"`
+				} `json:"properties"`
+			} `json:"violation"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		t.Fatal(err)
+	}
+	want := append(slices.Clone(Rules), RuleLimitViolations)
+	if got := s.Defs.Violation.Properties.Rule.Enum; !slices.Equal(got, want) {
+		t.Errorf("schema rules %v, want %v", got, want)
+	}
+}

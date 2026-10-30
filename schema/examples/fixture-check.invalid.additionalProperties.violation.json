@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ok": false,
+  "tree_sha256": "5f0c0c9d4f6f3c7a0e7b8b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4",
+  "violations": [
+    {
+      "file": "main.tf",
+      "line": 1,
+      "rule": "block.denied",
+      "text": "data"
+    }
+  ]
+}

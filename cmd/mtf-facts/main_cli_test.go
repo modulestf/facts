@@ -48,7 +48,7 @@ func TestRootHelp(t *testing.T) {
 	last := -1
 	for _, line := range []string{
 		"Check a module:", "  lint ", "  ledger ", "  schema-diff ",
-		"Review pipeline (run by hosts):", "  affected ", "  bundle ", "  merge ",
+		"Review pipeline (run by hosts):", "  affected ", "  bundle ", "  merge ", "  fixture-check ",
 		"Other commands:", "  rules ", "  version ", "  completion ", "  help ",
 	} {
 		i := strings.Index(want, "\n"+line)
@@ -404,6 +404,10 @@ func TestHostReplay(t *testing.T) {
 	td := "../../testdata/schema-diff"
 	replay(t, []string{"schema-diff", "--from", filepath.Join(td, "from.json"), "--to", filepath.Join(td, "to.json"),
 		"--types-from", filepath.Join(td, "module")}, true, 0)
+	ftd := "../../testdata/fixture-check"
+	replay(t, []string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, true, 0)
+	replay(t, []string{"fixture-check", filepath.Join(ftd, "l3"), "--level", "L3", "--resource", "aws_rds_cluster",
+		"--pins", filepath.Join(ftd, "pins.json"), "--json"}, true, 0)
 	replay(t, []string{"rules"}, false, 0)
 }
 
@@ -415,20 +419,21 @@ Usage:
   mtf-facts <command> [flags]
 
 Check a module:
-  lint         Check a module tree, or only the areas a change touched
-  ledger       List the provider fields of each type, or check a coverage ledger
-  schema-diff  Compare two provider schemas for the types a module uses
+  lint           Check a module tree, or only the areas a change touched
+  ledger         List the provider fields of each type, or check a coverage ledger
+  schema-diff    Compare two provider schemas for the types a module uses
 
 Review pipeline (run by hosts):
-  affected     List the examples a change can affect, most likely first
-  bundle       Build the facts bundle a model reviewer reads
-  merge        Check a model reply and merge it into the final findings
+  affected       List the examples a change can affect, most likely first
+  bundle         Build the facts bundle a model reviewer reads
+  merge          Check a model reply and merge it into the final findings
+  fixture-check  Check a ladder scratch tree against its allowlist
 
 Other commands:
-  rules        List the implemented rules and their tier
-  version      Print the binary version
-  completion   Generate a shell completion script
-  help         Help about any command
+  rules          List the implemented rules and their tier
+  version        Print the binary version
+  completion     Generate a shell completion script
+  help           Help about any command
 
 Flags:
   -h, --help      help for mtf-facts

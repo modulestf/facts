@@ -134,6 +134,41 @@ Exit codes:
 )
 
 const (
+	fixtureCheckShort = "Check a ladder scratch tree against its allowlist"
+	fixtureCheckLong  = `Check the scratch tree a verification ladder level will run against a
+default-deny allowlist, before any Terraform runs on it, and hash the tree.
+
+Only .tf files directly in <dir> pass: no subdirectory, link, special, hidden,
+override or JSON file, at most 64 entries, 256 KiB a file and 1 MiB in all.
+Top-level blocks: terraform (required_providers entries equal to a pin of
+--pins, nothing else), variable, locals, output, provider (the arguments its
+allowlist names, literal values only) and resource of type terraform_data.
+L1 uses the built-in provider only. L3 adds exactly one resource of the
+--resource type and a provider "aws" block that must set region, fake
+credentials, every skip_* flag to true and endpoints at http loopback port 1.
+Every function call must be on the pure-function allowlist and every reference
+start with var, local, each, count, self or an allowed resource type; a heredoc
+must be a plain string. Nothing is evaluated, so the host bounds what plan may
+allocate.
+
+tree_sha256 is the SHA-256 of one "name NUL mode NUL content-sha256 LF" line
+per directory entry, sorted by name; it identifies a tree that passes.
+
+Exit codes:
+  0  the tree passes
+  1  violations, each with its file, line (0 for the whole file, file "."
+     for the whole tree) and rule
+  2  an error: bad flags, a bad pins file or a directory that cannot be read`
+	fixtureCheckExample = `  mtf-facts fixture-check scratch/head --json
+  mtf-facts fixture-check scratch/l3 --level L3 --resource aws_rds_cluster \
+    --pins pins.json --json`
+	fixtureCheckLevelUsage    = "grammar `level` of the tree"
+	fixtureCheckResourceUsage = "resource `type` under test, at L3"
+	fixtureCheckPinsUsage     = "pins `file`, {\"providers\":[{\"source\",\"version\"}]}, of the provider versions the host installed"
+	fixtureCheckJSONUsage     = "write the result as JSON"
+)
+
+const (
 	bundleShort = "Build the facts bundle a model reviewer reads"
 	bundleLong  = `Turn a lint --json report into the facts bundle a model reviewer reads, and
 the injected rule text for the rules the report left not_evaluated.

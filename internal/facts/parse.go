@@ -823,3 +823,14 @@ func attrText(src []byte, body *hclsyntax.Body, name string) string {
 func exprText(src []byte, e hclsyntax.Expression) string {
 	return string(e.Range().SliceBytes(src))
 }
+
+// ParseBody lexes and parses one HCL file under the token, nesting and unary
+// operator limits, and returns its body and tokens. A panic in the parser is
+// recovered and returned as an error. IsLimitError tells a limit apart from a
+// parse error.
+func ParseBody(name string, src []byte, lim Limits) (*hclsyntax.Body, hclsyntax.Tokens, error) {
+	return parseSyntax(name, src, lim)
+}
+
+// IsLimitError reports whether err is ParseBody refusing a file over a limit.
+func IsLimitError(err error) bool { return errors.As(err, new(limitError)) }
