@@ -1,0 +1,7 @@
+diff --git a/main.tf b/main.tf
+index e5f7bdc..46c8b00 100644
+--- a/main.tf
++++ b/main.tf
+@@ -10 +10 @@ resource "aws_rds_cluster" "this" {
+-  vpc_security_group_ids = compact(concat(aws_security_group.this[*].id, var.vpc_security_group_ids))
++  vpc_security_group_ids = concat(aws_security_group.this[*].id, var.vpc_security_group_ids)

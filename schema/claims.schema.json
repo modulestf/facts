@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claims.schema.json",
+  "title": "Review claims",
+  "description": "The claims a reviewing model extracts from a pull request description, each a closed predicate over a behaviour trigger. Expressions and attributes are named by trigger id, never by HCL text. mtf-facts claims-eval discards a claim that does not validate, with a reason.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "claims"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "claims": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "text", "predicate_type", "params", "trigger_id", "file", "line"],
+        "properties": {
+          "claim_id": {"type": "string", "pattern": "^C-[0-9]{1,6}$"},
+          "text": {"type": "string", "minLength": 1, "maxLength": 2000},
+          "predicate_type": {"enum": ["expression-output-unknown", "expression-output-length-known", "expression-output-equals-for-inputs",
+            "plan-attribute-unknown", "plan-attribute-unchanged-vs-prior", "plan-action", "input-filtered"]},
+          "params": {"type": "object"},
+          "trigger_id": {"oneOf": [{"$ref": "#/$defs/trigger_id"}, {"type": "null"}]},
+          "file": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
+          "line": {"type": ["integer", "null"], "minimum": 1}
+        },
+        "allOf": [
+          {"if": {"$ref": "#/$defs/is_bare"}, "then": {"type": "object", "properties": {"params": {"$ref": "#/$defs/bare"}}}},
+          {"if": {"$ref": "#/$defs/is_length"}, "then": {"type": "object", "properties": {"params": {"$ref": "#/$defs/length"}}}},
+          {"if": {"$ref": "#/$defs/is_equals"}, "then": {"type": "object", "properties": {"params": {"$ref": "#/$defs/equals"}}}},
+          {"if": {"$ref": "#/$defs/is_action"}, "then": {"type": "object", "properties": {"params": {"$ref": "#/$defs/action"}}}},
+          {"if": {"$ref": "#/$defs/is_filtered"}, "then": {"type": "object", "properties": {"params": {"$ref": "#/$defs/filtered"}}}}
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "trigger_id": {"type": "string", "pattern": "^T-[0-9]{3}$"},
+    "node": {"$ref": "#/$defs/trigger_id"},
+    "revision": {"enum": ["base", "head"]},
+    "is_bare": {"type": "object", "required": ["predicate_type"], "properties": {"predicate_type": {"enum": ["expression-output-unknown", "plan-attribute-unknown", "plan-attribute-unchanged-vs-prior"]}}},
+    "is_length": {"type": "object", "required": ["predicate_type"], "properties": {"predicate_type": {"const": "expression-output-length-known"}}},
+    "is_equals": {"type": "object", "required": ["predicate_type"], "properties": {"predicate_type": {"const": "expression-output-equals-for-inputs"}}},
+    "is_action": {"type": "object", "required": ["predicate_type"], "properties": {"predicate_type": {"const": "plan-action"}}},
+    "is_filtered": {"type": "object", "required": ["predicate_type"], "properties": {"predicate_type": {"const": "input-filtered"}}},
+    "bare": {"type": "object", "additionalProperties": false, "required": ["node", "revision"],
+      "properties": {"node": {"$ref": "#/$defs/node"}, "revision": {"$ref": "#/$defs/revision"}}},
+    "length": {"type": "object", "additionalProperties": false, "required": ["node", "revision"],
+      "properties": {"node": {"$ref": "#/$defs/node"}, "revision": {"$ref": "#/$defs/revision"}, "length": {"type": "integer", "minimum": 0}}},
+    "equals": {"type": "object", "additionalProperties": false, "required": ["node", "revision", "inputs", "expected"],
+      "properties": {"node": {"$ref": "#/$defs/node"}, "revision": {"$ref": "#/$defs/revision"},
+        "inputs": {"type": "object", "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"}}, "expected": true}},
+    "action": {"type": "object", "additionalProperties": false, "required": ["node", "revision", "action"],
+      "properties": {"node": {"$ref": "#/$defs/node"}, "revision": {"$ref": "#/$defs/revision"},
+        "action": {"enum": ["no-op", "create", "update", "replace", "delete"]}}},
+    "filtered": {"type": "object", "additionalProperties": false, "required": ["node", "revision", "input", "value"],
+      "properties": {"node": {"$ref": "#/$defs/node"}, "revision": {"$ref": "#/$defs/revision"},
+        "input": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"}, "value": {"enum": ["empty-string", "null"]}}}
+  }
+}

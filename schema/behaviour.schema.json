@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "behaviour.schema.json",
+  "title": "mtf-facts behaviour",
+  "description": "Every changed tree entry, and the triggers the change decomposes into: one per AST-level change with one category, each with the verification levels it selects. At most 40 triggers; capped counts the rest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "inert", "entries", "triggers", "capped"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "inert": {"type": "boolean", "description": "True when every entry is inert."},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "change_kind", "inert", "trigger_ids"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "previous_path": {"type": "string", "minLength": 1, "description": "The base path of a renamed entry."},
+          "change_kind": {"$ref": "#/$defs/change_kind"},
+          "inert": {"type": "boolean"},
+          "trigger_ids": {"type": "array", "items": {"$ref": "#/$defs/trigger_id"}}
+        },
+        "if": {"type": "object", "required": ["inert"], "properties": {"inert": {"const": true}}},
+        "then": {"type": "object", "properties": {"trigger_ids": {"type": "array", "maxItems": 0}}}
+      }
+    },
+    "triggers": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "file", "line", "category", "change_kind", "address", "attribute", "base_expr", "head_expr",
+          "referenced_inputs", "contextual_refs", "pure", "levels", "reason"],
+        "properties": {
+          "id": {"$ref": "#/$defs/trigger_id"},
+          "file": {"type": "string", "minLength": 1},
+          "line": {"type": ["integer", "null"], "minimum": 1, "description": "Null for a change to a file as a whole."},
+          "category": {"enum": ["wrapper-change", "default-change", "count-for_each-conditional-change", "type-validation-change",
+            "dynamic-block-change", "locals-outputs-change", "moved-or-renamed-address", "provider-version-floor-change",
+            "unknown-propagation-candidate", "literal-argument-change", "resource-added-or-removed", "lifecycle-change",
+            "unclassified-change", "non-hcl-dependency"]},
+          "change_kind": {"$ref": "#/$defs/change_kind"},
+          "address": {"type": ["string", "null"]},
+          "attribute": {"type": ["string", "null"]},
+          "base_expr": {"type": ["string", "null"], "maxLength": 4096},
+          "head_expr": {"type": ["string", "null"], "maxLength": 4096},
+          "referenced_inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "type"],
+              "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1}}
+            }
+          },
+          "contextual_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "contextual_ref_details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "kind", "type", "multi"],
+              "properties": {
+                "text": {"type": "string", "minLength": 1},
+                "kind": {"enum": ["resource", "data", "module", "local", "count", "each", "path", "terraform", "self"]},
+                "type": {"type": ["string", "null"]},
+                "multi": {"enum": ["count", "for_each", null]}
+              }
+            }
+          },
+          "pure": {"type": "boolean"},
+          "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L3", "L4", "compat"]}},
+          "reason": {"type": ["string", "null"]}
+        },
+        "if": {"type": "object", "required": ["levels"], "properties": {"levels": {"type": "array", "maxItems": 0}}},
+        "then": {"type": "object", "properties": {"reason": {"type": "string"}}}
+      }
+    },
+    "capped": {"type": "integer", "minimum": 0}
+  },
+  "$defs": {
+    "trigger_id": {"type": "string", "pattern": "^T-[0-9]{3}$"},
+    "change_kind": {"enum": ["added", "removed", "modified", "renamed", "mode"]}
+  }
+}

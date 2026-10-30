@@ -1,0 +1,10 @@
+[
+  {"id": "F-001", "rule_id": "claim.refuted", "severity": "HIGH", "file": "main.tf", "line": 12,
+   "summary": "The description says the change keeps vpc_security_group_ids known at plan, but the evaluation shows it unknown.",
+   "suggested_fix": "no code change: correct the description, or change the expression so the claim holds.",
+   "source": "llm", "subject": ".:aws_rds_cluster.this.vpc_security_group_ids"},
+  {"id": "F-002", "rule_id": "claim.fix-not-effective", "severity": "HIGH", "file": "main.tf", "line": 12,
+   "summary": "The head expression plans the same as the base for the inputs the fix is about.",
+   "suggested_fix": "no code change: show the inputs for which the head differs from the base.",
+   "source": "llm"}
+]

@@ -47,7 +47,7 @@ var (
 	countPattern       = regexp.MustCompile(`^(0|[1-9][0-9]*)$`)
 	candidateIDPattern = regexp.MustCompile(`^C-[0-9]{3,}$`)
 	findingIDPattern   = regexp.MustCompile(`^F-[0-9]{3,}$`)
-	ruleIDPattern      = regexp.MustCompile(`^(compat|coverage|structure|examples|profile|scope|review)\.[a-z0-9]+(-[a-z0-9]+)*$`)
+	ruleIDPattern      = regexp.MustCompile(`^(compat|coverage|structure|examples|profile|scope|review|claim)\.[a-z0-9]+(-[a-z0-9]+)*$`)
 )
 
 // Decision is one valid entry of candidate_decisions. Summary and

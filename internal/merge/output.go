@@ -15,7 +15,7 @@ import (
 
 // prefixedSubject is a subject with a rule id and "@" in front, which only a
 // host review.check-not-run carries.
-var prefixedSubject = regexp.MustCompile(`^(compat|coverage|structure|examples|profile|scope|review)\.[a-z0-9]+(-[a-z0-9]+)*@.`)
+var prefixedSubject = regexp.MustCompile(`^(compat|coverage|structure|examples|profile|scope|review|claim)\.[a-z0-9]+(-[a-z0-9]+)*@.`)
 
 // checkMerged holds one merged finding to merged-findings.schema.json, so
 // the merge never writes a finding the schema refuses.

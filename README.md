@@ -279,6 +279,53 @@ mtf-facts affected <dir> [--base <dir> | --diff <file>] [--json] [--timeout <dur
 
 It exits 0 with the list, or 2 on bad input, a limit, an example directory whose name is outside `[A-Za-z0-9._-]`, or the timeout, with nothing on stdout. Without `--json` it prints one `<reason> <dir>` line per example and a summary line.
 
+### behaviour
+
+`mtf-facts behaviour` lists every changed tree entry and decomposes the change into triggers: one per AST-level change, each with one category and the verification levels it needs. It never runs Terraform.
+
+```sh
+mtf-facts behaviour <dir> (--base <dir> | --diff <file>) [--schema <file>] --json [--timeout <duration>]
+```
+
+The change is read as `lint` reads it, and the report is the same for a base tree and for every diff form and context size. It is one JSON document in the shape of [behaviour.schema.json](schema/behaviour.schema.json):
+
+```json
+{"schema_version": 1, "inert": false,
+ "entries": [{"path": "main.tf", "change_kind": "modified", "inert": false, "trigger_ids": ["T-001", "T-002"]}],
+ "triggers": [{"id": "T-001", "file": "main.tf", "line": 10, "category": "wrapper-change", "change_kind": "modified",
+   "address": "aws_rds_cluster.this", "attribute": "vpc_security_group_ids",
+   "base_expr": "compact(concat(aws_security_group.this[*].id, var.vpc_security_group_ids))",
+   "head_expr": "concat(aws_security_group.this[*].id, var.vpc_security_group_ids)",
+   "referenced_inputs": [{"name": "vpc_security_group_ids", "type": "list(string)"}],
+   "contextual_refs": ["aws_security_group.this"], "contextual_ref_details": [...],
+   "pure": true, "levels": ["L1"], "reason": null}, ...],
+ "capped": 0}
+```
+
+- A documentation or metadata path (as for `affected`) is inert when the read-site scan of both trees is complete and no read site reaches it. A `.tf` file is inert when both revisions of its directory decompose and no trigger lands in it: comments, layout, a block moved unchanged between files of one directory, or a variable or output `description`; not when a read site can read the file itself. A mode-only change, a lock file, a script and every other path are triggers.
+- Each module directory is compared block by block: resources, data sources, module calls, variables, outputs, each local, providers, the `terraform` block's `required_version` and each required provider, `moved` blocks, and any other block by its source. A directory with a `.tf` file that does not parse, is not a regular file, or is an override file gets one `unclassified-change` trigger per changed `.tf` file.
+- Categories and levels: `wrapper-change` (one revision wraps the other in function calls, or calls another function on the same arguments), `default-change`, `count-for_each-conditional-change`, `type-validation-change` and `locals-outputs-change` select `L1`; `literal-argument-change`, `resource-added-or-removed`, `lifecycle-change`, `dynamic-block-change`, `unclassified-change` and `non-hcl-dependency` select `L4`; `provider-version-floor-change` selects `compat`; `moved-or-renamed-address` and provisioner or connection changes select none and say why.
+- A changed resource argument whose expression is not a literal on both sides, or that is removed, also yields an `unknown-propagation-candidate` trigger (`L1`, `L3`) when the provider schema given with `--schema` (a `terraform providers schema -json` file) marks it Optional and Computed, or when there is no schema, the schema lacks the provider, the type or the attribute.
+- `pure` is set when every function the expressions call is on the built-in pure-function allowlist and neither reads `self`. `contextual_ref_details` gives each other reference as written, its kind, its type from the schema and whether its block has `count` or `for_each`.
+- At most 40 triggers are listed, ordered by file, line and category; `capped` counts the rest.
+
+It exits 0 with the report, or 2 on bad input, a limit or the timeout, with nothing on stdout.
+
+### claims-eval
+
+`mtf-facts claims-eval` validates the claims a reviewing model wrote, and computes the state of every trigger and every claim from a ladder record.
+
+```sh
+mtf-facts claims-eval --behaviour <file> --ladder <file> [--claims <file>] [--head-sha <sha>] [--base-sha <sha>] --json
+```
+
+- The claims file has the shape of [claims.schema.json](schema/claims.schema.json): each claim names a closed predicate (`expression-output-unknown`, `expression-output-length-known`, `expression-output-equals-for-inputs`, `plan-attribute-unknown`, `plan-attribute-unchanged-vs-prior`, `plan-action`, `input-filtered`) and a trigger by id in `params.node`, never HCL text. A claim that does not validate is listed in `discarded_claims` with the reason.
+- The ladder record has the shape of [ladder-record.schema.json](schema/ladder-record.schema.json); unknown fields are refused. With `--head-sha` and `--base-sha` a record of other commits is refused.
+- A claim reads the runs of its trigger at its levels (`L1` for expression predicates and `input-filtered`, `L3` or `L4` for plan predicates) that ran with a valid control. It is verified when some observation is about it and all agree, refuted when one contradicts it, and unverifiable otherwise; an unknown, sensitive or redacted value leaves a value predicate unverifiable.
+- A trigger is refuted when one of its claims is, verified when every `L1` and `L3` level it selects ran with a valid control and none with an invalid one and all its claims, at least one, are verified, covered when it selects `L4`, no claim of it is unverifiable, and its address and changed attribute are in a planned example (in the example's own directory, or under a module call the record ties to the trigger's directory), inert when its entry is, and unverifiable otherwise. Refuted outranks covered.
+
+The output has the shape of [claims-eval.schema.json](schema/claims-eval.schema.json). It exits 0 with the report, or 2 on bad input.
+
 ### bundle
 
 `mtf-facts bundle` turns a `lint --json` report into the facts bundle a model reviewer reads, and the injected rule text for the rules the report left `not_evaluated`.
