@@ -302,7 +302,8 @@ func (c *classifier) decomposed(ch change) bool {
 
 // trigger turns a spec into a trigger without its id.
 func (c *classifier) trigger(s spec) Trigger {
-	t := Trigger{File: s.file, Category: s.cat, ChangeKind: s.kind, ReferencedInputs: []Input{}, ContextualRefs: []string{}}
+	t := Trigger{File: s.file, Category: s.cat, ChangeKind: s.kind, ReferencedInputs: []Input{}, ContextualRefs: []string{},
+		ForEachOnly: s.forEachOnly}
 	if s.line > 0 {
 		line := s.line
 		t.Line = &line

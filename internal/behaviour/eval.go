@@ -337,7 +337,7 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 	if slices.Contains(t.Levels, LevelCompat) {
 		why = append(why, "the compat rules decide a version floor change")
 	}
-	ts.Reason = strings.Join(why, "; ")
+	ts.Reason = cmp.Or(strings.Join(why, "; "), "no level the trigger selects decided it")
 	return ts
 }
 

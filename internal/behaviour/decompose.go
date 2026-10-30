@@ -223,14 +223,15 @@ func objectField(e hclsyntax.Expression, key string) hclsyntax.Expression {
 
 // spec is a trigger being built.
 type spec struct {
-	file       string
-	line       int // 0 for a change to a file as a whole
-	cat, kind  string
-	addr, attr string
-	b, h       *exprInfo
-	reason     string
-	noLevels   bool
-	levels     []string // overrides the category's levels when set
+	file        string
+	line        int // 0 for a change to a file as a whole
+	cat, kind   string
+	addr, attr  string
+	b, h        *exprInfo
+	reason      string
+	noLevels    bool
+	levels      []string // overrides the category's levels when set
+	forEachOnly bool
 }
 
 // decomposer compares the base and head views of one directory.
@@ -568,7 +569,7 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 			s.b, s.h = forEachOf(first.base, bi.src), forEachOf(first.head, hi.src)
 			if onlyForEach(bi.src, hi.src, bl, hl) {
 				// Only the for_each changed: L1 evaluates it.
-				s.levels = []string{LevelL1}
+				s.levels, s.forEachOnly = []string{LevelL1}, true
 			}
 			d.add(s)
 		case strings.HasPrefix(k, "provisioner.") || k == "connection":

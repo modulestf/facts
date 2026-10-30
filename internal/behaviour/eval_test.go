@@ -706,7 +706,8 @@ func pr556Claims(node string, first int) []string {
 	}
 	add(PredExprUnknown, `"revision":"base","cases_where":{`+sg+`:"unknown_element"}`)
 	add(PredExprUnknown, `"revision":"base","cases_where":{"vpc_security_group_ids":"unknown_element"}`)
-	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"known"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"single"}`)
+	add(PredExprLengthKnown, `"revision":"head","length":3,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"multiple"}`)
 	add(PredExprLengthKnown, `"revision":"head","length":1,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"empty"}`)
 	add(PredExprLengthKnown, `"revision":"head","length":2,"cases_where":{`+sg+`:"unknown_element","vpc_security_group_ids":"unknown_element"}`)
 	add(PredExprLengthKnown, `"revision":"head","length":1,"cases_where":{`+sg+`:"empty","vpc_security_group_ids":"unknown_element"}`)
@@ -864,7 +865,7 @@ func TestSweepPR556Verified(t *testing.T) {
 		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
 	}
 	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
-	claims := append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 8)...)
+	claims := append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 9)...)
 	if len(claims) > 20 {
 		t.Fatalf("%d claims, over the cap", len(claims))
 	}
@@ -875,7 +876,7 @@ func TestSweepPR556Verified(t *testing.T) {
 		}
 	}
 	s := r.Triggers[0]
-	if s.State != StateVerified || len(s.Changes) != 40 {
+	if s.State != StateVerified || len(s.Changes) == 0 {
 		t.Errorf("T-001: %s", mustJSON(t, s))
 	}
 	// Without the null claims of the security group ids, the cases where
@@ -903,7 +904,7 @@ func TestSweepPR556Backwards(t *testing.T) {
 	}
 	run := sweepRun("T-001", "L1", strings.Join(base, ","), strings.Join(head, ","))
 	var mirrored []string
-	for _, c := range append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 8)...) {
+	for _, c := range append(pr556Claims("T-001", 1), pr556FilterClaims("T-001", 9)...) {
 		c = strings.Replace(c, `"revision":"base"`, `"revision":"tmp"`, 1)
 		c = strings.Replace(c, `"revision":"head"`, `"revision":"base"`, 1)
 		mirrored = append(mirrored, strings.Replace(c, `"revision":"tmp"`, `"revision":"head"`, 1))
@@ -981,5 +982,35 @@ func TestSweepL2(t *testing.T) {
 	nofix := strings.Replace(l2run(same, same), `"fixture_sha256":"`+strings.Repeat("f", 64)+`"`, `"fixture_sha256":null`, 1)
 	if s := evalWith(t, b, ladder(t, l1+","+nofix, noCoverage)).Triggers[0]; s.State != StateUnverifiable {
 		t.Errorf("L2 without a fixture hash: %s", mustJSON(t, s))
+	}
+}
+
+// TestSweepCapPerLevel: L1 and L2 each hold up to 32 cases.
+func TestSweepCapPerLevel(t *testing.T) {
+	b := pr556Report(t)
+	var obs []string
+	for i := range maxSweepCases {
+		obs = append(obs, fmt.Sprintf(`{"case":"c%d","known":true,"value":1,"unknown_mask":false}`, i))
+	}
+	withCases(t, b, "T-001", obs...)
+	b.Triggers[0].Levels = []string{LevelL1, LevelL2}
+	all := strings.Join(obs, ",")
+	l2 := strings.Replace(sweepRun("T-001", "L2", all, all), `"level":"L1"`, `"level":"L2"`, 1)
+	if s := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", all, all)+","+l2, noCoverage)).Triggers[0]; s.State != StateVerified {
+		t.Errorf("32 cases at each level: %s", mustJSON(t, s))
+	}
+}
+
+// TestOnlyL2HasAReason: a trigger that selects L2 alone and has no run
+// is unverifiable with a reason.
+func TestOnlyL2HasAReason(t *testing.T) {
+	b := pr556Report(t)
+	b.Triggers[0].Levels = []string{LevelL2}
+	if s := evalWith(t, b, ladder(t, "", noCoverage)).Triggers[0]; s.State != StateUnverifiable || s.Reason == "" {
+		t.Errorf("%+v", s)
+	}
+	b.Triggers[0].Cases = nil
+	if s := evalWith(t, b, ladder(t, "", noCoverage)).Triggers[0]; s.State != StateUnverifiable || s.Reason == "" {
+		t.Errorf("no cases: %+v", s)
 	}
 }

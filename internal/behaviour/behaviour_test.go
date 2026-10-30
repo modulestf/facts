@@ -402,8 +402,8 @@ func TestCases(t *testing.T) {
 				}
 			}
 		}
-		if len(tr.Cases) != 28 {
-			t.Errorf("%s: %d cases, want 7 list states times 4 splat states", tr.ID, len(tr.Cases))
+		if len(tr.Cases) != 32 {
+			t.Errorf("%s: %d cases, want 7 list states times 4 splat states and 4 order cases", tr.ID, len(tr.Cases))
 		}
 		for _, want := range []string{"typical.unknown-element", "empty.unknown-element", "empty-element.empty",
 			"null-element.known", "unknown-element.empty", "unknown.unknown-element", "null.known"} {
@@ -426,7 +426,7 @@ func TestCases(t *testing.T) {
 	}
 	f := runPair(t, map[string]string{"main.tf": strings.Join(lists, "") + "locals { x = concat(" + strings.Join(listRefs, ", ") + ") }\n"},
 		map[string]string{"main.tf": strings.Join(lists, "") + "locals { x = compact(concat(" + strings.Join(listRefs, ", ") + ")) }\n"}, "")
-	if c := f.Triggers[0].Cases; len(c) != 19 || c[0].ID != "typical" || c[1].ID != "l0:empty" {
+	if c := f.Triggers[0].Cases; len(c) != 25 || c[0].ID != "typical" || c[1].ID != "l0:empty" {
 		t.Errorf("one at a time: %d cases %s", len(c), mustJSON(t, c))
 	}
 
@@ -533,12 +533,53 @@ func TestL2Selection(t *testing.T) {
 			if !slices.Equal(tr.Levels, c.levels) || c.attr != "" && str(tr.Attribute) != c.attr {
 				t.Fatalf("%s %v %s, want %v %s", tr.Category, tr.Levels, str(tr.Attribute), c.levels, c.attr)
 			}
+			if tr.ForEachOnly != (c.name == "dynamic for_each only") {
+				t.Errorf("for_each_only %v", tr.ForEachOnly)
+			}
 			if slices.Contains(c.levels, LevelL1) && len(tr.Cases) == 0 {
 				t.Errorf("no cases: %s", mustJSON(t, tr))
 			}
-			if slices.Contains(c.levels, LevelL2) && len(tr.Cases) > maxSweepCases/2 {
-				t.Errorf("%d cases, over half the cap with L2", len(tr.Cases))
+			if len(tr.Cases) > maxSweepCases {
+				t.Errorf("%d cases, over the cap", len(tr.Cases))
 			}
 		})
+	}
+}
+
+// TestCasesOrderAndDuplicates: a list or set input also takes two distinct
+// elements and a duplicate, so reorder and dedupe changes show, and the
+// full combination of the other states is kept.
+func TestCasesOrderAndDuplicates(t *testing.T) {
+	vars := "variable \"l\" {\n  type = list(string)\n}\nvariable \"on\" {\n  type = bool\n}\n"
+	values := func(tr Trigger, name string) map[string]bool {
+		got := map[string]bool{}
+		for _, c := range tr.Cases {
+			got[string(c.Inputs[name].Value)] = true
+		}
+		return got
+	}
+	dyn := func(fe string) string {
+		return "resource \"aws_s3_bucket\" \"b\" {\n  dynamic \"rule\" {\n    for_each = " + fe + "\n    content {\n      id = rule.key\n    }\n  }\n}\n"
+	}
+	r := runPair(t, map[string]string{"variables.tf": vars, "main.tf": dyn("var.l")},
+		map[string]string{"variables.tf": vars, "main.tf": dyn("try(distinct(reverse(var.l)), var.l)")}, "")
+	tr := r.Triggers[0]
+	if got := values(tr, "l"); !slices.Equal(tr.Levels, []string{"L1"}) || !got[`["a","b"]`] || !got[`["a","a"]`] {
+		t.Errorf("dynamic for_each: %v %s", tr.Levels, mustJSON(t, tr.Cases))
+	}
+	// count = !var.on && length(var.l) == 0 ? 0 : 1: the case that makes it
+	// 0, on false with an empty list, needs the combination.
+	cnt := func(e string) string { return "resource \"aws_s3_bucket\" \"b\" {\n  count = " + e + "\n}\n" }
+	r = runPair(t, map[string]string{"variables.tf": vars, "main.tf": cnt("!var.on && length(var.l) == 0 ? 0 : 1")},
+		map[string]string{"variables.tf": vars, "main.tf": cnt("1")}, "")
+	tr = r.Triggers[0]
+	both := false
+	for _, c := range tr.Cases {
+		if string(c.Inputs["l"].Value) == "[]" && string(c.Inputs["on"].Value) == "false" {
+			both = true
+		}
+	}
+	if !both || len(tr.Cases) > maxSweepCases || !values(tr, "l")[`["a","b"]`] {
+		t.Errorf("count: %d cases, combined %v: %s", len(tr.Cases), both, mustJSON(t, tr.Cases))
 	}
 }

@@ -127,6 +127,9 @@ type Trigger struct {
 	Cases  []Case   `json:"cases,omitempty"`
 	Levels []string `json:"levels"`
 	Reason *string  `json:"reason"`
+	// ForEachOnly marks a dynamic-block-change whose for_each alone changed,
+	// routed to L1 on that for_each. An optional field.
+	ForEachOnly bool `json:"for_each_only,omitempty"`
 }
 
 // Input is one variable a trigger reads.

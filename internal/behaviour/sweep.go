@@ -58,8 +58,11 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 	if len(pairs) == 0 {
 		return "the trigger selects no ladder level", nil
 	}
-	if len(pairs) > maxSweepCases {
-		return fmt.Sprintf("the sweep has %d cases, over %d", len(pairs), maxSweepCases), nil
+	perLevel := map[string]int{}
+	for _, p := range pairs {
+		if perLevel[p.level]++; perLevel[p.level] > maxSweepCases {
+			return fmt.Sprintf("the %s sweep has more than %d cases", p.level, maxSweepCases), nil
+		}
 	}
 	// A case whose plan fails at both revisions shows nothing; a sweep with
 	// no other case, or whose first case fails so, proves nothing.
