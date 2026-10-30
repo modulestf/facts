@@ -97,6 +97,7 @@ func TestUsageErrors(t *testing.T) {
 		{[]string{"help", "merge", "nosuch"}, "mtf-facts help"},
 		{[]string{"lint", "--bogus", "."}, "mtf-facts lint"},
 		{[]string{"lint", "--version", "."}, "mtf-facts lint"},
+		{[]string{"lint", "--base", "a", "--diff", "b", "."}, "mtf-facts lint"},
 		{[]string{"rules", "extra"}, "mtf-facts rules"},
 		{[]string{"version", "extra"}, "mtf-facts version"},
 	} {
@@ -174,6 +175,46 @@ func TestLintParsing(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestLintDiff runs lint with the change as a diff: the JSON report records
+// the diff and the scope, the text report prints the scope and the callers,
+// and --full-tree checks every area.
+func TestLintDiff(t *testing.T) {
+	const dir = "../../testdata/diff-base"
+	args := []string{"lint", dir + "/head", "--diff", dir + "/files.json"}
+	code, out, errOut := runCLI(append(args, "--json"))
+	if code != exitNotEvaluated {
+		t.Fatalf("exit %d, stderr %q", code, errOut)
+	}
+	var r facts.Report
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Envelope.Inputs.Diff == nil || r.Envelope.Inputs.Diff.Format != facts.DiffFormatGitHubFiles || r.Envelope.Inputs.Base == nil {
+		t.Errorf("inputs %+v", r.Envelope.Inputs)
+	}
+	if r.Scope == nil || r.Scope.Change != facts.ChangeDiff || len(r.Scope.AreasLeftOut) != 1 || r.Callers == nil || len(*r.Callers) != 1 {
+		t.Errorf("scope %+v, callers %+v", r.Scope, r.Callers)
+	}
+	_, human, _ := runCLI(args)
+	for _, want := range []string{
+		"scope: change from diff; 3 areas checked, 3 calling a changed module, 1 left out: modules/other (--full-tree checks every area)\n",
+		"changed module modules/log (inputs, versions): required_providers.aws >= 5.81 -> >= 6.25\n",
+		"  called from examples/a/main.tf:2: required_providers.aws >= 5.81, candidates C-001\n",
+		"  called from examples/b/main.tf:2: required_providers.aws >= 6.30\n",
+	} {
+		if !strings.Contains(human, want) {
+			t.Errorf("text report lacks %q:\n%s", want, human)
+		}
+	}
+	_, full, _ := runCLI(append(args, "--full-tree"))
+	if !strings.Contains(full, "scope: change from diff, full tree; 7 areas checked\n") {
+		t.Errorf("full tree:\n%s", full)
+	}
+	if _, plain, _ := runCLI([]string{"lint", dir + "/head"}); !strings.Contains(plain, "scope: no change; 6 areas checked\n") {
+		t.Errorf("no change:\n%s", plain)
 	}
 }
 

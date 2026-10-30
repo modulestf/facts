@@ -332,16 +332,16 @@ func TestVersionFloorUnderstatedHardCases(t *testing.T) {
 			want: []string{understateRule + " examples/e/versions.tf:2 examples/e:required_version"},
 		},
 		{
-			name: "the callee raises its floor and the caller is untouched: the candidate lands on the raise",
+			name: "the callee raises its floor and the caller is untouched: the candidate points at the caller's floor",
 			base: map[string]string{"versions.tf": requires(">= 1.0"), "examples/e/main.tf": call("../../"), "examples/e/versions.tf": requires(">= 1.0")},
 			head: map[string]string{"versions.tf": requires(">= 1.5.7"), "examples/e/main.tf": call("../../"), "examples/e/versions.tf": requires(">= 1.0")},
-			want: []string{understateRule + " versions.tf:2 examples/e:required_version"},
+			want: []string{understateRule + " examples/e/versions.tf:2 examples/e:required_version"},
 		},
 		{
-			name: "a new call to a module with a higher floor lands on the call",
+			name: "a new call to a module with a higher floor points at the caller's floor",
 			base: map[string]string{"versions.tf": requires(">= 1.5.7"), "examples/e/main.tf": "", "examples/e/versions.tf": requires(">= 1.0")},
 			head: map[string]string{"versions.tf": requires(">= 1.5.7"), "examples/e/main.tf": call("../../"), "examples/e/versions.tf": requires(">= 1.0")},
-			want: []string{understateRule + " examples/e/main.tf:2 examples/e:required_version"},
+			want: []string{understateRule + " examples/e/versions.tf:2 examples/e:required_version"},
 		},
 		{
 			name: "no required_version in the caller, a higher caller, a registry call and an unchanged pair are silent",
@@ -377,12 +377,12 @@ func TestVersionFloorUnderstatedHardCases(t *testing.T) {
 			name: "an example with a required_version that leaves out a provider the callee floors",
 			head: map[string]string{"versions.tf": providers(">= 1.5.7", "\">= 6.0\""), "examples/e/main.tf": call("../../"),
 				"examples/e/versions.tf": requires(">= 1.5.7")},
-			want: []string{understateRule + " versions.tf:10 examples/e:required_providers.random", understateRule + " versions.tf:6 examples/e:required_providers.aws"},
+			want: []string{understateRule + " examples/e/main.tf:2 examples/e:required_providers.aws", understateRule + " examples/e/main.tf:2 examples/e:required_providers.random"},
 		},
 		{
-			name: "a root with no required_version calls a submodule with a floor",
+			name: "a root with no required_version calls a submodule with a floor: the candidate points at the call",
 			head: map[string]string{"main.tf": call("./modules/a"), "modules/a/versions.tf": requires(">= 1.3")},
-			want: []string{understateRule + " modules/a/versions.tf:2 .:required_version"},
+			want: []string{understateRule + " main.tf:2 .:required_version"},
 		},
 		{
 			name: "a constraint that is not a plain string is a candidate",

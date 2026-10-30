@@ -188,7 +188,7 @@ func TestOracleChecksCatchMutations(t *testing.T) {
 		{"handoff input that is not a .tf file", "coverage-positive", "schema-handoff.json", true, `$.inputs.head.files[0].path: "main.tfx" does not match`, func(_ *testing.T, e map[string]any) {
 			obj(obj(obj(e["inputs"])["head"])["files"].([]any)[0])["path"] = "main.tfx"
 		}},
-		{"cross-area entry not under .", "example-only", x, false, "a cross-area rule has its one entry under .", func(t *testing.T, e map[string]any) {
+		{"cross-area entry outside . with no item", "example-only", x, false, "a cross-area rule has an entry outside . only where its items are", func(t *testing.T, e map[string]any) {
 			for _, m := range manifestOf(e) {
 				if r, _ := reg.Rule(obj(m)["rule_id"].(string)); r.CrossArea {
 					obj(m)["area"] = "examples/basic"

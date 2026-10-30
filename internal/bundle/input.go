@@ -26,7 +26,9 @@ const (
 )
 
 // Report is the lint report the bundle is built from. InterfaceDiff and
-// SchemaCoverage stay raw: the bundle only caps their strings.
+// SchemaCoverage stay raw: the bundle only caps their strings. Scope and
+// Callers are read so a report that has them decodes; no bundle section
+// carries them.
 type Report struct {
 	Envelope       facts.Envelope        `json:"envelope"`
 	Manifest       []facts.ManifestEntry `json:"manifest"`
@@ -35,6 +37,8 @@ type Report struct {
 	Index          []facts.IndexEntry    `json:"index"`
 	InterfaceDiff  json.RawMessage       `json:"interface_diff"`
 	SchemaCoverage json.RawMessage       `json:"schema_coverage"`
+	Scope          json.RawMessage       `json:"scope"`
+	Callers        json.RawMessage       `json:"callers"`
 }
 
 // ReadReport reads and decodes a lint --json report. An unknown field, a

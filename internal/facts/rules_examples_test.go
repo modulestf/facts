@@ -106,7 +106,7 @@ func TestSubmoduleMissingCases(t *testing.T) {
 				head["modules/old/main.tf"] = ""
 			}
 			maps.Copy(head, tc.head)
-			if s := statusOf(runBase(t, base, head).Manifest, submoduleRule, "."); s != tc.want {
+			if s := crossStatusOf(runBase(t, base, head).Manifest, submoduleRule); s != tc.want {
 				t.Errorf("got %s, want %s", s, tc.want)
 			}
 		})
@@ -194,7 +194,7 @@ func TestStaleReferenceCases(t *testing.T) {
 			head := maps.Clone(base)
 			maps.Copy(head, tc.head)
 			r := runBase(t, base, head)
-			s := statusOf(r.Manifest, staleRule, ".")
+			s := crossStatusOf(r.Manifest, staleRule)
 			if s != tc.want && !strings.HasPrefix(s, tc.want+": ") {
 				t.Fatalf("got %s, want %s", s, tc.want)
 			}

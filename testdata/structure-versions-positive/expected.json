@@ -24,6 +24,11 @@
       "rule_id": "structure.version-floor-understated",
       "area": ".",
       "status": "candidate"
+    },
+    {
+      "rule_id": "structure.version-floor-understated",
+      "area": "examples/basic",
+      "status": "candidate"
     }
   ],
   "findings": [],
@@ -90,39 +95,6 @@
     },
     {
       "candidate_id": "C-003",
-      "rule_id": "structure.version-floor-understated",
-      "file": "main.tf",
-      "line": 7,
-      "subject": ".:required_version",
-      "evidence": {
-        "source_lines": [
-          {
-            "revision": "head",
-            "file": "versions.tf",
-            "line": 2,
-            "text": "  required_version = \"\u003e= 1.3\""
-          },
-          {
-            "revision": "head",
-            "file": "modules/child/versions.tf",
-            "line": 2,
-            "text": "  required_version = \"\u003e= 1.5.7\""
-          },
-          {
-            "revision": "head",
-            "file": "main.tf",
-            "line": 7,
-            "text": "  source = \"./modules/child\""
-          }
-        ],
-        "base": "\u003e= 1.3",
-        "head": "\u003e= 1.3",
-        "schema_facts": []
-      },
-      "evidence_complete": true
-    },
-    {
-      "candidate_id": "C-004",
       "rule_id": "structure.passthrough-default-drift",
       "file": "variables.tf",
       "line": 7,
@@ -167,7 +139,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-005",
+      "candidate_id": "C-004",
       "rule_id": "structure.passthrough-field-drift",
       "file": "variables.tf",
       "line": 15,
@@ -200,7 +172,7 @@
       "evidence_complete": true
     },
     {
-      "candidate_id": "C-006",
+      "candidate_id": "C-005",
       "rule_id": "structure.passthrough-default-drift",
       "file": "variables.tf",
       "line": 16,
@@ -228,6 +200,39 @@
         ],
         "base": null,
         "head": "\"fast\"",
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-006",
+      "rule_id": "structure.version-floor-understated",
+      "file": "versions.tf",
+      "line": 2,
+      "subject": ".:required_version",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.3\""
+          },
+          {
+            "revision": "head",
+            "file": "modules/child/versions.tf",
+            "line": 2,
+            "text": "  required_version = \"\u003e= 1.5.7\""
+          },
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 7,
+            "text": "  source = \"./modules/child\""
+          }
+        ],
+        "base": "\u003e= 1.3",
+        "head": "\u003e= 1.3",
         "schema_facts": []
       },
       "evidence_complete": true

@@ -25,6 +25,18 @@ func statusOf(m []ManifestEntry, rule, area string) string {
 	return "missing"
 }
 
+// crossStatusOf is the status of a cross-area rule over all its entries: the
+// root entry's, unless another area holds a finding or a candidate.
+func crossStatusOf(m []ManifestEntry, rule string) string {
+	s := statusOf(m, rule, ".")
+	for _, e := range m {
+		if e.RuleID == rule && e.Area != "." && (s == StatusClean || s == StatusCandidate && e.Status == StatusFinding) {
+			s = e.Status
+		}
+	}
+	return s
+}
+
 func runHead(t *testing.T, files map[string]string) *Report {
 	t.Helper()
 	r, err := Run(Options{Head: writeTree(t, files), Limits: DefaultLimits})

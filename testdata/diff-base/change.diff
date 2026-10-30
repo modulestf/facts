@@ -1,0 +1,104 @@
+diff --git a/examples/c/README.md b/examples/c/README.md
+new file mode 100644
+index 0000000..9c8118e
+--- /dev/null
++++ b/examples/c/README.md
+@@ -0,0 +1,3 @@
++# Example c
++
++Shows deletion protection.
+diff --git a/examples/c/main.tf b/examples/c/main.tf
+index df5b33d..0c6fea4 100644
+--- a/examples/c/main.tf
++++ b/examples/c/main.tf
+@@ -1,5 +1,6 @@
+ module "log" {
+   source = "../../modules/log"
+ 
+-  name = "c"
+-}
++  name                        = "c"
++  deletion_protection_enabled = true
++}
+\ No newline at end of file
+diff --git a/examples/c/versions.tf b/examples/c/versions.tf
+index daa15c8..6713582 100644
+--- a/examples/c/versions.tf
++++ b/examples/c/versions.tf
+@@ -4,7 +4,7 @@ terraform {
+   required_providers {
+     aws = {
+       source  = "hashicorp/aws"
+-      version = ">= 5.81"
++      version = ">= 6.25"
+     }
+   }
+ }
+diff --git a/examples/old/main.tf b/examples/old/main.tf
+deleted file mode 100644
+index e7f8738..0000000
+--- a/examples/old/main.tf
++++ /dev/null
+@@ -1,5 +0,0 @@
+-module "log" {
+-  source = "../../modules/log"
+-
+-  name = "old"
+-}
+diff --git a/examples/old/versions.tf b/examples/old/versions.tf
+deleted file mode 100644
+index daa15c8..0000000
+--- a/examples/old/versions.tf
++++ /dev/null
+@@ -1,10 +0,0 @@
+-terraform {
+-  required_version = ">= 1.5.7"
+-
+-  required_providers {
+-    aws = {
+-      source  = "hashicorp/aws"
+-      version = ">= 5.81"
+-    }
+-  }
+-}
+diff --git a/modules/log/main.tf b/modules/log/main.tf
+index bfff9d2..5c51309 100644
+--- a/modules/log/main.tf
++++ b/modules/log/main.tf
+@@ -1,3 +1,4 @@
+ resource "aws_demo_widget" "this" {
+-  name = var.name
++  name                        = var.name
++  deletion_protection_enabled = var.deletion_protection_enabled
+ }
+diff --git a/modules/log/outputs.tf b/modules/log/output.tf
+similarity index 100%
+rename from modules/log/outputs.tf
+rename to modules/log/output.tf
+diff --git a/modules/log/variables.tf b/modules/log/variables.tf
+index 338e31b..a4ab93a 100644
+--- a/modules/log/variables.tf
++++ b/modules/log/variables.tf
+@@ -2,3 +2,9 @@ variable "name" {
+   description = "Name of the log group"
+   type        = string
+ }
++
++variable "deletion_protection_enabled" {
++  description = "Whether deletion protection is enabled"
++  type        = bool
++  default     = null
++}
+diff --git a/modules/log/versions.tf b/modules/log/versions.tf
+index daa15c8..6713582 100644
+--- a/modules/log/versions.tf
++++ b/modules/log/versions.tf
+@@ -4,7 +4,7 @@ terraform {
+   required_providers {
+     aws = {
+       source  = "hashicorp/aws"
+-      version = ">= 5.81"
++      version = ">= 6.25"
+     }
+   }
+ }

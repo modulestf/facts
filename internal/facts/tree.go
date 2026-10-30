@@ -59,6 +59,9 @@ const (
 	KindSpecial    = "special"
 	KindUnreadable = "unreadable"
 	KindOversize   = "oversize"
+	// KindNoPatch is a base file rebuilt from a diff that has no patch for
+	// it, such as a binary or very large file: its base content is unknown.
+	KindNoPatch = "no_patch"
 )
 
 // Entry is one non-directory path in a tree.
@@ -107,14 +110,18 @@ func ReadTree(root string, lim Limits) (*Tree, error) {
 	if err := w.walk("."); err != nil {
 		return nil, err
 	}
-	t := w.t
+	w.t.index()
+	return w.t, nil
+}
+
+// index sorts Paths and groups the entries by directory.
+func (t *Tree) index() {
 	sort.Strings(t.Paths)
 	t.byDir = map[string][]*Entry{}
 	for _, p := range t.Paths {
 		d := path.Dir(p)
 		t.byDir[d] = append(t.byDir[d], t.Entries[p])
 	}
-	return t, nil
 }
 
 // treeReader holds the state of one depth-first ReadTree walk.

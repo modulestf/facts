@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "lint.schema.json",
   "title": "mtf-facts lint output",
-  "description": "The JSON document that lint --json writes. index, interface_diff and schema_coverage are optional; schema_coverage is written only when a schema handoff binds to the run.",
+  "description": "The JSON document that lint --json writes. index, interface_diff, schema_coverage, scope and callers are optional; schema_coverage is written only when a schema handoff binds to the run, and callers only when the run has a change, --base or --diff.",
   "type": "object",
   "additionalProperties": false,
   "required": ["envelope", "manifest", "findings", "candidates"],
@@ -13,9 +13,68 @@
     "candidates": {"type": "array", "items": {"$ref": "#/$defs/candidate"}},
     "index": {"type": "array", "items": {"$ref": "#/$defs/index_entry"}},
     "interface_diff": {"$ref": "https://github.com/modulestf/facts/schema/interface-diff.schema.json"},
-    "schema_coverage": {"$ref": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json#/properties/schema_coverage"}
+    "schema_coverage": {"$ref": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json#/properties/schema_coverage"},
+    "scope": {
+      "description": "Which areas the run checked. areas_checked have their own manifest entries: those the change touches, or every area with --full-tree or without a change. areas_calling are the other areas that call a module listed in callers. areas_left_out are the rest. The three are disjoint and sorted.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["change", "full_tree", "areas_checked", "areas_calling", "areas_left_out"],
+      "properties": {
+        "change": {"enum": ["none", "base", "diff"]},
+        "full_tree": {"type": "boolean"},
+        "areas_checked": {"$ref": "#/$defs/areas"},
+        "areas_calling": {"$ref": "#/$defs/areas"},
+        "areas_left_out": {"$ref": "#/$defs/areas"}
+      }
+    },
+    "callers": {
+      "description": "Each root or submodule area the change touches whose versions.tf or terraform block, or variables.tf or a variable block, changed, with every area that calls it by a local path.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["module", "changed", "base_floors", "head_floors", "callers"],
+        "properties": {
+          "module": {"type": "string", "minLength": 1},
+          "changed": {"type": "array", "items": {"enum": ["inputs", "versions"]}, "minItems": 1},
+          "base_floors": {"description": "Null when the module is new.", "oneOf": [{"type": "null"}, {"$ref": "#/$defs/floors"}]},
+          "head_floors": {"$ref": "#/$defs/floors"},
+          "callers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["area", "file", "line", "checked", "floors", "candidates"],
+              "properties": {
+                "area": {"type": "string", "minLength": 1},
+                "file": {"type": "string", "minLength": 1},
+                "line": {"description": "The line of the call's source argument.", "type": "integer", "minimum": 1},
+                "checked": {"description": "The caller's area is in areas_checked.", "type": "boolean"},
+                "floors": {"$ref": "#/$defs/floors"},
+                "candidates": {"description": "The candidate_id of each structure.version-floor-understated candidate filed in the caller's area.", "type": "array", "items": {"type": "string", "pattern": "^C-[0-9]{3,}$"}}
+              }
+            }
+          }
+        }
+      }
+    }
   },
   "$defs": {
+    "areas": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "floors": {
+      "description": "The version floors a module declares, sorted by address.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["address", "source", "constraint"],
+        "properties": {
+          "address": {"type": "string", "pattern": "^(required_version|required_providers\\..+)$"},
+          "source": {"description": "The normalized provider source address; null for required_version, or for a source that is not a plain string.", "type": ["string", "null"]},
+          "constraint": {"description": "The constraints as written, joined with ', ', a plain string unquoted; null for a provider entry with no version.", "type": ["string", "null"]}
+        }
+      }
+    },
     "candidate": {
       "description": "A detected defect for a model or an author to confirm. Never a finding on its own.",
       "type": "object",
