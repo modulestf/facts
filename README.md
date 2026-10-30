@@ -15,7 +15,7 @@ It reads files only. It makes no network call and runs no Terraform or other pro
 go install github.com/modulestf/facts/cmd/mtf-facts@latest
 ```
 
-Pin a release with `@v0.3.0-rc.2` in place of `@latest`, or download a release binary and check it as in [Verify a release](#verify-a-release).
+Pin a release with `@v0.4.0-rc.1` in place of `@latest`, or download a release binary and check it as in [Verify a release](#verify-a-release).
 
 Or build from a checkout:
 
@@ -76,7 +76,7 @@ Get the rule registry and the `terraform-aws-modules` module profile from [modul
 
 ```sh
 git clone https://github.com/modulestf/modulestf.git skills
-git -C skills checkout de257cfac1df0bcf91db77bba665fdfc626f45fd
+git -C skills checkout 3bd9cf8bb175f2db92f82409544b8fda9efa90bd
 REGISTRY=skills/.agents/skills/terraform-module-reviewer/references/rule-facts.md
 PROFILE=skills/.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules
 ```
@@ -105,7 +105,7 @@ mtf-facts lint head --base base \
   --registry "$REGISTRY" --profile-dir "$PROFILE" --schema-files schema.json
 ```
 
-With `v0.3.0-rc.2` it prints this and exits 1 (the `not evaluated` lines are cut):
+With `v0.4.0-rc.1` it prints this and exits 1 (the `not evaluated` lines are cut):
 
 ```text
 examples/fixtures: MEDIUM examples.versions-missing: Example "examples/fixtures" has no versions.tf, so its Terraform and provider constraints are not in the file the profile and its sibling examples use.
@@ -113,7 +113,8 @@ examples/fixtures: MEDIUM examples.versions-missing: Example "examples/fixtures"
 examples/function-url/main.tf:45: unconfirmed structure.version-floor-understated: examples/function-url:required_providers.external, confirm or reject
 examples/function-url/main.tf:45: unconfirmed structure.version-floor-understated: examples/function-url:required_providers.local, confirm or reject
 examples/function-url/main.tf:45: unconfirmed structure.version-floor-understated: examples/function-url:required_providers.null, confirm or reject
-1 findings, 3 candidates; manifest: 1 finding, 1 candidate, 75 clean, 2 not_evaluated, 68 not_applicable
+scope: change from base; 4 areas checked, 0 calling a changed module, 18 left out: examples/alias, examples/async, examples/build-package, examples/code-signing, examples/complete, examples/container-image, examples/deploy, examples/event-source-mapping, examples/multiple-regions, examples/runtimes, examples/simple, examples/simple-cicd, examples/triggers, examples/with-efs, examp... (--full-tree checks every area)
+1 findings, 3 candidates; manifest: 1 finding, 1 candidate, 76 clean, 2 not_evaluated, 68 not_applicable
 ```
 
 Fix each finding, and confirm or reject each candidate. The two rules left `not_evaluated` need the declared minimum provider version, which a raw schema file does not record.
@@ -530,7 +531,7 @@ The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
 ## Releases
 
-The current release is the pre-release `v0.3.0-rc.2`. Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
+The current release is the pre-release `v0.4.0-rc.1`. Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
 
 ### Cut a release
 
