@@ -50,7 +50,9 @@ const (
 var regionName = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]$`)
 
 // curatedResource is a resource type a level may put under test, with the
-// endpoint key of its service. Phases 4 and 5 add types here.
+// endpoint key of its service. Adding a type takes an audit of every argument
+// in the pinned provider schema, nested ones included, for any that reads a
+// local file or other local source; record it in the type's test.
 type curatedResource struct {
 	service string
 }
@@ -462,14 +464,16 @@ func (c *checker) data(file string, b *hclsyntax.Block, s scope) {
 		c.add(file, line, RuleResourceTypeDenied, b.Labels[0])
 		return
 	}
-	c.use(file, b)
+	if p := c.use(file, b); p != "" && p != "terraform" {
+		c.dataUses = append(c.dataUses, dataUse{place{file, line}, p, b.Labels[0], b.Labels[1]})
+	}
 	c.resourceBody(file, b.Body, s, true)
 }
 
 // use records the provider a resource or data block runs on: its provider
 // argument, or the prefix of its type. The built-in provider needs no mock;
 // an unnamed provider is refused by resourceBody.
-func (c *checker) use(file string, b *hclsyntax.Block) {
+func (c *checker) use(file string, b *hclsyntax.Block) string {
 	name := providerOf(b.Labels[0])
 	if a := b.Body.Attributes["provider"]; a != nil {
 		name = hcl.ExprAsKeyword(a.Expr)
@@ -477,6 +481,7 @@ func (c *checker) use(file string, b *hclsyntax.Block) {
 	if name != "" && name != "terraform" {
 		c.used[name] = append(c.used[name], place{file, b.TypeRange.Start.Line})
 	}
+	return name
 }
 
 // moved checks a moved block: from and to, each a resource address.

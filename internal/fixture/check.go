@@ -66,6 +66,7 @@ const (
 	RuleTestPlanOptionsDenied  = "test.plan-options-denied"
 	RuleTestProviderNotMocked  = "test.provider-not-mocked"
 	RuleTestValueNotLiteral    = "test.value-not-literal"
+	RuleTestDataNotMocked      = "test.data-not-mocked"
 	// RuleLimitViolations marks a list cut at MaxViolations.
 	RuleLimitViolations = "limit.violations"
 )
@@ -79,6 +80,7 @@ var Rules = []string{
 	RuleExprFunctionDenied, RuleExprReferenceDenied, RuleExprHeredocTemplate,
 	RuleManifestBlockSet, RuleManifestExpression,
 	RuleTestFileCount, RuleTestCommandNotPlan, RuleTestPlanOptionsDenied, RuleTestProviderNotMocked, RuleTestValueNotLiteral,
+	RuleTestDataNotMocked,
 }
 
 // Options select the tree and its grammar.
@@ -100,6 +102,10 @@ type Result struct {
 	// Violations are sorted by file, line, rule and detail. Line 0 is the
 	// whole file, and file "." the whole tree.
 	Violations []Violation `json:"violations"`
+	// OverrideDuringPlan is set when an L2 test file sets override_during =
+	// plan: mock values then make computed attributes known at plan, so the
+	// run cannot show an unknown value or an unknown length.
+	OverrideDuringPlan bool `json:"override_during_plan,omitempty"`
 }
 
 // Violation is one place the tree leaves the grammar.
@@ -202,9 +208,19 @@ type checker struct {
 
 	// At a mocked level: the test files, the providers resources and data
 	// sources use, and the mock_provider blocks, by provider local name.
-	testFiles int
-	used      map[string][]place
-	mocks     map[string][]place
+	testFiles     int
+	used          map[string][]place
+	mocks         map[string][]place
+	dataUses      []dataUse
+	mockData      map[string]bool // "provider\x00type" of mock_data with nonempty defaults
+	dataOverrides map[string]bool // "type.name" of override_data with nonempty values, outside run blocks
+	duringPlan    bool
+}
+
+// dataUse is one data block at a mocked level.
+type dataUse struct {
+	place
+	provider, typ, name string
 }
 
 type place struct {
@@ -215,7 +231,8 @@ type place struct {
 func newChecker(lv level, underTest string, pins []Pin) *checker {
 	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
 		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{},
-		tokens: map[string]hclsyntax.Tokens{}, used: map[string][]place{}, mocks: map[string][]place{}}
+		tokens: map[string]hclsyntax.Tokens{}, used: map[string][]place{}, mocks: map[string][]place{},
+		mockData: map[string]bool{}, dataOverrides: map[string]bool{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -403,9 +420,10 @@ func (c *checker) finish() {
 	}
 }
 
-// finishMocked checks a mocked level: one test file, and every provider a
+// finishMocked checks a mocked level: one test file, every provider a
 // resource or data source uses, or required_providers declares, pinned and
-// mocked, so no real provider is ever configured.
+// mocked, so no real provider is ever configured, and every data source
+// given fixed values, so the same tree plans the same way.
 func (c *checker) finishMocked() {
 	if c.testFiles != 1 {
 		c.add(".", 0, RuleTestFileCount, "")
@@ -432,6 +450,15 @@ func (c *checker) finishMocked() {
 			}
 		}
 	}
+	// A mocked data source with neither gets random values each run.
+	for _, d := range c.dataUses {
+		if !c.declared[d.provider] || len(c.mocks[d.provider]) == 0 {
+			continue // reported above
+		}
+		if !c.mockData[d.provider+"\x00"+d.typ] && !c.dataOverrides[d.typ+"."+d.name] {
+			c.add(d.file, d.line, RuleTestDataNotMocked, d.typ)
+		}
+	}
 }
 
 func (c *checker) result(sum string) *Result {
@@ -447,5 +474,5 @@ func (c *checker) result(sum string) *Result {
 	if v == nil {
 		v = []Violation{}
 	}
-	return &Result{SchemaVersion: SchemaVersion, OK: len(v) == 0, TreeSHA256: sum, Violations: v}
+	return &Result{SchemaVersion: SchemaVersion, OK: len(v) == 0, TreeSHA256: sum, Violations: v, OverrideDuringPlan: c.duringPlan}
 }

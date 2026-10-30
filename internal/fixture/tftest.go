@@ -24,14 +24,19 @@ var overrideRoots = set("data")
 // Arguments of an override_resource or override_data block.
 var overrideArgs = set("target", "values")
 
-// overrideDuring is the one argument a mock block may set besides its
-// values: override_during, only as the keyword plan, so a plan-only run sees
-// the mock values. Apply is the default and never runs.
-const overrideDuring = "override_during"
+// planOverride reports override_during = plan, the one argument a mock block
+// may set besides its values, and records it: mock values then make computed
+// attributes known at plan. Apply is the default and never runs.
+func (c *checker) planOverride(a *hclsyntax.Attribute) bool {
+	ok := a.Name == "override_during" && hcl.ExprAsKeyword(a.Expr) == "plan"
+	c.duringPlan = c.duringPlan || ok
+	return ok
+}
 
-// duringPlan reports override_during = plan.
-func duringPlan(a *hclsyntax.Attribute) bool {
-	return a.Name == overrideDuring && hcl.ExprAsKeyword(a.Expr) == "plan"
+// filled reports a literal object with at least one item.
+func filled(e hclsyntax.Expression) bool {
+	o, ok := e.(*hclsyntax.ObjectConsExpr)
+	return ok && len(o.Items) > 0 && isLiteral(o)
 }
 
 // testTop checks the top-level body of a test file.
@@ -45,7 +50,7 @@ func (c *checker) testTop(file string, body *hclsyntax.Body) {
 		case "mock_provider":
 			c.mockProvider(file, b)
 		case "override_resource", "override_data":
-			c.override(file, b)
+			c.override(file, b, true)
 		case "variables":
 			c.literals(file, b.Body)
 		case "run":
@@ -69,31 +74,35 @@ func (c *checker) mockProvider(file string, b *hclsyntax.Block) {
 	}
 	c.mocks[b.Labels[0]] = append(c.mocks[b.Labels[0]], place{file, line})
 	for _, a := range sortedAttrs(b.Body) {
-		if !duringPlan(a) {
+		if !c.planOverride(a) {
 			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
 		}
 	}
 	for _, nb := range b.Body.Blocks {
 		switch nb.Type {
 		case "mock_resource", "mock_data":
-			c.mockDefaults(file, nb)
+			c.mockDefaults(file, nb, b.Labels[0])
 		case "override_resource", "override_data":
-			c.override(file, nb)
+			c.override(file, nb, true)
 		default:
 			c.nestedDenied(file, nb)
 		}
 	}
 }
 
-// mockDefaults checks a mock_resource or mock_data block: literal defaults.
-func (c *checker) mockDefaults(file string, b *hclsyntax.Block) {
+// mockDefaults checks a mock_resource or mock_data block of the mock of
+// provider: literal defaults. A mock_data with some fixes its data type.
+func (c *checker) mockDefaults(file string, b *hclsyntax.Block, provider string) {
 	for _, a := range sortedAttrs(b.Body) {
 		switch {
-		case duringPlan(a):
+		case c.planOverride(a):
 		case a.Name != "defaults":
 			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
 		default:
 			c.literal(file, a)
+			if b.Type == "mock_data" && len(b.Labels) == 1 && filled(a.Expr) {
+				c.mockData[provider+"\x00"+b.Labels[0]] = true
+			}
 		}
 	}
 	for _, nb := range b.Body.Blocks {
@@ -102,11 +111,22 @@ func (c *checker) mockDefaults(file string, b *hclsyntax.Block) {
 }
 
 // override checks an override_resource or override_data block: a target in
-// the tree and literal values.
-func (c *checker) override(file string, b *hclsyntax.Block) {
+// the tree and literal values. Outside a run block (every run), an
+// override_data with values on a whole data block, no instance key, fixes it.
+func (c *checker) override(file string, b *hclsyntax.Block, everyRun bool) {
+	target, values := b.Body.Attributes["target"], b.Body.Attributes["values"]
+	if everyRun && b.Type == "override_data" && target != nil && values != nil && filled(values.Expr) {
+		if tr, diags := hcl.AbsTraversalForExpr(target.Expr); !diags.HasErrors() && len(tr) == 3 && tr.RootName() == "data" {
+			typ, ok1 := tr[1].(hcl.TraverseAttr)
+			name, ok2 := tr[2].(hcl.TraverseAttr)
+			if ok1 && ok2 {
+				c.dataOverrides[typ.Name+"."+name.Name] = true
+			}
+		}
+	}
 	for _, a := range sortedAttrs(b.Body) {
 		switch {
-		case duringPlan(a):
+		case c.planOverride(a):
 		case !overrideArgs[a.Name]:
 			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
 		case a.Name == "target":
@@ -160,7 +180,7 @@ func (c *checker) run(file string, b *hclsyntax.Block, s scope) {
 		case "plan_options":
 			c.planOptions(file, nb.Body)
 		case "override_resource", "override_data":
-			c.override(file, nb)
+			c.override(file, nb, false)
 		case "module", "override_module":
 			c.add(file, nb.TypeRange.Start.Line, RuleBlockDenied, nb.Type)
 		default:

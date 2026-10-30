@@ -49,12 +49,17 @@ func TestCheckPositiveL2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !r.OK || len(r.Violations) != 0 {
+	if !r.OK || len(r.Violations) != 0 || !r.OverrideDuringPlan {
 		t.Fatalf("result %+v", r)
 	}
 }
 
 // aws_db_instance is the second curated type, under the same provider rules.
+// Argument audit against the hashicorp/aws 6.70.0 schema: 86 arguments,
+// nested ones included. None reads a local file: s3_import and
+// restore_to_point_in_time name remote sources only (an S3 bucket, a source
+// instance or backup ARN), and password_wo is write-only, never stored in
+// state or plan.
 func TestCheckPositiveL3DBInstance(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -322,10 +327,26 @@ const (
   bucket = "fixture"
 }
 `
-	l2Mock = "mock_provider \"aws\" {}\n"
+	l2Mock = "mock_provider \"aws\" {\n  mock_data \"aws_x\" {\n    defaults = { id = \"x\" }\n  }\n}\n"
 	l2Run  = "run \"plan\" {\n  command = plan\n}\n"
 	l2Test = l2Mock + l2Run
 )
+
+// addData adds a data source of the type l2Mock mocks.
+func addData(t *testing.T, dir string) {
+	t.Helper()
+	f, err := os.OpenFile(filepath.Join(dir, "main.tf"), os.O_APPEND|os.O_WRONLY, 0)
+	mustDo(t, err)
+	_, err = f.WriteString("data \"aws_x\" \"y\" {}\n")
+	mustDo(t, err)
+	mustDo(t, f.Close())
+}
+
+// withMain is files with src appended to main.tf.
+func withMain(files map[string]string, src string) map[string]string {
+	files["main.tf"] += src
+	return files
+}
 
 // l2 is the L2 tree with main and test appended to its two files.
 func l2(main, test string) map[string]string {
@@ -370,6 +391,13 @@ var l2Cases = []ruleCase{
 	{name: "undeclared provider data", files: l2("data \"google_x\" \"y\" {}\n", "mock_provider \"google\" {}\n"), rule: RuleProviderNotPinned},
 	{name: "meta provider undeclared", files: l2sub("  bucket = \"fixture\"\n", "  provider = google\n"), rule: RuleProviderNotPinned},
 	{name: "version unpinned", files: l2sub(`"6.15.0"`, `"~> 6.0"`), rule: RuleProviderNotPinned},
+	{name: "data not mocked", files: l2("data \"aws_y\" \"z\" {}\n", ""), rule: RuleTestDataNotMocked},
+	{name: "data run override only", files: l2("data \"aws_y\" \"z\" {}\n", "run \"o\" {\n  command = plan\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "data empty defaults", files: l2sub(`defaults = { id = "x" }`, "defaults = {}"), setup: addData, rule: RuleTestDataNotMocked},
+	{name: "data no defaults", files: l2sub(`defaults = { id = "x" }`, "override_during = plan"), setup: addData, rule: RuleTestDataNotMocked},
+	{name: "data empty override", files: l2("data \"aws_y\" \"z\" {}\n", "override_data {\n  target = data.aws_y.z\n  values = {}\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "data instance override", files: l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z[0]\n  values = { id = \"x\" }\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "data other override", files: l2("data \"aws_y\" \"z\" {}\n", "override_data {\n  target = data.aws_y.other\n  values = { id = \"x\" }\n}\n"), rule: RuleTestDataNotMocked},
 	{name: "remote state", files: l2("data \"terraform_remote_state\" \"s\" {}\n", ""), rule: RuleResourceTypeDenied},
 	{name: "builtin resource", files: l2("resource \"terraform_other\" \"s\" {}\n", ""), rule: RuleResourceTypeDenied},
 
@@ -469,6 +497,9 @@ func TestCheckPassesL2(t *testing.T) {
 			"  expect_failures = [var.a, output.o, aws_s3_bucket.this, data.aws_x.y]\n"),
 		"override":             l2("", "override_resource {\n  target = aws_s3_bucket.this[\"k\"]\n  values = {}\n}\noverride_data {\n  target = data.aws_x.y\n  values = { id = \"x\" }\n}\n"),
 		"override_during plan": l2sub(l2Mock, "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_bucket\" {\n    override_during = plan\n    defaults        = { arn = \"x\" }\n  }\n  override_data {\n    target          = data.aws_x.y\n    override_during = plan\n  }\n}\n"),
+		"data mock_data":       l2("data \"aws_x\" \"y\" {}\n", ""),
+		"data override":        l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z\n  values = { id = \"x\" }\n}\n"),
+		"data mock override":   withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n"), "data \"aws_y\" \"z\" {}\n"),
 		"meta provider":        l2sub("  bucket = \"fixture\"\n", "  provider = aws\n"),
 		"assert scope":         l2run("  assert {\n    condition     = var.a == local.b && output.o == run.plan.x && data.aws_x.y.id == aws_s3_bucket.this.id\n    error_message = \"${var.a} ok\"\n  }\n"),
 	} {
@@ -482,7 +513,7 @@ func TestCheckPassesL2(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !r.OK {
+			if !r.OK || r.OverrideDuringPlan != (name == "override_during plan") {
 				t.Fatalf("result %+v", r)
 			}
 		})

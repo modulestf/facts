@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +30,9 @@ func TestFixtureCheckPasses(t *testing.T) {
 		}
 		if !r.OK || r.SchemaVersion != 1 || len(r.TreeSHA256) != 64 || r.Violations == nil || len(r.Violations) != 0 {
 			t.Errorf("%v: %+v", args, r)
+		}
+		if got := strings.Contains(out, `"override_during_plan": true`); got != slices.Contains(args, "L2") {
+			t.Errorf("%v: override_during_plan in output %v", args, got)
 		}
 		if !strings.Contains(out, `"violations": []`) {
 			t.Errorf("%v: violations is not an empty list: %s", args, out)

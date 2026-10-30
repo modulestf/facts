@@ -10,6 +10,12 @@
       "detail": "aws"
     },
     {
+      "file": "main.tf",
+      "line": 12,
+      "rule": "test.data-not-mocked",
+      "detail": "aws_vpc"
+    },
+    {
       "file": "main.tftest.hcl",
       "line": 4,
       "rule": "test.command-not-plan"
@@ -20,5 +26,6 @@
       "rule": "test.value-not-literal",
       "detail": "defaults"
     }
-  ]
+  ],
+  "override_during_plan": true
 }

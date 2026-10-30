@@ -157,6 +157,11 @@ and override_data with literal values (each may set override_during = plan),
 variables of literals, and run blocks that set command = plan, with assert,
 plan_options mode = normal only and expect_failures into the tree; no
 module, providers or mock source.
+Every data source needs a mock_data with defaults or an override_data with
+values outside run blocks. A mock still starts the pinned provider plugin
+(schema and validation calls only), so run L2 under the provider sandbox.
+"override_during_plan": true marks a test that makes computed values known
+at plan: an L2 run never evidences an unknown value or length.
 Resource arguments that name a local file or source are refused.
 Every function call must be on the pure-function allowlist and every reference
 start with var, local, each, count, self or an allowed resource type; a heredoc
