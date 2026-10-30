@@ -447,7 +447,9 @@ func (c *checker) resource(file string, b *hclsyntax.Block, s scope) {
 		return
 	}
 	if c.lv.mocked {
-		c.use(file, b)
+		if p := c.use(file, b); p != "" && p != "terraform" {
+			c.resourceUses = append(c.resourceUses, blockUse{place{file, line}, p, b.Labels[0], b.Labels[1]})
+		}
 	}
 	c.resourceBody(file, b.Body, s, true)
 }
@@ -465,7 +467,7 @@ func (c *checker) data(file string, b *hclsyntax.Block, s scope) {
 		return
 	}
 	if p := c.use(file, b); p != "" && p != "terraform" {
-		c.dataUses = append(c.dataUses, dataUse{place{file, line}, p, b.Labels[0], b.Labels[1]})
+		c.dataUses = append(c.dataUses, blockUse{place{file, line}, p, b.Labels[0], b.Labels[1]})
 	}
 	c.resourceBody(file, b.Body, s, true)
 }

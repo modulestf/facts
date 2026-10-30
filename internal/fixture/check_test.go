@@ -348,6 +348,12 @@ func withMain(files map[string]string, src string) map[string]string {
 	return files
 }
 
+// withTest is files with src appended to main.tftest.hcl.
+func withTest(files map[string]string, src string) map[string]string {
+	files["main.tftest.hcl"] += src
+	return files
+}
+
 // l2 is the L2 tree with main and test appended to its two files.
 func l2(main, test string) map[string]string {
 	return map[string]string{"main.tf": l2Main + main, "main.tftest.hcl": l2Test + test}
@@ -394,10 +400,15 @@ var l2Cases = []ruleCase{
 	{name: "data not mocked", files: l2("data \"aws_y\" \"z\" {}\n", ""), rule: RuleTestDataNotMocked},
 	{name: "data run override only", files: l2("data \"aws_y\" \"z\" {}\n", "run \"o\" {\n  command = plan\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n}\n"), rule: RuleTestDataNotMocked},
 	{name: "data empty defaults", files: l2sub(`defaults = { id = "x" }`, "defaults = {}"), setup: addData, rule: RuleTestDataNotMocked},
-	{name: "data no defaults", files: l2sub(`defaults = { id = "x" }`, "override_during = plan"), setup: addData, rule: RuleTestDataNotMocked},
+	{name: "data no defaults", files: l2sub("    defaults = { id = \"x\" }\n", ""), setup: addData, rule: RuleTestDataNotMocked},
 	{name: "data empty override", files: l2("data \"aws_y\" \"z\" {}\n", "override_data {\n  target = data.aws_y.z\n  values = {}\n}\n"), rule: RuleTestDataNotMocked},
 	{name: "data instance override", files: l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z[0]\n  values = { id = \"x\" }\n}\n"), rule: RuleTestDataNotMocked},
 	{name: "data other override", files: l2("data \"aws_y\" \"z\" {}\n", "override_data {\n  target = data.aws_y.other\n  values = { id = \"x\" }\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "resource not mocked at plan", files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource empty defaults at plan", files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_bucket\" {\n    defaults = {}\n  }\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource other type at plan", files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_object\" {\n    defaults = { id = \"x\" }\n  }\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource run override at plan", files: withTest(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), "run \"o\" {\n  command = plan\n  override_resource {\n    target = aws_s3_bucket.this\n    values = { id = \"x\" }\n  }\n}\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource instance override at plan", files: withTest(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), "override_resource {\n  target = aws_s3_bucket.this[0]\n  values = { id = \"x\" }\n}\n"), rule: RuleTestResourceNotMocked},
 	{name: "remote state", files: l2("data \"terraform_remote_state\" \"s\" {}\n", ""), rule: RuleResourceTypeDenied},
 	{name: "builtin resource", files: l2("resource \"terraform_other\" \"s\" {}\n", ""), rule: RuleResourceTypeDenied},
 
@@ -495,13 +506,14 @@ func TestCheckPassesL2(t *testing.T) {
 		"builtin only": {"main.tf": okTF, "ladder.tftest.hcl": l2Run},
 		"literals": l2run("  variables {\n    a = -1\n    b = [\"x\", null, true, 1.5]\n    c = {\n      \"k\" = { n = -2 }\n    }\n    d = <<EOT\nplain\nEOT\n  }\n" +
 			"  expect_failures = [var.a, output.o, aws_s3_bucket.this, data.aws_x.y]\n"),
-		"override":             l2("", "override_resource {\n  target = aws_s3_bucket.this[\"k\"]\n  values = {}\n}\noverride_data {\n  target = data.aws_x.y\n  values = { id = \"x\" }\n}\n"),
-		"override_during plan": l2sub(l2Mock, "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_bucket\" {\n    override_during = plan\n    defaults        = { arn = \"x\" }\n  }\n  override_data {\n    target          = data.aws_x.y\n    override_during = plan\n  }\n}\n"),
-		"data mock_data":       l2("data \"aws_x\" \"y\" {}\n", ""),
-		"data override":        l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z\n  values = { id = \"x\" }\n}\n"),
-		"data mock override":   withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n"), "data \"aws_y\" \"z\" {}\n"),
-		"meta provider":        l2sub("  bucket = \"fixture\"\n", "  provider = aws\n"),
-		"assert scope":         l2run("  assert {\n    condition     = var.a == local.b && output.o == run.plan.x && data.aws_x.y.id == aws_s3_bucket.this.id\n    error_message = \"${var.a} ok\"\n  }\n"),
+		"override":                  l2("", "override_resource {\n  target = aws_s3_bucket.this[\"k\"]\n  values = {}\n}\noverride_data {\n  target = data.aws_x.y\n  values = { id = \"x\" }\n}\n"),
+		"override_during plan":      l2sub(l2Mock, "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_bucket\" {\n    override_during = plan\n    defaults        = { arn = \"x\" }\n  }\n  override_data {\n    target          = data.aws_x.y\n    override_during = plan\n  }\n}\n"),
+		"data mock_data":            l2("data \"aws_x\" \"y\" {}\n", ""),
+		"data override":             l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z\n  values = { id = \"x\" }\n}\n"),
+		"data mock override":        withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n"), "data \"aws_y\" \"z\" {}\n"),
+		"resource override at plan": withTest(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), "override_resource {\n  target = aws_s3_bucket.this\n  values = { arn = \"x\" }\n}\n"),
+		"meta provider":             l2sub("  bucket = \"fixture\"\n", "  provider = aws\n"),
+		"assert scope":              l2run("  assert {\n    condition     = var.a == local.b && output.o == run.plan.x && data.aws_x.y.id == aws_s3_bucket.this.id\n    error_message = \"${var.a} ok\"\n  }\n"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -513,7 +525,8 @@ func TestCheckPassesL2(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !r.OK || r.OverrideDuringPlan != (name == "override_during plan") {
+			atPlan := name == "override_during plan" || strings.HasSuffix(name, "at plan")
+			if !r.OK || r.OverrideDuringPlan != atPlan {
 				t.Fatalf("result %+v", r)
 			}
 		})

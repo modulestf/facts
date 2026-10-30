@@ -158,7 +158,8 @@ variables of literals, and run blocks that set command = plan, with assert,
 plan_options mode = normal only and expect_failures into the tree; no
 module, providers or mock source.
 Every data source needs a mock_data with defaults or an override_data with
-values outside run blocks. A mock still starts the pinned provider plugin
+values outside run blocks; with override_during = plan, so does every
+resource (mock_resource defaults or override_resource values). A mock still starts the pinned provider plugin
 (schema and validation calls only), so run L2 under the provider sandbox.
 "override_during_plan": true marks a test that makes computed values known
 at plan: an L2 run never evidences an unknown value or length.

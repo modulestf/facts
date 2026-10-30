@@ -1,6 +1,8 @@
 package fixture
 
 import (
+	"strings"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -100,8 +102,9 @@ func (c *checker) mockDefaults(file string, b *hclsyntax.Block, provider string)
 			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
 		default:
 			c.literal(file, a)
-			if b.Type == "mock_data" && len(b.Labels) == 1 && filled(a.Expr) {
-				c.mockData[provider+"\x00"+b.Labels[0]] = true
+			if len(b.Labels) == 1 && filled(a.Expr) {
+				kind := map[string]string{"mock_data": "data", "mock_resource": "resource"}[b.Type]
+				c.mocked[kind+"\x00"+provider+"\x00"+b.Labels[0]] = true
 			}
 		}
 	}
@@ -110,18 +113,35 @@ func (c *checker) mockDefaults(file string, b *hclsyntax.Block, provider string)
 	}
 }
 
+// wholeBlock returns the address of a target naming a whole block, with no
+// instance key: data.type.name for a data source, type.name for a resource.
+func wholeBlock(e hclsyntax.Expression, data bool) (string, bool) {
+	tr, diags := hcl.AbsTraversalForExpr(e)
+	if diags.HasErrors() {
+		return "", false
+	}
+	parts := []string{tr.RootName()}
+	for _, step := range tr[1:] {
+		a, ok := step.(hcl.TraverseAttr)
+		if !ok {
+			return "", false
+		}
+		parts = append(parts, a.Name)
+	}
+	if data {
+		return strings.Join(parts, "."), len(parts) == 3 && parts[0] == "data"
+	}
+	return strings.Join(parts, "."), len(parts) == 2 && parts[0] != "data"
+}
+
 // override checks an override_resource or override_data block: a target in
-// the tree and literal values. Outside a run block (every run), an
-// override_data with values on a whole data block, no instance key, fixes it.
+// the tree and literal values. Outside a run block (every run), an override
+// with values on a whole block, no instance key, fixes its values.
 func (c *checker) override(file string, b *hclsyntax.Block, everyRun bool) {
 	target, values := b.Body.Attributes["target"], b.Body.Attributes["values"]
-	if everyRun && b.Type == "override_data" && target != nil && values != nil && filled(values.Expr) {
-		if tr, diags := hcl.AbsTraversalForExpr(target.Expr); !diags.HasErrors() && len(tr) == 3 && tr.RootName() == "data" {
-			typ, ok1 := tr[1].(hcl.TraverseAttr)
-			name, ok2 := tr[2].(hcl.TraverseAttr)
-			if ok1 && ok2 {
-				c.dataOverrides[typ.Name+"."+name.Name] = true
-			}
+	if everyRun && target != nil && values != nil && filled(values.Expr) {
+		if key, ok := wholeBlock(target.Expr, b.Type == "override_data"); ok {
+			c.overrides[key] = true
 		}
 	}
 	for _, a := range sortedAttrs(b.Body) {

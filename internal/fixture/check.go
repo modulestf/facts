@@ -67,6 +67,7 @@ const (
 	RuleTestProviderNotMocked  = "test.provider-not-mocked"
 	RuleTestValueNotLiteral    = "test.value-not-literal"
 	RuleTestDataNotMocked      = "test.data-not-mocked"
+	RuleTestResourceNotMocked  = "test.resource-not-mocked"
 	// RuleLimitViolations marks a list cut at MaxViolations.
 	RuleLimitViolations = "limit.violations"
 )
@@ -80,7 +81,7 @@ var Rules = []string{
 	RuleExprFunctionDenied, RuleExprReferenceDenied, RuleExprHeredocTemplate,
 	RuleManifestBlockSet, RuleManifestExpression,
 	RuleTestFileCount, RuleTestCommandNotPlan, RuleTestPlanOptionsDenied, RuleTestProviderNotMocked, RuleTestValueNotLiteral,
-	RuleTestDataNotMocked,
+	RuleTestDataNotMocked, RuleTestResourceNotMocked,
 }
 
 // Options select the tree and its grammar.
@@ -208,17 +209,22 @@ type checker struct {
 
 	// At a mocked level: the test files, the providers resources and data
 	// sources use, and the mock_provider blocks, by provider local name.
-	testFiles     int
-	used          map[string][]place
-	mocks         map[string][]place
-	dataUses      []dataUse
-	mockData      map[string]bool // "provider\x00type" of mock_data with nonempty defaults
-	dataOverrides map[string]bool // "type.name" of override_data with nonempty values, outside run blocks
-	duringPlan    bool
+	testFiles    int
+	used         map[string][]place
+	mocks        map[string][]place
+	dataUses     []blockUse
+	resourceUses []blockUse
+	// "data\x00provider\x00type" or "resource\x00provider\x00type" of a
+	// mock_data or mock_resource with nonempty defaults.
+	mocked map[string]bool
+	// "data.type.name" or "type.name" of an override with nonempty values on
+	// a whole block, outside run blocks.
+	overrides  map[string]bool
+	duringPlan bool
 }
 
-// dataUse is one data block at a mocked level.
-type dataUse struct {
+// blockUse is one data or resource block of a mocked provider.
+type blockUse struct {
 	place
 	provider, typ, name string
 }
@@ -232,7 +238,7 @@ func newChecker(lv level, underTest string, pins []Pin) *checker {
 	c := &checker{lv: lv, underTest: underTest, pins: map[[2]string]bool{}, declared: map[string]bool{}, providerBlocks: map[string]int{},
 		endpoints: map[string]map[string]bool{}, bodies: map[string]*hclsyntax.Body{},
 		tokens: map[string]hclsyntax.Tokens{}, used: map[string][]place{}, mocks: map[string][]place{},
-		mockData: map[string]bool{}, dataOverrides: map[string]bool{}}
+		mocked: map[string]bool{}, overrides: map[string]bool{}}
 	for _, p := range pins {
 		c.pins[[2]string{p.Source, p.Version}] = true
 	}
@@ -450,13 +456,23 @@ func (c *checker) finishMocked() {
 			}
 		}
 	}
-	// A mocked data source with neither gets random values each run.
-	for _, d := range c.dataUses {
-		if !c.declared[d.provider] || len(c.mocks[d.provider]) == 0 {
+	// A mocked data source with neither gets random values each run, and so
+	// does a resource once override_during = plan applies mock values at plan.
+	c.fixedValues(c.dataUses, "data", "data.", RuleTestDataNotMocked)
+	if c.duringPlan {
+		c.fixedValues(c.resourceUses, "resource", "", RuleTestResourceNotMocked)
+	}
+}
+
+// fixedValues reports each use of a pinned, mocked provider that has neither
+// mock defaults for its type nor an override of its whole block.
+func (c *checker) fixedValues(uses []blockUse, kind, prefix, rule string) {
+	for _, u := range uses {
+		if !c.declared[u.provider] || len(c.mocks[u.provider]) == 0 {
 			continue // reported above
 		}
-		if !c.mockData[d.provider+"\x00"+d.typ] && !c.dataOverrides[d.typ+"."+d.name] {
-			c.add(d.file, d.line, RuleTestDataNotMocked, d.typ)
+		if !c.mocked[kind+"\x00"+u.provider+"\x00"+u.typ] && !c.overrides[prefix+u.typ+"."+u.name] {
+			c.add(u.file, u.line, rule, u.typ)
 		}
 	}
 }

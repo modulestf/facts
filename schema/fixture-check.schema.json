@@ -110,6 +110,7 @@
             "test.provider-not-mocked",
             "test.value-not-literal",
             "test.data-not-mocked",
+            "test.resource-not-mocked",
             "limit.violations"
           ]
         },
