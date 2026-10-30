@@ -402,8 +402,8 @@ func TestCases(t *testing.T) {
 				}
 			}
 		}
-		if len(tr.Cases) != 21 {
-			t.Errorf("%s: %d cases, want 7 list states times 3 splat states", tr.ID, len(tr.Cases))
+		if len(tr.Cases) != 28 {
+			t.Errorf("%s: %d cases, want 7 list states times 4 splat states", tr.ID, len(tr.Cases))
 		}
 		for _, want := range []string{"typical.unknown-element", "empty.unknown-element", "empty-element.empty",
 			"null-element.known", "unknown-element.empty", "unknown.unknown-element", "null.known"} {
@@ -452,5 +452,48 @@ func TestCases(t *testing.T) {
 		map[string]string{"main.tf": strings.Join(vars, "") + "locals { x = compact(concat(" + strings.Join(refs, ", ") + ")) }\n"}, "")
 	if len(o.Triggers[0].Cases) != 0 || !strings.Contains(str(o.Triggers[0].Reason), "cap") {
 		t.Errorf("over the cap: %s", mustJSON(t, o.Triggers[0]))
+	}
+}
+
+// TestCasesFromLiterals: a literal of either expression is a state of the
+// inputs of its type.
+func TestCasesFromLiterals(t *testing.T) {
+	v := "variable \"cidr\" {\n  type = string\n}\n"
+	r := runPair(t, map[string]string{"main.tf": v + "locals { x = var.cidr }\n"},
+		map[string]string{"main.tf": v + `locals { x = var.cidr == "evil" ? "0.0.0.0/0" : var.cidr }` + "\n"}, "")
+	if len(r.Triggers) != 1 || r.Triggers[0].Category != CatCountForEach {
+		t.Fatalf("%s", mustJSON(t, r))
+	}
+	got := map[string]bool{}
+	for _, c := range r.Triggers[0].Cases {
+		got[string(c.Inputs["cidr"].Value)] = true
+	}
+	for _, want := range []string{`"evil"`, `"0.0.0.0/0"`, `"a"`, `""`} {
+		if !got[want] {
+			t.Errorf("no case with cidr %s: %s", want, mustJSON(t, r.Triggers[0].Cases))
+		}
+	}
+}
+
+// TestCasesContextualRefs: a local or module reference has no states, so
+// the trigger has no cases and says why; count.index and each.key have.
+func TestCasesContextualRefs(t *testing.T) {
+	r := runPair(t, map[string]string{"main.tf": "locals { x = local.sg_ids }\n"},
+		map[string]string{"main.tf": "locals { x = compact(local.sg_ids) }\n"}, "")
+	if c := r.Triggers[0]; len(c.Cases) != 0 || !strings.Contains(str(c.Reason), "local.sg_ids") {
+		t.Errorf("local reference: %s", mustJSON(t, c))
+	}
+	for text, n := range map[string]int{"count.index": 2, "each.key": 2} {
+		kind, _, _ := strings.Cut(text, ".")
+		st, why := refStates(RefDetail{Text: text, Kind: kind}, literalSet{})
+		if len(st) != n || why != "" {
+			t.Errorf("%s: %d states, %q", text, len(st), why)
+		}
+	}
+	if st, why := refStates(RefDetail{Text: "each.value", Kind: "each"}, literalSet{}); st != nil || why == "" {
+		t.Errorf("each.value: %v %q", st, why)
+	}
+	if st, why := refStates(RefDetail{Text: "path.module", Kind: "path"}, literalSet{}); st != nil || why != "" {
+		t.Errorf("path.module: %v %q", st, why)
 	}
 }

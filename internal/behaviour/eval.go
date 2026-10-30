@@ -71,15 +71,19 @@ type Observation struct {
 	UnknownInputs []string                   `json:"unknown_inputs,omitempty"`
 	Inputs        map[string]json.RawMessage `json:"inputs,omitempty"`
 	Length        *int64                     `json:"length,omitempty"`
-	// Value is absent when the value is unknown, sensitive or redacted.
+	// Value is the value, with null at the unknown parts of a partly
+	// unknown one; absent when wholly unknown, sensitive or redacted.
 	Value            json.RawMessage `json:"value,omitempty"`
 	Sensitive        bool            `json:"sensitive,omitempty"`
 	Redacted         bool            `json:"redacted,omitempty"`
 	Action           *string         `json:"action,omitempty"`
 	UnchangedVsPrior *bool           `json:"unchanged_vs_prior,omitempty"`
-	// UnknownMask is the after_unknown projection; claims-eval does not
-	// read it.
+	// UnknownMask is the after_unknown projection: true for a wholly
+	// unknown value, else the value's shape with true where it is unknown.
 	UnknownMask json.RawMessage `json:"unknown_mask,omitempty"`
+	// Error is set when the plan of the case failed in the subject; such
+	// a case has no output.
+	Error *bool `json:"error,omitempty"`
 }
 
 // Coverage is the plan coverage of the credentialed example plans.
@@ -103,10 +107,13 @@ type CoverageExample struct {
 
 // EvalReport is the output of mtf-facts claims-eval.
 type EvalReport struct {
-	SchemaVersion   int            `json:"schema_version"`
-	Triggers        []TriggerState `json:"triggers"`
-	Claims          []ClaimState   `json:"claims"`
-	DiscardedClaims []Discarded    `json:"discarded_claims"`
+	SchemaVersion int            `json:"schema_version"`
+	Triggers      []TriggerState `json:"triggers"`
+	// Capped echoes the behaviour report's capped: triggers past the cap
+	// have no state and are unverifiable.
+	Capped          int          `json:"capped"`
+	Claims          []ClaimState `json:"claims"`
+	DiscardedClaims []Discarded  `json:"discarded_claims"`
 }
 
 // TriggerState is the state of one trigger.
@@ -197,6 +204,8 @@ func (l *Ladder) check() string {
 		return "head_sha and base_sha are 40 lower-case hex digits or null"
 	case l.Pins == nil || l.Runs == nil || l.Coverage.Examples == nil:
 		return "pins, runs and coverage.examples must be arrays"
+	case len(l.Runs) > 0 && (l.HeadSHA == nil || l.BaseSHA == nil):
+		return "a record with runs must name its head_sha and base_sha"
 	case !slices.Contains([]string{"complete", "partial", "none"}, l.Coverage.Class):
 		return "coverage.class is not complete, partial or none"
 	}
@@ -253,7 +262,7 @@ func (l *Ladder) check() string {
 // else is unverifiable.
 func Evaluate(b *Report, l *Ladder, claims []Claim, discarded []Discarded) *EvalReport {
 	r := &EvalReport{SchemaVersion: SchemaVersion, Triggers: []TriggerState{}, Claims: []ClaimState{},
-		DiscardedClaims: append([]Discarded{}, discarded...)}
+		DiscardedClaims: append([]Discarded{}, discarded...), Capped: b.Capped}
 	byTrigger := map[string][]ClaimState{}
 	claimsOf := map[string][]Claim{}
 	verified := map[string]bool{}
@@ -350,7 +359,12 @@ func covered(t Trigger, l *Ladder) (bool, string) {
 			if strings.HasPrefix(addr, "module.") {
 				continue // a plan shows no module call argument
 			}
-			top, _, _ := strings.Cut(*t.Attribute, ".")
+			// A dynamic block plans as the blocks it generates. A lifecycle
+			// argument is no planned attribute, so it is never covered.
+			if strings.HasPrefix(*t.Attribute, "lifecycle.") {
+				continue
+			}
+			top, _, _ := strings.Cut(strings.TrimPrefix(*t.Attribute, "dynamic."), ".")
 			if slices.Contains(e.Attributes[a], top) {
 				return true, fmt.Sprintf("%s.%s is planned in %s", a, top, e.Dir)
 			}
@@ -388,8 +402,10 @@ func addressMatch(plan, trig, dir string, e CoverageExample) bool {
 func validRuns(l *Ladder, id string, levels []string) []LadderRun {
 	var out []LadderRun
 	for _, r := range l.Runs {
+		// An L1 or L3 run counts only with the hash of the fixture it ran.
+		fixture := r.Level != LevelL1 && r.Level != LevelL3 || r.FixtureSHA256 != nil && *r.FixtureSHA256 != ""
 		if r.TriggerID == id && slices.Contains(levels, r.Level) && r.State == "ran" &&
-			r.Control != nil && *r.Control == "valid" {
+			r.Control != nil && *r.Control == "valid" && fixture {
 			out = append(out, r)
 		}
 	}
@@ -444,6 +460,9 @@ func evalClaim(c Claim, l *Ladder) (string, string) {
 
 // judge is the verdict of one observation on a claim.
 func judge(c Claim, o Observation) verdict {
+	if failed(o) {
+		return vSkip // a failed plan has no output to judge
+	}
 	known := o.Known != nil && *o.Known
 	hidden := o.Sensitive || o.Redacted || !known || o.Value == nil
 	switch c.PredicateType {
@@ -517,13 +536,12 @@ func pick(ok bool) verdict {
 	return vContradict
 }
 
-// sameInputs compares the inputs of an observation to a claim's.
-func sameInputs(a, b map[string]json.RawMessage) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range b {
-		w, ok := a[k]
+// sameInputs reports whether an observation's case sets every input the
+// claim names to the claim's known value. Inputs the claim does not name
+// may take any state.
+func sameInputs(obs, claim map[string]json.RawMessage) bool {
+	for k, v := range claim {
+		w, ok := caseValue(obs[k])
 		if !ok || !jsonEqual(v, w) {
 			return false
 		}
@@ -531,10 +549,28 @@ func sameInputs(a, b map[string]json.RawMessage) bool {
 	return true
 }
 
+// caseValue is the known value of a case input as an observation records
+// it, a CaseInput object; ok is false for an unknown or omitted input, one
+// with unknown elements, or anything else.
+func caseValue(raw json.RawMessage) (json.RawMessage, bool) {
+	if raw == nil {
+		return nil, false
+	}
+	var in CaseInput
+	if err := decodeStrict(raw, &in); err != nil || in.Unknown || in.Omitted || len(in.UnknownElements) > 0 {
+		return nil, false
+	}
+	if in.Null {
+		return json.RawMessage("null"), true
+	}
+	return in.Value, in.Value != nil
+}
+
 // holds reports whether a list input holds the marker value.
 func holds(raw json.RawMessage, marker string) bool {
 	var list []json.RawMessage
-	if raw == nil || json.Unmarshal(raw, &list) != nil {
+	v, ok := caseValue(raw)
+	if !ok || json.Unmarshal(v, &list) != nil {
 		return false
 	}
 	return holdsAny(list, marker)

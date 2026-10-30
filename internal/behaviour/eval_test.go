@@ -108,7 +108,8 @@ func itoa(i int) string { b, _ := json.Marshal(i); return string(b) }
 // ladder builds a ladder record with the runs and coverage given as JSON.
 func ladder(t *testing.T, runs, coverage string) *Ladder {
 	t.Helper()
-	doc := `{"schema_version":1,"head_sha":null,"base_sha":null,"terraform_version":"1.9.8","pins":[],"runs":[` + runs + `],"coverage":` + coverage + `}`
+	doc := `{"schema_version":1,"head_sha":"` + strings.Repeat("0", 40) + `","base_sha":"` + strings.Repeat("1", 40) +
+		`","terraform_version":"1.9.8","pins":[],"runs":[` + runs + `],"coverage":` + coverage + `}`
 	l, err := ReadLadder(writeJSON(t, "ladder.json", doc))
 	if err != nil {
 		t.Fatal(err)
@@ -121,19 +122,19 @@ const noCoverage = `{"class":"none","examples":[]}`
 // L1 of PR 556: compact() is unknown for an unknown security group id;
 // concat() is unknown too, but its length is known.
 const l1Runs = `
-{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{
-  "base":[{"case":"unknown","known":false,"unknown_inputs":["aws_security_group.this"],"inputs":{"vpc_security_group_ids":[]}},
-          {"case":"sample-1","known":true,"inputs":{"vpc_security_group_ids":["", "sg-1"]},"length":1,"value":["sg-1"]}],
-  "head":[{"case":"unknown","known":false,"unknown_inputs":["aws_security_group.this"],"inputs":{"vpc_security_group_ids":[]},"length":1},
-          {"case":"sample-1","known":true,"inputs":{"vpc_security_group_ids":["", "sg-1"]},"length":2,"value":["", "sg-1"]}]}},
-{"trigger_id":"T-002","level":"L1","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{
-  "base":[{"case":"unknown","known":false,"unknown_inputs":["aws_security_group.this"]}],
-  "head":[{"case":"unknown","known":false,"unknown_inputs":["aws_security_group.this"],"length":1}]}}`
+{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{
+  "base":[{"case":"unknown","known":false,"unknown_mask":true,"unknown_inputs":["aws_security_group.this"],"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}}},
+          {"case":"sample-1","known":true,"inputs":{"vpc_security_group_ids":{"value":["", "sg-1"],"unknown":false,"null":false,"omitted":false}},"length":1,"value":["sg-1"]}],
+  "head":[{"case":"unknown","known":false,"unknown_mask":[true],"value":[null],"unknown_inputs":["aws_security_group.this"],"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}},"length":1},
+          {"case":"sample-1","known":true,"inputs":{"vpc_security_group_ids":{"value":["", "sg-1"],"unknown":false,"null":false,"omitted":false}},"length":2,"value":["", "sg-1"]}]}},
+{"trigger_id":"T-002","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{
+  "base":[{"case":"unknown","known":false,"unknown_mask":true,"unknown_inputs":["aws_security_group.this"]}],
+  "head":[{"case":"unknown","known":false,"unknown_mask":[true],"value":[null],"unknown_inputs":["aws_security_group.this"],"length":1}]}}`
 
 const l3Run = `
 {"trigger_id":"T-002","level":"L3","state":"ran","reason":null,"fixture_sha256":"` + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" + `","control":"valid","observations":{
-  "base":[{"case":"prior","known":true,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}],
-  "head":[{"case":"prior","known":false,"action":"update"}]}}`
+  "base":[{"case":"prior","known":true,"unknown_mask":false,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}],
+  "head":[{"case":"prior","known":false,"unknown_mask":true,"action":"update"}]}}`
 
 func claim(id, pred, params string) string {
 	return `{"claim_id":"` + id + `","text":"t","predicate_type":"` + pred + `","params":` + params + `,"trigger_id":null,"file":null,"line":null}`
@@ -224,33 +225,46 @@ func TestEvaluatePR556(t *testing.T) {
 // sweepRun is an L1 or L3 run of trigger id with the given base and head
 // observations.
 func sweepRun(id, level, base, head string) string {
-	return `{"trigger_id":"` + id + `","level":"` + level + `","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{"base":[` +
+	return `{"trigger_id":"` + id + `","level":"` + level + `","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{"base":[` +
 		base + `],"head":[` + head + `]}}`
 }
 
 // The PR 556 sweep: an unknown security group id, and ids ["x", ""].
 const (
-	caseUnknownBase = `{"case":"unknown-element","known":false,"unknown_inputs":["aws_security_group.this[*].id"],"inputs":{"vpc_security_group_ids":[]}}`
-	caseUnknownHead = `{"case":"unknown-element","known":false,"unknown_inputs":["aws_security_group.this[*].id"],"inputs":{"vpc_security_group_ids":[]},"length":1}`
-	caseIDsBase     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":["x",""]},"length":1,"value":["x"]}`
-	caseIDsHead     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":["x",""]},"length":2,"value":["x",""]}`
+	caseUnknownBase = `{"case":"unknown-element","known":false,"unknown_mask":true,"unknown_inputs":["aws_security_group.this[*].id"],"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}}}`
+	caseUnknownHead = `{"case":"unknown-element","known":false,"unknown_mask":[true],"value":[null],"unknown_inputs":["aws_security_group.this[*].id"],"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}},"length":1}`
+	caseIDsBase     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":{"value":["x",""],"unknown":false,"null":false,"omitted":false}},"length":1,"value":["x"]}`
+	caseIDsHead     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":{"value":["x",""],"unknown":false,"null":false,"omitted":false}},"length":2,"value":["x",""]}`
 )
 
-// withCases sets the required L1 cases of a trigger of b to ids.
-func withCases(b *Report, id string, ids ...string) {
+// withCases sets the required L1 cases of a trigger of b to the case ids
+// and inputs of the observations obs.
+func withCases(t *testing.T, b *Report, id string, obs ...string) {
+	t.Helper()
+	var cases []Case
+	for _, o := range obs {
+		var c struct {
+			Case   string               `json:"case"`
+			Inputs map[string]CaseInput `json:"inputs"`
+		}
+		if err := json.Unmarshal([]byte(o), &c); err != nil {
+			t.Fatal(err)
+		}
+		if c.Inputs == nil {
+			c.Inputs = map[string]CaseInput{}
+		}
+		cases = append(cases, Case{ID: c.Case, Inputs: c.Inputs})
+	}
 	for i := range b.Triggers {
 		if b.Triggers[i].ID == id {
-			b.Triggers[i].Cases = nil
-			for _, c := range ids {
-				b.Triggers[i].Cases = append(b.Triggers[i].Cases, Case{ID: c, Inputs: map[string]CaseInput{}})
-			}
+			b.Triggers[i].Cases = cases
 		}
 	}
 }
 
 func TestSweep(t *testing.T) {
 	b := pr556Report(t)
-	withCases(b, "T-001", "unknown-element", "ids")
+	withCases(t, b, "T-001", caseUnknownBase, caseIDsBase)
 	run := sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead+","+caseIDsHead)
 	unknown := []string{
 		claim("C-1", PredExprUnknown, `{"node":"T-001","revision":"base"}`),
@@ -276,16 +290,19 @@ func TestSweep(t *testing.T) {
 		explained  int
 	}{
 		{"no difference needs no claim", sweepRun("T-001", "L1", caseIDsBase+","+caseUnknownBase, caseIDsBase+","+caseUnknownBase), nil, StateVerified, 0, 0},
-		{"differences without claims", run, nil, StateUnverifiable, 3, 0},
-		{"unknown case explained only", run, unknown, StateUnverifiable, 3, 1},
-		{"every difference explained", run, append(slices.Clone(unknown), equals...), StateVerified, 3, 3},
+		{"differences without claims", run, nil, StateUnverifiable, 5, 0},
+		{"unknown case explained only", run, unknown, StateUnverifiable, 5, 1},
+		// How much is unknown changes from all to part: never explained.
+		{"partly unknown never verifies", run, append(slices.Clone(unknown), equals...), StateUnverifiable, 5, 3},
+		{"known differences explained", sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownBase+","+caseIDsHead),
+			equals, StateVerified, 2, 2},
 		{"a case missing at the head", sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead), nil, StateUnverifiable, 0, 0},
 		{"a required case missing at both", sweepRun("T-001", "L1", caseIDsBase, caseIDsBase), nil, StateUnverifiable, 0, 0},
 		{"an extra case is ignored", sweepRun("T-001", "L1", caseIDsBase+","+caseUnknownBase+`,{"case":"extra","known":true,"value":1}`,
 			caseIDsBase+","+caseUnknownBase+`,{"case":"extra","known":true,"value":2}`), nil, StateVerified, 0, 0},
 		{"no head observations", sweepRun("T-001", "L1", caseIDsBase, ""), nil, StateUnverifiable, 0, 0},
-		{"sensitive at both", sweepRun("T-001", "L1", caseIDsBase+`,{"case":"unknown-element","known":true,"sensitive":true}`, caseIDsBase+`,{"case":"unknown-element","known":true,"sensitive":true}`), nil, StateUnverifiable, 0, 0},
-		{"unknown inputs differ", sweepRun("T-001", "L1", caseIDsBase+`,{"case":"unknown-element","known":false,"unknown_inputs":["a"]}`, caseIDsBase+`,{"case":"unknown-element","known":false,"unknown_inputs":["b"]}`), nil, StateUnverifiable, 1, 0},
+		{"sensitive at both", sweepRun("T-001", "L1", caseIDsBase+`,{"case":"unknown-element","known":true,"sensitive":true,"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}}}`, caseIDsBase+`,{"case":"unknown-element","known":true,"sensitive":true,"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}}}`), nil, StateUnverifiable, 0, 0},
+		{"unknown inputs differ", sweepRun("T-001", "L1", caseIDsBase+`,{"case":"unknown-element","known":false,"unknown_mask":true,"unknown_inputs":["a"],"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}}}`, caseIDsBase+`,{"case":"unknown-element","known":false,"unknown_mask":true,"unknown_inputs":["b"],"inputs":{"vpc_security_group_ids":{"value":[],"unknown":false,"null":false,"omitted":false}}}`), nil, StateUnverifiable, 1, 0},
 		{"an invalid run", run + `,{"trigger_id":"T-001","level":"L1","state":"unverifiable","reason":"canary","fixture_sha256":null,"control":"invalid","observations":null}`,
 			append(slices.Clone(unknown), equals...), StateUnverifiable, 0, 0},
 	}
@@ -304,7 +321,7 @@ func TestSweep(t *testing.T) {
 			}
 		})
 	}
-	withCases(b, "T-001")
+	withCases(t, b, "T-001")
 	r := evalWith(t, b, ladder(t, run, noCoverage))
 	if s := stateOf(r, "T-001"); s.State != StateUnverifiable || !strings.Contains(s.Reason, "no required case") {
 		t.Errorf("no required cases: %+v", s)
@@ -342,11 +359,26 @@ func simulate(c Case, compact bool) string {
 	if compact && unknownElem {
 		whole = true
 	}
+	in, _ := json.Marshal(c.Inputs)
+	head := `{"case":"` + c.ID + `","inputs":` + string(in)
 	switch {
-	case fail, whole:
-		return `{"case":"` + c.ID + `","known":false}`
+	case fail:
+		return head + `,"known":false,"error":true}`
+	case whole:
+		return head + `,"known":false,"wholly_unknown":true,"unknown_mask":true}`
 	case unknownElem:
-		return `{"case":"` + c.ID + `","known":false,"length":` + itoa(len(list)) + `}`
+		var vals, mask []any
+		for _, e := range list {
+			mask = append(mask, e.unknown)
+			if e.unknown {
+				vals = append(vals, nil)
+			} else {
+				vals = append(vals, e.v)
+			}
+		}
+		v, _ := json.Marshal(vals)
+		m, _ := json.Marshal(mask)
+		return head + `,"known":false,"wholly_unknown":false,"length":` + itoa(len(list)) + `,"value":` + string(v) + `,"unknown_mask":` + string(m) + `}`
 	}
 	out := []any{}
 	for _, e := range list {
@@ -355,7 +387,7 @@ func simulate(c Case, compact bool) string {
 		}
 	}
 	v, _ := json.Marshal(out)
-	return `{"case":"` + c.ID + `","known":true,"length":` + itoa(len(out)) + `,"value":` + string(v) + `}`
+	return head + `,"known":true,"length":` + itoa(len(out)) + `,"value":` + string(v) + `,"unknown_mask":false}`
 }
 
 // TestSweepPR556Required: one case is not enough; the full required sweep,
@@ -392,25 +424,31 @@ func TestSweepPR556Required(t *testing.T) {
 // apply at head, explained by the plan claims.
 func TestSweepL3(t *testing.T) {
 	b := pr556Report(t)
-	withCases(b, "T-002", "unknown-element")
-	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownHead)
-	l3 := sweepRun("T-002", "L3", `{"case":"prior","known":true,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}`,
-		`{"case":"prior","known":false,"action":"update","unchanged_vs_prior":false}`)
+	withCases(t, b, "T-002", caseUnknownBase)
+	// L1 shows no difference here, so only the plan differs.
+	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownBase)
+	l3 := sweepRun("T-002", "L3", `{"case":"prior","known":true,"unknown_mask":false,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}`,
+		`{"case":"prior","known":false,"unknown_mask":true,"action":"update","unchanged_vs_prior":false}`)
 	claims := []string{
-		claim("C-1", PredExprUnknown, `{"node":"T-002","revision":"base"}`),
-		claim("C-2", PredExprLengthKnown, `{"node":"T-002","revision":"head","length":1}`),
 		claim("C-3", PredPlanUnchanged, `{"node":"T-002","revision":"base"}`),
 		claim("C-4", PredPlanUnknown, `{"node":"T-002","revision":"head"}`),
 		claim("C-5", PredPlanAction, `{"node":"T-002","revision":"base","action":"no-op"}`),
 		claim("C-6", PredPlanAction, `{"node":"T-002","revision":"head","action":"update"}`),
 	}
 	r := evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims...)
-	if s := r.Triggers[1]; s.ID != "T-002" || s.State != StateVerified || len(s.Changes) != 4 {
+	if s := r.Triggers[1]; s.ID != "T-002" || s.State != StateVerified || len(s.Changes) != 3 {
 		t.Errorf("T-002: %s", mustJSON(t, r))
 	}
-	r = evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims[:5]...)
+	r = evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims[:3]...)
 	if s := r.Triggers[1]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "action") {
 		t.Errorf("without the head action claim: %s", mustJSON(t, s))
+	}
+	// The real L1 difference, from wholly to partly unknown, is never
+	// explained, so it is listed for the reviewer.
+	realL1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownHead)
+	r = evalWith(t, b, ladder(t, realL1+","+l3, noCoverage), claims...)
+	if s := r.Triggers[1]; s.State != StateUnverifiable || !slices.ContainsFunc(s.Changes, func(c Change) bool { return c.Attribute == "wholly_unknown" && !c.Explained }) {
+		t.Errorf("wholly to partly unknown: %s", mustJSON(t, s))
 	}
 	// Only the L1 level ran: L3 is missing.
 	r = evalWith(t, b, ladder(t, l1, noCoverage), claims...)
@@ -421,11 +459,11 @@ func TestSweepL3(t *testing.T) {
 
 func TestEvaluateValues(t *testing.T) {
 	b := pr556Report(t)
-	runs := `{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{"base":[],"head":[
-	  {"case":"a","known":true,"inputs":{"vpc_security_group_ids":["sg-1"]},"value":["sg-1"]},
-	  {"case":"n","known":true,"inputs":{"vpc_security_group_ids":[1.0]},"value":[1]},
-	  {"case":"s","known":true,"sensitive":true,"inputs":{"vpc_security_group_ids":["sg-2"]}},
-	  {"case":"u","known":false,"inputs":{"vpc_security_group_ids":["sg-3"]}}]}}`
+	runs := `{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{"base":[],"head":[
+	  {"case":"a","known":true,"inputs":{"vpc_security_group_ids":{"value":["sg-1"],"unknown":false,"null":false,"omitted":false}},"value":["sg-1"]},
+	  {"case":"n","known":true,"inputs":{"vpc_security_group_ids":{"value":[1.0],"unknown":false,"null":false,"omitted":false}},"value":[1]},
+	  {"case":"s","known":true,"sensitive":true,"inputs":{"vpc_security_group_ids":{"value":["sg-2"],"unknown":false,"null":false,"omitted":false}}},
+	  {"case":"u","known":false,"unknown_mask":true,"inputs":{"vpc_security_group_ids":{"value":["sg-3"],"unknown":false,"null":false,"omitted":false}}}]}}`
 	l := ladder(t, runs, noCoverage)
 	eq := func(id, in, want string) string {
 		return claim(id, PredExprEquals, `{"node":"T-001","revision":"head","inputs":{"vpc_security_group_ids":`+in+`},"expected":`+want+`}`)
@@ -503,7 +541,7 @@ func TestEvaluateCoveredFailsClosed(t *testing.T) {
 	  "addresses":["module.s3.aws_s3_bucket.b","module.s3.module.x.aws_s3_bucket.b","module.s3.module.m.aws_s3_bucket.c"],
 	  "attributes":{"module.s3.aws_s3_bucket.b":["bucket"],"module.s3.module.x.aws_s3_bucket.b":["bucket"],"module.s3.module.m.aws_s3_bucket.c":["name"]},
 	  "module_calls":{"s3":"."}}]}`
-	runs := `{"trigger_id":"T-006","level":"L1","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{"base":[{"case":"a","known":false,"unknown_inputs":["x"]}],"head":[]}},
+	runs := `{"trigger_id":"T-006","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{"base":[{"case":"a","known":false,"unknown_inputs":["x"]}],"head":[]}},
 	  {"trigger_id":"T-006","level":"L1","state":"unverifiable","reason":"canary","fixture_sha256":null,"control":"invalid","observations":null}`
 	r := evalWith(t, b, ladder(t, runs, cov),
 		claim("C-1", PredPlanAction, `{"node":"T-005","revision":"head","action":"update"}`),
@@ -527,17 +565,84 @@ func TestReadLadderRefuses(t *testing.T) {
 		t.Fatalf("the empty P2 record: %v", err)
 	}
 	for name, bad := range map[string]string{
-		"extra field":   strings.Replace(good, `"pins"`, `"verdict":"pass","pins"`, 1),
-		"bad sha":       strings.Replace(good, `"head_sha":null`, `"head_sha":"abc"`, 1),
-		"bad class":     strings.Replace(good, `"class":"none"`, `"class":"all"`, 1),
-		"null runs":     strings.Replace(good, `"runs":[]`, `"runs":null`, 1),
-		"bad state":     strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L1","state":"ok","reason":null,"fixture_sha256":null,"control":null,"observations":null}]`, 1),
-		"no known":      strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{"base":[{"case":"x"}],"head":[]}}]`, 1),
-		"obs extra key": strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{"base":[{"case":"x","known":true,"raw":"secret"}],"head":[]}}]`, 1),
-		"bad address":   strings.Replace(good, `"examples":[]`, `"examples":[{"dir":"examples/a","head":"planned","base":null,"addresses":["module.a[\"k\"].x"]}]`, 1),
+		"extra field":       strings.Replace(good, `"pins"`, `"verdict":"pass","pins"`, 1),
+		"bad sha":           strings.Replace(good, `"head_sha":null`, `"head_sha":"abc"`, 1),
+		"bad class":         strings.Replace(good, `"class":"none"`, `"class":"all"`, 1),
+		"null runs":         strings.Replace(good, `"runs":[]`, `"runs":null`, 1),
+		"bad state":         strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L1","state":"ok","reason":null,"fixture_sha256":null,"control":null,"observations":null}]`, 1),
+		"no known":          strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{"base":[{"case":"x"}],"head":[]}}]`, 1),
+		"obs extra key":     strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{"base":[{"case":"x","known":true,"raw":"secret"}],"head":[]}}]`, 1),
+		"runs without shas": strings.Replace(good, `"runs":[]`, `"runs":[{"trigger_id":"T-001","level":"L4","state":"unverifiable","reason":null,"fixture_sha256":null,"control":null,"observations":null}]`, 1),
+		"bad address":       strings.Replace(good, `"examples":[]`, `"examples":[{"dir":"examples/a","head":"planned","base":null,"addresses":["module.a[\"k\"].x"]}]`, 1),
 	} {
 		if _, err := ReadLadder(writeJSON(t, "l.json", bad)); err == nil {
 			t.Errorf("%s: want an error", name)
 		}
+	}
+}
+
+// TestSweepContract checks the observation rules case by case: one
+// required case "c" (plus "t" with output) at each revision.
+func TestSweepContract(t *testing.T) {
+	b := pr556Report(t)
+	known := `{"case":"t","known":true,"value":1,"unknown_mask":false}`
+	cases := []struct {
+		name, base, head string
+		want, attr       string
+	}{
+		{"mask grows", `{"case":"c","known":false,"wholly_unknown":false,"length":2,"value":[null,"a"],"unknown_mask":[true,false]}`,
+			`{"case":"c","known":false,"wholly_unknown":false,"length":2,"value":[null,null],"unknown_mask":[true,true]}`, StateUnverifiable, "unknown_mask"},
+		{"wholly to partly known object", `{"case":"c","known":false,"wholly_unknown":true,"unknown_mask":true}`,
+			`{"case":"c","known":false,"wholly_unknown":false,"value":{"a":1,"b":null},"unknown_mask":{"a":false,"b":true}}`, StateUnverifiable, "wholly_unknown"},
+		{"known parts differ", `{"case":"c","known":false,"wholly_unknown":false,"length":2,"value":[null,"a"],"unknown_mask":[true,false]}`,
+			`{"case":"c","known":false,"wholly_unknown":false,"length":2,"value":[null,"b"],"unknown_mask":[true,false]}`, StateUnverifiable, "value"},
+		{"not known without a mask", `{"case":"c","known":false}`, `{"case":"c","known":false}`, StateUnverifiable, ""},
+		{"partly known without its parts", `{"case":"c","known":false,"wholly_unknown":false,"length":2,"unknown_mask":[true,false]}`,
+			`{"case":"c","known":false,"wholly_unknown":false,"length":2,"unknown_mask":[true,false]}`, StateUnverifiable, ""},
+		{"error at one side", `{"case":"c","known":false,"error":true}`, `{"case":"c","known":true,"value":1,"unknown_mask":false}`, StateUnverifiable, "error"},
+		{"error at both sides is equal", `{"case":"c","known":false,"error":true}`, `{"case":"c","known":false,"error":true}`, StateVerified, ""},
+		{"other inputs", `{"case":"c","known":true,"value":1,"unknown_mask":false,"inputs":{"x":{"value":2,"unknown":false,"null":false,"omitted":false}}}`,
+			`{"case":"c","known":true,"value":1,"unknown_mask":false}`, StateUnverifiable, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			withCases(t, b, "T-001", known, `{"case":"c"}`)
+			r := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", known+","+c.base, known+","+c.head), noCoverage))
+			s := r.Triggers[0]
+			listed := c.attr == "" || slices.ContainsFunc(s.Changes, func(ch Change) bool { return ch.Attribute == c.attr && !ch.Explained })
+			if s.State != c.want || !listed {
+				t.Errorf("%s, want %s with %q listed: %s", s.State, c.want, c.attr, mustJSON(t, s))
+			}
+		})
+	}
+	// Every case failing at both revisions proves nothing.
+	withCases(t, b, "T-001", `{"case":"c"}`)
+	fail := `{"case":"c","known":false,"error":true}`
+	if s := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", fail, fail), noCoverage)).Triggers[0]; s.State != StateUnverifiable {
+		t.Errorf("all failing: %s", mustJSON(t, s))
+	}
+	// A run with no fixture hash does not count.
+	run := strings.Replace(sweepRun("T-001", "L1", fail, fail), `"fixture_sha256":"`+strings.Repeat("f", 64)+`"`, `"fixture_sha256":null`, 1)
+	if s := evalWith(t, b, ladder(t, run, noCoverage)).Triggers[0]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "valid control") {
+		t.Errorf("no fixture hash: %s", mustJSON(t, s))
+	}
+	// capped is echoed.
+	b.Capped = 3
+	if r := evalWith(t, b, ladder(t, "", noCoverage)); r.Capped != 3 {
+		t.Errorf("capped %d", r.Capped)
+	}
+}
+
+func TestEvaluateCoveredDynamic(t *testing.T) {
+	line := 3
+	b := &Report{SchemaVersion: 1, Entries: []Entry{}, Triggers: []Trigger{
+		{ID: "T-001", File: "main.tf", Line: &line, Category: CatDynamic, Address: new("aws_s3_bucket.b"), Attribute: new("dynamic.rule"), Levels: []string{LevelL4}},
+		{ID: "T-002", File: "main.tf", Line: &line, Category: CatLifecycle, Address: new("aws_s3_bucket.b"), Attribute: new("lifecycle.prevent_destroy"), Levels: []string{LevelL4}},
+	}}
+	cov := `{"class":"complete","examples":[{"dir":"examples/a","head":"planned","base":null,"addresses":["module.s3.aws_s3_bucket.b"],
+	  "attributes":{"module.s3.aws_s3_bucket.b":["rule","lifecycle"]},"module_calls":{"s3":"."}}]}`
+	tr, _ := states(evalWith(t, b, ladder(t, "", cov)))
+	if tr["T-001"] != StateCovered || tr["T-002"] != StateUnverifiable {
+		t.Errorf("dynamic and lifecycle: %v", tr)
 	}
 }

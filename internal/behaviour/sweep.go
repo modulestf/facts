@@ -39,14 +39,12 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 		if lv != LevelL1 && lv != LevelL3 {
 			continue
 		}
-		var required []string
+		var required []Case
 		if lv == LevelL1 {
 			if len(t.Cases) == 0 {
 				return "the trigger has no required case for L1", nil
 			}
-			for _, c := range t.Cases {
-				required = append(required, c.ID)
-			}
+			required = t.Cases
 		}
 		p, why := levelPairs(t.ID, lv, l, required)
 		if why != "" {
@@ -59,6 +57,11 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 	}
 	if len(pairs) > maxSweepCases {
 		return fmt.Sprintf("the sweep has %d cases, over %d", len(pairs), maxSweepCases), nil
+	}
+	// A case whose plan fails at both revisions shows nothing; a sweep with
+	// no other case, or whose first case fails so, proves nothing.
+	if both := func(p casePair) bool { return failed(p.base) && failed(p.head) }; both(pairs[0]) || !slices.ContainsFunc(pairs, func(p casePair) bool { return !both(p) }) {
+		return fmt.Sprintf("%s case %q fails at both revisions, so the sweep shows no output", pairs[0].level, pairs[0].id), nil
 	}
 	changes = []Change{}
 	for _, p := range pairs {
@@ -86,7 +89,7 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 // levelPairs pairs the base and head observations of a level by case id.
 // With required ids, each must be observed at both revisions and other
 // cases are ignored; without, both revisions must have the same cases.
-func levelPairs(id, lv string, l *Ladder, required []string) ([]casePair, string) {
+func levelPairs(id, lv string, l *Ladder, required []Case) ([]casePair, string) {
 	for _, r := range l.Runs {
 		if r.TriggerID == id && r.Level == lv && r.Control != nil && *r.Control == "invalid" {
 			return nil, lv + " has a run with an invalid control"
@@ -114,7 +117,8 @@ func levelPairs(id, lv string, l *Ladder, required []string) ([]casePair, string
 	}
 	var pairs []casePair
 	if required != nil {
-		for _, k := range required {
+		for _, c := range required {
+			k := c.ID
 			b, okB := base[k]
 			h, okH := head[k]
 			switch {
@@ -122,6 +126,8 @@ func levelPairs(id, lv string, l *Ladder, required []string) ([]casePair, string
 				return nil, fmt.Sprintf("%s case %q is missing at the base", lv, k)
 			case !okH:
 				return nil, fmt.Sprintf("%s case %q is missing at the head", lv, k)
+			case !caseInputsMatch(b.Inputs, c.Inputs) || !caseInputsMatch(h.Inputs, c.Inputs):
+				return nil, fmt.Sprintf("%s case %q was observed with other inputs than the case lists", lv, k)
 			}
 			pairs = append(pairs, casePair{level: lv, id: k, base: b, head: h})
 		}
@@ -153,8 +159,10 @@ func keysOfObs(m map[string]Observation) func(func(string) bool) {
 }
 
 // differing lists the attributes of a case that differ between the
-// revisions. why is set when a value known at both sides cannot be
-// compared.
+// revisions. why is set when the observations cannot be compared: a value
+// known at both sides that is sensitive or redacted, a side not known with
+// no unknown mask, or a partly known side whose known parts are missing.
+// A side whose plan failed has no output: only the error is compared.
 func differing(p casePair) ([]string, string) {
 	b, h := p.base, p.head
 	var out []string
@@ -163,13 +171,35 @@ func differing(p casePair) ([]string, string) {
 			out = append(out, name)
 		}
 	}
-	bk, hk := b.Known != nil && *b.Known, h.Known != nil && *h.Known
-	add("known", bk != hk)
-	add("length", !sameInt(b.Length, h.Length))
-	if bk && hk {
-		if b.Sensitive || h.Sensitive || b.Redacted || h.Redacted || b.Value == nil || h.Value == nil {
-			return nil, fmt.Sprintf("%s case %q is known at both revisions but its value cannot be compared", p.level, p.id)
+	be, he := failed(b), failed(h)
+	add("error", be != he)
+	if be || he {
+		return out, ""
+	}
+	for _, o := range []Observation{b, h} {
+		switch {
+		case !known(o) && o.UnknownMask == nil:
+			return nil, fmt.Sprintf("%s case %q is not known and has no unknown mask", p.level, p.id)
+		case !known(o) && !whollyUnknown(o) && o.Value == nil && !o.Sensitive && !o.Redacted:
+			return nil, fmt.Sprintf("%s case %q is partly known but its known parts are not observed", p.level, p.id)
 		}
+	}
+	bk, hk := known(b), known(h)
+	add("known", bk != hk)
+	// With one side known, the known pair holds the whole difference in
+	// what is unknown; with neither, how much is unknown is compared.
+	if !bk && !hk {
+		add("wholly_unknown", whollyUnknown(b) != whollyUnknown(h))
+		add("unknown_mask", !jsonEqual(b.UnknownMask, h.UnknownMask))
+	}
+	add("length", !sameInt(b.Length, h.Length))
+	hidden := b.Sensitive || h.Sensitive || b.Redacted || h.Redacted
+	switch {
+	case bk && hk && (hidden || b.Value == nil || h.Value == nil):
+		return nil, fmt.Sprintf("%s case %q is known at both revisions but its value cannot be compared", p.level, p.id)
+	case b.Value != nil && h.Value != nil && !hidden:
+		// Known, or the known parts of a partly unknown value, with the
+		// unknown parts null as the mask says.
 		add("value", !jsonEqual(b.Value, h.Value))
 	}
 	add("sensitive", b.Sensitive != h.Sensitive)
@@ -178,6 +208,28 @@ func differing(p casePair) ([]string, string) {
 	add("action", deref(b.Action) != deref(h.Action) || (b.Action == nil) != (h.Action == nil))
 	add("unchanged_vs_prior", !sameBool(b.UnchangedVsPrior, h.UnchangedVsPrior))
 	return out, ""
+}
+
+// caseInputsMatch reports whether an observation's inputs are the case's
+// inputs, compared as canonical JSON.
+func caseInputsMatch(obs map[string]json.RawMessage, want map[string]CaseInput) bool {
+	if obs == nil {
+		obs = map[string]json.RawMessage{}
+	}
+	a, err1 := json.Marshal(obs)
+	b, err2 := json.Marshal(want)
+	return err1 == nil && err2 == nil && jsonEqual(a, b)
+}
+
+// failed reports an observation whose plan failed.
+func failed(o Observation) bool { return o.Error != nil && *o.Error }
+
+// whollyUnknown reports a value unknown as a whole.
+func whollyUnknown(o Observation) bool {
+	if o.WhollyUnknown != nil {
+		return *o.WhollyUnknown
+	}
+	return !known(o) && o.Length == nil
 }
 
 func sameInt(a, b *int64) bool {
@@ -261,7 +313,9 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 		}
 		return pick("base", p.base) && pick("head", p.head)
 	}
-	return false // sensitive, redacted and unknown_inputs are never explained
+	// sensitive, redacted, unknown_inputs, wholly_unknown, unknown_mask and
+	// error are never explained.
+	return false
 }
 
 func known(o Observation) bool { return o.Known != nil && *o.Known }

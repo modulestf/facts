@@ -343,7 +343,7 @@ func (c *classifier) trigger(s spec) Trigger {
 	}
 	if slices.Contains(t.Levels, LevelL1) {
 		var why string
-		if t.Cases, why = c.cases(t, path.Dir(s.file)); why != "" {
+		if t.Cases, why = c.cases(t, path.Dir(s.file), s.b, s.h); why != "" {
 			reason = strings.TrimPrefix(reason+"; "+why, "; ")
 		}
 	}

@@ -12,6 +12,7 @@
       "reason": "L1 has no base and head run with a valid control"
     }
   ],
+  "capped": 0,
   "claims": [
     {
       "claim_id": "C-1",

@@ -5,7 +5,7 @@
   "description": "The state of every behaviour trigger and every valid claim, from a ladder record, and the claims discarded with a reason. Refuted outranks covered.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "triggers", "claims", "discarded_claims"],
+  "required": ["schema_version", "triggers", "capped", "claims", "discarded_claims"],
   "properties": {
     "schema_version": {"const": 1},
     "triggers": {
@@ -28,7 +28,7 @@
               "properties": {
                 "level": {"enum": ["L1", "L3"]},
                 "case": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$"},
-                "attribute": {"enum": ["known", "length", "value", "sensitive", "redacted", "unknown_inputs", "action", "unchanged_vs_prior"]},
+                "attribute": {"enum": ["known", "wholly_unknown", "unknown_mask", "length", "value", "sensitive", "redacted", "unknown_inputs", "action", "unchanged_vs_prior", "error"]},
                 "explained": {"type": "boolean"},
                 "inputs": {"type": "object"}
               }
@@ -37,6 +37,7 @@
         }
       }
     },
+    "capped": {"type": "integer", "minimum": 0, "description": "The behaviour report's capped: triggers past the cap, unverifiable."},
     "claims": {
       "type": "array",
       "items": {

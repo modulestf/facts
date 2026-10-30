@@ -52,11 +52,21 @@ type caseState struct {
 
 var caseIDBad = regexp.MustCompile(`[^A-Za-z0-9_.:-]`)
 
-// cases builds the required sweep of an L1 trigger: one typical case with
-// every input in its typical state, then one case per other state of each
-// input, the rest typical. It returns no cases and a reason when the sweep
-// is over maxSweepCases.
-func (c *classifier) cases(t Trigger, dir string) ([]Case, string) {
+// maxLiterals caps the distinct literals of one kind that become states.
+const maxLiterals = 8
+
+// cases builds the required sweep of an L1 trigger from its inputs: its
+// variables, its resource, data, count and each references, and for a
+// default or type change the variable itself. Every string, number and bool
+// literal of either expression is an extra state of each input of a
+// matching type. It returns no cases and a reason when an input has no
+// states, as a local, module or self reference, or the sweep is over
+// maxSweepCases.
+func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, string) {
+	lits, why := literals(xs...)
+	if why != "" {
+		return []Case{}, why
+	}
 	var inputs []caseInput
 	seen := map[string]bool{}
 	addVar := func(name, typ string, omittable bool) {
@@ -64,7 +74,7 @@ func (c *classifier) cases(t Trigger, dir string) ([]Case, string) {
 			return
 		}
 		seen[name] = true
-		inputs = append(inputs, caseInput{name: name, states: varStates(typ, omittable)})
+		inputs = append(inputs, caseInput{name: name, states: varStates(parseType(typ), omittable, lits)})
 	}
 	if t.Address != nil && (t.Category == CatDefault || t.Category == CatTypeValidation) {
 		if name, ok := strings.CutPrefix(*t.Address, "var."); ok {
@@ -81,13 +91,94 @@ func (c *classifier) cases(t Trigger, dir string) ([]Case, string) {
 		addVar(in.Name, in.Type, false)
 	}
 	for _, d := range t.ContextualRefDetails {
-		if d.Kind != "resource" && d.Kind != "data" || seen[d.Text] {
+		if seen[d.Text] {
 			continue
 		}
 		seen[d.Text] = true
-		inputs = append(inputs, caseInput{name: d.Text, states: refStates(d)})
+		st, why := refStates(d, lits)
+		if why != "" {
+			return []Case{}, why
+		}
+		if st != nil {
+			inputs = append(inputs, caseInput{name: d.Text, states: st})
+		}
 	}
 	return sweepCases(inputs)
+}
+
+// literalSet holds the distinct literals of the expressions, by kind.
+type literalSet struct {
+	strings []string
+	numbers []string // as written, canonical JSON numbers
+	bools   []bool
+}
+
+// literals collects the string, number and bool literals of expressions.
+func literals(xs ...*exprInfo) (literalSet, string) {
+	var ls literalSet
+	strs, nums := map[string]bool{}, map[string]bool{}
+	for _, x := range xs {
+		if x == nil {
+			continue
+		}
+		_ = hclsyntax.VisitAll(x.expr, func(n hclsyntax.Node) hcl.Diagnostics {
+			lit, ok := n.(*hclsyntax.LiteralValueExpr)
+			if !ok || lit.Val.IsNull() || !lit.Val.IsKnown() {
+				return nil
+			}
+			switch lit.Val.Type() {
+			case cty.String:
+				strs[lit.Val.AsString()] = true
+			case cty.Number:
+				nums[lit.Val.AsBigFloat().Text('g', -1)] = true
+			case cty.Bool:
+				if b := lit.Val.True(); !slices.Contains(ls.bools, b) {
+					ls.bools = append(ls.bools, b)
+				}
+			}
+			return nil
+		})
+	}
+	ls.strings, ls.numbers = slices.Sorted(maps.Keys(strs)), slices.Sorted(maps.Keys(nums))
+	if len(ls.strings) > maxLiterals || len(ls.numbers) > maxLiterals {
+		return ls, fmt.Sprintf("the expressions have more than %d string or number literals", maxLiterals)
+	}
+	return ls, ""
+}
+
+// literalStates are the extra states of a scalar of type ty: each literal
+// of its kind that is not already a state, wrapped by wrap.
+func literalStates(ty cty.Type, ls literalSet, have []caseState, wrap func(any) any) []caseState {
+	type lit struct {
+		label string
+		v     any
+	}
+	var vals []lit
+	switch ty {
+	case cty.String:
+		for i, s := range ls.strings {
+			vals = append(vals, lit{fmt.Sprintf("str%d", i), s})
+		}
+	case cty.Number:
+		for i, n := range ls.numbers {
+			vals = append(vals, lit{fmt.Sprintf("num%d", i), json.Number(n)})
+		}
+	case cty.Bool:
+		for i, b := range ls.bools {
+			vals = append(vals, lit{fmt.Sprintf("bool%d", i), b})
+		}
+	case cty.DynamicPseudoType:
+		return append(literalStates(cty.String, ls, have, wrap), literalStates(cty.Number, ls, have, wrap)...)
+	}
+	var out []caseState
+	for _, l := range vals {
+		in := CaseInput{Value: raw(wrap(l.v))}
+		if slices.ContainsFunc(have, func(st caseState) bool { return st.in.Value != nil && jsonEqual(st.in.Value, in.Value) }) {
+			continue
+		}
+		out = append(out, caseState{l.label, in})
+	}
+	return out
 }
 
 // sweepCases combines the input states: every combination when there are
@@ -179,28 +270,9 @@ func raw(v any) json.RawMessage {
 	return b
 }
 
-// varStates are the states of a variable of the type constraint typ.
-func varStates(typ string, omittable bool) []caseState {
-	ty := parseType(typ)
-	st := []caseState{{"typical", CaseInput{Value: raw(sample(ty))}}}
-	switch {
-	case ty.IsListType() || ty.IsSetType():
-		el := ty.ElementType()
-		st = append(st,
-			caseState{"empty", CaseInput{Value: raw([]any{})}},
-			caseState{"empty-element", CaseInput{Value: raw([]any{zero(el)})}},
-			caseState{"null-element", CaseInput{Value: raw([]any{nil})}},
-			caseState{"unknown-element", CaseInput{Value: raw([]any{nil}), UnknownElements: []json.RawMessage{raw(0)}}})
-	case ty.IsMapType():
-		el := ty.ElementType()
-		st = append(st,
-			caseState{"empty", CaseInput{Value: raw(map[string]any{})}},
-			caseState{"empty-element", CaseInput{Value: raw(map[string]any{"k": zero(el)})}},
-			caseState{"null-element", CaseInput{Value: raw(map[string]any{"k": nil})}},
-			caseState{"unknown-element", CaseInput{Value: raw(map[string]any{"k": nil}), UnknownElements: []json.RawMessage{raw("k")}}})
-	case ty == cty.String || ty == cty.Number || ty == cty.Bool:
-		st = append(st, caseState{"zero", CaseInput{Value: raw(zero(ty))}})
-	}
+// varStates are the states of a variable of type ty.
+func varStates(ty cty.Type, omittable bool, lits literalSet) []caseState {
+	st := append([]caseState{{"typical", CaseInput{Value: raw(sample(ty))}}}, shapeStates(ty, lits)...)
 	st = append(st, caseState{"unknown", CaseInput{Unknown: true}}, caseState{"null", CaseInput{Null: true}})
 	if omittable {
 		st = append(st, caseState{"omitted", CaseInput{Omitted: true}})
@@ -208,22 +280,70 @@ func varStates(typ string, omittable bool) []caseState {
 	return st
 }
 
-// refStates are the states of a resource or data source reference: a
-// splat is a list of instances, one unknown first, then none and one
-// known; any other reference is unknown first, then known.
-func refStates(d RefDetail) []caseState {
+// shapeStates are the known states of a type beside its typical sample:
+// for a collection none, an empty element, a null element, an unknown
+// element and one element per literal; for a scalar zero and the literals.
+func shapeStates(ty cty.Type, lits literalSet) []caseState {
+	var st []caseState
+	switch {
+	case ty.IsListType() || ty.IsSetType():
+		el := ty.ElementType()
+		st = []caseState{
+			{"empty", CaseInput{Value: raw([]any{})}},
+			{"empty-element", CaseInput{Value: raw([]any{zero(el)})}},
+			{"null-element", CaseInput{Value: raw([]any{nil})}},
+			{"unknown-element", CaseInput{Value: raw([]any{nil}), UnknownElements: []json.RawMessage{raw(0)}}},
+		}
+		st = append(st, literalStates(el, lits, append(st, caseState{in: CaseInput{Value: raw([]any{sample(el)})}}), func(v any) any { return []any{v} })...)
+	case ty.IsMapType():
+		el := ty.ElementType()
+		st = []caseState{
+			{"empty", CaseInput{Value: raw(map[string]any{})}},
+			{"empty-element", CaseInput{Value: raw(map[string]any{"k": zero(el)})}},
+			{"null-element", CaseInput{Value: raw(map[string]any{"k": nil})}},
+			{"unknown-element", CaseInput{Value: raw(map[string]any{"k": nil}), UnknownElements: []json.RawMessage{raw("k")}}},
+		}
+		st = append(st, literalStates(el, lits, append(st, caseState{in: CaseInput{Value: raw(map[string]any{"k": sample(el)})}}), func(v any) any { return map[string]any{"k": v} })...)
+	case ty == cty.String || ty == cty.Number || ty == cty.Bool || ty == cty.DynamicPseudoType:
+		st = []caseState{{"zero", CaseInput{Value: raw(zero(ty))}}}
+		st = append(st, literalStates(ty, lits, append(st, caseState{in: CaseInput{Value: raw(sample(ty))}}), func(v any) any { return v })...)
+	}
+	return st
+}
+
+// refStates are the states of a contextual reference. A resource or data
+// splat is a list of instances: one unknown instance first, then none, one
+// with a null attribute and one known. Any other resource or data reference
+// is unknown first, then known, with the states of a collection of its type
+// and the literals. count.index is 0 or 1 and each.key "a" or "". path and
+// terraform references are fixed and are no input (nil, ""). A local,
+// module, self or each.value reference has no states: why says so.
+func refStates(d RefDetail, lits literalSet) ([]caseState, string) {
+	switch {
+	case d.Kind == "path" || d.Kind == "terraform":
+		return nil, ""
+	case d.Text == "count.index":
+		return []caseState{{"index0", CaseInput{Value: raw(0)}}, {"index1", CaseInput{Value: raw(1)}}}, ""
+	case d.Text == "each.key":
+		return []caseState{{"key", CaseInput{Value: raw("a")}}, {"empty-key", CaseInput{Value: raw("")}}}, ""
+	case d.Kind != "resource" && d.Kind != "data":
+		return nil, fmt.Sprintf("a reference to %s has no input states, so the L1 sweep cannot stand in for it", d.Text)
+	}
 	el := cty.String
 	if d.Type != nil {
 		el = parseType(*d.Type)
 	}
 	if strings.Contains(d.Text, "[*]") {
-		return []caseState{
+		st := []caseState{
 			{"unknown-element", CaseInput{Value: raw([]any{nil}), UnknownElements: []json.RawMessage{raw(0)}}},
 			{"empty", CaseInput{Value: raw([]any{})}},
+			{"null-element", CaseInput{Value: raw([]any{nil})}},
 			{"known", CaseInput{Value: raw([]any{sample(el)})}},
 		}
+		return append(st, literalStates(el, lits, st, func(v any) any { return []any{v} })...), ""
 	}
-	return []caseState{{"unknown", CaseInput{Unknown: true}}, {"known", CaseInput{Value: raw(sample(el))}}}
+	st := []caseState{{"unknown", CaseInput{Unknown: true}}, {"known", CaseInput{Value: raw(sample(el))}}}
+	return append(st, shapeStates(el, lits)...), ""
 }
 
 // parseType parses a type constraint; anything it cannot parse, such as a

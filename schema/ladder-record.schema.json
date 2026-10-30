@@ -93,12 +93,13 @@
         "unknown_inputs": {"type": "array", "items": {"type": "string"}},
         "inputs": {"type": "object"},
         "length": {"type": ["integer", "null"], "minimum": 0},
-        "value": {"description": "Absent when the value is unknown, sensitive or redacted."},
+        "value": {"description": "The value, with null at the unknown parts of a partly unknown one; absent when wholly unknown, sensitive or redacted."},
         "sensitive": {"type": "boolean"},
         "redacted": {"type": "boolean"},
         "action": {"enum": ["no-op", "create", "update", "replace", "delete", null]},
         "unchanged_vs_prior": {"type": ["boolean", "null"]},
-        "unknown_mask": {"description": "Not read by claims-eval."}
+        "unknown_mask": {"description": "The after_unknown projection: true for a wholly unknown value, else the value's shape with true where it is unknown. Required to compare a value that is not known."},
+        "error": {"type": "boolean", "description": "The plan of the case failed in the subject; the case has no output."}
       }
     }
   }
