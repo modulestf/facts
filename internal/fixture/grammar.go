@@ -13,14 +13,20 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-// level is the grammar of one ladder level. Phase 5 adds L2 here, with its
-// own file grammar for .tftest.hcl.
+// level is the grammar of one ladder level.
 type level struct {
 	providers map[string]providerRule // by local name
 	underTest bool                    // exactly one resource of the type under test
+	// mocked is L2: one .tftest.hcl file whose mock_provider blocks stand in
+	// for every provider, so resources and data sources of any pinned and
+	// mocked provider may appear, and no provider block may.
+	mocked bool
 }
 
 func (l level) allows(provider string) bool {
+	if l.mocked {
+		return true // the pins and finishMocked decide
+	}
 	_, ok := l.providers[provider]
 	return ok
 }
@@ -44,12 +50,15 @@ const (
 var regionName = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]$`)
 
 // curatedResource is a resource type a level may put under test, with the
-// endpoint key of its service. Phases 4 and 5 add types here.
+// endpoint key of its service. Adding a type takes an audit of every argument
+// in the pinned provider schema, nested ones included, for any that reads a
+// local file or other local source; record it in the type's test.
 type curatedResource struct {
 	service string
 }
 
 var curated = map[string]curatedResource{
+	"aws_db_instance": {service: "rds"},
 	"aws_rds_cluster": {service: "rds"},
 }
 
@@ -84,10 +93,12 @@ var awsProvider = providerRule{
 	endpoints: true,
 }
 
-// levels are the grammars by name. L1 runs the built-in provider only; L3
-// adds one provider resource under test.
+// levels are the grammars by name. L1 runs the built-in provider only; L2
+// runs module logic under terraform test with every provider mocked; L3 adds
+// one provider resource under test.
 var levels = map[string]level{
 	"L1": {providers: map[string]providerRule{"terraform": builtinTerraform}},
+	"L2": {mocked: true},
 	"L3": {providers: map[string]providerRule{"terraform": builtinTerraform, "aws": awsProvider}, underTest: true},
 }
 
@@ -96,6 +107,11 @@ func Levels() []string { return slices.Sorted(maps.Keys(levels)) }
 
 // Names a reference may start with, besides the resource types allowed.
 var referenceRoots = map[string]bool{"var": true, "local": true, "each": true, "count": true, "self": true}
+
+// resourceType is a reference root, or moved and override address root,
+// that names a resource type at L2. Every root Terraform reserves (path,
+// terraform, module, provider, ...) has no underscore.
+var resourceType = regexp.MustCompile(`^[a-z][a-z0-9]*_[a-z0-9_]+$`)
 
 // Names a for expression or dynamic iterator may not bind, besides the
 // reference roots: it would shadow a Terraform object.
@@ -130,10 +146,17 @@ func set(names ...string) map[string]bool {
 type scope struct {
 	roots map[string]bool
 	funcs map[string]bool
+	// anyResource admits every root that names a resource type: at L2 the
+	// providers are mocks, so a reference reaches no real object.
+	anyResource bool
+}
+
+func (s scope) allowsRoot(root string) bool {
+	return s.roots[root] || (s.anyResource && resourceType.MatchString(root))
 }
 
 func (s scope) with(roots, funcs map[string]bool) scope {
-	n := scope{roots: maps.Clone(s.roots), funcs: maps.Clone(s.funcs)}
+	n := scope{roots: maps.Clone(s.roots), funcs: maps.Clone(s.funcs), anyResource: s.anyResource}
 	maps.Copy(n.roots, roots)
 	maps.Copy(n.funcs, funcs)
 	return n
@@ -148,7 +171,10 @@ func (c *checker) baseScope() scope {
 	if c.underTest != "" {
 		roots[c.underTest] = true
 	}
-	return scope{roots: roots, funcs: pureFunctionSet}
+	if c.lv.mocked {
+		roots["data"] = true
+	}
+	return scope{roots: roots, funcs: pureFunctionSet, anyResource: c.lv.mocked}
 }
 
 // sortedAttrs returns the attributes of b in source order.
@@ -182,6 +208,18 @@ func (c *checker) top(file string, body *hclsyntax.Body) {
 			}
 		case "resource":
 			c.resource(file, b, s)
+		case "data":
+			if !c.lv.mocked {
+				c.add(file, line, RuleBlockDenied, b.Type)
+				break
+			}
+			c.data(file, b, s)
+		case "moved":
+			if !c.lv.mocked {
+				c.add(file, line, RuleBlockDenied, b.Type)
+				break
+			}
+			c.moved(file, b)
 		default:
 			c.add(file, line, RuleBlockDenied, b.Type)
 		}
@@ -276,26 +314,31 @@ func (c *checker) requiredProvider(file string, a *hclsyntax.Attribute) {
 		return
 	}
 	got := map[string]string{}
+	pinned := true
 	for _, item := range obj.Items {
 		key := hcl.ExprAsKeyword(item.KeyExpr)
 		if key != "source" && key != "version" {
 			c.add(file, item.KeyExpr.Range().Start.Line, RuleBlockAttributeDenied, key)
 			continue
 		}
-		if v, ok := literalString(item.ValueExpr); ok {
-			got[key] = v
-		}
+		v, ok := literalString(item.ValueExpr)
+		_, twice := got[key]
+		// A second or computed value could be the one Terraform reads.
+		pinned = pinned && ok && !twice
+		got[key] = v
 	}
 	src, ver := got["source"], got["version"]
-	if !c.pins[[2]string{src, ver}] || path.Base(src) != a.Name {
+	if !pinned || !c.pins[[2]string{src, ver}] || path.Base(src) != a.Name {
 		c.add(file, line, RuleProviderNotPinned, a.Name)
+		return
 	}
+	c.sources[a.Name] = src
 }
 
 // provider checks a provider block against the allowlist of its provider.
 func (c *checker) provider(file string, b *hclsyntax.Block) {
 	line := b.TypeRange.Start.Line
-	if len(b.Labels) != 1 || !c.lv.allows(b.Labels[0]) {
+	if c.lv.mocked || len(b.Labels) != 1 || !c.lv.allows(b.Labels[0]) {
 		c.add(file, line, RuleProviderDenied, strings.Join(b.Labels, "."))
 		return
 	}
@@ -400,11 +443,82 @@ func (c *checker) resource(file string, b *hclsyntax.Block, s scope) {
 	case typ == "terraform_data":
 	case c.underTest != "" && typ == c.underTest:
 		c.tested = append(c.tested, place{file, line})
+	case c.lv.mocked && providerOf(typ) != "terraform":
 	default:
 		c.add(file, line, RuleResourceTypeDenied, typ)
 		return
 	}
+	if c.lv.mocked {
+		if p := c.use(file, b); p != "" && p != "terraform" {
+			c.resourceUses = append(c.resourceUses, blockUse{place{file, line}, p, b.Labels[0], b.Labels[1]})
+		}
+	}
 	c.resourceBody(file, b.Body, s, true)
+}
+
+// data checks a data block at a mocked level: a data source of a mocked
+// provider. The built-in terraform_remote_state would read a backend.
+func (c *checker) data(file string, b *hclsyntax.Block, s scope) {
+	line := b.TypeRange.Start.Line
+	if len(b.Labels) != 2 {
+		c.add(file, line, RuleHCLParseError, "data")
+		return
+	}
+	if providerOf(b.Labels[0]) == "terraform" {
+		c.add(file, line, RuleResourceTypeDenied, b.Labels[0])
+		return
+	}
+	if p := c.use(file, b); p != "" && p != "terraform" {
+		c.dataUses = append(c.dataUses, blockUse{place{file, line}, p, b.Labels[0], b.Labels[1]})
+	}
+	c.resourceBody(file, b.Body, s, true)
+}
+
+// use records the provider a resource or data block runs on: its provider
+// argument, or the prefix of its type. The built-in provider needs no mock;
+// an unnamed provider is refused by resourceBody.
+func (c *checker) use(file string, b *hclsyntax.Block) string {
+	name := providerOf(b.Labels[0])
+	if a := b.Body.Attributes["provider"]; a != nil {
+		name = hcl.ExprAsKeyword(a.Expr)
+	}
+	if name != "" && name != "terraform" {
+		c.used[name] = append(c.used[name], place{file, b.TypeRange.Start.Line})
+	}
+	return name
+}
+
+// moved checks a moved block: from and to, each a resource address.
+func (c *checker) moved(file string, b *hclsyntax.Block) {
+	for _, name := range []string{"from", "to"} {
+		if b.Body.Attributes[name] == nil {
+			c.add(file, b.TypeRange.Start.Line, RuleBlockAttributeDenied, name)
+		}
+	}
+	for _, a := range sortedAttrs(b.Body) {
+		if a.Name != "from" && a.Name != "to" {
+			c.add(file, a.NameRange.Start.Line, RuleBlockAttributeDenied, a.Name)
+			continue
+		}
+		c.traversal(file, a.Name, a.Expr, nil)
+	}
+	for _, nb := range b.Body.Blocks {
+		c.nestedDenied(file, nb)
+	}
+}
+
+// traversal checks an expression that names an address in the tree: a
+// static traversal from a resource type, or from one of roots. Nothing
+// evaluates it.
+func (c *checker) traversal(file, name string, e hclsyntax.Expression, roots map[string]bool) {
+	tr, diags := hcl.AbsTraversalForExpr(e)
+	if diags.HasErrors() {
+		c.add(file, e.Range().Start.Line, RuleBlockAttributeDenied, name)
+		return
+	}
+	if root := tr.RootName(); !roots[root] && !resourceType.MatchString(root) {
+		c.add(file, e.Range().Start.Line, RuleExprReferenceDenied, root)
+	}
 }
 
 // resourceBody checks the arguments and nested blocks of a resource; meta is
@@ -491,7 +605,7 @@ func (c *checker) expr(file string, e hclsyntax.Expression, s scope) {
 	})
 	// Variables leaves out the names a for expression binds.
 	for _, tr := range e.Variables() {
-		if root := tr.RootName(); !s.roots[root] {
+		if root := tr.RootName(); !s.allowsRoot(root) {
 			c.add(file, tr.SourceRange().Start.Line, RuleExprReferenceDenied, root)
 		}
 	}

@@ -13,6 +13,16 @@ import (
 
 var testPins = []Pin{{Source: "hashicorp/aws", Version: "6.15.0"}}
 
+// testSchemas is a trimmed provider schema: aws_vpc, aws_caller_identity and
+// aws_security_group as in hashicorp/aws 6.70.0, and small made-up types.
+var testSchemas = func() Schemas {
+	s, err := ReadSchemas("../../testdata/fixture-check/schema.json")
+	if err != nil {
+		panic(err)
+	}
+	return s
+}()
+
 const td = "../../testdata/fixture-check"
 
 func TestCheckPositiveL1(t *testing.T) {
@@ -34,6 +44,87 @@ func TestCheckPositiveL3(t *testing.T) {
 	}
 	if !r.OK || len(r.Violations) != 0 {
 		t.Fatalf("result %+v", r)
+	}
+}
+
+// The L2 fixture: a for_each key change verified by a plan-only test. Its
+// --expect manifest binds the .tf file; the test file is left to the grammar.
+func TestCheckPositiveL2(t *testing.T) {
+	t.Parallel()
+	m, err := ReadManifest(filepath.Join(td, "l2.expect.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Check(Options{Dir: filepath.Join(td, "l2"), Level: "L2", Pins: testPins, Expect: m, Schemas: testSchemas})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.OK || len(r.Violations) != 0 || !r.OverrideDuringPlan {
+		t.Fatalf("result %+v", r)
+	}
+}
+
+// Without the provider schemas, an L2 tree with no data source and no plan
+// time override passes; one with either cannot show its values are fixed.
+func TestCheckL2WithoutSchema(t *testing.T) {
+	t.Parallel()
+	for name, files := range map[string]map[string]string{
+		"base":         l2("", ""),
+		"builtin only": {"main.tf": okTF, "ladder.tftest.hcl": l2Run},
+	} {
+		dir := t.TempDir()
+		for n, data := range files {
+			mustDo(t, os.WriteFile(filepath.Join(dir, n), []byte(data), 0o644))
+		}
+		r, err := Check(Options{Dir: dir, Level: "L2", Pins: testPins})
+		if err != nil || !r.OK {
+			t.Errorf("%s: %v %+v", name, err, r)
+		}
+	}
+	if _, err := Check(Options{Dir: filepath.Join(td, "l1"), Schemas: testSchemas}); err == nil {
+		t.Error("schemas at L1: no error")
+	}
+}
+
+func TestReadSchemas(t *testing.T) {
+	t.Parallel()
+	if s := testSchemas["registry.terraform.io/hashicorp/aws"]; s == nil || s.DataSourceSchemas["aws_vpc"] == nil {
+		t.Fatalf("aws schema not read: %v", s)
+	}
+	dir := t.TempDir()
+	for name, data := range map[string]string{
+		"syntax":  `{"format_version":"1.0","provider_schemas":`,
+		"version": `{"format_version":"9.0","provider_schemas":{}}`,
+	} {
+		p := filepath.Join(dir, name+".json")
+		mustDo(t, os.WriteFile(p, []byte(data), 0o644))
+		if _, err := ReadSchemas(p); err == nil {
+			t.Errorf("%s: no error", name)
+		}
+	}
+	if _, err := ReadSchemas(filepath.Join(dir, "none.json")); err == nil {
+		t.Error("missing file: no error")
+	}
+}
+
+// aws_db_instance is the second curated type, under the same provider rules.
+// Argument audit against the hashicorp/aws 6.70.0 schema: 86 arguments,
+// nested ones included. None reads a local file: s3_import and
+// restore_to_point_in_time name remote sources only (an S3 bucket, a source
+// instance or backup ARN), and password_wo is write-only, never stored in
+// state or plan.
+func TestCheckPositiveL3DBInstance(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := strings.Replace(l3TF, l3Resource, "resource \"aws_db_instance\" \"this\" {\n  vpc_security_group_ids = [terraform_data.sg.output]\n}\nresource \"terraform_data\" \"sg\" {}\n", 1)
+	mustDo(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o644))
+	r, err := Check(Options{Dir: dir, Level: "L3", Resource: "aws_db_instance", Pins: testPins})
+	if err != nil || !r.OK {
+		t.Fatalf("%v %+v", err, r)
+	}
+	r, err = Check(Options{Dir: dir, Level: "L3", Resource: "aws_rds_cluster", Pins: testPins})
+	if err != nil || r.OK {
+		t.Fatalf("other type under test passes: %v %+v", err, r)
 	}
 }
 
@@ -136,11 +227,12 @@ func l3sub(old, repl string) map[string]string {
 }
 
 type ruleCase struct {
-	name  string
-	level string // "" is L1
-	files map[string]string
-	setup func(t *testing.T, dir string)
-	rule  string
+	name     string
+	level    string // "" is L1
+	files    map[string]string
+	setup    func(t *testing.T, dir string)
+	rule     string
+	noSchema bool // at L2, check without the provider schemas
 }
 
 func l3(extra string) map[string]string { return map[string]string{"main.tf": l3TF + extra} }
@@ -203,6 +295,8 @@ var ruleCases = []ruleCase{
 	{name: "provider assume_role", level: "L3", files: l3sub(`  endpoints {`, "  assume_role {}\n  endpoints {"), rule: RuleBlockAttributeDenied},
 	{name: "required provider extra key", level: "L3", files: l3sub(`version = "6.15.0"`, "version = \"6.15.0\"\n      configuration_aliases = []"), rule: RuleBlockAttributeDenied},
 
+	{name: "duplicate source", level: "L3", files: l3sub(`source  = "hashicorp/aws"`, "source = \"hashicorp/aws\"\n      source = \"evil/aws\""), rule: RuleProviderNotPinned},
+	{name: "nonliteral version", level: "L3", files: l3sub(`version = "6.15.0"`, "version = \"6.15.0\"\n      version = file(\"x\")"), rule: RuleProviderNotPinned},
 	{name: "version constraint", level: "L3", files: l3sub(`"6.15.0"`, `"~> 6.0"`), rule: RuleProviderNotPinned},
 	{name: "other source", level: "L3", files: l3sub(`"hashicorp/aws"`, `"evil/aws"`), rule: RuleProviderNotPinned},
 	{name: "no required_providers", level: "L3", files: l3sub(l3Terraform, ""), rule: RuleProviderNotPinned},
@@ -276,6 +370,243 @@ var ruleCases = []ruleCase{
 
 	{name: "heredoc interpolation", files: l1("locals {\n  a = <<EOT\n${local.b}\nEOT\n  b = 1\n}\n"), rule: RuleExprHeredocTemplate},
 	{name: "heredoc directive", files: l1("locals {\n  a = <<-EOT\n  %{if true}x%{endif}\n  EOT\n}\n"), rule: RuleExprHeredocTemplate},
+	{name: "test file in L1", files: map[string]string{"main.tf": okTF, "main.tftest.hcl": l2Run}, rule: RuleFileNotTF},
+	{name: "test file in L3", level: "L3", files: map[string]string{"main.tf": l3TF, "main.tftest.hcl": l2Run}, rule: RuleFileNotTF},
+}
+
+// l2Main and l2Test are a valid L2 tree to add one violation to: a pinned
+// provider, mocked, and a plan-only run.
+const (
+	l2Main = l3Terraform + `resource "aws_s3_bucket" "this" {
+  bucket = "fixture"
+}
+`
+	l2Mock = "mock_provider \"aws\" {\n  mock_data \"aws_x\" {\n    defaults = { id = \"x\" }\n  }\n}\n"
+	l2Run  = "run \"plan\" {\n  command = plan\n}\n"
+	l2Test = l2Mock + l2Run
+)
+
+// addData adds a data source of the type l2Mock mocks.
+func addData(t *testing.T, dir string) {
+	t.Helper()
+	f, err := os.OpenFile(filepath.Join(dir, "main.tf"), os.O_APPEND|os.O_WRONLY, 0)
+	mustDo(t, err)
+	_, err = f.WriteString("data \"aws_x\" \"y\" {}\n")
+	mustDo(t, err)
+	mustDo(t, f.Close())
+}
+
+// planMock is the L2 tree with override_during = plan, aws_s3_bucket mocked,
+// and a resource aws_n whose mock_resource has the given defaults.
+func planMock(defaults string) map[string]string {
+	return withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"+
+		"  mock_resource \"aws_s3_bucket\" {\n    defaults = { arn = \"x\" }\n  }\n"+
+		"  mock_resource \"aws_n\" {\n    defaults = "+defaults+"\n  }\n"), "resource \"aws_n\" \"n\" {}\n")
+}
+
+// withMain is files with src appended to main.tf.
+func withMain(files map[string]string, src string) map[string]string {
+	files["main.tf"] += src
+	return files
+}
+
+// withTest is files with src appended to main.tftest.hcl.
+func withTest(files map[string]string, src string) map[string]string {
+	files["main.tftest.hcl"] += src
+	return files
+}
+
+// l2 is the L2 tree with main and test appended to its two files.
+func l2(main, test string) map[string]string {
+	return map[string]string{"main.tf": l2Main + main, "main.tftest.hcl": l2Test + test}
+}
+
+// l2sub is the L2 tree with old replaced by repl in the file that holds it.
+func l2sub(old, repl string) map[string]string {
+	files := l2("", "")
+	for name, src := range files {
+		if strings.Contains(src, old) {
+			files[name] = strings.Replace(src, old, repl, 1)
+			return files
+		}
+	}
+	panic(old)
+}
+
+// l2run is the L2 tree with body added to its run block.
+func l2run(body string) map[string]string {
+	return l2sub("  command = plan\n", "  command = plan\n"+body)
+}
+
+var l2Cases = []ruleCase{
+	{name: "no test file", files: l1(okTF), rule: RuleTestFileCount},
+	{name: "two test files", files: map[string]string{"main.tf": okTF, "a.tftest.hcl": l2Run, "b.tftest.hcl": l2Run}, rule: RuleTestFileCount},
+	{name: "test json", files: map[string]string{"main.tf": l2Main, "main.tftest.hcl": l2Test, "x.tftest.json": "{}"}, rule: RuleFileNotTF},
+	{name: "mock file", files: map[string]string{"main.tf": l2Main, "main.tftest.hcl": l2Test, "aws.tfmock.hcl": ""}, rule: RuleFileNotTF},
+	{name: "tests dir", files: l2("", ""), setup: func(t *testing.T, dir string) {
+		mustDo(t, os.Mkdir(filepath.Join(dir, "tests"), 0o755))
+	}, rule: RuleFileSubdirectory},
+	{name: "test parse error", files: map[string]string{"main.tf": okTF, "main.tftest.hcl": "run {\n"}, rule: RuleHCLParseError},
+	{name: "test heredoc template", files: l2run("  assert {\n    condition     = true\n    error_message = <<EOT\n${var.b}\nEOT\n  }\n"), rule: RuleExprHeredocTemplate},
+
+	{name: "provider block", files: l2("provider \"aws\" {\n  region = \"us-east-1\"\n}\n", ""), rule: RuleProviderDenied},
+	{name: "terraform provider block", files: l2("provider \"terraform\" {}\n", ""), rule: RuleProviderDenied},
+	{name: "test provider block", files: l2("", "provider \"aws\" {}\n"), rule: RuleProviderDenied},
+	{name: "provider alias reference", files: l2sub("  bucket = \"fixture\"\n", "  provider = aws.x\n"), rule: RuleProviderDenied},
+	{name: "not mocked", files: l2sub(l2Mock, ""), rule: RuleTestProviderNotMocked},
+	{name: "declared not mocked", files: map[string]string{"main.tf": l3Terraform, "main.tftest.hcl": l2Run}, rule: RuleTestProviderNotMocked},
+	{name: "undeclared provider", files: l2("resource \"google_x\" \"y\" {}\n", "mock_provider \"google\" {}\n"), rule: RuleProviderNotPinned},
+	{name: "undeclared provider data", files: l2("data \"google_x\" \"y\" {}\n", "mock_provider \"google\" {}\n"), rule: RuleProviderNotPinned},
+	{name: "meta provider undeclared", files: l2sub("  bucket = \"fixture\"\n", "  provider = google\n"), rule: RuleProviderNotPinned},
+	{name: "version unpinned", files: l2sub(`"6.15.0"`, `"~> 6.0"`), rule: RuleProviderNotPinned},
+	{name: "data not mocked", files: l2("data \"aws_y\" \"z\" {}\n", ""), rule: RuleTestDataNotMocked},
+	{name: "data run override only", files: l2("data \"aws_y\" \"z\" {}\n", "run \"o\" {\n  command = plan\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "data empty defaults", files: l2sub(`defaults = { id = "x" }`, "defaults = {}"), setup: addData, rule: RuleTestDataNotMocked},
+	{name: "data no defaults", files: l2sub("    defaults = { id = \"x\" }\n", ""), setup: addData, rule: RuleTestDataNotMocked},
+	{name: "data empty override", files: l2("data \"aws_y\" \"z\" {}\n", "override_data {\n  target = data.aws_y.z\n  values = {}\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "data instance override", files: l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z[0]\n  values = { id = \"x\" }\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "data other override", files: l2("data \"aws_y\" \"z\" {}\n", "override_data {\n  target = data.aws_y.other\n  values = { id = \"x\" }\n}\n"), rule: RuleTestDataNotMocked},
+	{name: "resource not mocked at plan", files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource empty defaults at plan", files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_bucket\" {\n    defaults = {}\n  }\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource other type at plan", files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_object\" {\n    defaults = { id = \"x\" }\n  }\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource run override at plan", files: withTest(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), "run \"o\" {\n  command = plan\n  override_resource {\n    target = aws_s3_bucket.this\n    values = { id = \"x\" }\n  }\n}\n"), rule: RuleTestResourceNotMocked},
+	{name: "resource instance override at plan", files: withTest(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), "override_resource {\n  target = aws_s3_bucket.this[0]\n  values = { id = \"x\" }\n}\n"), rule: RuleTestResourceNotMocked},
+	{name: "data partial defaults", files: withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  mock_data \"aws_caller_identity\" {\n    defaults = { arn = \"x\" }\n  }\n"), "data \"aws_caller_identity\" \"c\" {}\n"), rule: RuleTestDataNotMocked},
+	{name: "data null default", files: l2sub(`defaults = { id = "x" }`, `defaults = { id = null }`), setup: addData, rule: RuleTestDataNotMocked},
+	{name: "data unknown type", files: withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  mock_data \"aws_q\" {\n    defaults = { id = \"x\" }\n  }\n"), "data \"aws_q\" \"q\" {}\n"), rule: RuleTestDataNotMocked},
+	{name: "nested block missing at plan", files: planMock(`{ id = "x", conf = { k = "v" } }`), rule: RuleTestResourceNotMocked},
+	{name: "nested block empty at plan", files: planMock(`{ id = "x", conf = { k = "v" }, rule = [] }`), rule: RuleTestResourceNotMocked},
+	{name: "nested block element at plan", files: planMock(`{ id = "x", conf = { k = "v" }, rule = [{ name = "n" }] }`), rule: RuleTestResourceNotMocked},
+	{name: "nested attribute partial at plan", files: planMock(`{ id = "x", conf = {}, rule = [{ id = "r" }] }`), rule: RuleTestResourceNotMocked},
+	{name: "schema required data", noSchema: true, files: l2("data \"aws_x\" \"y\" {}\n", ""), rule: RuleTestSchemaRequired},
+	{name: "schema required resource at plan", noSchema: true, files: l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), rule: RuleTestSchemaRequired},
+	{name: "remote state", files: l2("data \"terraform_remote_state\" \"s\" {}\n", ""), rule: RuleResourceTypeDenied},
+	{name: "builtin resource", files: l2("resource \"terraform_other\" \"s\" {}\n", ""), rule: RuleResourceTypeDenied},
+
+	{name: "module", files: l2("module \"m\" {\n  source = \"./m\"\n}\n", ""), rule: RuleBlockDenied},
+	{name: "import", files: l2("import {\n  to = aws_s3_bucket.this\n  id = \"x\"\n}\n", ""), rule: RuleBlockDenied},
+	{name: "removed", files: l2("removed {\n  from = aws_s3_bucket.old\n}\n", ""), rule: RuleBlockDenied},
+	{name: "check", files: l2("check \"c\" {}\n", ""), rule: RuleBlockDenied},
+	{name: "ephemeral", files: l2("ephemeral \"aws_x\" \"e\" {}\n", ""), rule: RuleBlockDenied},
+	{name: "action", files: l2("action \"aws_lambda_invoke\" \"a\" {}\n", ""), rule: RuleBlockDenied},
+	{name: "backend", files: l2("terraform {\n  backend \"local\" {}\n}\n", ""), rule: RuleBlockDenied},
+	{name: "provisioner", files: l2sub("  bucket = \"fixture\"\n", "  provisioner \"local-exec\" {\n    command = \"id\"\n  }\n"), rule: RuleBlockDenied},
+	{name: "data provisioner", files: l2("data \"aws_x\" \"y\" {\n  connection {}\n}\n", ""), rule: RuleBlockDenied},
+	{name: "data file argument", files: l2("data \"aws_x\" \"y\" {\n  filename = \"/etc/passwd\"\n}\n", ""), rule: RuleBlockAttributeDenied},
+	{name: "data function", files: l2("data \"aws_x\" \"y\" {\n  id = file(\"x\")\n}\n", ""), rule: RuleExprFunctionDenied},
+	{name: "path reference", files: l2("locals {\n  a = path.module\n}\n", ""), rule: RuleExprReferenceDenied},
+	{name: "for binds data", files: l2("locals {\n  a = [for data in [1] : data]\n}\n", ""), rule: RuleExprReferenceDenied},
+	{name: "moved module", files: l2("moved {\n  from = module.a.aws_s3_bucket.this\n  to   = aws_s3_bucket.this\n}\n", ""), rule: RuleExprReferenceDenied},
+	{name: "moved data", files: l2("moved {\n  from = data.aws_x.a\n  to   = aws_s3_bucket.this\n}\n", ""), rule: RuleExprReferenceDenied},
+	{name: "moved expression", files: l2("moved {\n  from = \"aws_s3_bucket.a\"\n  to   = aws_s3_bucket.this\n}\n", ""), rule: RuleBlockAttributeDenied},
+	{name: "moved argument", files: l2("moved {\n  from = aws_s3_bucket.a\n  to   = aws_s3_bucket.this\n  x    = 1\n}\n", ""), rule: RuleBlockAttributeDenied},
+	{name: "moved missing to", files: l2("moved {\n  from = aws_s3_bucket.a\n}\n", ""), rule: RuleBlockAttributeDenied},
+
+	{name: "no command", files: l2sub("  command = plan\n", ""), rule: RuleTestCommandNotPlan},
+	{name: "apply", files: l2sub("command = plan", "command = apply"), rule: RuleTestCommandNotPlan},
+	{name: "quoted plan", files: l2sub("command = plan", `command = "plan"`), rule: RuleTestCommandNotPlan},
+	{name: "second run applies", files: l2("", "run \"apply\" {}\n"), rule: RuleTestCommandNotPlan},
+	{name: "refresh false", files: l2run("  plan_options {\n    refresh = false\n  }\n"), rule: RuleTestPlanOptionsDenied},
+	{name: "refresh-only", files: l2run("  plan_options {\n    mode = refresh-only\n  }\n"), rule: RuleTestPlanOptionsDenied},
+	{name: "target", files: l2run("  plan_options {\n    target = [aws_s3_bucket.this]\n  }\n"), rule: RuleTestPlanOptionsDenied},
+	{name: "run module", files: l2run("  module {\n    source = \"./other\"\n  }\n"), rule: RuleBlockDenied},
+	{name: "override module", files: l2("", "override_module {\n  target = module.m\n}\n"), rule: RuleBlockDenied},
+	{name: "run providers", files: l2run("  providers = {\n    aws = aws\n  }\n"), rule: RuleBlockAttributeDenied},
+	{name: "run state_key", files: l2run("  state_key = \"x\"\n"), rule: RuleBlockAttributeDenied},
+	{name: "test block", files: l2("", "test {\n  parallel = true\n}\n"), rule: RuleBlockDenied},
+	{name: "test attribute", files: l2("", "a = 1\n"), rule: RuleBlockDenied},
+	{name: "expect failures module", files: l2run("  expect_failures = [module.m]\n"), rule: RuleExprReferenceDenied},
+	{name: "expect failures check", files: l2run("  expect_failures = [check.c]\n"), rule: RuleExprReferenceDenied},
+	{name: "expect failures call", files: l2run("  expect_failures = [file(\"x\")]\n"), rule: RuleBlockAttributeDenied},
+	{name: "assert function", files: l2run("  assert {\n    condition     = file(\"/etc/passwd\") == \"\"\n    error_message = \"x\"\n  }\n"), rule: RuleExprFunctionDenied},
+	{name: "assert path", files: l2run("  assert {\n    condition     = path.cwd == \"\"\n    error_message = \"x\"\n  }\n"), rule: RuleExprReferenceDenied},
+	{name: "assert argument", files: l2run("  assert {\n    condition     = true\n    error_message = \"x\"\n    x             = 1\n  }\n"), rule: RuleBlockAttributeDenied},
+
+	{name: "mock source", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  source = \"./mocks\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "mock alias", files: l2("", "mock_provider \"aws\" {\n  alias = \"x\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "mock nested", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  mock_resource \"aws_s3_bucket\" {\n    defaults = {}\n    x {}\n  }\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "mock override_during apply", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  mock_resource \"aws_s3_bucket\" {\n    override_during = apply\n  }\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "mock override_during string", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  override_during = \"plan\"\n}\n"), rule: RuleBlockAttributeDenied},
+	{name: "mock defaults function", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  mock_data \"aws_x\" {\n    defaults = {\n      a = file(\"/etc/passwd\")\n    }\n  }\n}\n"), rule: RuleTestValueNotLiteral},
+	{name: "mock defaults reference", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  mock_resource \"aws_s3_bucket\" {\n    defaults = {\n      a = var.x\n    }\n  }\n}\n"), rule: RuleTestValueNotLiteral},
+	{name: "mock defaults template", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  mock_resource \"aws_s3_bucket\" {\n    defaults = {\n      a = \"${1}\"\n    }\n  }\n}\n"), rule: RuleTestValueNotLiteral},
+	{name: "mock defaults key expression", files: l2sub(l2Mock, "mock_provider \"aws\" {\n  mock_resource \"aws_s3_bucket\" {\n    defaults = {\n      (var.k) = 1\n    }\n  }\n}\n"), rule: RuleTestValueNotLiteral},
+	{name: "variables reference", files: l2("", "variables {\n  a = run.plan.x\n}\n"), rule: RuleTestValueNotLiteral},
+	{name: "variables conditional", files: l2run("  variables {\n    a = true ? 1 : 2\n  }\n"), rule: RuleTestValueNotLiteral},
+	{name: "variables negate reference", files: l2run("  variables {\n    a = -var.b\n  }\n"), rule: RuleTestValueNotLiteral},
+	{name: "override values", files: l2("", "override_resource {\n  target = aws_s3_bucket.this\n  values = {\n    id = uuid()\n  }\n}\n"), rule: RuleTestValueNotLiteral},
+	{name: "override target module", files: l2run("  override_resource {\n    target = module.m.aws_s3_bucket.this\n  }\n"), rule: RuleExprReferenceDenied},
+	{name: "override target expression", files: l2run("  override_data {\n    target = \"data.aws_x.y\"\n  }\n"), rule: RuleBlockAttributeDenied},
+	{name: "override_during", files: l2("", "override_resource {\n  target          = aws_s3_bucket.this\n  override_during = apply\n}\n"), rule: RuleBlockAttributeDenied},
+}
+
+// Each L2 case breaks exactly one rule and is reported with that rule only.
+func TestCheckRulesL2(t *testing.T) {
+	t.Parallel()
+	for _, tc := range l2Cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			for name, data := range tc.files {
+				mustDo(t, os.WriteFile(filepath.Join(dir, name), []byte(data), 0o644))
+			}
+			if tc.setup != nil {
+				tc.setup(t, dir)
+			}
+			o := Options{Dir: dir, Level: "L2", Pins: testPins, Schemas: testSchemas}
+			if tc.noSchema {
+				o.Schemas = nil
+			}
+			r, err := Check(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.OK || len(r.Violations) == 0 {
+				t.Fatalf("passes: %+v", r)
+			}
+			for _, v := range r.Violations {
+				if v.Rule != tc.rule {
+					t.Errorf("violation %+v, want rule %s only", v, tc.rule)
+				}
+			}
+		})
+	}
+}
+
+// The base L2 tree and its literal and in-tree variants pass.
+func TestCheckPassesL2(t *testing.T) {
+	t.Parallel()
+	for name, files := range map[string]map[string]string{
+		"base":         l2("", ""),
+		"builtin only": {"main.tf": okTF, "ladder.tftest.hcl": l2Run},
+		"literals": l2run("  variables {\n    a = -1\n    b = [\"x\", null, true, 1.5]\n    c = {\n      \"k\" = { n = -2 }\n    }\n    d = <<EOT\nplain\nEOT\n  }\n" +
+			"  expect_failures = [var.a, output.o, aws_s3_bucket.this, data.aws_x.y]\n"),
+		"override":                  l2("", "override_resource {\n  target = aws_s3_bucket.this[\"k\"]\n  values = {}\n}\noverride_data {\n  target = data.aws_x.y\n  values = { id = \"x\" }\n}\n"),
+		"override_during plan":      l2sub(l2Mock, "mock_provider \"aws\" {\n  override_during = plan\n  mock_resource \"aws_s3_bucket\" {\n    override_during = plan\n    defaults        = { arn = \"x\" }\n  }\n  override_data {\n    target          = data.aws_x.y\n    override_during = plan\n  }\n}\n"),
+		"data mock_data":            l2("data \"aws_x\" \"y\" {}\n", ""),
+		"data override":             l2("data \"aws_y\" \"z\" {\n  count = 2\n}\n", "override_data {\n  target = data.aws_y.z\n  values = { id = \"x\" }\n}\n"),
+		"data mock override":        withMain(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_data {\n    target = data.aws_y.z\n    values = { id = \"x\" }\n  }\n"), "data \"aws_y\" \"z\" {}\n"),
+		"resource override at plan": withTest(l2sub("mock_provider \"aws\" {\n", "mock_provider \"aws\" {\n  override_during = plan\n"), "override_resource {\n  target = aws_s3_bucket.this\n  values = { arn = \"x\" }\n}\n"),
+		"nested covered at plan":    planMock(`{ id = "x", conf = { k = "v" }, rule = [{ id = "r" }] }`),
+		"meta provider":             l2sub("  bucket = \"fixture\"\n", "  provider = aws\n"),
+		"assert scope":              l2run("  assert {\n    condition     = var.a == local.b && output.o == run.plan.x && data.aws_x.y.id == aws_s3_bucket.this.id\n    error_message = \"${var.a} ok\"\n  }\n"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			for n, data := range files {
+				mustDo(t, os.WriteFile(filepath.Join(dir, n), []byte(data), 0o644))
+			}
+			r, err := Check(Options{Dir: dir, Level: "L2", Pins: testPins, Schemas: testSchemas})
+			if err != nil {
+				t.Fatal(err)
+			}
+			atPlan := name == "override_during plan" || strings.HasSuffix(name, "at plan")
+			if !r.OK || r.OverrideDuringPlan != atPlan {
+				t.Fatalf("result %+v", r)
+			}
+		})
+	}
 }
 
 func manyFiles(n int) map[string]string {
@@ -339,6 +670,9 @@ func TestEveryRuleTested(t *testing.T) {
 	for _, tc := range expectCases {
 		seen[tc.rule] = true
 	}
+	for _, tc := range l2Cases {
+		seen[tc.rule] = true
+	}
 	for _, r := range Rules {
 		if !seen[r] {
 			t.Errorf("rule %s has no case", r)
@@ -379,7 +713,8 @@ func TestCheckErrors(t *testing.T) {
 		"missing":            {Dir: filepath.Join(td, "none")},
 		"file":               {Dir: file},
 		"link":               {Dir: link},
-		"level":              {Dir: filepath.Join(td, "l1"), Level: "L2"},
+		"level":              {Dir: filepath.Join(td, "l1"), Level: "L4"},
+		"L2 resource":        {Dir: filepath.Join(td, "l2"), Level: "L2", Resource: "aws_rds_cluster"},
 		"L3 no resource":     {Dir: filepath.Join(td, "l3"), Level: "L3"},
 		"L1 resource":        {Dir: filepath.Join(td, "l1"), Resource: "aws_rds_cluster"},
 		"terraform_data":     {Dir: filepath.Join(td, "l3"), Level: "L3", Resource: "terraform_data"},

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "files": {
+    "main.tf": {
+      "blocks": [
+        {"type": "terraform", "labels": []},
+        {"type": "variable", "labels": ["groups"]},
+        {"type": "data", "labels": ["aws_vpc", "this"]},
+        {"type": "resource", "labels": ["aws_security_group", "this"]},
+        {"type": "moved", "labels": []},
+        {"type": "output", "labels": ["group_names"]}
+      ]
+    }
+  }
+}

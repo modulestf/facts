@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +18,7 @@ func TestFixtureCheckPasses(t *testing.T) {
 	for _, args := range [][]string{
 		{filepath.Join(fixtureTD, "l1"), "--json"},
 		{filepath.Join(fixtureTD, "l3"), "--level", "L3", "--resource", "aws_rds_cluster", "--pins", filepath.Join(fixtureTD, "pins.json"), "--json"},
+		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--pins", filepath.Join(fixtureTD, "pins.json"), "--expect", filepath.Join(fixtureTD, "l2.expect.json"), "--schema", filepath.Join(fixtureTD, "schema.json"), "--json"},
 	} {
 		code, out, errOut := runCLI(append([]string{"fixture-check"}, args...))
 		if code != exitClean || errOut != "" {
@@ -28,6 +30,9 @@ func TestFixtureCheckPasses(t *testing.T) {
 		}
 		if !r.OK || r.SchemaVersion != 1 || len(r.TreeSHA256) != 64 || r.Violations == nil || len(r.Violations) != 0 {
 			t.Errorf("%v: %+v", args, r)
+		}
+		if got := strings.Contains(out, `"override_during_plan": true`); got != slices.Contains(args, "L2") {
+			t.Errorf("%v: override_during_plan in output %v", args, got)
 		}
 		if !strings.Contains(out, `"violations": []`) {
 			t.Errorf("%v: violations is not an empty list: %s", args, out)
@@ -83,7 +88,11 @@ func TestFixtureCheckErrors(t *testing.T) {
 		{},
 		{l1, l3},
 		{filepath.Join(fixtureTD, "none")},
-		{l1, "--level", "L2"},
+		{l1, "--level", "L4"},
+		{l1, "--level", "L2", "--resource", "aws_rds_cluster"},
+		{l1, "--schema", filepath.Join(fixtureTD, "schema.json")},
+		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--schema", filepath.Join(fixtureTD, "pins.json")},
+		{filepath.Join(fixtureTD, "l2"), "--level", "L2", "--schema", filepath.Join(fixtureTD, "none.json")},
 		{l3, "--level", "L3"},
 		{l1, "--resource", "aws_rds_cluster"},
 		{l3, "--level", "L3", "--resource", "aws_rds_cluster", "--pins", bad},

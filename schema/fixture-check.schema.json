@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "fixture-check.schema.json",
   "title": "mtf-facts fixture-check result",
-  "description": "The result of checking one ladder scratch tree against the default-deny allowlist of its level. ok is true exactly when violations is empty. tree_sha256 hashes one 'name NUL type NUL content-sha256 LF' line per directory entry, sorted by name.",
+  "description": "The result of checking one ladder scratch tree against the default-deny allowlist of its level (L1, L2 or L3). ok is true exactly when violations is empty. tree_sha256 hashes one 'name NUL type NUL content-sha256 LF' line per directory entry, sorted by name.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -21,6 +21,10 @@
     "tree_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "override_during_plan": {
+      "type": "boolean",
+      "description": "Set, as true only, when an L2 test file sets override_during = plan: mock values then make computed attributes known at plan, so the run evidences no unknown value or unknown length."
     },
     "violations": {
       "type": "array",
@@ -100,6 +104,14 @@
             "expr.heredoc-template",
             "manifest.block-set",
             "manifest.expression",
+            "test.file-count",
+            "test.command-not-plan",
+            "test.plan-options-denied",
+            "test.provider-not-mocked",
+            "test.value-not-literal",
+            "test.data-not-mocked",
+            "test.resource-not-mocked",
+            "test.schema-required",
             "limit.violations"
           ]
         },
