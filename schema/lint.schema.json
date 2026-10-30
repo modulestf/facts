@@ -8,14 +8,14 @@
   "required": ["envelope", "manifest", "findings", "candidates"],
   "allOf": [
     {
-      "if": {"required": ["manifest_summary"]},
+      "if": {"required": ["manifest_summary"], "properties": {"manifest_summary": true}},
       "then": {
         "properties": {
-          "envelope": {"properties": {"inputs": {"properties": {
+          "envelope": {"type": "object", "properties": {"inputs": {"type": "object", "properties": {
             "head": {"$ref": "envelope.schema.json#/$defs/ai_tree"},
             "base": {"oneOf": [{"type": "null"}, {"$ref": "envelope.schema.json#/$defs/ai_tree"}]}
           }}}},
-          "manifest": {"items": {"properties": {"status": {"enum": ["finding", "candidate", "not_evaluated"]}}}},
+          "manifest": {"type": "array", "items": {"type": "object", "properties": {"status": {"enum": ["finding", "candidate", "not_evaluated"]}}}},
           "index": false,
           "interface_diff": false,
           "schema_coverage": false
@@ -23,10 +23,10 @@
       }
     },
     {
-      "if": {"not": {"required": ["manifest_summary"]}},
+      "if": {"not": {"required": ["manifest_summary"], "properties": {"manifest_summary": true}}},
       "then": {
         "properties": {
-          "envelope": {"properties": {"inputs": {"properties": {
+          "envelope": {"type": "object", "properties": {"inputs": {"type": "object", "properties": {
             "head": {"$ref": "envelope.schema.json#/$defs/tree"},
             "base": {"oneOf": [{"type": "null"}, {"$ref": "envelope.schema.json#/$defs/tree"}]}
           }}}}
