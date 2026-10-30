@@ -3,13 +3,24 @@
   "triggers": [
     {
       "id": "T-001",
-      "state": "unverifiable",
-      "reason": "claim C-5 is unverifiable: no observation is about the claim"
+      "state": "verified",
+      "reason": "verified claims state both sides of all 1 differences",
+      "changes": [
+        {
+          "level": "L1",
+          "case": "empty",
+          "attribute": "length",
+          "explained": true,
+          "inputs": {
+            "vpc_security_group_ids": []
+          }
+        }
+      ]
     },
     {
       "id": "T-002",
       "state": "unverifiable",
-      "reason": "L1 did not run with a valid control"
+      "reason": "L1 has no base and head run with a valid control"
     }
   ],
   "claims": [

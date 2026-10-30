@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -182,19 +183,23 @@ func TestEvaluatePR556(t *testing.T) {
 		}
 	}
 
-	// L1 only: T-001 is verified, T-002 waits for L3.
+	// L1 only: the claims decide themselves; T-001's sample-1 differs in
+	// value and length with no claim stating both sides.
 	r = evalWith(t, b, ladder(t, l1Runs, noCoverage), base...)
 	tr, cl = states(r)
-	if tr["T-001"] != StateVerified || tr["T-002"] != StateUnverifiable || cl["C-1"] != StateVerified ||
+	if tr["T-001"] != StateUnverifiable || tr["T-002"] != StateUnverifiable || cl["C-1"] != StateVerified ||
 		cl["C-2"] != StateVerified || cl["C-6"] != StateVerified || cl["C-4"] != StateUnverifiable {
 		t.Errorf("L1: triggers %v claims %v\n%s", tr, cl, mustJSON(t, r))
 	}
+	if !strings.Contains(r.Triggers[0].Reason, `"sample-1"`) {
+		t.Errorf("L1: T-001 reason %q", r.Triggers[0].Reason)
+	}
 
-	// L1 and L3: both verified.
+	// L1 and L3: the plan claims verify.
 	r = evalWith(t, b, ladder(t, l1Runs+","+l3Run, noCoverage), base...)
-	tr, cl = states(r)
-	if tr["T-001"] != StateVerified || tr["T-002"] != StateVerified || cl["C-4"] != StateVerified || cl["C-5"] != StateVerified || cl["C-7"] != StateVerified {
-		t.Errorf("L1+L3: triggers %v claims %v\n%s", tr, cl, mustJSON(t, r))
+	_, cl = states(r)
+	if cl["C-4"] != StateVerified || cl["C-5"] != StateVerified || cl["C-7"] != StateVerified {
+		t.Errorf("L1+L3: claims %v\n%s", cl, mustJSON(t, r))
 	}
 	if r.Claims[0].TriggerID != "T-001" || r.Claims[0].Revision != "base" {
 		t.Errorf("claim echo: %+v", r.Claims[0])
@@ -204,7 +209,7 @@ func TestEvaluatePR556(t *testing.T) {
 	r = evalWith(t, b, ladder(t, l1Runs+","+l3Run, noCoverage), append(base,
 		claim("C-8", PredPlanAction, `{"node":"T-002","revision":"head","action":"no-op"}`))...)
 	tr, cl = states(r)
-	if cl["C-8"] != StateRefuted || tr["T-002"] != StateRefuted || tr["T-001"] != StateVerified {
+	if cl["C-8"] != StateRefuted || tr["T-002"] != StateRefuted {
 		t.Errorf("refuted: triggers %v claims %v", tr, cl)
 	}
 
@@ -214,12 +219,112 @@ func TestEvaluatePR556(t *testing.T) {
 	if cl["C-1"] != StateUnverifiable {
 		t.Errorf("invalid control: C-1 %s", cl["C-1"])
 	}
+}
 
-	// No claims: a trigger is never verified.
-	r = evalWith(t, b, ladder(t, l1Runs+","+l3Run, noCoverage))
-	tr, _ = states(r)
-	if tr["T-001"] != StateUnverifiable || tr["T-002"] != StateUnverifiable {
-		t.Errorf("no claims: %v", tr)
+// sweepRun is an L1 or L3 run of trigger id with the given base and head
+// observations.
+func sweepRun(id, level, base, head string) string {
+	return `{"trigger_id":"` + id + `","level":"` + level + `","state":"ran","reason":null,"fixture_sha256":null,"control":"valid","observations":{"base":[` +
+		base + `],"head":[` + head + `]}}`
+}
+
+// The PR 556 sweep: an unknown security group id, and ids ["x", ""].
+const (
+	caseUnknownBase = `{"case":"unknown-element","known":false,"unknown_inputs":["aws_security_group.this[*].id"],"inputs":{"vpc_security_group_ids":[]}}`
+	caseUnknownHead = `{"case":"unknown-element","known":false,"unknown_inputs":["aws_security_group.this[*].id"],"inputs":{"vpc_security_group_ids":[]},"length":1}`
+	caseIDsBase     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":["x",""]},"length":1,"value":["x"]}`
+	caseIDsHead     = `{"case":"ids","known":true,"inputs":{"vpc_security_group_ids":["x",""]},"length":2,"value":["x",""]}`
+)
+
+func TestSweep(t *testing.T) {
+	b := pr556Report(t)
+	run := sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead+","+caseIDsHead)
+	unknown := []string{
+		claim("C-1", PredExprUnknown, `{"node":"T-001","revision":"base"}`),
+		claim("C-2", PredExprLengthKnown, `{"node":"T-001","revision":"head","length":1}`),
+	}
+	equals := []string{
+		claim("C-3", PredExprEquals, `{"node":"T-001","revision":"base","inputs":{"vpc_security_group_ids":["x",""]},"expected":["x"]}`),
+		claim("C-4", PredExprEquals, `{"node":"T-001","revision":"head","inputs":{"vpc_security_group_ids":["x",""]},"expected":["x",""]}`),
+	}
+	stateOf := func(r *EvalReport, id string) TriggerState {
+		for _, s := range r.Triggers {
+			if s.ID == id {
+				return s
+			}
+		}
+		return TriggerState{}
+	}
+	cases := []struct {
+		name, runs string
+		claims     []string
+		want       string
+		changes    int
+		explained  int
+	}{
+		{"no difference needs no claim", sweepRun("T-001", "L1", caseIDsBase, caseIDsBase), nil, StateVerified, 0, 0},
+		{"differences without claims", run, nil, StateUnverifiable, 3, 0},
+		{"unknown case explained only", run, unknown, StateUnverifiable, 3, 1},
+		{"every difference explained", run, append(slices.Clone(unknown), equals...), StateVerified, 3, 3},
+		{"a case missing at the head", sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead), nil, StateUnverifiable, 0, 0},
+		{"no head observations", sweepRun("T-001", "L1", caseIDsBase, ""), nil, StateUnverifiable, 0, 0},
+		{"sensitive at both", sweepRun("T-001", "L1", `{"case":"s","known":true,"sensitive":true}`, `{"case":"s","known":true,"sensitive":true}`), nil, StateUnverifiable, 0, 0},
+		{"unknown inputs differ", sweepRun("T-001", "L1", `{"case":"u","known":false,"unknown_inputs":["a"]}`, `{"case":"u","known":false,"unknown_inputs":["b"]}`), nil, StateUnverifiable, 1, 0},
+		{"an invalid run", run + `,{"trigger_id":"T-001","level":"L1","state":"unverifiable","reason":"canary","fixture_sha256":null,"control":"invalid","observations":null}`,
+			append(slices.Clone(unknown), equals...), StateUnverifiable, 0, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := evalWith(t, b, ladder(t, c.runs, noCoverage), c.claims...)
+			s := stateOf(r, "T-001")
+			n := 0
+			for _, ch := range s.Changes {
+				if ch.Explained {
+					n++
+				}
+			}
+			if s.State != c.want || len(s.Changes) != c.changes || n != c.explained {
+				t.Errorf("%s with %d changes, %d explained; want %s %d %d\n%s", s.State, len(s.Changes), n, c.want, c.changes, c.explained, mustJSON(t, r))
+			}
+		})
+	}
+	var many []string
+	for i := range maxSweepCases + 1 {
+		many = append(many, `{"case":"c`+itoa(i)+`","known":false}`)
+	}
+	r := evalWith(t, b, ladder(t, sweepRun("T-001", "L1", strings.Join(many, ","), strings.Join(many, ",")), noCoverage))
+	if s := stateOf(r, "T-001"); s.State != StateUnverifiable || !strings.Contains(s.Reason, "over") {
+		t.Errorf("over the case cap: %+v", s)
+	}
+}
+
+// TestSweepL3 is the PR 556 replay: no change planned at base, known after
+// apply at head, explained by the plan claims.
+func TestSweepL3(t *testing.T) {
+	b := pr556Report(t)
+	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownHead)
+	l3 := sweepRun("T-002", "L3", `{"case":"prior","known":true,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}`,
+		`{"case":"prior","known":false,"action":"update","unchanged_vs_prior":false}`)
+	claims := []string{
+		claim("C-1", PredExprUnknown, `{"node":"T-002","revision":"base"}`),
+		claim("C-2", PredExprLengthKnown, `{"node":"T-002","revision":"head","length":1}`),
+		claim("C-3", PredPlanUnchanged, `{"node":"T-002","revision":"base"}`),
+		claim("C-4", PredPlanUnknown, `{"node":"T-002","revision":"head"}`),
+		claim("C-5", PredPlanAction, `{"node":"T-002","revision":"base","action":"no-op"}`),
+		claim("C-6", PredPlanAction, `{"node":"T-002","revision":"head","action":"update"}`),
+	}
+	r := evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims...)
+	if s := r.Triggers[1]; s.ID != "T-002" || s.State != StateVerified || len(s.Changes) != 4 {
+		t.Errorf("T-002: %s", mustJSON(t, r))
+	}
+	r = evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims[:5]...)
+	if s := r.Triggers[1]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "action") {
+		t.Errorf("without the head action claim: %s", mustJSON(t, s))
+	}
+	// Only the L1 level ran: L3 is missing.
+	r = evalWith(t, b, ladder(t, l1, noCoverage), claims...)
+	if s := r.Triggers[1]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "L3") {
+		t.Errorf("no L3: %s", mustJSON(t, s))
 	}
 }
 

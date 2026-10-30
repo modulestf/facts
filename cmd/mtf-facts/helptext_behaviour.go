@@ -44,11 +44,14 @@ names, and compute every claim's and trigger's state from the ladder record.
 A claim is verified when its level's runs with a valid control have
 observations about it and all agree, refuted when one contradicts it, and
 unverifiable otherwise; an unknown, sensitive or redacted value leaves a value
-claim unverifiable. A trigger is refuted when one of its claims is; verified
-when every L1 and L3 level it selects ran with a valid control and all its
-claims, at least one, are verified; covered when it selects L4 and its address
-and changed attribute are in a planned example; inert when its entry is; and
-unverifiable otherwise. Refuted outranks covered.
+claim unverifiable. A trigger is refuted when one of its claims is. A trigger
+that selects L1 or L3 is decided by the tool's own base and head sweep from
+runs with a valid control: verified when no case differs, or when verified
+claims state both sides of every difference exactly; each difference is
+listed in its changes. A trigger that selects L4 is covered when its address
+and changed attribute are in a planned example and no claim of it is
+unverifiable. An inert entry's triggers are inert; anything else is
+unverifiable. Refuted outranks covered.
 
 With --head-sha and --base-sha the record must name those commits, so a
 record of another run cannot decide anything.

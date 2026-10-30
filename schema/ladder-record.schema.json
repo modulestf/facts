@@ -87,7 +87,7 @@
       "additionalProperties": false,
       "required": ["case", "known"],
       "properties": {
-        "case": {"type": "string"},
+        "case": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,64}$"},
         "known": {"type": "boolean", "description": "True only when the whole value is known."},
         "wholly_unknown": {"type": "boolean"},
         "unknown_inputs": {"type": "array", "items": {"type": "string"}},

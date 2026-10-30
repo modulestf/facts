@@ -114,6 +114,9 @@ type TriggerState struct {
 	ID     string `json:"id"`
 	State  string `json:"state"`
 	Reason string `json:"reason"`
+	// Changes are the (case, attribute) pairs of the sweep that differ
+	// between base and head, for a trigger the sweep decided.
+	Changes []Change `json:"changes,omitempty"`
 }
 
 // ClaimState is the state of one valid claim.
@@ -132,6 +135,7 @@ var (
 	shaPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	levelPattern   = regexp.MustCompile(`^(L[0-9]|compat)$`)
 	coverageAddrRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+	casePattern    = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
 )
 
 // ReadBehaviour reads a behaviour report.
@@ -212,6 +216,9 @@ func (l *Ladder) check() string {
 				if o.Known == nil {
 					return "an observation has no known field"
 				}
+				if !casePattern.MatchString(o.Case) {
+					return fmt.Sprintf("observation case %q does not match %s", o.Case, casePattern)
+				}
 				if o.Length != nil && *o.Length < 0 {
 					return "an observation has a negative length"
 				}
@@ -236,21 +243,27 @@ func (l *Ladder) check() string {
 	return ""
 }
 
-// Evaluate computes the state of every trigger and every valid claim.
-// A refuted claim makes its trigger refuted, which outranks covered. A
-// trigger is verified when every L1 and L3 level it selects ran with a
-// valid control, and it has claims and all of them are verified. It is
-// covered when it selects L4 and its address, and changed attribute, are in
-// a planned example. Anything else is unverifiable.
+// Evaluate computes the state of every trigger and every valid claim. A
+// claim is decided at its own revision. A trigger is refuted when one of
+// its claims is. A trigger that selects L1 or L3 is decided by the tool's
+// own sweep (see sweep): verified when no case differs between base and
+// head, or every difference is explained by verified claims. A trigger
+// that selects L4 is covered when its address, and changed attribute, are
+// in a planned example and none of its claims is unverifiable. Anything
+// else is unverifiable.
 func Evaluate(b *Report, l *Ladder, claims []Claim, discarded []Discarded) *EvalReport {
 	r := &EvalReport{SchemaVersion: SchemaVersion, Triggers: []TriggerState{}, Claims: []ClaimState{},
 		DiscardedClaims: append([]Discarded{}, discarded...)}
 	byTrigger := map[string][]ClaimState{}
+	claimsOf := map[string][]Claim{}
+	verified := map[string]bool{}
 	for _, c := range claims {
 		state, why := evalClaim(c, l)
 		cs := ClaimState{ClaimID: c.ClaimID, State: state, Reason: why, TriggerID: c.Node, Revision: c.Revision}
 		r.Claims = append(r.Claims, cs)
 		byTrigger[c.Node] = append(byTrigger[c.Node], cs)
+		claimsOf[c.Node] = append(claimsOf[c.Node], c)
+		verified[c.ClaimID] = state == StateVerified
 	}
 	inert := map[string]bool{}
 	for _, e := range b.Entries {
@@ -261,71 +274,58 @@ func Evaluate(b *Report, l *Ladder, claims []Claim, discarded []Discarded) *Eval
 		}
 	}
 	for _, t := range b.Triggers {
-		state, why := evalTrigger(t, l, byTrigger[t.ID], inert[t.ID])
-		r.Triggers = append(r.Triggers, TriggerState{ID: t.ID, State: state, Reason: why})
+		r.Triggers = append(r.Triggers, evalTrigger(t, l, byTrigger[t.ID], claimsOf[t.ID], verified, inert[t.ID]))
 	}
 	return r
 }
 
-func evalTrigger(t Trigger, l *Ladder, claims []ClaimState, inert bool) (string, string) {
+func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, verified map[string]bool, inert bool) TriggerState {
+	ts := TriggerState{ID: t.ID, State: StateUnverifiable}
 	if inert {
-		return StateInert, "the entry is inert"
+		ts.State, ts.Reason = StateInert, "the entry is inert"
+		return ts
 	}
-	for _, c := range claims {
+	for _, c := range states {
 		if c.State == StateRefuted {
-			return StateRefuted, "claim " + c.ClaimID + " is refuted: " + c.Reason
+			ts.State, ts.Reason = StateRefuted, "claim "+c.ClaimID+" is refuted: "+c.Reason
+			return ts
 		}
 	}
 	if len(t.Levels) == 0 {
-		return StateUnverifiable, cmp.Or(deref(t.Reason), "the trigger selects no level")
+		ts.Reason = cmp.Or(deref(t.Reason), "the trigger selects no level")
+		return ts
 	}
-	why := verifiedWhyNot(t, l, claims)
-	if why == "" {
-		return StateVerified, "every selected level ran with a valid control and every claim is verified"
-	}
-	unchecked := slices.ContainsFunc(claims, func(c ClaimState) bool { return c.State == StateUnverifiable })
-	if slices.Contains(t.Levels, LevelL4) && !unchecked {
-		ok, cov := covered(t, l)
-		if ok {
-			return StateCovered, cov
+	var why []string
+	if slices.Contains(t.Levels, LevelL1) || slices.Contains(t.Levels, LevelL3) {
+		w, changes := sweep(t, l, claims, verified)
+		ts.Changes = changes
+		if w == "" {
+			ts.State, ts.Reason = StateVerified, "no case of the sweep differs between base and head"
+			if len(changes) > 0 {
+				ts.Reason = fmt.Sprintf("verified claims state both sides of all %d differences", len(changes))
+			}
+			return ts
 		}
-		why += "; " + cov
+		why = append(why, w)
+	}
+	unchecked := slices.ContainsFunc(states, func(c ClaimState) bool { return c.State == StateUnverifiable })
+	if slices.Contains(t.Levels, LevelL4) {
+		ok, cov := covered(t, l)
+		switch {
+		case ok && !unchecked:
+			ts.State, ts.Reason = StateCovered, cov
+			return ts
+		case ok:
+			why = append(why, "a claim of it is unverifiable")
+		default:
+			why = append(why, cov)
+		}
 	}
 	if slices.Contains(t.Levels, LevelCompat) {
-		why += "; the compat rules decide a version floor change"
+		why = append(why, "the compat rules decide a version floor change")
 	}
-	return StateUnverifiable, why
-}
-
-// verifiedWhyNot returns why the trigger is not verified, or "".
-func verifiedWhyNot(t Trigger, l *Ladder, claims []ClaimState) string {
-	ladder := 0
-	for _, lv := range t.Levels {
-		if lv != LevelL1 && lv != LevelL3 {
-			continue
-		}
-		ladder++
-		if len(validRuns(l, t.ID, []string{lv})) == 0 {
-			return lv + " did not run with a valid control"
-		}
-		for _, r := range l.Runs {
-			if r.TriggerID == t.ID && r.Level == lv && r.Control != nil && *r.Control == "invalid" {
-				return lv + " has a run with an invalid control"
-			}
-		}
-	}
-	switch {
-	case ladder == 0:
-		return "the trigger selects no ladder level"
-	case len(claims) == 0:
-		return "no claim is about this trigger"
-	}
-	for _, c := range claims {
-		if c.State != StateVerified {
-			return "claim " + c.ClaimID + " is " + c.State + ": " + c.Reason
-		}
-	}
-	return ""
+	ts.Reason = strings.Join(why, "; ")
+	return ts
 }
 
 // covered reports whether the trigger's address, and changed attribute,
