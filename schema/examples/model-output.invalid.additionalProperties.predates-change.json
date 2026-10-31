@@ -1,0 +1,1 @@
+{"candidate_decisions": [], "findings": [{"id": "F-001", "rule_id": "structure.argument-order", "severity": "LOW", "file": "main.tf", "line": 4, "summary": "s", "suggested_fix": "f", "predates_change": true}]}

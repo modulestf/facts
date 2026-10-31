@@ -42,6 +42,13 @@
             "dynamic-block-change", "locals-outputs-change", "moved-or-renamed-address", "provider-version-floor-change",
             "unknown-propagation-candidate", "literal-argument-change", "resource-added-or-removed", "lifecycle-change",
             "unclassified-change", "non-hcl-dependency"]},
+          "also_categories": {
+            "description": "The categories of the triggers merged into this one: the same file and line, and the same base and head expressions, neither null. levels is the union of theirs in L1, L2, L3, L4, compat order, cases the union by case id, and claims-eval needs every level family to decide the merged trigger.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"$ref": "#/properties/triggers/items/properties/category"}
+          },
           "change_kind": {"$ref": "#/$defs/change_kind"},
           "address": {"type": ["string", "null"]},
           "attribute": {"type": ["string", "null"]},
@@ -100,7 +107,7 @@
               }
             }
           },
-          "levels": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"enum": ["L1", "L2", "L3", "L4", "compat"]}},
+          "levels": {"type": "array", "uniqueItems": true, "maxItems": 5, "items": {"enum": ["L1", "L2", "L3", "L4", "compat"]}},
           "reason": {"type": ["string", "null"]},
           "for_each_only": {"type": "boolean", "description": "A dynamic-block-change whose for_each alone changed, routed to L1 on that for_each."}
         },

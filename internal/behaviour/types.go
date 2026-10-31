@@ -103,13 +103,16 @@ type Trigger struct {
 	File string `json:"file"`
 	// Line is the head line, or the base line of something the change
 	// removes; null for a change to a file as a whole.
-	Line       *int    `json:"line"`
-	Category   string  `json:"category"`
-	ChangeKind string  `json:"change_kind"`
-	Address    *string `json:"address"`
-	Attribute  *string `json:"attribute"`
-	BaseExpr   *string `json:"base_expr"`
-	HeadExpr   *string `json:"head_expr"`
+	Line     *int   `json:"line"`
+	Category string `json:"category"`
+	// AlsoCategories are the categories of the triggers merged into this
+	// one: same file, line, base and head expression. An optional field.
+	AlsoCategories []string `json:"also_categories,omitempty"`
+	ChangeKind     string   `json:"change_kind"`
+	Address        *string  `json:"address"`
+	Attribute      *string  `json:"attribute"`
+	BaseExpr       *string  `json:"base_expr"`
+	HeadExpr       *string  `json:"head_expr"`
 	// ReferencedInputs are the variables the expressions read, with their
 	// declared types.
 	ReferencedInputs []Input `json:"referenced_inputs"`

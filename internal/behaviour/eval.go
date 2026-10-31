@@ -125,6 +125,18 @@ type TriggerState struct {
 	// Changes are the (case, attribute) pairs of the sweep that differ
 	// between base and head, for a trigger the sweep decided.
 	Changes []Change `json:"changes,omitempty"`
+	// Complete is set for a trigger the sweep reads (L1, L2 or L3), not
+	// inert and not refuted: true when every such level ran with a valid
+	// control, every required case was observed at both revisions and every
+	// observation could be compared.
+	Complete *bool `json:"complete,omitempty"`
+	// Outstanding are the ids "<trigger>|<level>|<case>|<attribute>" of the
+	// differences no verified claim explains, sorted; set with Complete,
+	// except past maxOutstanding, where Complete is false.
+	Outstanding []string `json:"outstanding,omitzero"`
+	// EvidenceDigest binds Outstanding to the evidence; see evidenceDigest.
+	// Set only when Outstanding is not empty.
+	EvidenceDigest string `json:"evidence_digest,omitempty"`
 }
 
 // ClaimState is the state of one valid claim.
@@ -135,6 +147,10 @@ type ClaimState struct {
 	TriggerID string `json:"trigger_id"`
 	Revision  string `json:"revision"`
 }
+
+// maxOutstanding caps the outstanding ids of one trigger. Past it the
+// trigger is incomplete and lists none.
+const maxOutstanding = 256
 
 // plannedClasses are the plan classes of an example that produced a plan.
 var plannedClasses = []string{"planned", "planned-no-changes"}
@@ -165,6 +181,13 @@ func ReadBehaviour(file string) (*Report, error) {
 			return nil, fmt.Errorf("behaviour: trigger id %q is malformed or used twice", t.ID)
 		}
 		seen[t.ID] = true
+		cases := map[string]bool{}
+		for _, c := range t.Cases {
+			if cases[c.ID] {
+				return nil, fmt.Errorf("behaviour: trigger %s lists case %q twice", t.ID, c.ID)
+			}
+			cases[c.ID] = true
+		}
 	}
 	return &r, nil
 }
@@ -262,8 +285,10 @@ func (l *Ladder) check() string {
 // own sweep (see sweep): verified when no case differs between base and
 // head, or every difference is explained by verified claims. A trigger
 // that selects L4 is covered when its address, and changed attribute, are
-// in a planned example and none of its claims is unverifiable. Anything
-// else is unverifiable.
+// in a planned example and none of its claims is unverifiable. A merged
+// trigger that selects both needs both, and is then covered. Anything else
+// is unverifiable. A trigger the sweep reads also carries complete, its
+// outstanding differences and their evidence digest.
 func Evaluate(b *Report, l *Ladder, claims []Claim, discarded []Discarded) *EvalReport {
 	r := &EvalReport{SchemaVersion: SchemaVersion, Triggers: []TriggerState{}, Claims: []ClaimState{},
 		DiscardedClaims: append([]Discarded{}, discarded...), Capped: b.Capped}
@@ -308,36 +333,77 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 		ts.Reason = cmp.Or(deref(t.Reason), "the trigger selects no level")
 		return ts
 	}
+	// Each family of levels the trigger selects must decide it: the sweep
+	// (L1, L2, L3), the plan coverage (L4) and the compat rules. A merged
+	// trigger can select more than one; one family never stands in for
+	// another.
 	var why []string
+	sweepOK, done := true, ""
 	if slices.Contains(t.Levels, LevelL1) || slices.Contains(t.Levels, LevelL2) || slices.Contains(t.Levels, LevelL3) {
-		w, changes := sweep(t, l, claims, verified)
-		ts.Changes = changes
-		if w == "" {
-			ts.State, ts.Reason = StateVerified, "no case of the sweep differs between base and head"
-			if len(changes) > 0 {
-				ts.Reason = fmt.Sprintf("verified claims state both sides of all %d differences", len(changes))
+		res := sweep(t, l, claims, verified)
+		ts.Changes = res.changes
+		ts.Outstanding = []string{}
+		var open []Change
+		for _, c := range res.changes {
+			if !c.Explained {
+				open = append(open, c)
+				ts.Outstanding = append(ts.Outstanding, t.ID+"|"+c.Level+"|"+c.Case+"|"+c.Attribute)
 			}
-			return ts
 		}
-		why = append(why, w)
+		slices.Sort(ts.Outstanding)
+		complete := res.complete
+		switch {
+		case len(ts.Outstanding) > maxOutstanding:
+			// Too many to list for a finding to explain: incomplete, with no
+			// ids and no digest.
+			complete, ts.Outstanding = false, nil
+			res.why = fmt.Sprintf("more than %d unexplained differences", maxOutstanding)
+		case len(open) > 0:
+			ts.EvidenceDigest = evidenceDigest(l, t.ID, ts.Outstanding, open, res.pairs)
+		}
+		ts.Complete = &complete
+		sweepOK = res.why == ""
+		if sweepOK {
+			done = "no case of the sweep differs between base and head"
+			if len(res.changes) > 0 {
+				done = fmt.Sprintf("verified claims state both sides of all %d differences", len(res.changes))
+			}
+		} else {
+			why = append(why, res.why)
+		}
 	}
 	unchecked := slices.ContainsFunc(states, func(c ClaimState) bool { return c.State == StateUnverifiable })
+	coveredOK := true
 	if slices.Contains(t.Levels, LevelL4) {
 		ok, cov := covered(t, l)
 		switch {
 		case ok && !unchecked:
-			ts.State, ts.Reason = StateCovered, cov
-			return ts
+			done = cov
 		case ok:
+			coveredOK = false
 			why = append(why, "a claim of it is unverifiable")
 		default:
+			coveredOK = false
 			why = append(why, cov)
 		}
 	}
 	if slices.Contains(t.Levels, LevelCompat) {
+		coveredOK = false
 		why = append(why, "the compat rules decide a version floor change")
 	}
-	ts.Reason = cmp.Or(strings.Join(why, "; "), "no level the trigger selects decided it")
+	// The sweep's completeness is the trigger's: a family other than the
+	// sweep that did not decide it makes it incomplete.
+	if ts.Complete != nil && !coveredOK {
+		*ts.Complete = false
+	}
+	switch {
+	case sweepOK && coveredOK && slices.Contains(t.Levels, LevelL4):
+		ts.State, ts.Reason = StateCovered, done
+	case sweepOK && coveredOK:
+		ts.State, ts.Reason = StateVerified, done
+	default:
+		ts.Reason = cmp.Or(strings.Join(why, "; "), "no level the trigger selects decided it")
+	}
 	return ts
 }
 

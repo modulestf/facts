@@ -19,7 +19,7 @@
     "findings": {
       "type": "array",
       "items": {
-        "description": "The seven finding fields, without the finding schema's review.* CRITICAL check: the host caps an out-of-list severity instead of rejecting the reply.",
+        "description": "The seven finding fields, without the finding schema's review.* CRITICAL check: the host caps an out-of-list severity instead of rejecting the reply. A compat.expression-behaviour-changed or claim.* finding may add explains and evidence_digest.",
         "type": "object",
         "additionalProperties": false,
         "required": [
@@ -52,8 +52,40 @@
           },
           "suggested_fix": {
             "$ref": "finding.schema.json#/properties/suggested_fix"
+          },
+          "explains": {
+            "$ref": "finding.schema.json#/$defs/explains"
+          },
+          "evidence_digest": {
+            "$ref": "finding.schema.json#/$defs/evidence_digest"
           }
-        }
+        },
+        "allOf": [
+          {
+            "description": "explains and evidence_digest only on a compat.expression-behaviour-changed or claim.* finding.",
+            "if": {
+              "type": "object",
+              "required": [
+                "rule_id"
+              ],
+              "properties": {
+                "rule_id": {
+                  "type": "string",
+                  "not": {
+                    "$ref": "finding.schema.json#/$defs/explaining_rule"
+                  }
+                }
+              }
+            },
+            "then": {
+              "type": "object",
+              "properties": {
+                "explains": false,
+                "evidence_digest": false
+              }
+            }
+          }
+        ]
       }
     },
     "counts": {

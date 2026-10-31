@@ -1,0 +1,1 @@
+{"schema_version": 1, "triggers": [{"id": "T-001", "state": "unverifiable", "reason": "r", "complete": true, "outstanding": ["T-001|L5|a|value"], "evidence_digest": "aed6203aa53a44b74647475ef4da2e39e654ee3b91220a2180c97000e40439c8"}], "capped": 0, "claims": [], "discarded_claims": []}

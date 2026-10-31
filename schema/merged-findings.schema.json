@@ -35,6 +35,16 @@
             "mid",
             "lead"
           ]
+        },
+        "predates_change": {
+          "description": "Present, and true, on a tool finding whose rule also fires on the base with the same subject: the defect is older than the change. Never on an llm or host finding.",
+          "const": true
+        },
+        "explains": {
+          "$ref": "finding.schema.json#/$defs/explains"
+        },
+        "evidence_digest": {
+          "$ref": "finding.schema.json#/$defs/evidence_digest"
         }
       },
       "dependentRequired": {
@@ -157,6 +167,55 @@
                   "small",
                   "mid"
                 ]
+              }
+            }
+          }
+        },
+        {
+          "description": "explains and evidence_digest only on a compat.expression-behaviour-changed or claim.* finding.",
+          "if": {
+            "type": "object",
+            "required": [
+              "rule_id"
+            ],
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "not": {
+                  "$ref": "finding.schema.json#/$defs/explaining_rule"
+                }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "explains": false,
+              "evidence_digest": false
+            }
+          }
+        },
+        {
+          "description": "predates_change only on a tool finding.",
+          "if": {
+            "type": "object",
+            "required": [
+              "predates_change"
+            ],
+            "properties": {
+              "predates_change": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": [
+              "source"
+            ],
+            "properties": {
+              "source": {
+                "const": "tool"
               }
             }
           }

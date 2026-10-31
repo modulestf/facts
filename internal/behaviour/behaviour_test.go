@@ -77,15 +77,16 @@ func TestPR556(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Inert || len(r.Triggers) != 2 || r.Capped != 0 {
-		t.Fatalf("want 2 triggers, not inert: %s", mustJSON(t, r))
+	// The wrapper change and the unknown propagation candidate share the
+	// line and both expressions, so they are one trigger.
+	if r.Inert || len(r.Triggers) != 1 || r.Capped != 0 {
+		t.Fatalf("want 1 trigger, not inert: %s", mustJSON(t, r))
 	}
-	w, u := r.Triggers[0], r.Triggers[1]
-	if w.Category != CatWrapper || !slices.Equal(w.Levels, []string{"L1"}) {
-		t.Errorf("T-001: %s %v, want wrapper-change [L1]", w.Category, w.Levels)
-	}
-	if u.Category != CatUnknownPropagation || !slices.Equal(u.Levels, []string{"L1", "L3"}) || u.Reason == nil {
-		t.Errorf("T-002: %s %v reason %s, want unknown-propagation-candidate [L1 L3] with a reason", u.Category, u.Levels, str(u.Reason))
+	w := r.Triggers[0]
+	if w.Category != CatWrapper || !slices.Equal(w.AlsoCategories, []string{CatUnknownPropagation}) ||
+		!slices.Equal(w.Levels, []string{"L1", "L3"}) || w.Reason == nil || len(w.Cases) != 32 {
+		t.Errorf("T-001: %s %v %v reason %s, %d cases; want wrapper-change, also unknown-propagation-candidate, [L1 L3] with a reason and 32 cases",
+			w.Category, w.AlsoCategories, w.Levels, str(w.Reason), len(w.Cases))
 	}
 	for _, tr := range r.Triggers {
 		if str(tr.Address) != "aws_rds_cluster.this" || str(tr.Attribute) != "vpc_security_group_ids" ||
@@ -104,7 +105,7 @@ func TestPR556(t *testing.T) {
 		}
 	}
 	if len(r.Entries) != 1 || r.Entries[0].Path != "main.tf" || r.Entries[0].ChangeKind != KindModified ||
-		r.Entries[0].Inert || !slices.Equal(r.Entries[0].TriggerIDs, []string{"T-001", "T-002"}) {
+		r.Entries[0].Inert || !slices.Equal(r.Entries[0].TriggerIDs, []string{"T-001"}) {
 		t.Errorf("entries: %s", mustJSON(t, r.Entries))
 	}
 }
@@ -291,7 +292,9 @@ func TestCategories(t *testing.T) {
 		{"version floor", "terraform {\n  required_version = \">= 1.0\"\n}\n", "terraform {\n  required_version = \">= 1.5\"\n}\n", CatVersionFloor, []string{"compat"}, "terraform", "required_version", true},
 		{"provider floor", "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \">= 5.0\"\n    }\n  }\n}\n", "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \">= 6.0\"\n    }\n  }\n}\n", CatVersionFloor, []string{"compat"}, "terraform", "required_providers.aws", true},
 		{"provisioner", "resource \"terraform_data\" \"x\" {\n  provisioner \"local-exec\" {\n    command = \"echo a\"\n  }\n}\n", "resource \"terraform_data\" \"x\" {\n  provisioner \"local-exec\" {\n    command = \"echo b\"\n  }\n}\n", CatUnclassified, []string{}, "terraform_data.x", "provisioner.local-exec", false},
-		{"general expression", "resource \"aws_s3_bucket\" \"b\" {\n  bucket = var.a\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  bucket = local.x\n}\n", CatUnclassified, []string{"L4"}, "aws_s3_bucket.b", "bucket", true},
+		// Merged with the unknown propagation candidate of the same
+		// expressions, which brings L1, L3 and its reason.
+		{"general expression", "resource \"aws_s3_bucket\" \"b\" {\n  bucket = var.a\n}\n", "resource \"aws_s3_bucket\" \"b\" {\n  bucket = local.x\n}\n", CatUnclassified, []string{"L1", "L3", "L4"}, "aws_s3_bucket.b", "bucket", false},
 		{"provider block", "provider \"aws\" {\n  region = \"a\"\n}\n", "provider \"aws\" {\n  region = \"b\"\n}\n", CatLiteral, []string{"L4"}, "provider.aws", "region", true},
 	}
 	for _, c := range cases {

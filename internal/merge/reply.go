@@ -48,7 +48,18 @@ var (
 	candidateIDPattern = regexp.MustCompile(`^C-[0-9]{3,}$`)
 	findingIDPattern   = regexp.MustCompile(`^F-[0-9]{3,}$`)
 	ruleIDPattern      = regexp.MustCompile(`^(compat|coverage|structure|examples|profile|scope|review|claim)\.[a-z0-9]+(-[a-z0-9]+)*$`)
+	differenceID       = regexp.MustCompile(`^T-[0-9]{3}\|L[1-4]\|[A-Za-z0-9_.:-]{1,64}\|[a-z_]{1,32}$`)
+	digestPattern      = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
+
+// maxExplains caps the difference ids of one finding's explains.
+const maxExplains = 256
+
+// explainsRule reports a rule whose findings may carry explains and
+// evidence_digest.
+func explainsRule(rule string) bool {
+	return rule == "compat.expression-behaviour-changed" || strings.HasPrefix(rule, "claim.")
+}
 
 // Decision is one valid entry of candidate_decisions. Summary and
 // SuggestedFix are empty when the entry leaves them out.
@@ -253,7 +264,8 @@ func parseDecision(raw json.RawMessage) decisionEntry {
 func parseFinding(raw json.RawMessage) findingEntry {
 	var e findingEntry
 	fields, err := objectFields(raw)
-	if err != nil || !exactKeys(fields, []string{"id", "rule_id", "severity", "file", "line", "summary", "suggested_fix"}, nil) {
+	if err != nil || !exactKeys(fields, []string{"id", "rule_id", "severity", "file", "line", "summary", "suggested_fix"},
+		[]string{"explains", "evidence_digest"}) {
 		return e
 	}
 	f := Finding{Source: SourceLLM}
@@ -272,6 +284,20 @@ func parseFinding(raw json.RawMessage) findingEntry {
 		return e
 	}
 	f.Line = line
+	if raw, has := fields["explains"]; has {
+		if json.Unmarshal(raw, &f.Explains) != nil || len(f.Explains) == 0 || len(f.Explains) > maxExplains ||
+			slices.ContainsFunc(f.Explains, func(id string) bool { return !differenceID.MatchString(id) }) {
+			return e
+		}
+	}
+	if raw, has := fields["evidence_digest"]; has {
+		if f.EvidenceDigest, ok = str(raw); !ok || !digestPattern.MatchString(f.EvidenceDigest) {
+			return e
+		}
+	}
+	if (f.Explains != nil || f.EvidenceDigest != "") && !explainsRule(f.RuleID) {
+		return e
+	}
 	return findingEntry{ok: true, f: f}
 }
 

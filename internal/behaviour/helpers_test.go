@@ -51,11 +51,13 @@ func str(p *string) string {
 	return *p
 }
 
-// categories lists the categories of r's triggers in order.
+// categories lists the categories of r's triggers in order, each trigger's
+// also_categories after its category.
 func categories(r *Report) []string {
 	var out []string
 	for _, tr := range r.Triggers {
 		out = append(out, tr.Category)
+		out = append(out, tr.AlsoCategories...)
 	}
 	return out
 }

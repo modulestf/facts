@@ -1,0 +1,9 @@
+[
+  {"id": "F-001", "rule_id": "compat.expression-behaviour-changed", "severity": "LOW", "file": "main.tf", "line": 156,
+   "summary": "null and empty-string elements of var.vpc_security_group_ids now reach the provider.",
+   "suggested_fix": "reject them with a validation block, or say in the description that they now fail.",
+   "source": "llm", "explains": ["T-001|L1|typical.null-element|error", "T-001|L1|typical.null-element|known"], "evidence_digest": "aed6203aa53a44b74647475ef4da2e39e654ee3b91220a2180c97000e40439c8"},
+  {"id": "F-002", "rule_id": "structure.argument-order", "severity": "LOW", "file": "main.tf", "line": 43,
+   "summary": "tags is not the last argument.", "suggested_fix": "move tags to the last line of the block.",
+   "source": "tool", "subject": ".:aws_db_instance.this", "candidate_id": "C-001", "confirmed_by": "small", "predates_change": true}
+]

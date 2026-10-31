@@ -1,0 +1,184 @@
+{
+  "tool_findings": [
+    {
+      "id": "F-001",
+      "rule_id": "structure.variable-untyped",
+      "severity": "MEDIUM",
+      "file": "variables.tf",
+      "line": 12,
+      "summary": "Variable \"tags\" has no type, so any value passes and errors surface late.",
+      "suggested_fix": "Add `type = map(string)` to `variable \"tags\"` in `variables.tf`.",
+      "source": "tool",
+      "subject": "variable.tags"
+    },
+    {
+      "id": "F-002",
+      "rule_id": "structure.output-no-try",
+      "severity": "LOW",
+      "file": "outputs.tf",
+      "line": 3,
+      "summary": "Output \"arn\" indexes a conditional resource without try, so it fails when the resource is not created.",
+      "suggested_fix": "Wrap the value of `output \"arn\"` in `try(..., null)`.",
+      "source": "tool",
+      "subject": "output.arn",
+      "candidate_id": "C-002",
+      "confirmed_by": "small"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.variable-removed",
+      "file": "variables.tf",
+      "line": null,
+      "subject": "variable.retention_days",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "variables.tf",
+            "line": 20,
+            "text": "variable \"retention_days\" {"
+          }
+        ],
+        "base": "variable \"retention_days\" { type = number, default = 30 }",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true,
+      "predates_change": false
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "coverage.argument-above-min-version",
+      "file": "main.tf",
+      "line": 8,
+      "subject": "aws_example_thing.this.new_setting",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 8,
+            "text": "  new_setting = var.new_setting"
+          }
+        ],
+        "base": null,
+        "head": "var.new_setting",
+        "schema_facts": [
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.20.0",
+            "type": "aws_example_thing",
+            "path": "new_setting",
+            "state": "present"
+          },
+          {
+            "provider_source": "registry.terraform.io/hashicorp/aws",
+            "version": "6.0.0",
+            "type": "aws_example_thing",
+            "path": "new_setting",
+            "state": "absent"
+          }
+        ]
+      },
+      "evidence_complete": false
+    }
+  ],
+  "area_rules": [
+    {
+      "area": ".",
+      "rules": [
+        {
+          "rule_id": "compat.variable-removed",
+          "status": "candidate"
+        },
+        {
+          "rule_id": "structure.variable-untyped",
+          "status": "finding"
+        },
+        {
+          "rule_id": "coverage.unknown-argument",
+          "status": "not_evaluated",
+          "reason": "schema_unavailable"
+        }
+      ]
+    }
+  ],
+  "interface_diff": {
+    "head_sha": "1111111111111111111111111111111111111111",
+    "merge_base_sha": "2222222222222222222222222222222222222222",
+    "areas": [
+      {
+        "path": ".",
+        "kind": "root",
+        "required_version": null,
+        "variables": [
+          {
+            "name": "retention_days",
+            "change": "removed",
+            "base": {
+              "type": "number",
+              "default": "30",
+              "nullable": true,
+              "sensitive": false,
+              "description": null,
+              "validation": []
+            },
+            "head": null
+          }
+        ],
+        "outputs": [],
+        "providers": [],
+        "resources": [],
+        "moved": [],
+        "module_calls": []
+      }
+    ]
+  },
+  "schema_coverage": [
+    {
+      "file": "main.tf",
+      "line": 1,
+      "address": "aws_example_thing.this",
+      "provider_source": "registry.terraform.io/hashicorp/aws",
+      "outcome": "present",
+      "arguments": [
+        {
+          "path": "new_setting",
+          "change": "added",
+          "at_latest": "present",
+          "at_declared_minimum": "absent"
+        }
+      ]
+    }
+  ],
+  "file_index": [
+    {
+      "path": "main.tf",
+      "change": "modified"
+    },
+    {
+      "path": "variables.tf",
+      "change": "modified"
+    },
+    {
+      "path": "outputs.tf",
+      "change": "added"
+    }
+  ],
+  "severity_needed": [
+    {
+      "candidate_id": "C-003",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 5,
+      "subject": "variable.name",
+      "severities": [
+        "CRITICAL",
+        "HIGH"
+      ],
+      "confirmed_by": "mid"
+    }
+  ]
+}

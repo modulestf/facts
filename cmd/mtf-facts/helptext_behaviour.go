@@ -25,7 +25,9 @@ changed resource argument also yields an unknown-propagation-candidate
 trigger when the provider schema given with --schema marks it Optional and
 Computed, or when there is no schema, or it lacks the attribute.
 
-At most 40 triggers are listed; capped counts the rest. It never runs
+Triggers of one line with the same base and head expressions are merged
+into one, the others' categories in also_categories, levels and cases the
+union. At most 40 triggers are listed; capped counts the rest. It never runs
 Terraform. Exit 0 with the report, 2 on bad input, a limit or the timeout.`
 	behaviourExample = `  mtf-facts behaviour ./head --diff files.json --json > behaviour.json
   mtf-facts behaviour ./head --base ./base --schema schema.json --json`
@@ -48,10 +50,13 @@ claim unverifiable. A trigger is refuted when one of its claims is. A trigger
 that selects L1 or L3 is decided by the tool's own base and head sweep from
 runs with a valid control: verified when no case differs, or when verified
 claims state both sides of every difference exactly; each difference is
-listed in its changes. A trigger that selects L4 is covered when its address
+listed in its changes, and the ones no verified claim explains in
+outstanding, with complete and an evidence_digest bound to their
+observations. A trigger that selects L4 is covered when its address
 and changed attribute are in a planned example and no claim of it is
-unverifiable. An inert entry's triggers are inert; anything else is
-unverifiable. Refuted outranks covered.
+unverifiable. A merged trigger that selects both needs both. An inert
+entry's triggers are inert; anything else is unverifiable. Refuted
+outranks covered.
 
 A record with runs needs --head-sha and --base-sha, and must name those
 commits, so a record of another run cannot decide anything.

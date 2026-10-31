@@ -46,6 +46,10 @@ type ToolFinding struct {
 	Subject     string `json:"subject"`
 	CandidateID string `json:"candidate_id,omitempty"`
 	ConfirmedBy string `json:"confirmed_by,omitempty"`
+	// PredatesChange is the host's copy of a confirmed candidate's
+	// predates_change: the rule also fires on the base with the same
+	// subject.
+	PredatesChange bool `json:"predates_change,omitempty"`
 }
 
 // AreaRule is one rule of an area that is not clean or not_applicable.

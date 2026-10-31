@@ -22,6 +22,19 @@ func pr556Report(t *testing.T) *Report {
 	return r
 }
 
+// pr556TwoTriggers is the PR 556 report as the classifier wrote it before
+// it merged the triggers of one expression: the wrapper change T-001 at
+// L1 and the unknown propagation candidate T-002 at L1 and L3. claims-eval
+// reads any behaviour report, and these tests are about the evaluation.
+func pr556TwoTriggers(t *testing.T) *Report {
+	t.Helper()
+	r, err := ReadBehaviour(filepath.Join(pr556, "two-triggers.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
 func writeJSON(t *testing.T, name, doc string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), name)
@@ -36,7 +49,7 @@ func claimsDoc(claims ...string) string {
 }
 
 func TestClaimsValidation(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	cases := []struct {
 		name, claim, why string
 	}{
@@ -94,7 +107,7 @@ func TestClaimsValidation(t *testing.T) {
 }
 
 func TestClaimsCap(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	var claims []string
 	for i := range MaxClaims + 3 {
 		claims = append(claims, `{"claim_id":"C-`+itoa(i+1)+`","text":"t","predicate_type":"expression-output-unknown","params":{"node":"T-001","revision":"base"},"trigger_id":null,"file":null,"line":null}`)
@@ -163,7 +176,7 @@ func states(r *EvalReport) (triggers, claims map[string]string) {
 }
 
 func TestEvaluatePR556(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	base := []string{
 		claim("C-1", PredExprUnknown, `{"node":"T-001","revision":"base"}`),
 		claim("C-2", PredExprLengthKnown, `{"node":"T-001","revision":"head","length":1}`),
@@ -265,7 +278,7 @@ func withCases(t *testing.T, b *Report, id string, obs ...string) {
 }
 
 func TestSweep(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	withCases(t, b, "T-001", caseUnknownBase, caseIDsBase)
 	run := sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead+","+caseIDsHead)
 	unknown := []string{
@@ -405,7 +418,7 @@ func simulate(c Case, compact bool) string {
 // TestSweepPR556Required: one case is not enough; the full required sweep,
 // with the real compact and concat behaviour, lists the differences.
 func TestSweepPR556Required(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	cases := b.Triggers[0].Cases
 	one := sweepRun("T-001", "L1", simulate(cases[0], true), simulate(cases[0], false))
 	r := evalWith(t, b, ladder(t, one, noCoverage))
@@ -435,7 +448,7 @@ func TestSweepPR556Required(t *testing.T) {
 // TestSweepL3 is the PR 556 replay: no change planned at base, known after
 // apply at head, explained by the plan claims.
 func TestSweepL3(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	withCases(t, b, "T-002", caseUnknownBase)
 	// L1 shows no difference here, so only the plan differs.
 	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownBase)
@@ -478,7 +491,7 @@ func TestSweepL3(t *testing.T) {
 // A plan that turns a known list into an unknown one differs in length too;
 // the claims that state the known and the unknown side explain it.
 func TestSweepL3Length(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	withCases(t, b, "T-002", caseUnknownBase)
 	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownBase)
 	l3 := sweepRun("T-002", "L3", `{"case":"prior","known":true,"length":1,"unknown_mask":false,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}`,
@@ -502,7 +515,7 @@ func TestSweepL3Length(t *testing.T) {
 }
 
 func TestEvaluateValues(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	runs := `{"trigger_id":"T-001","level":"L1","state":"ran","reason":null,"fixture_sha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","control":"valid","observations":{"base":[],"head":[
 	  {"case":"a","known":true,"inputs":{"vpc_security_group_ids":{"value":["sg-1"],"unknown":false,"null":false,"omitted":false}},"value":["sg-1"]},
 	  {"case":"n","known":true,"inputs":{"vpc_security_group_ids":{"value":[1.0],"unknown":false,"null":false,"omitted":false}},"value":[1]},
@@ -628,7 +641,7 @@ func TestReadLadderRefuses(t *testing.T) {
 // TestSweepContract checks the observation rules case by case: one
 // required case "c" (plus "t" with output) at each revision.
 func TestSweepContract(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	known := `{"case":"t","known":true,"value":1,"unknown_mask":false}`
 	cases := []struct {
 		name, base, head string
@@ -692,7 +705,7 @@ func TestEvaluateCoveredDynamic(t *testing.T) {
 }
 
 func TestClaimsScopeValidation(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	sg := "aws_security_group.this[*].id"
 	cases := []struct {
 		name, params, why string
@@ -752,7 +765,7 @@ func pr556Claims(node string, first int) []string {
 // elements a known security group list sits next to, which only exact
 // claims on those cases explain.
 func TestSweepPR556Explained(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	var base, head []string
 	for _, c := range b.Triggers[0].Cases {
 		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
@@ -836,7 +849,7 @@ func TestCasesComputedConstant(t *testing.T) {
 // known at plan, so an L2 run never evidences an unknown-ness claim and
 // never explains an unknown-ness change, whatever it observed.
 func TestL2NeverEvidencesUnknown(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	for i := range b.Triggers {
 		b.Triggers[i].Levels = []string{LevelL1, LevelL2}
 	}
@@ -891,7 +904,7 @@ func pr556FilterClaims(node string, first int) []string {
 // filtering claims, within the host's cap of 20, verify T-001; every
 // change stays listed.
 func TestSweepPR556Verified(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	var base, head []string
 	for _, c := range b.Triggers[0].Cases {
 		base, head = append(base, simulate(c, true)), append(head, simulate(c, false))
@@ -929,7 +942,7 @@ func TestSweepPR556Verified(t *testing.T) {
 // claims, never verifies: partly known to wholly unknown is never
 // explained.
 func TestSweepPR556Backwards(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	var base, head []string
 	for _, c := range b.Triggers[0].Cases {
 		base, head = append(base, simulate(c, false)), append(head, simulate(c, true))
@@ -961,7 +974,7 @@ func TestSweepPR556Backwards(t *testing.T) {
 // TestFilteringCountsMarkers: the kept side may hold no more marker
 // elements than the input has.
 func TestFilteringCountsMarkers(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	in := `"inputs":{"vpc_security_group_ids":{"value":[""],"unknown":false,"null":false,"omitted":false}}`
 	withCases(t, b, "T-001", `{"case":"c",`+in+`}`)
 	base := `{"case":"c",` + in + `,"known":true,"length":1,"value":["a"],"unknown_mask":false}`
@@ -983,7 +996,7 @@ func TestFilteringCountsMarkers(t *testing.T) {
 // TestSweepL2: an L2 sweep is compared per required case like L1; its
 // differences are listed and never explained.
 func TestSweepL2(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	in := `"inputs":{"vpc_security_group_ids":{"value":["a"],"unknown":false,"null":false,"omitted":false}}`
 	withCases(t, b, "T-001", `{"case":"c",`+in+`}`)
 	b.Triggers[0].Levels = []string{LevelL1, LevelL2}
@@ -1019,7 +1032,7 @@ func TestSweepL2(t *testing.T) {
 
 // TestSweepCapPerLevel: L1 and L2 each hold up to 32 cases.
 func TestSweepCapPerLevel(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	var obs []string
 	for i := range maxSweepCases {
 		obs = append(obs, fmt.Sprintf(`{"case":"c%d","known":true,"value":1,"unknown_mask":false}`, i))
@@ -1036,7 +1049,7 @@ func TestSweepCapPerLevel(t *testing.T) {
 // TestOnlyL2HasAReason: a trigger that selects L2 alone and has no run
 // is unverifiable with a reason.
 func TestOnlyL2HasAReason(t *testing.T) {
-	b := pr556Report(t)
+	b := pr556TwoTriggers(t)
 	b.Triggers[0].Levels = []string{LevelL2}
 	if s := evalWith(t, b, ladder(t, "", noCoverage)).Triggers[0]; s.State != StateUnverifiable || s.Reason == "" {
 		t.Errorf("%+v", s)

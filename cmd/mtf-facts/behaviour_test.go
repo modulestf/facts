@@ -58,7 +58,7 @@ func TestClaimsEvalCLI(t *testing.T) {
 	code, out, _ = runCLI([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json",
 		"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)})
 	var r behaviour.EvalReport
-	if err := json.Unmarshal([]byte(out), &r); err != nil || code != exitClean || len(r.Triggers) != 2 || len(r.Claims) != 0 {
+	if err := json.Unmarshal([]byte(out), &r); err != nil || code != exitClean || len(r.Triggers) != 1 || len(r.Claims) != 0 {
 		t.Errorf("no claims: exit %d, %v, %s", code, err, out)
 	}
 	for _, s := range r.Triggers {
@@ -80,5 +80,19 @@ func TestClaimsEvalCLI(t *testing.T) {
 		if code, out, errOut := runCLI(args); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: ") {
 			t.Errorf("%v: exit %d, stdout %q, stderr %q", args, code, out, errOut)
 		}
+	}
+}
+
+// TestBehaviourCLIMerged: the CLI report of a merged change is the schema
+// example behaviour.valid.merged.json byte for byte.
+func TestBehaviourCLIMerged(t *testing.T) {
+	const merged = "../../internal/behaviour/testdata/merged"
+	want, err := os.ReadFile("../../schema/examples/behaviour.valid.merged.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := runCLI([]string{"behaviour", merged + "/head", "--json", "--base", merged + "/base"})
+	if code != exitClean || out != string(want) {
+		t.Errorf("exit %d, stderr %q, stdout:\n%s", code, errOut, out)
 	}
 }

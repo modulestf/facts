@@ -1,0 +1,1 @@
+[{"id": "F-001", "rule_id": "structure.grouping", "severity": "LOW", "file": "main.tf", "line": 4, "summary": "s", "suggested_fix": "f", "source": "llm", "explains": ["T-001|L1|a|value"]}]

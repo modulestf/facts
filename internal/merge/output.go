@@ -35,6 +35,10 @@ func checkMerged(f Finding) error {
 	bad(f.Summary == "" || f.SuggestedFix == "", "summary or suggested_fix is empty")
 	bad((f.CandidateID == "") != (f.ConfirmedBy == ""), "candidate_id and confirmed_by are not a pair")
 	bad(f.CandidateID != "" && !candidateIDPattern.MatchString(f.CandidateID), "candidate_id is malformed")
+	bad(f.PredatesChange && f.Source != SourceTool, "predates_change on a finding that is not a tool finding")
+	bad((f.Explains != nil || f.EvidenceDigest != "") && !explainsRule(f.RuleID), "explains or evidence_digest on a rule that explains no behaviour difference")
+	bad(len(f.Explains) > maxExplains || slices.ContainsFunc(f.Explains, func(id string) bool { return !differenceID.MatchString(id) }), "explains is malformed")
+	bad(f.EvidenceDigest != "" && !digestPattern.MatchString(f.EvidenceDigest), "evidence_digest is malformed")
 	plain := f.Subject == "" || !prefixedSubject.MatchString(f.Subject)
 	// A file-level subject, one with no "<area>:" scope, is the finding's
 	// file; a review.check-not-run carries it after "<rule_id>@".

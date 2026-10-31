@@ -254,6 +254,7 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 	}
 	slices.SortStableFunc(triggers, compareTriggers)
 	triggers = slices.CompactFunc(triggers, func(a, b Trigger) bool { return compareTriggers(a, b) == 0 })
+	triggers = mergeSameExpr(triggers)
 	r := &Report{SchemaVersion: SchemaVersion, Inert: true, Entries: []Entry{}, Triggers: []Trigger{}}
 	hasTrigger := map[string]bool{}
 	for _, t := range triggers {
