@@ -1,9 +1,15 @@
 package behaviour
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // TestMergeSameExpressionRun: the triggers of one line with the same base
@@ -99,7 +105,16 @@ func TestMergeSameExpression(t *testing.T) {
 		lacks := tr(CatDynamic, []string{LevelL4}, nil)
 		lacks.Levels = []string{LevelL1}
 		lacks.Reason = new("the combined input sweep needs more than 32 cases")
+		addrA, addrB := tr(CatWrapper, []string{LevelL1}, cs("x")), tr(CatUnknownPropagation, []string{LevelL1}, cs("x"))
+		addrA.Address, addrB.Address = new("aws_instance.x"), new("aws_instance.y")
+		attrA, attrB := tr(CatWrapper, []string{LevelL1}, cs("x")), tr(CatUnknownPropagation, []string{LevelL1}, cs("x"))
+		attrA.Attribute, attrB.Attribute = new("a"), new("b")
+		noLevels := tr(CatMoved, []string{}, nil)
 		for name, pair := range map[string][2]Trigger{
+			"other addresses":             {addrA, addrB},
+			"other attributes":            {attrA, attrB},
+			"no levels first":             {noLevels, tr(CatUnknownPropagation, []string{LevelL1}, cs("x"))},
+			"no levels second":            {tr(CatWrapper, []string{LevelL4}, nil), noLevels},
 			"another line":                {tr(CatWrapper, []string{LevelL1}, cs("x")), otherLine},
 			"another expression":          {tr(CatWrapper, []string{LevelL1}, cs("x")), otherExpr},
 			"a null expression":           {tr(CatWrapper, []string{LevelL1}, cs("x")), nullBase},
@@ -118,4 +133,41 @@ func TestMergeSameExpression(t *testing.T) {
 			t.Errorf("want one trigger with %d cases: %d triggers", maxSweepCases, len(got))
 		}
 	})
+}
+
+// TestMergedGolden: the real report of a merged change, with a trigger of
+// three levels, is the schema example behaviour.valid.merged.json, so the
+// schema checks real merged output.
+func TestMergedGolden(t *testing.T) {
+	r, err := Run(Options{Head: filepath.Join("testdata", "merged", "head"), Base: filepath.Join("testdata", "merged", "base"), Limits: facts.DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Triggers) != 2 || len(r.Triggers[1].Levels) != 3 {
+		t.Fatalf("want a merged trigger of three levels: %s", mustJSON(t, r))
+	}
+	want := mustJSON(t, r)
+	example := "../../schema/examples/behaviour.valid.merged.json"
+	if *update {
+		if err := os.WriteFile(example, want, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := os.ReadFile(example); err != nil || !bytes.Equal(got, want) {
+		t.Errorf("%s is not the real report (go test -update rewrites it):\n%s", example, want)
+	}
+}
+
+func TestReadBehaviourDuplicateCase(t *testing.T) {
+	r, err := Run(Options{Head: filepath.Join("testdata", "merged", "head"), Base: filepath.Join("testdata", "merged", "base"), Limits: facts.DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadBehaviour(writeJSON(t, "b.json", string(mustJSON(t, r)))); err != nil {
+		t.Fatalf("the real report: %v", err)
+	}
+	r.Triggers[0].Cases = append(r.Triggers[0].Cases, r.Triggers[0].Cases[0])
+	if _, err := ReadBehaviour(writeJSON(t, "b.json", string(mustJSON(t, r)))); err == nil || !strings.Contains(err.Error(), "case") {
+		t.Errorf("a repeated case id: %v", err)
+	}
 }

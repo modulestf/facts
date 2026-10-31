@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "inert": false,
+  "entries": [
+    {
+      "path": "main.tf",
+      "change_kind": "modified",
+      "inert": false,
+      "trigger_ids": [
+        "T-001",
+        "T-002"
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "T-001",
+      "file": "main.tf",
+      "line": 2,
+      "category": "wrapper-change",
+      "also_categories": [
+        "unknown-propagation-candidate"
+      ],
+      "change_kind": "modified",
+      "address": "aws_instance.x",
+      "attribute": "vpc_security_group_ids",
+      "base_expr": "compact(var.ids)",
+      "head_expr": "var.ids",
+      "referenced_inputs": [
+        {
+          "name": "ids",
+          "type": "list(string)"
+        }
+      ],
+      "contextual_refs": [],
+      "contextual_ref_details": [],
+      "pure": true,
+      "cases": [
+        {
+          "id": "typical",
+          "inputs": {
+            "ids": {
+              "value": [
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "empty",
+          "inputs": {
+            "ids": {
+              "value": [],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "empty-element",
+          "inputs": {
+            "ids": {
+              "value": [
+                ""
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "null-element",
+          "inputs": {
+            "ids": {
+              "value": [
+                null
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "unknown-element",
+          "inputs": {
+            "ids": {
+              "value": [
+                null
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false,
+              "unknown_elements": [
+                0
+              ]
+            }
+          }
+        },
+        {
+          "id": "unknown",
+          "inputs": {
+            "ids": {
+              "value": null,
+              "unknown": true,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "null",
+          "inputs": {
+            "ids": {
+              "value": null,
+              "unknown": false,
+              "null": true,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "two",
+          "inputs": {
+            "ids": {
+              "value": [
+                "a",
+                "b"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        },
+        {
+          "id": "duplicate",
+          "inputs": {
+            "ids": {
+              "value": [
+                "a",
+                "a"
+              ],
+              "unknown": false,
+              "null": false,
+              "omitted": false
+            }
+          }
+        }
+      ],
+      "levels": [
+        "L1",
+        "L3"
+      ],
+      "reason": "no provider schema was given, so vpc_security_group_ids may be Optional and Computed"
+    },
+    {
+      "id": "T-002",
+      "file": "main.tf",
+      "line": 3,
+      "category": "unclassified-change",
+      "also_categories": [
+        "unknown-propagation-candidate"
+      ],
+      "change_kind": "modified",
+      "address": "aws_instance.x",
+      "attribute": "ami",
+      "base_expr": "var.ami",
+      "head_expr": "local.ami",
+      "referenced_inputs": [
+        {
+          "name": "ami",
+          "type": "string"
+        }
+      ],
+      "contextual_refs": [
+        "local.ami"
+      ],
+      "contextual_ref_details": [
+        {
+          "text": "local.ami",
+          "kind": "local",
+          "type": null,
+          "multi": null
+        }
+      ],
+      "pure": true,
+      "levels": [
+        "L1",
+        "L3",
+        "L4"
+      ],
+      "reason": "no provider schema was given, so ami may be Optional and Computed; a reference to local.ami has no input states, so the L1 sweep cannot stand in for it"
+    }
+  ],
+  "capped": 0
+}

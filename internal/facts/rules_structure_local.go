@@ -361,8 +361,8 @@ func checkArgumentOrder(a *Area) Result {
 			continue
 		}
 		e := newEvidence(a)
-		for _, l := range bad {
-			e.line(r.File, l)
+		for _, it := range bad {
+			e.line(r.File, it.line)
 		}
 		b := baseResource(a, r)
 		if b != nil {
@@ -371,23 +371,29 @@ func checkArgumentOrder(a *Area) Result {
 		e.head(itemNames(items))
 		addr := coverageBlockAddr(r)
 		c := e.candidate("structure.argument-order", r.File, r.Line, addr)
-		// The base block of the same address, so the same subject, breaks
-		// the order too: the defect is older than the change.
-		c.PredatesChange = b != nil && len(misplaced(bodyItems(b.Body), first, last)) > 0
+		// Every item out of order at the head, by name, is out of order in
+		// the base block of the same address, so the same subject: the
+		// defect is older than the change. A newly misplaced item is not.
+		if b != nil {
+			was := misplaced(bodyItems(b.Body), first, last)
+			c.PredatesChange = !slices.ContainsFunc(bad, func(it bodyItem) bool {
+				return !slices.ContainsFunc(was, func(o bodyItem) bool { return o.name == it.name })
+			})
+		}
 		res.Candidates = append(res.Candidates, c)
 	}
 	return res
 }
 
-// misplaced returns the lines of the items out of order: a first-position
-// item after another item, or a last-position item before another one.
-func misplaced(items []bodyItem, first, last []string) []int {
-	var bad []int
+// misplaced returns the items out of order: a first-position item after
+// another item, or a last-position item before another one.
+func misplaced(items []bodyItem, first, last []string) []bodyItem {
+	var bad []bodyItem
 	for i, it := range items {
 		before := slices.ContainsFunc(items[:i], func(o bodyItem) bool { return !slices.Contains(first, o.name) })
 		after := slices.ContainsFunc(items[i+1:], func(o bodyItem) bool { return !slices.Contains(last, o.name) })
 		if slices.Contains(first, it.name) && before || slices.Contains(last, it.name) && after {
-			bad = append(bad, it.line)
+			bad = append(bad, it)
 		}
 	}
 	return bad

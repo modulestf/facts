@@ -311,7 +311,11 @@ func TestArgumentOrderPredatesChange(t *testing.T) {
 		predates   bool
 	}{
 		{"bad at base and head", bad, badEdited, true},
-		{"bad at base in another way", tagsFirst, badEdited, true},
+		// The base breaks the order with tags, the head with count: the
+		// head's misplaced item is new.
+		{"bad at base in another way", tagsFirst, badEdited, false},
+		{"the change adds a misplaced argument", bad, "resource \"aws_demo_widget\" \"a\" {\n  name  = var.name\n  count = 1\n  tags  = var.tags\n  size  = 2\n}\n", false},
+		{"the same item misplaced on another line", bad, "resource \"aws_demo_widget\" \"a\" {\n  name  = var.name\n  size  = 2\n  count = 1\n}\n", true},
 		{"bad at the head only", good, badEdited, false},
 		{"no base block of that address", strings.Replace(bad, "\"a\"", "\"b\"", 1), badEdited, false},
 	} {

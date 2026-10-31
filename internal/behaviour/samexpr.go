@@ -38,16 +38,21 @@ func mergeSameExpr(ts []Trigger) []Trigger {
 	return out
 }
 
-// mergeTwo merges b into a. It refuses when the union of the required
-// cases is over maxSweepCases, when one case id has other inputs in each,
-// or when one trigger needs required cases it could not get while the
-// other has some: the merged trigger would then pass on the other's
-// weaker sweep.
+// mergeTwo merges b into a. It refuses when either selects no level, when
+// both name an address or an attribute and they differ, when the union of
+// the required cases is over maxSweepCases, when one case id has other
+// inputs in each, or when one trigger needs required cases it could not
+// get while the other has some: the merged trigger would then pass on the
+// other's weaker sweep.
 func mergeTwo(a, b Trigger) (Trigger, bool) {
 	lacks := func(t Trigger) bool {
 		return len(t.Cases) == 0 && (slices.Contains(t.Levels, LevelL1) || slices.Contains(t.Levels, LevelL2))
 	}
-	if lacks(a) != lacks(b) && len(a.Cases)+len(b.Cases) > 0 {
+	differ := func(x, y *string) bool { return x != nil && y != nil && *x != *y }
+	switch {
+	case len(a.Levels) == 0 || len(b.Levels) == 0,
+		differ(a.Address, b.Address) || differ(a.Attribute, b.Attribute),
+		lacks(a) != lacks(b) && len(a.Cases)+len(b.Cases) > 0:
 		return a, false
 	}
 	cases := slices.Clone(a.Cases)

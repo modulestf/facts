@@ -82,3 +82,17 @@ func TestClaimsEvalCLI(t *testing.T) {
 		}
 	}
 }
+
+// TestBehaviourCLIMerged: the CLI report of a merged change is the schema
+// example behaviour.valid.merged.json byte for byte.
+func TestBehaviourCLIMerged(t *testing.T) {
+	const merged = "../../internal/behaviour/testdata/merged"
+	want, err := os.ReadFile("../../schema/examples/behaviour.valid.merged.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := runCLI([]string{"behaviour", merged + "/head", "--json", "--base", merged + "/base"})
+	if code != exitClean || out != string(want) {
+		t.Errorf("exit %d, stderr %q, stdout:\n%s", code, errOut, out)
+	}
+}

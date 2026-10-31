@@ -131,7 +131,8 @@ type TriggerState struct {
 	// observation could be compared.
 	Complete *bool `json:"complete,omitempty"`
 	// Outstanding are the ids "<trigger>|<level>|<case>|<attribute>" of the
-	// differences no verified claim explains, sorted; set with Complete.
+	// differences no verified claim explains, sorted; set with Complete,
+	// except past maxOutstanding, where Complete is false.
 	Outstanding []string `json:"outstanding,omitzero"`
 	// EvidenceDigest binds Outstanding to the evidence; see evidenceDigest.
 	// Set only when Outstanding is not empty.
@@ -146,6 +147,10 @@ type ClaimState struct {
 	TriggerID string `json:"trigger_id"`
 	Revision  string `json:"revision"`
 }
+
+// maxOutstanding caps the outstanding ids of one trigger. Past it the
+// trigger is incomplete and lists none.
+const maxOutstanding = 256
 
 // plannedClasses are the plan classes of an example that produced a plan.
 var plannedClasses = []string{"planned", "planned-no-changes"}
@@ -176,6 +181,13 @@ func ReadBehaviour(file string) (*Report, error) {
 			return nil, fmt.Errorf("behaviour: trigger id %q is malformed or used twice", t.ID)
 		}
 		seen[t.ID] = true
+		cases := map[string]bool{}
+		for _, c := range t.Cases {
+			if cases[c.ID] {
+				return nil, fmt.Errorf("behaviour: trigger %s lists case %q twice", t.ID, c.ID)
+			}
+			cases[c.ID] = true
+		}
 	}
 	return &r, nil
 }
@@ -339,10 +351,16 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 			}
 		}
 		slices.Sort(ts.Outstanding)
-		if len(open) > 0 {
+		complete := res.complete
+		switch {
+		case len(ts.Outstanding) > maxOutstanding:
+			// Too many to list for a finding to explain: incomplete, with no
+			// ids and no digest.
+			complete, ts.Outstanding = false, nil
+			res.why = fmt.Sprintf("more than %d unexplained differences", maxOutstanding)
+		case len(open) > 0:
 			ts.EvidenceDigest = evidenceDigest(l, t.ID, ts.Outstanding, open, res.pairs)
 		}
-		complete := res.complete
 		ts.Complete = &complete
 		sweepOK = res.why == ""
 		if sweepOK {

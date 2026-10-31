@@ -1,6 +1,7 @@
 package behaviour
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -126,6 +127,12 @@ func TestEvidenceDigest(t *testing.T) {
 	if d1, _ := digest(run("1", "2", "1"), nil); d1 != d0 || !digestPattern.MatchString(d0) {
 		t.Fatalf("not stable: %q %q", d0, d1)
 	}
+	// Whitespace inside a value is not part of the observation.
+	if d, _ := digest(run("[1,2]", "2", "1"), nil); d == d0 {
+		t.Error("a list value gives the digest of a number")
+	} else if d2, _ := digest(run("[ 1 ,\n 2 ]", "2", "1"), nil); d2 != d {
+		t.Error("whitespace inside a value changes the digest")
+	}
 	// Map keys in another order are the same observation.
 	if d, _ := digest(run(`{"x":1,"y":2}`, "2", "1"), nil); d == d0 {
 		t.Error("an object value gives the digest of a number")
@@ -207,5 +214,71 @@ func TestPR556Merged(t *testing.T) {
 	// Without the L3 run the merged trigger is not complete.
 	if s := stateByID(evalWith(t, b, ladder(t, l1, noCoverage), claims...), "T-001"); s.State != StateUnverifiable || s.Complete == nil || *s.Complete {
 		t.Errorf("L1 only: %s", mustJSON(t, s))
+	}
+}
+
+// TestCompleteFalseMore: the sweep is incomplete when an L3 case is
+// observed at one revision only, when a required L2 level did not run, and
+// when the sweep level itself has a run with an invalid control.
+func TestCompleteFalseMore(t *testing.T) {
+	l3 := sweepRun("T-001", "L3", l3Same, l3Same)
+	l1 := sweepRun("T-001", "L1", obs("a", "1")+","+obs("b", "1"), obs("a", "2")+","+obs("b", "1"))
+	for name, c := range map[string]struct {
+		levels []string
+		runs   string
+	}{
+		"an L3 case at one revision only": {[]string{LevelL1, LevelL3},
+			l1 + "," + sweepRun("T-001", "L3", l3Same+`,{"case":"extra","known":true,"value":1}`, l3Same)},
+		"a required L2 level did not run": {[]string{LevelL1, LevelL2}, l1},
+		"an invalid control at L1": {[]string{LevelL1, LevelL3}, l1 + "," + l3 +
+			`,{"trigger_id":"T-001","level":"L1","state":"unverifiable","reason":"canary","fixture_sha256":null,"control":"invalid","observations":null}`},
+	} {
+		b := completeReport()
+		b.Triggers[0].Levels = c.levels
+		s := stateByID(evalWith(t, b, ladder(t, c.runs, noCoverage)), "T-001")
+		if s.State != StateUnverifiable || s.Complete == nil || *s.Complete {
+			t.Errorf("%s: %s", name, mustJSON(t, s))
+		}
+	}
+}
+
+// TestOutstandingCap: more than maxOutstanding unexplained differences
+// leave the trigger incomplete with no outstanding ids and no digest.
+func TestOutstandingCap(t *testing.T) {
+	b := completeReport()
+	tr := &b.Triggers[0]
+	tr.Levels = []string{LevelL1, LevelL2, LevelL3}
+	tr.Cases = nil
+	side := func(rev string) string {
+		var out []string
+		for i := range maxSweepCases {
+			id := fmt.Sprintf("c%02d", i)
+			if rev == "base" {
+				out = append(out, `{"case":"`+id+`","known":true,"value":1,"length":1,"action":"no-op","unchanged_vs_prior":true,"unknown_inputs":["a"],"inputs":{"v":{"value":"`+id+`","unknown":false,"null":false,"omitted":false}}}`)
+			} else {
+				out = append(out, `{"case":"`+id+`","known":true,"value":2,"length":2,"action":"update","unchanged_vs_prior":false,"unknown_inputs":["b"],"inputs":{"v":{"value":"`+id+`","unknown":false,"null":false,"omitted":false}}}`)
+			}
+		}
+		return strings.Join(out, ",")
+	}
+	for i := range maxSweepCases {
+		id := fmt.Sprintf("c%02d", i)
+		tr.Cases = append(tr.Cases, Case{ID: id, Inputs: map[string]CaseInput{"v": {Value: []byte(`"` + id + `"`)}}})
+	}
+	var runs []string
+	for _, lv := range tr.Levels {
+		runs = append(runs, sweepRun("T-001", lv, side("base"), side("head")))
+	}
+	r := evalWith(t, b, ladder(t, strings.Join(runs, ","), noCoverage))
+	s := stateByID(r, "T-001")
+	if len(s.Changes) <= maxOutstanding {
+		t.Fatalf("the fixture has only %d differences", len(s.Changes))
+	}
+	if s.State != StateUnverifiable || s.Complete == nil || *s.Complete || s.Outstanding != nil || s.EvidenceDigest != "" ||
+		s.Reason != fmt.Sprintf("more than %d unexplained differences", maxOutstanding) {
+		t.Errorf("over the cap: state %s complete %v outstanding %d digest %q reason %q", s.State, s.Complete, len(s.Outstanding), s.EvidenceDigest, s.Reason)
+	}
+	if j := string(mustJSON(t, s)); strings.Contains(j, `"outstanding"`) || strings.Contains(j, `"evidence_digest"`) {
+		t.Error("over the cap the output names outstanding or a digest")
 	}
 }
