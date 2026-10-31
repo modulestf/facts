@@ -242,37 +242,45 @@ func TestCompleteFalseMore(t *testing.T) {
 	}
 }
 
-// TestOutstandingCap: more than maxOutstanding unexplained differences
-// leave the trigger incomplete with no outstanding ids and no digest.
+// TestOutstandingCap: up to maxOutstanding unexplained differences are
+// listed with a digest; one more leaves the trigger incomplete with no
+// outstanding ids and no digest.
 func TestOutstandingCap(t *testing.T) {
-	b := completeReport()
-	tr := &b.Triggers[0]
-	tr.Levels = []string{LevelL1, LevelL2, LevelL3}
-	tr.Cases = nil
-	side := func(rev string) string {
-		var out []string
-		for i := range maxSweepCases {
-			id := fmt.Sprintf("c%02d", i)
-			if rev == "base" {
-				out = append(out, `{"case":"`+id+`","known":true,"value":1,"length":1,"action":"no-op","unchanged_vs_prior":true,"unknown_inputs":["a"],"inputs":{"v":{"value":"`+id+`","unknown":false,"null":false,"omitted":false}}}`)
-			} else {
-				out = append(out, `{"case":"`+id+`","known":true,"value":2,"length":2,"action":"update","unchanged_vs_prior":false,"unknown_inputs":["b"],"inputs":{"v":{"value":"`+id+`","unknown":false,"null":false,"omitted":false}}}`)
+	// Each case differs in value, length, action and unchanged_vs_prior at
+	// L1 and L2: 32 * 2 * 4 = 256. extra adds an unknown_inputs difference
+	// to the first L1 case.
+	eval := func(extra bool) TriggerState {
+		b := completeReport()
+		tr := &b.Triggers[0]
+		tr.Levels, tr.Cases = []string{LevelL1, LevelL2}, nil
+		var runs []string
+		for _, lv := range tr.Levels {
+			var base, head []string
+			for i := range maxSweepCases {
+				id := fmt.Sprintf("c%02d", i)
+				in := `"inputs":{"v":{"value":"` + id + `","unknown":false,"null":false,"omitted":false}}`
+				hu := "a"
+				if extra && lv == LevelL1 && i == 0 {
+					hu = "b"
+				}
+				base = append(base, `{"case":"`+id+`","known":true,"value":1,"length":1,"action":"no-op","unchanged_vs_prior":true,"unknown_inputs":["a"],`+in+`}`)
+				head = append(head, `{"case":"`+id+`","known":true,"value":2,"length":2,"action":"update","unchanged_vs_prior":false,"unknown_inputs":["`+hu+`"],`+in+`}`)
+				if lv == LevelL1 {
+					tr.Cases = append(tr.Cases, Case{ID: id, Inputs: map[string]CaseInput{"v": {Value: []byte(`"` + id + `"`)}}})
+				}
 			}
+			runs = append(runs, sweepRun("T-001", lv, strings.Join(base, ","), strings.Join(head, ",")))
 		}
-		return strings.Join(out, ",")
+		return stateByID(evalWith(t, b, ladder(t, strings.Join(runs, ","), noCoverage)), "T-001")
 	}
-	for i := range maxSweepCases {
-		id := fmt.Sprintf("c%02d", i)
-		tr.Cases = append(tr.Cases, Case{ID: id, Inputs: map[string]CaseInput{"v": {Value: []byte(`"` + id + `"`)}}})
+	s := eval(false)
+	if s.State != StateUnverifiable || s.Complete == nil || !*s.Complete || len(s.Outstanding) != maxOutstanding ||
+		!digestPattern.MatchString(s.EvidenceDigest) {
+		t.Errorf("at the cap: state %s complete %v outstanding %d digest %q", s.State, s.Complete, len(s.Outstanding), s.EvidenceDigest)
 	}
-	var runs []string
-	for _, lv := range tr.Levels {
-		runs = append(runs, sweepRun("T-001", lv, side("base"), side("head")))
-	}
-	r := evalWith(t, b, ladder(t, strings.Join(runs, ","), noCoverage))
-	s := stateByID(r, "T-001")
-	if len(s.Changes) <= maxOutstanding {
-		t.Fatalf("the fixture has only %d differences", len(s.Changes))
+	s = eval(true)
+	if len(s.Changes) != maxOutstanding+1 {
+		t.Fatalf("the fixture has %d differences, want %d", len(s.Changes), maxOutstanding+1)
 	}
 	if s.State != StateUnverifiable || s.Complete == nil || *s.Complete || s.Outstanding != nil || s.EvidenceDigest != "" ||
 		s.Reason != fmt.Sprintf("more than %d unexplained differences", maxOutstanding) {

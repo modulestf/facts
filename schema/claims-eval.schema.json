@@ -37,7 +37,7 @@
           },
           "complete": {"type": "boolean", "description": "For a trigger the sweep reads (L1, L2 or L3) that is not inert and not refuted: every level it selects ran with a valid control, every required case was observed at both revisions, every observation could be compared, and an L4 or compat level it also selects decided it. Absent for any other trigger."},
           "outstanding": {
-            "description": "The differences of the sweep no verified claim explains, as '<trigger id>|<level>|<case id>|<attribute>', sorted. Present with complete, [] when none; absent, with complete false and no evidence_digest, when there are more than 256.",
+            "description": "The differences of the sweep no verified claim explains, as '<trigger id>|<level>|<case id>|<attribute>', sorted. Required when complete is true, [] when none; absent, with complete false and no evidence_digest, when there are more than 256.",
             "type": "array",
             "maxItems": 256,
             "uniqueItems": true,
@@ -48,7 +48,12 @@
         "dependentRequired": {"outstanding": ["complete"], "evidence_digest": ["outstanding"]},
         "if": {"type": "object", "required": ["outstanding"], "properties": {"outstanding": {"type": "array", "minItems": 1}}},
         "then": {"type": "object", "required": ["evidence_digest"], "properties": {"evidence_digest": {"type": "string"}}},
-        "else": {"not": {"type": "object", "required": ["evidence_digest"], "properties": {"evidence_digest": {"type": "string"}}}}
+        "else": {"not": {"type": "object", "required": ["evidence_digest"], "properties": {"evidence_digest": {"type": "string"}}}},
+        "allOf": [{
+          "description": "complete true lists outstanding; complete false may leave it out, past 256 unexplained differences.",
+          "if": {"type": "object", "required": ["complete"], "properties": {"complete": {"const": true}}},
+          "then": {"type": "object", "required": ["outstanding"], "properties": {"outstanding": {"type": "array"}}}
+        }]
       }
     },
     "capped": {"type": "integer", "minimum": 0, "description": "The behaviour report's capped: triggers past the cap, unverifiable."},
