@@ -1,12 +1,13 @@
 package behaviour
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
 )
 
-// maxSweepCases caps the cases of one trigger's sweep, over all its levels.
+// maxSweepCases caps the cases of one trigger's sweep at each of its levels.
 const maxSweepCases = 32
 
 // Change is one (case, attribute) pair whose observation differs between
@@ -38,6 +39,10 @@ type casePair struct {
 // explain every pair that does. why is set when it is not verified.
 func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why string, changes []Change) {
 	var pairs []casePair
+	// A level that cannot be paired makes the trigger unverifiable, but the
+	// levels that did run still report their differences, so the review
+	// sees what the sweep observed.
+	var missing string
 	for _, lv := range t.Levels {
 		if lv != LevelL1 && lv != LevelL2 && lv != LevelL3 {
 			continue
@@ -45,18 +50,20 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 		var required []Case
 		if lv == LevelL1 || lv == LevelL2 {
 			if len(t.Cases) == 0 {
-				return "the trigger has no required case for " + lv, nil
+				missing = cmp.Or(missing, "the trigger has no required case for "+lv)
+				continue
 			}
 			required = t.Cases
 		}
 		p, why := levelPairs(t.ID, lv, l, required)
 		if why != "" {
-			return why, nil
+			missing = cmp.Or(missing, why)
+			continue
 		}
 		pairs = append(pairs, p...)
 	}
 	if len(pairs) == 0 {
-		return "the trigger selects no ladder level", nil
+		return cmp.Or(missing, "the trigger selects no ladder level"), nil
 	}
 	perLevel := map[string]int{}
 	for _, p := range pairs {
@@ -84,6 +91,9 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 			c.Explained = c.ExplainedBy != nil
 			changes = append(changes, c)
 		}
+	}
+	if missing != "" {
+		return missing, changes
 	}
 	for _, c := range changes {
 		if !c.Explained {
@@ -299,7 +309,7 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 	both := func(preds ...string) []string {
 		return pair(states("base", false, preds...), states("head", false, preds...))
 	}
-	side := func(rev string, o Observation) string {
+	side := func(attr, rev string, o Observation) string {
 		switch attr {
 		case "known":
 			switch {
@@ -325,12 +335,18 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 	}
 	switch attr {
 	case "length":
-		if ids := pair(side("base", p.base), side("head", p.head)); ids != nil {
+		if ids := pair(side(attr, "base", p.base), side(attr, "head", p.head)); ids != nil {
 			return ids
+		}
+		// A plan shows a value that turns unknown, or known, without a length
+		// of its own: the length changes with whether the value is known, and
+		// the claims that state that explain it.
+		if p.level == LevelL3 && known(p.base) != known(p.head) {
+			return pair(side("known", "base", p.base), side("known", "head", p.head))
 		}
 		return filtering(p, claims, verified)
 	case "known":
-		return pair(side("base", p.base), side("head", p.head))
+		return pair(side(attr, "base", p.base), side(attr, "head", p.head))
 	case "wholly_unknown", "unknown_mask":
 		// Only the change from wholly unknown at the base to partly known at
 		// the head, at L1, stated by scoped claims with the known length
@@ -339,7 +355,7 @@ func explained(p casePair, attr string, claims []Claim, verified map[string]bool
 		if p.level != LevelL1 || !whollyUnknown(p.base) || whollyUnknown(p.head) || !transitionSide(p.base) || !transitionSide(p.head) {
 			return nil
 		}
-		return pair(side("base", p.base), side("head", p.head))
+		return pair(side(attr, "base", p.base), side(attr, "head", p.head))
 	case "value":
 		if ids := both(PredExprEquals); ids != nil {
 			return ids
