@@ -90,7 +90,7 @@ func mergeTwo(a, b Trigger) (Trigger, bool) {
 	m.Address = cmp.Or(a.Address, b.Address)
 	m.Attribute = cmp.Or(a.Attribute, b.Attribute)
 	var reasons []string
-	for _, r := range strings.Split(deref(a.Reason)+"; "+deref(b.Reason), "; ") {
+	for r := range strings.SplitSeq(deref(a.Reason)+"; "+deref(b.Reason), "; ") {
 		if r != "" && !slices.Contains(reasons, r) {
 			reasons = append(reasons, r)
 		}
