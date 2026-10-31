@@ -467,6 +467,38 @@ func TestSweepL3(t *testing.T) {
 	if s := r.Triggers[1]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "L3") {
 		t.Errorf("no L3: %s", mustJSON(t, s))
 	}
+	// The L1 differences still reach the review when L3 did not run.
+	r = evalWith(t, b, ladder(t, realL1, noCoverage), claims...)
+	if s := r.Triggers[1]; s.State != StateUnverifiable || !strings.Contains(s.Reason, "L3") ||
+		!slices.ContainsFunc(s.Changes, func(c Change) bool { return c.Level == "L1" && c.Attribute == "wholly_unknown" }) {
+		t.Errorf("L1 changes without L3: %s", mustJSON(t, s))
+	}
+}
+
+// A plan that turns a known list into an unknown one differs in length too;
+// the claims that state the known and the unknown side explain it.
+func TestSweepL3Length(t *testing.T) {
+	b := pr556Report(t)
+	withCases(t, b, "T-002", caseUnknownBase)
+	l1 := sweepRun("T-002", "L1", caseUnknownBase, caseUnknownBase)
+	l3 := sweepRun("T-002", "L3", `{"case":"prior","known":true,"length":1,"unknown_mask":false,"action":"no-op","unchanged_vs_prior":true,"value":["sg-1"]}`,
+		`{"case":"prior","known":false,"unknown_mask":true,"action":"update","unchanged_vs_prior":false}`)
+	claims := []string{
+		claim("C-3", PredPlanUnchanged, `{"node":"T-002","revision":"base"}`),
+		claim("C-4", PredPlanUnknown, `{"node":"T-002","revision":"head"}`),
+		claim("C-5", PredPlanAction, `{"node":"T-002","revision":"base","action":"no-op"}`),
+		claim("C-6", PredPlanAction, `{"node":"T-002","revision":"head","action":"update"}`),
+	}
+	r := evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims...)
+	s := r.Triggers[1]
+	if s.State != StateVerified || !slices.ContainsFunc(s.Changes, func(c Change) bool { return c.Attribute == "length" && c.Explained }) {
+		t.Errorf("length known to unknown: %s", mustJSON(t, s))
+	}
+	// Without the claim for the unknown head, the length stays unexplained.
+	r = evalWith(t, b, ladder(t, l1+","+l3, noCoverage), claims[:1]...)
+	if s := r.Triggers[1]; s.State != StateUnverifiable || !slices.ContainsFunc(s.Changes, func(c Change) bool { return c.Attribute == "length" && !c.Explained }) {
+		t.Errorf("length without the head claim: %s", mustJSON(t, s))
+	}
 }
 
 func TestEvaluateValues(t *testing.T) {
