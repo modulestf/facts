@@ -58,7 +58,7 @@ func TestClaimsEvalCLI(t *testing.T) {
 	code, out, _ = runCLI([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json",
 		"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)})
 	var r behaviour.EvalReport
-	if err := json.Unmarshal([]byte(out), &r); err != nil || code != exitClean || len(r.Triggers) != 2 || len(r.Claims) != 0 {
+	if err := json.Unmarshal([]byte(out), &r); err != nil || code != exitClean || len(r.Triggers) != 1 || len(r.Claims) != 0 {
 		t.Errorf("no claims: exit %d, %v, %s", code, err, out)
 	}
 	for _, s := range r.Triggers {

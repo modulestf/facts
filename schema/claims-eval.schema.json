@@ -34,8 +34,20 @@
                 "inputs": {"type": "object"}
               }
             }
-          }
-        }
+          },
+          "complete": {"type": "boolean", "description": "For a trigger the sweep reads (L1, L2 or L3) that is not inert and not refuted: every level it selects ran with a valid control, every required case was observed at both revisions, every observation could be compared, and an L4 or compat level it also selects decided it. Absent for any other trigger."},
+          "outstanding": {
+            "description": "The differences of the sweep no verified claim explains, as '<trigger id>|<level>|<case id>|<attribute>', sorted. Present with complete; [] when none.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"$ref": "#/$defs/difference_id"}
+          },
+          "evidence_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 over canonical JSON of the head and base commits, the outstanding ids, the base and head observations of their cases and the fixture hashes of the trigger's runs at their levels. Present only when outstanding is not empty."}
+        },
+        "dependentRequired": {"complete": ["outstanding"], "outstanding": ["complete"], "evidence_digest": ["outstanding"]},
+        "if": {"type": "object", "required": ["outstanding"], "properties": {"outstanding": {"type": "array", "minItems": 1}}},
+        "then": {"type": "object", "required": ["evidence_digest"], "properties": {"evidence_digest": {"type": "string"}}},
+        "else": {"not": {"type": "object", "required": ["evidence_digest"], "properties": {"evidence_digest": {"type": "string"}}}}
       }
     },
     "capped": {"type": "integer", "minimum": 0, "description": "The behaviour report's capped: triggers past the cap, unverifiable."},
@@ -66,5 +78,8 @@
         }
       }
     }
+  },
+  "$defs": {
+    "difference_id": {"type": "string", "pattern": "^T-[0-9]{3}\\|L[1-4]\\|[A-Za-z0-9_.:-]{1,64}\\|[a-z_]{1,32}$"}
   }
 }

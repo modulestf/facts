@@ -297,3 +297,37 @@ func TestReparseFailureIsACandidate(t *testing.T) {
 		t.Error("an output that does not parse again is safe")
 	}
 }
+
+// TestArgumentOrderPredatesChange: an argument-order candidate predates the
+// change when the rule fires on the base block of the same subject too.
+func TestArgumentOrderPredatesChange(t *testing.T) {
+	const bad = "resource \"aws_demo_widget\" \"a\" {\n  name  = var.name\n  count = 1\n}\n"
+	const badEdited = "resource \"aws_demo_widget\" \"a\" {\n  name  = var.name\n  count = 1\n  size  = 2\n}\n"
+	const good = "resource \"aws_demo_widget\" \"a\" {\n  count = 1\n  name  = var.name\n}\n"
+	const tagsFirst = "resource \"aws_demo_widget\" \"a\" {\n  tags  = var.tags\n  name  = var.name\n}\n"
+	for _, tt := range []struct {
+		name       string
+		base, head string
+		predates   bool
+	}{
+		{"bad at base and head", bad, badEdited, true},
+		{"bad at base in another way", tagsFirst, badEdited, true},
+		{"bad at the head only", good, badEdited, false},
+		{"no base block of that address", strings.Replace(bad, "\"a\"", "\"b\"", 1), badEdited, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := Run(Options{Head: writeTree(t, map[string]string{"main.tf": tt.head}), Base: writeTree(t, map[string]string{"main.tf": tt.base}),
+				Limits: DefaultLimits, ProfileDir: testProfile})
+			if err != nil {
+				t.Fatal(err)
+			}
+			i := slices.IndexFunc(r.Candidates, func(c Candidate) bool { return c.RuleID == "structure.argument-order" })
+			if i < 0 {
+				t.Fatalf("no candidate: %+v", r.Candidates)
+			}
+			if c := r.Candidates[i]; c.PredatesChange != tt.predates || c.Subject != ".:aws_demo_widget.a" {
+				t.Errorf("predates_change %v subject %s, want %v", c.PredatesChange, c.Subject, tt.predates)
+			}
+		})
+	}
+}

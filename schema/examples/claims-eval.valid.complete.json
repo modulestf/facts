@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "triggers": [
+    {"id": "T-001", "state": "verified", "reason": "no case of the sweep differs between base and head", "changes": [], "complete": true, "outstanding": []},
+    {"id": "T-002", "state": "unverifiable", "reason": "L1 case \"a\" differs in value and no verified claim states both sides",
+     "changes": [{"level": "L1", "case": "a", "attribute": "value", "explained": false, "inputs": {}}],
+     "complete": true, "outstanding": ["T-002|L1|a|value"], "evidence_digest": "aed6203aa53a44b74647475ef4da2e39e654ee3b91220a2180c97000e40439c8"},
+    {"id": "T-003", "state": "unverifiable", "reason": "L3 has no base and head run with a valid control", "complete": false, "outstanding": []},
+    {"id": "T-004", "state": "covered", "reason": "aws_s3_bucket.b.bucket is planned in examples/complete"}
+  ],
+  "capped": 0,
+  "claims": [],
+  "discarded_claims": []
+}

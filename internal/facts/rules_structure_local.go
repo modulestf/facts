@@ -356,14 +356,7 @@ func checkArgumentOrder(a *Area) Result {
 			continue
 		}
 		items := bodyItems(r.Body)
-		var bad []int
-		for i, it := range items {
-			before := slices.ContainsFunc(items[:i], func(o bodyItem) bool { return !slices.Contains(first, o.name) })
-			after := slices.ContainsFunc(items[i+1:], func(o bodyItem) bool { return !slices.Contains(last, o.name) })
-			if slices.Contains(first, it.name) && before || slices.Contains(last, it.name) && after {
-				bad = append(bad, it.line)
-			}
-		}
+		bad := misplaced(items, first, last)
 		if len(bad) == 0 {
 			continue
 		}
@@ -371,14 +364,33 @@ func checkArgumentOrder(a *Area) Result {
 		for _, l := range bad {
 			e.line(r.File, l)
 		}
-		if b := baseResource(a, r); b != nil {
+		b := baseResource(a, r)
+		if b != nil {
 			e.base(itemNames(bodyItems(b.Body)))
 		}
 		e.head(itemNames(items))
 		addr := coverageBlockAddr(r)
-		res.Candidates = append(res.Candidates, e.candidate("structure.argument-order", r.File, r.Line, addr))
+		c := e.candidate("structure.argument-order", r.File, r.Line, addr)
+		// The base block of the same address, so the same subject, breaks
+		// the order too: the defect is older than the change.
+		c.PredatesChange = b != nil && len(misplaced(bodyItems(b.Body), first, last)) > 0
+		res.Candidates = append(res.Candidates, c)
 	}
 	return res
+}
+
+// misplaced returns the lines of the items out of order: a first-position
+// item after another item, or a last-position item before another one.
+func misplaced(items []bodyItem, first, last []string) []int {
+	var bad []int
+	for i, it := range items {
+		before := slices.ContainsFunc(items[:i], func(o bodyItem) bool { return !slices.Contains(first, o.name) })
+		after := slices.ContainsFunc(items[i+1:], func(o bodyItem) bool { return !slices.Contains(last, o.name) })
+		if slices.Contains(first, it.name) && before || slices.Contains(last, it.name) && after {
+			bad = append(bad, it.line)
+		}
+	}
+	return bad
 }
 
 type bodyItem struct {

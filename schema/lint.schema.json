@@ -150,7 +150,8 @@
         "line": {"type": ["integer", "null"], "minimum": 1},
         "subject": {"description": "Scoped to the area: '<area>:<address>', such as '.:var.name'. A path rule's subject is its file or directory path.", "type": "string", "minLength": 1},
         "evidence": {"$ref": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json#/$defs/candidate/properties/evidence"},
-        "evidence_complete": {"type": "boolean"}
+        "evidence_complete": {"type": "boolean"},
+        "predates_change": {"description": "Present, and true, when the same rule fires on the base with the same subject: the defect is older than the change. Only for a rule whose check reads the base block, today structure.argument-order.", "const": true}
       }
     },
     "index_entry": {

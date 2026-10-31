@@ -40,6 +40,14 @@ type Finding struct {
 	Subject      string `json:"subject,omitempty"`
 	CandidateID  string `json:"candidate_id,omitempty"`
 	ConfirmedBy  string `json:"confirmed_by,omitempty"`
+	// PredatesChange, on a tool finding only, says the rule also fires on
+	// the base with the same subject.
+	PredatesChange bool `json:"predates_change,omitempty"`
+	// Explains and EvidenceDigest, on a compat.expression-behaviour-changed
+	// or claim.* finding only, are the behaviour difference ids the finding
+	// explains and the claims-eval evidence digest it judged.
+	Explains       []string `json:"explains,omitempty"`
+	EvidenceDigest string   `json:"evidence_digest,omitempty"`
 }
 
 // Candidate, SeverityNeeded and AreaRules are the bundle's own types.
@@ -79,6 +87,7 @@ func ParseBundle(data []byte) (*Bundle, error) {
 			ID: t.ID, RuleID: t.RuleID, Severity: t.Severity, File: t.File, Line: t.Line,
 			Summary: t.Summary, SuggestedFix: t.SuggestedFix,
 			Source: t.Source, Subject: t.Subject, CandidateID: t.CandidateID, ConfirmedBy: t.ConfirmedBy,
+			PredatesChange: t.PredatesChange,
 		})
 	}
 	if err := b.check(); err != nil {

@@ -1,0 +1,1 @@
+[{"id": "F-001", "rule_id": "structure.argument-order", "severity": "LOW", "file": "main.tf", "line": 43, "summary": "s", "suggested_fix": "f", "source": "llm", "predates_change": true}]

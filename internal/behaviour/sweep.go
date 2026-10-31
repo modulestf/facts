@@ -32,12 +32,25 @@ type casePair struct {
 	base, head Observation
 }
 
+// sweepResult is what the sweep of one trigger found. why is set when the
+// trigger is not verified. complete is set when every selected level ran
+// with a valid control, every required case was observed at both
+// revisions and every observation could be compared, so only the
+// differences no verified claim explains can keep it from verified. pairs
+// are the cases of the levels that ran.
+type sweepResult struct {
+	why      string
+	changes  []Change
+	complete bool
+	pairs    []casePair
+}
+
 // sweep decides a trigger that selects L1 or L3 from the tool's own sweep:
 // every selected level needs base and head observations from runs with a
 // valid control and the same case ids at both revisions. The trigger is
 // verified when no (case, attribute) pair differs, or when verified claims
-// explain every pair that does. why is set when it is not verified.
-func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why string, changes []Change) {
+// explain every pair that does.
+func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) sweepResult {
 	var pairs []casePair
 	// A level that cannot be paired makes the trigger unverifiable, but the
 	// levels that did run still report their differences, so the review
@@ -63,24 +76,24 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 		pairs = append(pairs, p...)
 	}
 	if len(pairs) == 0 {
-		return cmp.Or(missing, "the trigger selects no ladder level"), nil
+		return sweepResult{why: cmp.Or(missing, "the trigger selects no ladder level")}
 	}
 	perLevel := map[string]int{}
 	for _, p := range pairs {
 		if perLevel[p.level]++; perLevel[p.level] > maxSweepCases {
-			return fmt.Sprintf("the %s sweep has more than %d cases", p.level, maxSweepCases), nil
+			return sweepResult{why: fmt.Sprintf("the %s sweep has more than %d cases", p.level, maxSweepCases)}
 		}
 	}
 	// A case whose plan fails at both revisions shows nothing; a sweep with
 	// no other case, or whose first case fails so, proves nothing.
 	if both := func(p casePair) bool { return failed(p.base) && failed(p.head) }; both(pairs[0]) || !slices.ContainsFunc(pairs, func(p casePair) bool { return !both(p) }) {
-		return fmt.Sprintf("%s case %q fails at both revisions, so the sweep shows no output", pairs[0].level, pairs[0].id), nil
+		return sweepResult{why: fmt.Sprintf("%s case %q fails at both revisions, so the sweep shows no output", pairs[0].level, pairs[0].id)}
 	}
-	changes = []Change{}
+	res := sweepResult{changes: []Change{}, pairs: pairs}
 	for _, p := range pairs {
 		attrs, why := differing(p)
 		if why != "" {
-			return why, nil
+			return sweepResult{why: why}
 		}
 		for _, a := range attrs {
 			c := Change{Level: p.level, Case: p.id, Attribute: a, Inputs: map[string]json.RawMessage{}}
@@ -89,18 +102,21 @@ func sweep(t Trigger, l *Ladder, claims []Claim, verified map[string]bool) (why 
 			}
 			c.ExplainedBy = explained(p, a, claims, verified)
 			c.Explained = c.ExplainedBy != nil
-			changes = append(changes, c)
+			res.changes = append(res.changes, c)
 		}
 	}
 	if missing != "" {
-		return missing, changes
+		res.why = missing
+		return res
 	}
-	for _, c := range changes {
+	res.complete = true
+	for _, c := range res.changes {
 		if !c.Explained {
-			return fmt.Sprintf("%s case %q differs in %s and no verified claim states both sides", c.Level, c.Case, c.Attribute), changes
+			res.why = fmt.Sprintf("%s case %q differs in %s and no verified claim states both sides", c.Level, c.Case, c.Attribute)
+			break
 		}
 	}
-	return "", changes
+	return res
 }
 
 // levelPairs pairs the base and head observations of a level by case id.

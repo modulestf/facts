@@ -94,6 +94,10 @@ type Candidate struct {
 	Subject          string   `json:"subject"`
 	Evidence         Evidence `json:"evidence"`
 	EvidenceComplete bool     `json:"evidence_complete"`
+	// PredatesChange is set when the same rule fires on the base with the
+	// same subject, for a rule whose check reads the base block: today
+	// structure.argument-order. An optional field, true or absent.
+	PredatesChange bool `json:"predates_change,omitempty"`
 	// cause, when set, is the changed line that brings a cross-area candidate
 	// into the change, where File and Line are the defect it points at, such
 	// as a caller's floor that a callee's raise makes too low.

@@ -71,6 +71,19 @@ func mergeGroup(g []*item) *item {
 	// The first in the sort has the highest severity.
 	merged.f.Severity = text.f.Severity
 	merged.f.Summary, merged.f.SuggestedFix = text.f.Summary, text.f.SuggestedFix
+	// Findings that judged the same evidence explain the union of their
+	// differences, up to the cap; with another digest, or past the cap, the
+	// ids stay the base's.
+	if d := merged.f.EvidenceDigest; d != "" && !slices.ContainsFunc(g, func(it *item) bool { return it.f.EvidenceDigest != d }) {
+		var ids []string
+		for _, it := range g {
+			ids = append(ids, it.f.Explains...)
+		}
+		slices.Sort(ids)
+		if ids = slices.Compact(ids); len(ids) <= maxExplains {
+			merged.f.Explains = ids
+		}
+	}
 	return &merged
 }
 
