@@ -459,11 +459,12 @@ func shapeStates(ty cty.Type, lits literalSet) []caseState {
 
 // refStates are the states of a contextual reference. A resource or data
 // splat is a list of instances: one unknown instance first, then none, one
-// with a null attribute and one known. Any other resource or data reference
-// is unknown first, then known, with the states of a collection of its type
-// and the literals. count.index is 0 or 1 and each.key "a" or "". path and
-// terraform references are fixed and are no input (nil, ""). A local,
-// module, self or each.value reference has no states: why says so.
+// with a null attribute and one known; a managed resource's id is never
+// null, so its splat has no null instance. Any other resource or data
+// reference is unknown first, then known, with the states of a collection of
+// its type and the literals. count.index is 0 or 1 and each.key "a" or "".
+// path and terraform references are fixed and are no input (nil, ""). A
+// local, module, self or each.value reference has no states: why says so.
 func refStates(d RefDetail, lits literalSet) ([]caseState, string) {
 	switch {
 	case d.Kind == "path" || d.Kind == "terraform":
@@ -485,6 +486,11 @@ func refStates(d RefDetail, lits literalSet) ([]caseState, string) {
 			{"empty", CaseInput{Value: raw([]any{})}},
 			{"null-element", CaseInput{Value: raw([]any{nil})}},
 			{"known", CaseInput{Value: raw([]any{sample(el)})}},
+		}
+		// The id of a resource the module creates may be unknown, never
+		// null; no caller can produce a null one.
+		if _, attr, _ := strings.Cut(d.Text, "[*]."); d.Kind == "resource" && attr == "id" {
+			st = slices.Delete(st, 2, 3)
 		}
 		return append(st, literalStates(el, lits, st, func(v any) any { return []any{v} })...), ""
 	}

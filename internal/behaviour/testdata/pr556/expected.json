@@ -88,27 +88,6 @@
           }
         },
         {
-          "id": "typical.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": [
-                "a"
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            }
-          }
-        },
-        {
           "id": "typical.known",
           "inputs": {
             "aws_security_group.this[*].id": {
@@ -156,25 +135,6 @@
           "inputs": {
             "aws_security_group.this[*].id": {
               "value": [],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": [],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            }
-          }
-        },
-        {
-          "id": "empty.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
               "unknown": false,
               "null": false,
               "omitted": false
@@ -250,27 +210,6 @@
           }
         },
         {
-          "id": "empty-element.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": [
-                ""
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            }
-          }
-        },
-        {
           "id": "empty-element.known",
           "inputs": {
             "aws_security_group.this[*].id": {
@@ -320,27 +259,6 @@
           "inputs": {
             "aws_security_group.this[*].id": {
               "value": [],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": [
-                null
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            }
-          }
-        },
-        {
-          "id": "null-element.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
               "unknown": false,
               "null": false,
               "omitted": false
@@ -426,30 +344,6 @@
           }
         },
         {
-          "id": "unknown-element.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": [
-                null
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false,
-              "unknown_elements": [
-                0
-              ]
-            }
-          }
-        },
-        {
           "id": "unknown-element.known",
           "inputs": {
             "aws_security_group.this[*].id": {
@@ -513,25 +407,6 @@
           }
         },
         {
-          "id": "unknown.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": null,
-              "unknown": true,
-              "null": false,
-              "omitted": false
-            }
-          }
-        },
-        {
           "id": "unknown.known",
           "inputs": {
             "aws_security_group.this[*].id": {
@@ -577,25 +452,6 @@
           "inputs": {
             "aws_security_group.this[*].id": {
               "value": [],
-              "unknown": false,
-              "null": false,
-              "omitted": false
-            },
-            "vpc_security_group_ids": {
-              "value": null,
-              "unknown": false,
-              "null": true,
-              "omitted": false
-            }
-          }
-        },
-        {
-          "id": "null.null-element",
-          "inputs": {
-            "aws_security_group.this[*].id": {
-              "value": [
-                null
-              ],
               "unknown": false,
               "null": false,
               "omitted": false
