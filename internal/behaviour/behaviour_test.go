@@ -84,8 +84,8 @@ func TestPR556(t *testing.T) {
 	}
 	w := r.Triggers[0]
 	if w.Category != CatWrapper || !slices.Equal(w.AlsoCategories, []string{CatUnknownPropagation}) ||
-		!slices.Equal(w.Levels, []string{"L1", "L3"}) || w.Reason == nil || len(w.Cases) != 32 {
-		t.Errorf("T-001: %s %v %v reason %s, %d cases; want wrapper-change, also unknown-propagation-candidate, [L1 L3] with a reason and 32 cases",
+		!slices.Equal(w.Levels, []string{"L1", "L3"}) || w.Reason == nil || len(w.Cases) != 25 {
+		t.Errorf("T-001: %s %v %v reason %s, %d cases; want wrapper-change, also unknown-propagation-candidate, [L1 L3] with a reason and 25 cases",
 			w.Category, w.AlsoCategories, w.Levels, str(w.Reason), len(w.Cases))
 	}
 	for _, tr := range r.Triggers {
@@ -405,11 +405,11 @@ func TestCases(t *testing.T) {
 				}
 			}
 		}
-		if len(tr.Cases) != 32 {
-			t.Errorf("%s: %d cases, want 7 list states times 4 splat states and 4 order cases", tr.ID, len(tr.Cases))
+		if len(tr.Cases) != 25 {
+			t.Errorf("%s: %d cases, want 7 list states times 3 splat states and 4 order cases", tr.ID, len(tr.Cases))
 		}
 		for _, want := range []string{"typical.unknown-element", "empty.unknown-element", "empty-element.empty",
-			"null-element.known", "unknown-element.empty", "unknown.unknown-element", "null.known"} {
+			"null-element.known", "unknown-element.empty", "unknown.unknown-element", "null.known", "null.empty"} {
 			if !ids[want] {
 				t.Errorf("%s: no case %q in %s", tr.ID, want, mustJSON(t, tr.Cases))
 			}
@@ -498,6 +498,45 @@ func TestCasesContextualRefs(t *testing.T) {
 	}
 	if st, why := refStates(RefDetail{Text: "path.module", Kind: "path"}, literalSet{}); st != nil || why != "" {
 		t.Errorf("path.module: %v %q", st, why)
+	}
+}
+
+// TestCasesResourceIDNeverNull: the id of a resource the module creates is
+// never null, so its reference has no null element; a variable, a data
+// source id and another attribute keep their null states.
+func TestCasesResourceIDNeverNull(t *testing.T) {
+	isNullElement := func(in CaseInput) bool { return string(in.Value) == "[null]" && len(in.UnknownElements) == 0 }
+	r := pr556Report(t)
+	varNull, varNullElement := false, false
+	for _, c := range r.Triggers[0].Cases {
+		if isNullElement(c.Inputs["aws_security_group.this[*].id"]) {
+			t.Errorf("case %s: the security group ids hold a null element", c.ID)
+		}
+		v := c.Inputs["vpc_security_group_ids"]
+		varNull = varNull || v.Null
+		varNullElement = varNullElement || isNullElement(v)
+	}
+	if !varNull || !varNullElement {
+		t.Errorf("var.vpc_security_group_ids lost its null states: null %v, null element %v", varNull, varNullElement)
+	}
+	if n := len(r.Triggers[0].Cases); n > maxSweepCases {
+		t.Errorf("%d cases, over the cap", n)
+	}
+	for text, kind := range map[string]string{
+		"aws_security_group.this[*].id": "resource", "aws_security_group.this[0].id": "resource", "aws_security_group.this.id": "resource",
+		"aws_security_group.this[*].arn": "resource", "data.aws_security_group.this[*].id": "data",
+	} {
+		st, why := refStates(RefDetail{Text: text, Kind: kind}, literalSet{})
+		if why != "" {
+			t.Fatalf("%s: %s", text, why)
+		}
+		hasNull := slices.ContainsFunc(st, func(s caseState) bool { return s.in.Null || isNullElement(s.in) })
+		if wantNull := kind == "data" || strings.HasSuffix(text, ".arn"); hasNull != wantNull {
+			t.Errorf("%s: null state %v, want %v: %+v", text, hasNull, wantNull, st)
+		}
+		if !slices.ContainsFunc(st, func(s caseState) bool { return s.in.Unknown || len(s.in.UnknownElements) > 0 }) {
+			t.Errorf("%s: no unknown state: %+v", text, st)
+		}
 	}
 }
 
