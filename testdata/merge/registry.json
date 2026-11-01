@@ -4,7 +4,9 @@
     "compat.claim-contradicts-analysis": {
       "engine": "llm",
       "severities": [
-        "HIGH"
+        "HIGH",
+        "MEDIUM",
+        "LOW"
       ],
       "confirm_class": "-"
     },
