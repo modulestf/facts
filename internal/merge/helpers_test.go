@@ -26,7 +26,7 @@ const testOverlap = "\n## Dedup Overlap\n\n" +
 // severities.
 var testRows = [][5]string{
 	{"compat.break-unexplained", "llm", "config-semantic", "yes", "MEDIUM"},
-	{"compat.claim-contradicts-analysis", "llm", "config-semantic", "yes", "HIGH"},
+	{"compat.claim-contradicts-analysis", "llm", "config-semantic", "yes", "HIGH, MEDIUM, LOW"},
 	{"compat.default-changed", "candidate", "config-semantic", "no", "CRITICAL, HIGH, MEDIUM"},
 	{"compat.expression-behaviour-changed", "llm", "config-semantic", "no", "CRITICAL, HIGH, LOW"},
 	{"compat.variable-removed", "candidate", "config-semantic", "no", "CRITICAL, HIGH"},
