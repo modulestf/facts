@@ -1,0 +1,30 @@
+kind: other
+depth-not: light
+-- base/README.md --
+root
+-- base/lnk [link] --
+sub/deep
+-- base/main.tf --
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key    = "k"
+  source = "${path.module}/lnk/../README.md"
+}
+-- base/sub/README.md --
+sub
+-- base/sub/deep/keep.txt --
+keep
+-- head/README.md --
+root
+-- head/lnk [link] --
+sub/deep
+-- head/main.tf --
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key    = "k"
+  source = "${path.module}/lnk/../README.md"
+}
+-- head/sub/README.md --
+CHANGED payload
+-- head/sub/deep/keep.txt --
+keep

@@ -1,0 +1,41 @@
+kind: other
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+variable "n" {
+  type = number
+}
+resource "aws_sns_topic" "t" {
+  count = var.n
+  name  = "t"
+}
+-- base/examples/complete/env.auto.tfvars --
+n = 1
+-- base/examples/complete/main.tf --
+variable "n" {
+  type    = number
+  default = 1
+}
+module "m" {
+  source = "../../"
+  n      = var.n
+}
+-- head/main.tf --
+variable "n" {
+  type = number
+}
+resource "aws_sns_topic" "t" {
+  count = var.n
+  name  = "t"
+}
+-- head/examples/complete/env.auto.tfvars --
+n = 50
+-- head/examples/complete/main.tf --
+variable "n" {
+  type    = number
+  default = 1
+}
+module "m" {
+  source = "../../"
+  n      = var.n
+}

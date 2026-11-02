@@ -1,0 +1,91 @@
+kind: other
+depth: deep
+reason: deep-unwalked
+-- base/README.md --
+r
+-- base/a.txt --
+a
+-- base/main.tf --
+locals {
+  l0 = coalesce(local.l1, local.l1, local.l1)
+  l1 = coalesce(local.l2, local.l2, local.l2)
+  l2 = coalesce(local.l3, local.l3, local.l3)
+  l3 = coalesce(local.l4, local.l4, local.l4)
+  l4 = coalesce(local.l5, local.l5, local.l5)
+  l5 = coalesce(local.l6, local.l6, local.l6)
+  l6 = coalesce(local.l7, local.l7, local.l7)
+  l7 = coalesce(local.l8, local.l8, local.l8)
+  l8 = coalesce(local.l9, local.l9, local.l9)
+  l9 = coalesce(local.l10, local.l10, local.l10)
+  l10 = coalesce(local.l11, local.l11, local.l11)
+  l11 = coalesce(local.l12, local.l12, local.l12)
+  l12 = coalesce(local.l13, local.l13, local.l13)
+  l13 = coalesce(local.l14, local.l14, local.l14)
+  l14 = coalesce(local.l15, local.l15, local.l15)
+  l15 = coalesce(local.l16, local.l16, local.l16)
+  l16 = coalesce(local.l17, local.l17, local.l17)
+  l17 = coalesce(local.l18, local.l18, local.l18)
+  l18 = coalesce(local.l19, local.l19, local.l19)
+  l19 = coalesce(local.l20, local.l20, local.l20)
+  l20 = coalesce(local.l21, local.l21, local.l21)
+  l21 = coalesce(local.l22, local.l22, local.l22)
+  l22 = coalesce(local.l23, local.l23, local.l23)
+  l23 = coalesce(local.l24, local.l24, local.l24)
+  l24 = coalesce(local.l25, local.l25, local.l25)
+  l25 = coalesce(local.l26, local.l26, local.l26)
+  l26 = coalesce(local.l27, local.l27, local.l27)
+  l27 = coalesce(local.l28, local.l28, local.l28)
+  l28 = coalesce(local.l29, local.l29, local.l29)
+  l29 = coalesce(local.l30, local.l30, local.l30)
+  l30 = coalesce(local.l31, local.l31, local.l31)
+  l31 = "${path.module}/a.txt"
+}
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key = "k"
+  source = local.l0
+}
+-- head/README.md --
+x
+-- head/a.txt --
+a
+-- head/main.tf --
+locals {
+  l0 = coalesce(local.l1, local.l1, local.l1)
+  l1 = coalesce(local.l2, local.l2, local.l2)
+  l2 = coalesce(local.l3, local.l3, local.l3)
+  l3 = coalesce(local.l4, local.l4, local.l4)
+  l4 = coalesce(local.l5, local.l5, local.l5)
+  l5 = coalesce(local.l6, local.l6, local.l6)
+  l6 = coalesce(local.l7, local.l7, local.l7)
+  l7 = coalesce(local.l8, local.l8, local.l8)
+  l8 = coalesce(local.l9, local.l9, local.l9)
+  l9 = coalesce(local.l10, local.l10, local.l10)
+  l10 = coalesce(local.l11, local.l11, local.l11)
+  l11 = coalesce(local.l12, local.l12, local.l12)
+  l12 = coalesce(local.l13, local.l13, local.l13)
+  l13 = coalesce(local.l14, local.l14, local.l14)
+  l14 = coalesce(local.l15, local.l15, local.l15)
+  l15 = coalesce(local.l16, local.l16, local.l16)
+  l16 = coalesce(local.l17, local.l17, local.l17)
+  l17 = coalesce(local.l18, local.l18, local.l18)
+  l18 = coalesce(local.l19, local.l19, local.l19)
+  l19 = coalesce(local.l20, local.l20, local.l20)
+  l20 = coalesce(local.l21, local.l21, local.l21)
+  l21 = coalesce(local.l22, local.l22, local.l22)
+  l22 = coalesce(local.l23, local.l23, local.l23)
+  l23 = coalesce(local.l24, local.l24, local.l24)
+  l24 = coalesce(local.l25, local.l25, local.l25)
+  l25 = coalesce(local.l26, local.l26, local.l26)
+  l26 = coalesce(local.l27, local.l27, local.l27)
+  l27 = coalesce(local.l28, local.l28, local.l28)
+  l28 = coalesce(local.l29, local.l29, local.l29)
+  l29 = coalesce(local.l30, local.l30, local.l30)
+  l30 = coalesce(local.l31, local.l31, local.l31)
+  l31 = "${path.module}/a.txt"
+}
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key = "k"
+  source = local.l0
+}

@@ -22,6 +22,7 @@ const (
 const (
 	ReasonLightDocsOnly               = "light-docs-only"
 	ReasonFocusedWithinLimits         = "focused-within-limits"
+	ReasonFocusedNoExample            = "focused-no-example"
 	ReasonTerraformBlock              = "deep-terraform-block"
 	ReasonLockFile                    = "deep-lock-file"
 	ReasonCLIConfig                   = "deep-cli-config"
@@ -59,6 +60,7 @@ const (
 var Reasons = []string{
 	ReasonLightDocsOnly,
 	ReasonFocusedWithinLimits,
+	ReasonFocusedNoExample,
 	ReasonTerraformBlock,
 	ReasonLockFile,
 	ReasonCLIConfig,

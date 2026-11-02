@@ -70,6 +70,10 @@ type UsageError struct{ msg string }
 
 func (e UsageError) Error() string { return e.msg }
 
+// maxLineCount bounds a files list entry's additions and deletions, so
+// their sum cannot overflow.
+const maxLineCount = 10_000_000
+
 // maxInputBytes bounds each JSON input file.
 const maxInputBytes = 64 << 20
 
@@ -93,6 +97,11 @@ func Run(o Options) (*Report, error) {
 	if err := readJSON(o.Files, &list, false); err != nil {
 		return nil, UsageError{fmt.Sprintf("files list: %v", err)}
 	}
+	for _, f := range list {
+		if f.Additions != nil && *f.Additions > maxLineCount || f.Deletions != nil && *f.Deletions > maxLineCount {
+			return nil, UsageError{fmt.Sprintf("files list: %q has a line count over %d", f.Filename, maxLineCount)}
+		}
+	}
 	for _, ex := range o.Examples {
 		if !safePath(ex) {
 			return nil, UsageError{fmt.Sprintf("example %q is not a safe relative path", ex)}
@@ -106,12 +115,16 @@ func Run(o Options) (*Report, error) {
 			return r.evaluate(head, base, list)
 		}
 	}
-	if errors.Is(err, facts.ErrDeadline) {
-		return nil, err
-	}
-	// A tree over a read limit cannot be walked: deep, with nothing proven.
-	r.add(ReasonUnwalked)
-	return r.report(Deep, nil, nil, nil, Walk{Unwalked: 1}, Counts{}), nil
+	// A tree over a read limit or the deadline cannot be walked: deep,
+	// with nothing proven.
+	return Unwalked(), nil
+}
+
+// Unwalked is the report of a run that could not walk the trees, a limit
+// or the deadline hit: deep, with deep-unwalked.
+func Unwalked() *Report {
+	r := &run{reasons: map[string]bool{ReasonUnwalked: true}}
+	return r.report(Deep, nil, nil, nil, Walk{Unwalked: 1}, Counts{})
 }
 
 // run holds the state of one evaluation.
@@ -182,7 +195,7 @@ func (r *run) evaluate(head, base *facts.Tree, list []fileEntry) (*Report, error
 	sc := newScanner(hm, links, r.o.Limits, changed)
 	sc.run()
 	if timeUp(r.o.Limits) {
-		return nil, facts.ErrDeadline
+		return Unwalked(), nil
 	}
 	an := newAnalysis(hm, bm, links)
 	tfChange := r.structural(an, hm, bm, changed, &counts)
@@ -273,9 +286,10 @@ func (r *run) evaluate(head, base *facts.Tree, list []fileEntry) (*Report, error
 	if len(touched) == 0 {
 		rep.ChecksOutOfScope = append(rep.ChecksOutOfScope, CheckB)
 	}
+	// Check D stays in scope at focused, so it can report a missing example.
 	exampleChanged := slices.ContainsFunc(changed, func(p string) bool { return strings.HasPrefix(p, "examples/") })
 	if len(exSel) == 0 && !exampleChanged {
-		rep.ChecksOutOfScope = append(rep.ChecksOutOfScope, CheckD)
+		rep.Reasons = append(rep.Reasons, ReasonFocusedNoExample)
 	}
 	return rep, nil
 }

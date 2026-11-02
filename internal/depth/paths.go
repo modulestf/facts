@@ -139,33 +139,42 @@ type linker struct {
 	root *os.Root
 }
 
-// resolve returns p with every symbolic link on it resolved. ok is false
-// when a link cannot be read, is absolute, leaves the tree or loops.
-func (l *linker) resolve(p string) (string, bool) {
+// join resolves rel against the directory base the way the operating
+// system does: segment by segment, each symbolic link replaced by its
+// target before a following ".." applies. out is set for a path that
+// leaves the tree; ok is false when a link cannot be read, is absolute,
+// leads out of the tree or loops.
+func (l *linker) join(base, rel string) (p string, out, ok bool) {
+	cur := path.Clean(base)
+	segs := strings.Split(rel, "/")
 	hops := 0
-	for i := 0; ; {
-		segs := strings.Split(p, "/")
-		if p == "." || i >= len(segs) {
-			return p, true
-		}
-		prefix := strings.Join(segs[:i+1], "/")
-		e := l.tree.Entries[prefix]
-		if e == nil || e.Kind != facts.KindSymlink {
-			i++
+	for len(segs) > 0 {
+		seg := segs[0]
+		segs = segs[1:]
+		switch seg {
+		case "", ".":
+			continue
+		case "..":
+			if cur == "." {
+				return "", hops == 0, hops == 0 // through a link out of the tree: does not resolve
+			}
+			cur = path.Dir(cur)
 			continue
 		}
-		hops++
-		if hops > maxLinkHops || l.root == nil {
-			return "", false
+		next := path.Join(cur, seg)
+		if e := l.tree.Entries[next]; e != nil && e.Kind == facts.KindSymlink {
+			hops++
+			if hops > maxLinkHops || l.root == nil {
+				return "", false, false
+			}
+			target, err := l.root.Readlink(next)
+			if err != nil || target == "" || strings.HasPrefix(target, "/") {
+				return "", false, false
+			}
+			segs = append(strings.Split(target, "/"), segs...) // relative to cur, the link's directory
+			continue
 		}
-		target, err := l.root.Readlink(prefix)
-		if err != nil || target == "" || strings.HasPrefix(target, "/") {
-			return "", false
-		}
-		next := path.Clean(path.Join(path.Dir(prefix), target, strings.Join(segs[i+1:], "/")))
-		if outside(next) {
-			return "", false
-		}
-		p, i = next, 0
+		cur = next
 	}
+	return cur, false, true
 }

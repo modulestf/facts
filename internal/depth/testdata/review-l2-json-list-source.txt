@@ -1,0 +1,33 @@
+kind: other
+depth-not: light
+reason: deep-unresolved-file-dependency
+-- base/main.tf --
+variable "files" {
+  type = list(string)
+}
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key    = "k"
+  source = element(var.files, 0)
+}
+-- base/examples/complete/main.tf.json --
+{"module": {"root": {"source": "../../", "files": ["${path.module}/docs/a.md", "${path.module}/docs/b.md"]}}}
+-- base/examples/complete/docs/a.md --
+a
+-- base/examples/complete/docs/b.md --
+b
+-- head/main.tf --
+variable "files" {
+  type = list(string)
+}
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key    = "k"
+  source = element(var.files, 0)
+}
+-- head/examples/complete/main.tf.json --
+{"module": {"root": {"source": "../../", "files": ["${path.module}/docs/a.md", "${path.module}/docs/b.md"]}}}
+-- head/examples/complete/docs/a.md --
+CHANGED
+-- head/examples/complete/docs/b.md --
+b

@@ -2,7 +2,7 @@ package depth
 
 import (
 	"maps"
-	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -194,12 +194,8 @@ func calleeOf(head *model, links *linker, it *item) (dir string, local, ok bool)
 	if !strings.HasPrefix(src, "./") && !strings.HasPrefix(src, "../") {
 		return "", false, true
 	}
-	d := path.Clean(path.Join(it.dir, src))
-	if outside(d) {
-		return "", true, false
-	}
-	real, ok := links.resolve(d)
-	if !ok || head.mods[real] == nil {
+	real, out, ok := links.join(it.dir, src)
+	if out || !ok || head.mods[real] == nil {
 		return "", true, false
 	}
 	return real, true, true
@@ -229,7 +225,7 @@ func (an *analysis) meta(it *item, a *arg, direct bool) bool {
 		an.add(ReasonPolicy)
 	}
 	for _, n := range a.names {
-		if strings.Contains(strings.ToLower(n), "policy") {
+		if l := strings.ToLower(n); strings.Contains(l, "policy") || l == "statement" || l == "principal" {
 			an.add(ReasonPolicy)
 			break
 		}
@@ -284,13 +280,21 @@ func (an *analysis) flow(it *item, a *arg, direct bool) {
 	switch it.kind {
 	case kResource:
 		an.touch(it.typ)
-		an.push(node{it.dir, it.addr, a.name}) // the attribute of the same name
+		if identityRe.MatchString(a.name) {
+			an.push(node{it.dir, it.addr, ""}) // an identity: every computed attribute, id and arn included
+		} else {
+			an.push(node{it.dir, it.addr, a.name}) // the attribute of the same name
+		}
 	case kData:
 		an.touch(it.typ)
 		an.push(node{it.dir, it.addr, ""}) // a query: every exported attribute is its result
 	case kLocal:
 		an.push(node{it.dir, it.addr, ""})
 	case kTFVar:
+		if mod := an.head.mods[it.dir]; mod == nil || mod.byAddr[it.addr] == nil || mod.byAddr[it.addr].kind != kVariable {
+			an.add(ReasonUnresolvedConsumer) // no module here declares the variable: who reads the file is unknown
+			return
+		}
 		an.push(node{it.dir, it.addr, ""})
 	case kOutput:
 		switch a.name {
@@ -518,11 +522,19 @@ func (an *analysis) diffFile(b, h *fileModel) {
 	}
 }
 
-// policyType reports an IAM resource or data source, or a policy document
-// data source: a type with an _iam_ segment, or a data source type ending
-// in _policy_document.
+// policyType reports an IAM resource or data source, a policy or
+// permission resource, or a policy document data source: a type with an
+// _iam_ segment, ending in _policy or _permission, or a data source type
+// ending in _policy_document.
 func policyType(it *item) bool {
 	t := strings.ToLower(it.typ)
 	return strings.Contains(t, "_iam_") || strings.HasSuffix(t, "_iam") ||
+		strings.HasSuffix(t, "_policy") || strings.HasSuffix(t, "_permission") ||
 		it.kind == kData && strings.HasSuffix(t, "_policy_document")
 }
+
+// identityRe matches a managed resource argument that defines its identity.
+// A change to one affects every computed attribute (id, arn and the
+// like), not only the attribute of the same name. A heuristic: the plan of
+// every selected example still shows a replacement.
+var identityRe = regexp.MustCompile(`^(name|name_prefix|bucket|bucket_prefix|identifier|identifier_prefix|cluster_identifier|cluster_name|function_name|family|[a-z0-9_]*_name|[a-z0-9_]*_identifier)$`)

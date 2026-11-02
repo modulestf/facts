@@ -49,11 +49,16 @@ func TestDepthErrors(t *testing.T) {
 	if err := os.WriteFile(bad, []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	huge := filepath.Join(t.TempDir(), "huge.json")
+	if err := os.WriteFile(huge, []byte(`[{"filename":"a.md","status":"modified","additions":10000001,"deletions":0}]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, args := range [][]string{
 		{"depth"},
 		{"depth", "--head", dir + "/head", "--base", dir + "/base"},
 		{"depth", "--head", dir + "/nosuch", "--base", dir + "/base", "--files", dir + "/files.json"},
 		{"depth", "--head", dir + "/head", "--base", dir + "/base", "--files", bad},
+		{"depth", "--head", dir + "/head", "--base", dir + "/base", "--files", huge},
 		{"depth", "--head", dir + "/head", "--base", dir + "/base", "--files", dir + "/files.json", "--examples", "../x"},
 		{"depth", "--head", dir + "/head", "--base", dir + "/base", "--files", dir + "/files.json", "--timeout", "0s"},
 		{"depth", "extra"},

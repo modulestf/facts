@@ -32,8 +32,10 @@ report, a file that does not parse or a consumer that is not modeled, is deep.
 
 It prints one JSON object: the depth, its reasons (fixed tokens), the checks
 and examples out of scope, the touched types, the walk coverage, the limit
-counts and the schema-pass tokens. Exit 0 with the report, 2 on a missing
-tree, a files list that does not read, a limit or the timeout.`
+counts and the schema-pass tokens. Exit 0 with the report; a tree over a
+read limit or a run past the timeout is deep with deep-unwalked. Exit 2 on a
+missing tree, or a files list that does not read or has a line count over
+10,000,000.`
 	depthExample = `  mtf-facts depth --head ./head --base ./base --files files.json \
     --classify behaviour.json --affected affected.json > depth.json`
 	depthHeadUsage     = "the head `tree`"

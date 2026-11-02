@@ -95,10 +95,10 @@ func newScanner(head *model, links *linker, lim facts.Limits, changed []string) 
 		callers: map[string][]*item{}}
 	words := map[string]bool{}
 	for _, p := range changed {
-		s.changed[p] = true
+		s.changed[strings.ToLower(p)] = true
 		words[strings.ToLower(path.Base(p))] = true
 		for _, d := range ancestors(p) {
-			s.holds[d] = true
+			s.holds[strings.ToLower(d)] = true
 			if d != "." {
 				words[strings.ToLower(path.Base(d))] = true
 			}
@@ -346,8 +346,7 @@ func (s *scanner) template(p string, c ctx, l loc) {
 // eval returns the patterns of the strings e can produce; none when e is
 // not a string.
 func (s *scanner) eval(e hclsyntax.Expression, c ctx) []pattern {
-	if s.steps++; s.steps > maxSteps {
-		s.over = true // the tracing budget is spent: the walk is incomplete
+	if s.spent() {
 		return anyString
 	}
 	switch x := e.(type) {
@@ -411,7 +410,7 @@ func (s *scanner) forScope(x *hclsyntax.ForExpr, c ctx) ctx {
 // attrs of it, can be. A dynamic block's iterator and each are read
 // through .value and .key.
 func (s *scanner) element(b binding, attrs []string) []pattern {
-	if b.in.depth >= maxLocalDepth {
+	if s.spent() || b.in.depth >= maxLocalDepth {
 		return anyString
 	}
 	b.in.depth++
@@ -437,6 +436,9 @@ func (s *scanner) element(b binding, attrs []string) []pattern {
 // elementsAt returns the strings the elements of collection e can be, at
 // the attribute path.
 func (s *scanner) elementsAt(e hclsyntax.Expression, path []string, c ctx) []pattern {
+	if s.spent() {
+		return anyString
+	}
 	if len(path) == 0 {
 		return s.eval(e, c)
 	}
@@ -473,11 +475,19 @@ func (s *scanner) elementsAt(e hclsyntax.Expression, path []string, c ctx) []pat
 
 // valueAt returns the strings value v can be at the attribute path.
 func (s *scanner) valueAt(v hclsyntax.Expression, path []string, c ctx) []pattern {
+	if s.spent() {
+		return anyString
+	}
 	if len(path) == 0 {
 		return s.eval(v, c)
 	}
 	switch x := v.(type) {
 	case *hclsyntax.ObjectConsExpr:
+		for _, kv := range x.Items {
+			if keyName(kv.KeyExpr) == "" {
+				return anyString // a computed key may be path[0]
+			}
+		}
 		for _, kv := range x.Items {
 			if keyName(kv.KeyExpr) == path[0] {
 				return s.valueAt(kv.ValueExpr, path[1:], c)
@@ -507,7 +517,7 @@ func (s *scanner) valueAt(v hclsyntax.Expression, path []string, c ctx) []patter
 // refAt returns the strings a reference can be at the attribute path, or
 // its elements' when elems is set.
 func (s *scanner) refAt(t hcl.Traversal, path []string, c ctx, elems bool) []pattern {
-	if c.depth >= maxLocalDepth {
+	if s.spent() || c.depth >= maxLocalDepth {
 		return anyString
 	}
 	c.depth++
@@ -697,15 +707,21 @@ func (s *scanner) varSources(name string, c ctx) (out []source, ok bool) {
 	if v == nil {
 		return nil, false
 	}
-	if a := v.arg("default"); a != nil && len(a.exprs) == 1 {
-		out = append(out, source{a.exprs[0], c})
+	one := func(a *arg, in ctx) source {
+		if len(a.exprs) != 1 {
+			return source{nil, in} // a JSON value of several strings: does not resolve
+		}
+		return source{a.exprs[0], in}
+	}
+	if a := v.arg("default"); a != nil {
+		out = append(out, one(a, c))
 	}
 	for _, call := range s.callers[c.dir] {
 		if wrappersPath(call.file) {
 			continue // a generated wrapper passes its own external input through
 		}
-		if a := call.arg(name); a != nil && len(a.exprs) == 1 {
-			out = append(out, source{a.exprs[0], ctx{dir: call.dir, mod: s.head.mods[call.dir], it: call, depth: c.depth}})
+		if a := call.arg(name); a != nil {
+			out = append(out, one(a, ctx{dir: call.dir, mod: s.head.mods[call.dir], it: call, depth: c.depth}))
 		}
 	}
 	for _, p := range slices.Sorted(maps.Keys(s.head.files)) {
@@ -714,8 +730,8 @@ func (s *scanner) varSources(name string, c ctx) (out []source, ok bool) {
 			continue
 		}
 		for _, it := range fm.items {
-			if it.addr == "var."+name && len(it.args[0].exprs) == 1 {
-				out = append(out, source{it.args[0].exprs[0], c})
+			if it.addr == "var."+name {
+				out = append(out, one(it.args[0], c))
 			}
 		}
 	}
@@ -735,13 +751,16 @@ func (s *scanner) traceVar(name string, c ctx, get func(source) []pattern) []pat
 	}
 	var out []pattern
 	for _, src := range srcs {
+		if src.e == nil {
+			return anyString
+		}
 		out = union(out, get(src))
 	}
 	return orPass(out)
 }
 
 // evalCall evaluates a function call: a function in a path does not
-// resolve, except that // try and coalesce trace to their arguments, lookup to its map and its
+// resolve, except that try and coalesce trace to their arguments, lookup to its map and its
 // default, and a collection function that passes elements on (merge,
 // flatten, concat and the like) to its arguments.
 func (s *scanner) evalCall(x *hclsyntax.FunctionCallExpr, c ctx) []pattern {
@@ -768,6 +787,16 @@ func (s *scanner) evalCall(x *hclsyntax.FunctionCallExpr, c ctx) []pattern {
 		return anyString
 	}
 	return out
+}
+
+// spent counts one evaluation step and reports whether the budget of
+// maxSteps or the deadline is spent; the walk is then incomplete.
+func (s *scanner) spent() bool {
+	s.steps++
+	if s.steps > maxSteps || s.steps%4096 == 0 && timeUp(s.lim) {
+		s.over = true
+	}
+	return s.over
 }
 
 // norm merges adjacent literals and wildcards and drops empty literals.
@@ -850,19 +879,17 @@ func (s *scanner) places(p pattern, c ctx) []place {
 	}
 	var out []place
 	for _, b := range bases {
-		cand := path.Clean(path.Join(b, lit))
-		if outside(cand) {
-			out = append(out, place{outside: true})
-			continue
-		}
-		real, ok := s.links.resolve(cand)
-		if !ok {
+		real, outs, ok := s.links.join(b, lit)
+		switch {
+		case !ok:
 			out = append(out, place{bad: true})
-			continue
+		case outs:
+			out = append(out, place{outside: true})
+		default:
+			out = append(out, place{real: real})
 		}
-		out = append(out, place{real: real})
-		if real != cand {
-			out = append(out, place{real: cand})
+		if cand := path.Clean(path.Join(b, lit)); !outside(cand) && cand != real {
+			out = append(out, place{real: cand}) // the lexical reading too: either may be a changed path
 		}
 	}
 	return out
@@ -885,7 +912,7 @@ func (s *scanner) resolveTo(p pattern, c ctx, l loc) {
 		switch {
 		case f.bad:
 			s.unresolved = append(s.unresolved, l)
-		case !f.outside && (s.changed[f.real] || s.holds[f.real]):
+		case !f.outside && (s.changed[strings.ToLower(f.real)] || s.holds[strings.ToLower(f.real)]):
 			s.hits = append(s.hits, l)
 		}
 	}
