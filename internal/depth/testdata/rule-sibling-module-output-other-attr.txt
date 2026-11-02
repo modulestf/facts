@@ -1,0 +1,70 @@
+kind: other
+depth: focused
+-- base/examples/pair/main.tf --
+module "primary" {
+  source = "../.."
+  name   = "primary"
+}
+
+module "secondary" {
+  source  = "../.."
+  name    = "secondary"
+  dlq_arn = module.primary.arn
+}
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 60
+}
+
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}
+
+variable "name" {
+  type = string
+}
+
+variable "dlq_arn" {
+  type    = string
+  default = null
+}
+
+resource "aws_sqs_queue_redrive_allow_policy" "this" {
+  count     = var.dlq_arn == null ? 0 : 1
+  queue_url = aws_sqs_queue.this.url
+}
+-- head/examples/pair/main.tf --
+module "primary" {
+  source = "../.."
+  name   = "primary"
+}
+
+module "secondary" {
+  source  = "../.."
+  name    = "secondary"
+  dlq_arn = module.primary.arn
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 120
+}
+
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}
+
+variable "name" {
+  type = string
+}
+
+variable "dlq_arn" {
+  type    = string
+  default = null
+}
+
+resource "aws_sqs_queue_redrive_allow_policy" "this" {
+  count     = var.dlq_arn == null ? 0 : 1
+  queue_url = aws_sqs_queue.this.url
+}

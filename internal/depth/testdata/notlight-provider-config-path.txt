@@ -1,0 +1,25 @@
+kind: must-not-be-light
+-- base/docs/kubeconfig.md --
+a
+-- base/main.tf --
+provider "kubernetes" {
+  config_path = "${path.module}/docs/kubeconfig.md"
+}
+
+resource "kubernetes_namespace" "this" {
+  metadata {
+    name = "ns"
+  }
+}
+-- head/docs/kubeconfig.md --
+b
+-- head/main.tf --
+provider "kubernetes" {
+  config_path = "${path.module}/docs/kubeconfig.md"
+}
+
+resource "kubernetes_namespace" "this" {
+  metadata {
+    name = "ns"
+  }
+}

@@ -1,0 +1,50 @@
+kind: other
+depth: focused
+-- base/main.tf --
+locals {
+  roles = flatten([
+    for k, v in var.roles : merge(v, {
+      name = "${replace(k, "_", "-")}-role"
+    })
+  ])
+}
+
+resource "aws_iam_role" "this" {
+  for_each           = { for r in local.roles : r.name => r }
+  name               = each.value.name
+  path               = try(each.value.path, null)
+  assume_role_policy = "{}"
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+variable "roles" {
+  type = any
+}
+-- head/main.tf --
+locals {
+  roles = flatten([
+    for k, v in var.roles : merge(v, {
+      name = "${replace(k, "_", "-")}-role"
+    })
+  ])
+}
+
+resource "aws_iam_role" "this" {
+  for_each           = { for r in local.roles : r.name => r }
+  name               = each.value.name
+  path               = try(each.value.path, null)
+  assume_role_policy = "{}"
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+variable "roles" {
+  type = any
+}

@@ -1,0 +1,13 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+resource "aws_api_gateway_rest_api" "this" {
+  name        = "api"
+  policy_data = "a"
+}
+-- head/main.tf --
+resource "aws_api_gateway_rest_api" "this" {
+  name        = "api"
+  policy_data = "b"
+}

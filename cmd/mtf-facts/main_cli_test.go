@@ -425,6 +425,7 @@ Check a module:
 
 Review pipeline (run by hosts):
   affected       List the examples a change can affect, most likely first
+  depth          Decide how deep a review of a change must go: light, focused or deep
   bundle         Build the facts bundle a model reviewer reads
   merge          Check a model reply and merge it into the final findings
   fixture-check  Check a ladder scratch tree against its allowlist

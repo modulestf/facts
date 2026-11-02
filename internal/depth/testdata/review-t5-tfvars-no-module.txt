@@ -1,0 +1,45 @@
+kind: other
+depth: deep
+reason: deep-unresolved-consumer
+-- base/main.tf --
+variable "n" {
+  type = number
+}
+resource "aws_sns_topic" "t" {
+  count = var.n
+  name  = "t"
+}
+-- base/examples/complete/main.tf --
+variable "n" {
+  type    = number
+  default = 1
+}
+module "m" {
+  source = "../../"
+  n      = var.n
+}
+-- base/examples/complete/terraform.tfvars.json.off --
+n = 1
+-- base/examples/complete/vars/prod.tfvars --
+n = 1
+-- head/main.tf --
+variable "n" {
+  type = number
+}
+resource "aws_sns_topic" "t" {
+  count = var.n
+  name  = "t"
+}
+-- head/examples/complete/main.tf --
+variable "n" {
+  type    = number
+  default = 1
+}
+module "m" {
+  source = "../../"
+  n      = var.n
+}
+-- head/examples/complete/terraform.tfvars.json.off --
+n = 1
+-- head/examples/complete/vars/prod.tfvars --
+n = 50

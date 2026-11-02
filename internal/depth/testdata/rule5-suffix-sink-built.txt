@@ -1,0 +1,39 @@
+kind: other
+depth: deep
+reason: deep-unresolved-file-dependency
+-- base/main.tf --
+resource "aws_iam_role" "this" {
+  name               = "r"
+  path               = "/"
+  assume_role_policy = "{}"
+  permissions_boundary = null
+}
+
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  timeout       = 3
+  package_path  = "${path.module}/${var.package_path}"
+}
+
+variable "package_path" {
+  type = string
+}
+-- head/main.tf --
+resource "aws_iam_role" "this" {
+  name               = "r"
+  path               = "/"
+  assume_role_policy = "{}"
+  permissions_boundary = null
+}
+
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  timeout       = 5
+  package_path  = "${path.module}/${var.package_path}"
+}
+
+variable "package_path" {
+  type = string
+}

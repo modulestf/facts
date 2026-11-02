@@ -1,0 +1,22 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_cloudwatch_log_group" "this" {
+  for_each          = toset(["a", "b"])
+  name              = "/aws/rds/cluster/${var.name}/${each.value}"
+  retention_in_days = 7
+}
+
+variable "name" {
+  type = string
+}
+-- head/main.tf --
+resource "aws_cloudwatch_log_group" "this" {
+  for_each          = toset(["a", "b"])
+  name              = "/aws/rds/cluster/${var.name}/${each.value}"
+  retention_in_days = 14
+}
+
+variable "name" {
+  type = string
+}

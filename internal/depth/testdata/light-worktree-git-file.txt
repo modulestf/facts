@@ -1,0 +1,20 @@
+kind: must-be-light
+depth: light
+reason: light-docs-only
+-- base/.git --
+gitdir: /elsewhere/.git/worktrees/base
+-- base/README.md --
+# x
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}
+-- head/.git/HEAD --
+ref: refs/heads/main
+-- head/README.md --
+# x
+more
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}

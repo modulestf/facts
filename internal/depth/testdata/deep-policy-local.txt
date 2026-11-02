@@ -1,0 +1,21 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+locals {
+  actions = ["sqs:SendMessage"]
+}
+
+resource "aws_sqs_queue" "this" {
+  name   = "q"
+  policy = jsonencode({ Statement = [{ Action = local.actions }] })
+}
+-- head/main.tf --
+locals {
+  actions = ["sqs:SendMessage", "sqs:ReceiveMessage"]
+}
+
+resource "aws_sqs_queue" "this" {
+  name   = "q"
+  policy = jsonencode({ Statement = [{ Action = local.actions }] })
+}

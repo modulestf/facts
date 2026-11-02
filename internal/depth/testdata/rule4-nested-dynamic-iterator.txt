@@ -1,0 +1,64 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_pipes_pipe" "this" {
+  for_each = var.pipes
+  name     = each.key
+  role_arn = "arn"
+  source   = "arn:source"
+  target   = "arn:target"
+
+  dynamic "target_parameters" {
+    for_each = try([each.value.target_parameters], [])
+
+    content {
+      dynamic "eventbridge_event_bus_parameters" {
+        for_each = try([target_parameters.value.bus], [])
+
+        content {
+          source = try(eventbridge_event_bus_parameters.value.source, null)
+        }
+      }
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+variable "pipes" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_pipes_pipe" "this" {
+  for_each = var.pipes
+  name     = each.key
+  role_arn = "arn"
+  source   = "arn:source"
+  target   = "arn:target"
+
+  dynamic "target_parameters" {
+    for_each = try([each.value.target_parameters], [])
+
+    content {
+      dynamic "eventbridge_event_bus_parameters" {
+        for_each = try([target_parameters.value.bus], [])
+
+        content {
+          source = try(eventbridge_event_bus_parameters.value.source, null)
+        }
+      }
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+variable "pipes" {
+  type = any
+}

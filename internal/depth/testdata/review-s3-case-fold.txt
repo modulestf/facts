@@ -1,0 +1,18 @@
+kind: other
+depth-not: light
+-- base/README.md --
+root
+-- base/main.tf --
+resource "aws_s3_object" "o" {
+  bucket  = "b"
+  key     = "k"
+  content = file("${path.module}/readme.md")
+}
+-- head/README.md --
+CHANGED
+-- head/main.tf --
+resource "aws_s3_object" "o" {
+  bucket  = "b"
+  key     = "k"
+  content = file("${path.module}/readme.md")
+}

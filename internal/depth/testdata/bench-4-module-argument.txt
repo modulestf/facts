@@ -1,0 +1,164 @@
+kind: bench
+depth: focused
+-- base/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+  vpc_id = "vpc-1"
+}
+-- base/main.tf --
+module "sg" {
+  source = "./modules/sg"
+  name   = var.name
+  vpc_id = var.vpc_id
+}
+-- base/modules/sg/main.tf --
+resource "aws_security_group" "this" {
+  name   = var.name
+  vpc_id = var.vpc_id
+}
+
+output "id" {
+  value = aws_security_group.this.id
+}
+
+variable "name" {
+  type = string
+}
+
+variable "vpc_id" {
+  type = string
+}
+-- base/modules/sg/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- base/outputs.tf --
+output "security_group_id" {
+  value = module.sg.id
+}
+-- base/variables.tf --
+variable "name" {
+  type = string
+}
+
+variable "vpc_id" {
+  type = string
+}
+-- base/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- head/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+  vpc_id = "vpc-1"
+}
+-- head/main.tf --
+module "sg" {
+  source = "./modules/sg"
+  name   = "${var.name}-sg"
+  vpc_id = var.vpc_id
+}
+-- head/modules/sg/main.tf --
+resource "aws_security_group" "this" {
+  name   = var.name
+  vpc_id = var.vpc_id
+}
+
+output "id" {
+  value = aws_security_group.this.id
+}
+
+variable "name" {
+  type = string
+}
+
+variable "vpc_id" {
+  type = string
+}
+-- head/modules/sg/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- head/outputs.tf --
+output "security_group_id" {
+  value = module.sg.id
+}
+-- head/variables.tf --
+variable "name" {
+  type = string
+}
+
+variable "vpc_id" {
+  type = string
+}
+-- head/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- want.json --
+{
+  "format": 1,
+  "depth": "focused",
+  "reasons": [
+    "focused-within-limits"
+  ],
+  "checks_out_of_scope": [],
+  "examples_selected": [
+    "examples/complete"
+  ],
+  "examples_out_of_scope": [],
+  "touched_types": [
+    "aws_security_group"
+  ],
+  "walk": {
+    "complete": true,
+    "unwalked": 0
+  },
+  "limits": {
+    "tf_files": 1,
+    "changed_lines": 2,
+    "changed_blocks": 1,
+    "selected_examples": 1
+  },
+  "schema_providers": [
+    "base:.:aws=hashicorp/aws:\u003e=5.0",
+    "base:modules/sg:aws=hashicorp/aws:\u003e=5.0",
+    "head:.:aws=hashicorp/aws:\u003e=5.0",
+    "head:modules/sg:aws=hashicorp/aws:\u003e=5.0"
+  ],
+  "schema_types": [
+    "modules/sg:resource:aws_security_group:hashicorp/aws"
+  ],
+  "schema_locks": []
+}

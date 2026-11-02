@@ -1,0 +1,33 @@
+kind: must-not-be-light
+-- base/README.md --
+a
+-- base/main.tf --
+locals {
+  p = var.path
+}
+
+resource "aws_ssm_parameter" "this" {
+  name  = "p"
+  type  = "String"
+  value = file(local.p)
+}
+
+variable "path" {
+  type = string
+}
+-- head/README.md --
+b
+-- head/main.tf --
+locals {
+  p = var.path
+}
+
+resource "aws_ssm_parameter" "this" {
+  name  = "p"
+  type  = "String"
+  value = file(local.p)
+}
+
+variable "path" {
+  type = string
+}

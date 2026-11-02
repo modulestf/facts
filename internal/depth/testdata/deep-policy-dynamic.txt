@@ -1,0 +1,33 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+resource "aws_s3_bucket" "this" {
+  bucket = "b"
+
+  dynamic "bucket_policy" {
+    for_each = var.policies
+    content {
+      name = bucket_policy.value.name
+    }
+  }
+}
+
+variable "policies" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_s3_bucket" "this" {
+  bucket = "b"
+
+  dynamic "bucket_policy" {
+    for_each = var.policies
+    content {
+      name = bucket_policy.value.id
+    }
+  }
+}
+
+variable "policies" {
+  type = any
+}

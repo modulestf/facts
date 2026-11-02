@@ -1,0 +1,14 @@
+kind: must-be-deep
+depth: deep
+reason: deep-parse-failure
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name

@@ -1,0 +1,41 @@
+kind: other
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+module "alarms" {
+  source = "./modules/alarms"
+  queue  = aws_sqs_queue.this
+}
+-- base/modules/alarms/main.tf --
+resource "aws_sns_topic" "this" {
+  for_each = { for k, v in var.queue : k => v if k == "name" }
+  name     = each.value
+}
+
+variable "queue" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+module "alarms" {
+  source = "./modules/alarms"
+  queue  = aws_sqs_queue.this
+}
+-- head/modules/alarms/main.tf --
+resource "aws_sns_topic" "this" {
+  for_each = { for k, v in var.queue : k => v if k == "name" }
+  name     = each.value
+}
+
+variable "queue" {
+  type = any
+}

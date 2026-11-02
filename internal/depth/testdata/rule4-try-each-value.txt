@@ -1,0 +1,34 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_iam_role" "this" {
+  for_each           = var.roles
+  name               = each.key
+  path               = try(each.value.path, null)
+  assume_role_policy = "{}"
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+variable "roles" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_iam_role" "this" {
+  for_each           = var.roles
+  name               = each.key
+  path               = try(each.value.path, null)
+  assume_role_policy = "{}"
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+variable "roles" {
+  type = any
+}

@@ -1,0 +1,9 @@
+kind: other
+depth: deep
+reason: deep-classifier-invalid
+-- base/README.md --
+# x
+-- head/README.md --
+# y
+-- classify.json --
+{"report": {"schema_version": 1}}

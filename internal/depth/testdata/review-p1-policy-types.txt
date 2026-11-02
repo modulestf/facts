@@ -1,0 +1,31 @@
+kind: other
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+resource "aws_organizations_policy" "scp" {
+  name = "deny"
+  content = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Deny", Action = "s3:DeleteBucket", Resource = "*" }]
+  })
+}
+resource "aws_lambda_permission" "p" {
+  statement_id  = "a"
+  action        = "lambda:InvokeFunction"
+  function_name = "f"
+  principal     = "events.amazonaws.com"
+}
+-- head/main.tf --
+resource "aws_organizations_policy" "scp" {
+  name = "deny"
+  content = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Action = "s3:DeleteBucket", Resource = "*" }]
+  })
+}
+resource "aws_lambda_permission" "p" {
+  statement_id  = "a"
+  action        = "lambda:InvokeFunction"
+  function_name = "f"
+  principal     = "*"
+}

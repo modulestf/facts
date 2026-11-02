@@ -1,0 +1,17 @@
+kind: must-not-be-light
+-- base/README.md --
+a
+-- base/main.tf --
+resource "aws_ssm_parameter" "this" {
+  name  = "readme"
+  type  = "String"
+  value = file("README.md")
+}
+-- head/README.md --
+b
+-- head/main.tf --
+resource "aws_ssm_parameter" "this" {
+  name  = "readme"
+  type  = "String"
+  value = file("README.md")
+}

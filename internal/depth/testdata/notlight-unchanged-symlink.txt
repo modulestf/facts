@@ -1,0 +1,21 @@
+kind: must-not-be-light
+-- base/docs/real.md --
+a
+-- base/kube.md [link] --
+docs/real.md
+-- base/main.tf --
+resource "aws_ssm_parameter" "this" {
+  name  = "kube"
+  type  = "String"
+  value = file("${path.module}/kube.md")
+}
+-- head/docs/real.md --
+b
+-- head/kube.md [link] --
+docs/real.md
+-- head/main.tf --
+resource "aws_ssm_parameter" "this" {
+  name  = "kube"
+  type  = "String"
+  value = file("${path.module}/kube.md")
+}

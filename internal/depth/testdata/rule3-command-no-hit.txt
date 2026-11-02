@@ -1,0 +1,24 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "null_resource" "this" {
+  provisioner "local-exec" {
+    command = "echo ${path.module}"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+-- head/main.tf --
+resource "null_resource" "this" {
+  provisioner "local-exec" {
+    command = "echo ${path.module}"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}

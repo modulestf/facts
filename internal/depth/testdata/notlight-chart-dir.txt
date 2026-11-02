@@ -1,0 +1,15 @@
+kind: must-not-be-light
+-- base/charts/app/README.md --
+a
+-- base/main.tf --
+resource "helm_release" "this" {
+  name  = "app"
+  chart = "${path.module}/charts/app"
+}
+-- head/charts/app/README.md --
+b
+-- head/main.tf --
+resource "helm_release" "this" {
+  name  = "app"
+  chart = "${path.module}/charts/app"
+}

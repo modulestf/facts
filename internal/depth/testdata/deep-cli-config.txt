@@ -1,0 +1,23 @@
+kind: must-be-deep
+depth: deep
+reason: deep-cli-config
+-- base/.terraformrc --
+plugin_cache_dir = "/tmp/a"
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/.terraformrc --
+plugin_cache_dir = "/tmp/b"
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

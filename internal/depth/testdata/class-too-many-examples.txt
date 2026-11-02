@@ -1,0 +1,151 @@
+kind: other
+depth: deep
+reason: deep-too-many-examples
+-- base/examples/e00/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e01/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e02/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e03/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e04/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e05/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e06/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e07/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e08/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e09/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e10/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e11/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/examples/e12/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 60
+}
+
+variable "name" {
+  type = string
+}
+-- head/examples/e00/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e01/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e02/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e03/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e04/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e05/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e06/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e07/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e08/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e09/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e10/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e11/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/examples/e12/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 120
+}
+
+variable "name" {
+  type = string
+}

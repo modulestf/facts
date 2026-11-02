@@ -1,0 +1,25 @@
+kind: must-be-deep
+depth: deep
+reason: deep-ci-config
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- base/tools/check/action.yml --
+runs:
+  using: node20
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/tools/check/action.yml --
+runs:
+  using: node22

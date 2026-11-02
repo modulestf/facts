@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -303,5 +304,27 @@ func TestReadFileRefusesLinksAndFifos(t *testing.T) {
 		if want != KindFile && (e.Data != nil || e.SHA256 != "") {
 			t.Errorf("%s: target was read", p)
 		}
+	}
+}
+
+// TestReadTreeSkipsGitFile: a linked worktree's .git file, like a .git
+// directory, is not part of the tree; git never tracks a .git path.
+func TestReadTreeSkipsGitFile(t *testing.T) {
+	dir := t.TempDir()
+	for name, data := range map[string]string{".git": "gitdir: /x\n", "sub/.git": "gitdir: /y\n", "main.tf": ""} {
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tr, err := ReadTree(dir, DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(tr.Paths, []string{"main.tf"}) {
+		t.Errorf("paths %v", tr.Paths)
 	}
 }

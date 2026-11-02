@@ -1,0 +1,21 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/docs/policy.json --
+{"Statement": []}
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name   = "q"
+  policy = file("${path.module}/docs/policy.json")
+}
+-- head/docs/policy.json --
+{"Statement": [{"Effect": "Allow"}]}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name   = "q"
+  policy = file("${path.module}/docs/policy.json")
+}
+-- head/outputs.tf --
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}

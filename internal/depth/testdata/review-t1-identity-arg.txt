@@ -1,0 +1,51 @@
+kind: other
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+resource "aws_s3_bucket" "this" {
+  bucket = "my-bucket-a"
+}
+data "aws_iam_policy_document" "p" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.this.arn}/*"]
+  }
+}
+resource "aws_s3_bucket_policy" "p" {
+  bucket = aws_s3_bucket.this.id
+  policy = data.aws_iam_policy_document.p.json
+}
+output "arn" {
+  value = aws_s3_bucket.this.arn
+}
+-- base/examples/complete/main.tf --
+module "b" {
+  source = "../../"
+}
+resource "aws_sns_topic" "t" {
+  count = length(module.b.arn) > 0 ? 1 : 0
+}
+-- head/main.tf --
+resource "aws_s3_bucket" "this" {
+  bucket = "attacker-bucket"
+}
+data "aws_iam_policy_document" "p" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.this.arn}/*"]
+  }
+}
+resource "aws_s3_bucket_policy" "p" {
+  bucket = aws_s3_bucket.this.id
+  policy = data.aws_iam_policy_document.p.json
+}
+output "arn" {
+  value = aws_s3_bucket.this.arn
+}
+-- head/examples/complete/main.tf --
+module "b" {
+  source = "../../"
+}
+resource "aws_sns_topic" "t" {
+  count = length(module.b.arn) > 0 ? 1 : 0
+}

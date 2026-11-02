@@ -1,0 +1,39 @@
+kind: must-not-be-light
+-- base/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- base/examples/complete/terraform.tfvars.json --
+{"name": "a"}
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/examples/complete/terraform.tfvars.json --
+{"name": "b"}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

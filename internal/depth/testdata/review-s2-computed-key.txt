@@ -1,0 +1,29 @@
+kind: other
+depth-not: light
+reason: deep-unresolved-file-dependency
+-- base/README.md --
+root
+-- base/main.tf --
+locals {
+  k = "p"
+  m = { (local.k) = "${path.module}/README.md" }
+  n = merge({ q = "unused" }, local.m)
+}
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key    = "k"
+  source = local.n.p
+}
+-- head/README.md --
+CHANGED
+-- head/main.tf --
+locals {
+  k = "p"
+  m = { (local.k) = "${path.module}/README.md" }
+  n = merge({ q = "unused" }, local.m)
+}
+resource "aws_s3_object" "o" {
+  bucket = "b"
+  key    = "k"
+  source = local.n.p
+}

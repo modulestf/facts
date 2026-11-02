@@ -1,0 +1,31 @@
+kind: must-be-deep
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+module "child" {
+  source = "./modules/child"
+  names  = ["a"]
+}
+-- base/modules/child/main.tf --
+resource "aws_sqs_queue" "this" {
+  for_each = toset(var.names)
+  name     = each.value
+}
+
+variable "names" {
+  type = list(string)
+}
+-- head/main.tf --
+module "child" {
+  source = "./modules/child"
+  names  = ["a", "b"]
+}
+-- head/modules/child/main.tf --
+resource "aws_sqs_queue" "this" {
+  for_each = toset(var.names)
+  name     = each.value
+}
+
+variable "names" {
+  type = list(string)
+}

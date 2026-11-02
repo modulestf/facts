@@ -1,0 +1,25 @@
+kind: other
+depth: deep
+reason: deep-unresolved-consumer
+-- base/main.tf --
+locals {
+  n = 1
+}
+
+check "positive" {
+  assert {
+    condition     = local.n > 0
+    error_message = "n"
+  }
+}
+-- head/main.tf --
+locals {
+  n = 2
+}
+
+check "positive" {
+  assert {
+    condition     = local.n > 0
+    error_message = "n"
+  }
+}

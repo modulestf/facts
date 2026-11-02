@@ -1,0 +1,29 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+module "child" {
+  source = "./modules/child"
+}
+
+resource "aws_sqs_queue" "this" {
+  name   = "q"
+  policy = jsonencode({ Statement = [{ Action = module.child.actions }] })
+}
+-- base/modules/child/main.tf --
+output "actions" {
+  value = ["sqs:SendMessage"]
+}
+-- head/main.tf --
+module "child" {
+  source = "./modules/child"
+}
+
+resource "aws_sqs_queue" "this" {
+  name   = "q"
+  policy = jsonencode({ Statement = [{ Action = module.child.actions }] })
+}
+-- head/modules/child/main.tf --
+output "actions" {
+  value = ["sqs:SendMessage", "sqs:ReceiveMessage"]
+}

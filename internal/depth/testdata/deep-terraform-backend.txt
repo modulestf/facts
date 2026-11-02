@@ -1,0 +1,31 @@
+kind: must-be-deep
+depth: deep
+reason: deep-terraform-block
+-- base/main.tf --
+terraform {
+  backend "s3" {
+    bucket = "state-a"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/main.tf --
+terraform {
+  backend "s3" {
+    bucket = "state-b"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

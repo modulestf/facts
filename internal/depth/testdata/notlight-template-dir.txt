@@ -1,0 +1,15 @@
+kind: must-not-be-light
+-- base/main.tf --
+resource "template_dir" "this" {
+  source_dir      = "${path.module}/templates"
+  destination_dir = "out"
+}
+-- base/templates/README.md --
+a
+-- head/main.tf --
+resource "template_dir" "this" {
+  source_dir      = "${path.module}/templates"
+  destination_dir = "out"
+}
+-- head/templates/README.md --
+b
