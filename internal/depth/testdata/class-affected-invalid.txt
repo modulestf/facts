@@ -1,0 +1,9 @@
+kind: other
+depth: deep
+reason: deep-affected-invalid
+-- base/README.md --
+# x
+-- head/README.md --
+# y
+-- affected.json --
+{}

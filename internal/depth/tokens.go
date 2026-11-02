@@ -43,7 +43,10 @@ const (
 	ReasonLimits                      = "deep-limits"
 	ReasonClassifierCategory          = "deep-classifier-category"
 	ReasonClassifierUnavailable       = "deep-classifier-unavailable"
+	ReasonClassifierInvalid           = "deep-classifier-invalid"
+	ReasonClassifierMismatch          = "deep-classifier-mismatch"
 	ReasonAffectedFallback            = "deep-affected-fallback"
+	ReasonAffectedInvalid             = "deep-affected-invalid"
 	ReasonParseFailure                = "deep-parse-failure"
 	ReasonUnwalked                    = "deep-unwalked"
 	ReasonUnresolvedConsumer          = "deep-unresolved-consumer"
@@ -81,7 +84,10 @@ var Reasons = []string{
 	ReasonLimits,
 	ReasonClassifierCategory,
 	ReasonClassifierUnavailable,
+	ReasonClassifierInvalid,
+	ReasonClassifierMismatch,
 	ReasonAffectedFallback,
+	ReasonAffectedInvalid,
 	ReasonParseFailure,
 	ReasonUnwalked,
 	ReasonUnresolvedConsumer,

@@ -186,6 +186,9 @@ func (w *treeReader) walk(dir string) error {
 			}
 			continue
 		}
+		if d.Name() == ".git" {
+			continue // a linked worktree's or submodule's .git file: git never tracks a .git path
+		}
 		if err := w.addEntry(p, d.Type()); err != nil {
 			return err
 		}

@@ -125,6 +125,9 @@ func (fx *fixture) writeTrees(t *testing.T, dir string) []map[string]any {
 		}
 	}
 	for _, p := range slices.Sorted(maps.Keys(names)) {
+		if slices.Contains(strings.Split(p, "/"), ".git") {
+			continue // git never lists a .git path
+		}
 		b, inB := trees["base"][p]
 		h, inH := trees["head"][p]
 		if inB && inH && b == h {

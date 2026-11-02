@@ -1,0 +1,9 @@
+kind: other
+depth: deep
+reason: deep-classifier-mismatch
+-- base/README.md --
+# x
+-- head/README.md --
+# y
+-- classify.json --
+{"schema_version": 1, "inert": true, "entries": [{"path": "other.md", "change_kind": "modified", "inert": true, "trigger_ids": []}], "triggers": [], "capped": 0}

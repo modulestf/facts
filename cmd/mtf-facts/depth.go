@@ -80,6 +80,9 @@ func depthRun(cmd *cobra.Command, o depth.Options, timeout time.Duration) int {
 		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", err)
 		return exitError
 	}
+	for _, n := range res.rep.Notes() {
+		fmt.Fprintf(cmd.ErrOrStderr(), "mtf-facts: depth: %s\n", n)
+	}
 	if _, err := cmd.OutOrStdout().Write(append(out, '\n')); err != nil {
 		return exitError
 	}

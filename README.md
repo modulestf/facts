@@ -336,8 +336,11 @@ Reasons are fixed tokens, written in this order. A host that raises a report to 
 | `deep-wrappers` | a file under a `wrappers` directory changed, or a changed value reaches an argument there other than a pass-through output |
 | `deep-limits` | over a focused limit, or a files list entry with no line counts |
 | `deep-classifier-category` | a classifier trigger outside the allow-list, or capped triggers |
-| `deep-classifier-unavailable` | no classifier report, an invalid one, or one of another change |
-| `deep-affected-fallback` | no affected report, an invalid one, or one with a fallback |
+| `deep-classifier-unavailable` | no classifier report |
+| `deep-classifier-invalid` | a classifier report that does not decode as `behaviour --json` (an unknown key, a wrapper object, another `schema_version`) |
+| `deep-classifier-mismatch` | a classifier report with no entry for a changed path: of another change, or with paths relative to another directory than the head tree's root |
+| `deep-affected-fallback` | no affected report, or one with a fallback |
+| `deep-affected-invalid` | an affected report that does not decode as `affected --json` (such as `{}`) or lists an unknown reason |
 | `deep-parse-failure` | a Terraform-read file does not parse |
 | `deep-unwalked` | a file, block or expression the parser cannot walk, or a limit of the walk |
 | `deep-unresolved-consumer` | a consumer the parser does not model |
@@ -351,6 +354,8 @@ Reasons are fixed tokens, written in this order. A host that raises a report to 
 | `deep-owner-raise` | host only: the owner asked for `depth: deep` |
 | `deep-validate-failed` | host only: validate failed at light |
 <!-- /depth-reasons -->
+
+Paths of the files list, the classifier report and the affected report are relative to the head tree's root, the trees `--head` and `--base` name. A `.git` file or directory (a linked worktree's, a submodule's) is not part of either tree. For each reason a bad input gave, a line `mtf-facts: depth: <why>` goes to stderr, such as the paths a files list mismatch is about.
 
 It exits 0 with the report, a tree over a read limit and the timeout included (deep, `deep-unwalked`), or 2 on a missing tree, a files list that does not read or has a line count over 10,000,000, or an unsafe `--examples` entry, with nothing on stdout.
 

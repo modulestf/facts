@@ -36,6 +36,8 @@ type Options struct {
 
 // Report is the output of mtf-facts depth.
 type Report struct {
+	notes []string // why some reasons were given; written to stderr, never in the report
+
 	Format             int      `json:"format"`
 	Depth              string   `json:"depth"`
 	Reasons            []string `json:"reasons"`
@@ -49,6 +51,9 @@ type Report struct {
 	SchemaTypes        []string `json:"schema_types"`
 	SchemaLocks        []string `json:"schema_locks"`
 }
+
+// Notes returns why some reasons were given, one line each, for a log.
+func (rep *Report) Notes() []string { return rep.notes }
 
 // Walk is the parser's coverage of both trees.
 type Walk struct {
@@ -131,6 +136,12 @@ func Unwalked() *Report {
 type run struct {
 	o       Options
 	reasons map[string]bool
+	notes   []string
+}
+
+// note records why a reason was given, for the host's log.
+func (r *run) note(format string, args ...any) {
+	r.notes = append(r.notes, fmt.Sprintf(format, args...))
 }
 
 func (r *run) add(reason string) { r.reasons[reason] = true }
@@ -298,7 +309,7 @@ func (r *run) evaluate(head, base *facts.Tree, list []fileEntry) (*Report, error
 func (r *run) report(depth string, sel, out, touched []string, walk Walk, counts Counts) *Report {
 	reasons := slices.Collect(maps.Keys(r.reasons))
 	slices.SortFunc(reasons, func(a, b string) int { return reasonRank(a) - reasonRank(b) })
-	return &Report{Format: Format, Depth: depth, Reasons: reasons, ChecksOutOfScope: []string{},
+	return &Report{notes: r.notes, Format: Format, Depth: depth, Reasons: reasons, ChecksOutOfScope: []string{},
 		ExamplesSelected: sortedUnique(slices.Clone(sel)), ExamplesOutOfScope: sortedUnique(slices.Clone(out)),
 		TouchedTypes: sortedUnique(slices.Clone(touched)), Walk: walk, Limits: counts,
 		SchemaProviders: []string{}, SchemaTypes: []string{}, SchemaLocks: []string{}}
@@ -330,6 +341,19 @@ func (r *run) changes(head, base *facts.Tree, list []fileEntry) []string {
 	}
 	if !maps.Equal(tree, named) {
 		r.add(ReasonFilesListMismatch)
+		n := 0
+		for _, p := range slices.Sorted(maps.Keys(tree)) {
+			if !named[p] && n < 5 {
+				r.note("changed in the trees, not in the files list: %q", p)
+				n++
+			}
+		}
+		for _, p := range slices.Sorted(maps.Keys(named)) {
+			if !tree[p] && n < 5 {
+				r.note("in the files list, unchanged in the trees: %q", p)
+				n++
+			}
+		}
 	}
 	maps.Copy(tree, named)
 	return slices.Sorted(maps.Keys(tree))
@@ -365,6 +389,7 @@ func (r *run) paths(head, base *facts.Tree, changed []string, list []fileEntry) 
 	for _, f := range list {
 		if f.Status == "" {
 			r.add(ReasonFilesListMismatch)
+			r.note("files list entry %q has no status", f.Filename)
 		}
 	}
 	// Case-folded collisions among every path and directory of both trees.
@@ -420,8 +445,19 @@ func (r *run) structural(an *analysis, hm, bm *model, changed []string, counts *
 // invalid, or not of this change.
 func (r *run) classifier(changed []string) (*behaviour.Report, bool) {
 	var rep behaviour.Report
-	if r.o.Classify == "" || readJSON(r.o.Classify, &rep, true) != nil || rep.SchemaVersion != behaviour.SchemaVersion || rep.Capped < 0 {
+	if r.o.Classify == "" {
 		r.add(ReasonClassifierUnavailable)
+		r.note("no classifier report (--classify)")
+		return &rep, false
+	}
+	if err := readJSON(r.o.Classify, &rep, true); err != nil {
+		r.add(ReasonClassifierInvalid)
+		r.note("classifier report: %v", err)
+		return &rep, false
+	}
+	if rep.SchemaVersion != behaviour.SchemaVersion || rep.Capped < 0 {
+		r.add(ReasonClassifierInvalid)
+		r.note("classifier report: schema_version %d, capped %d", rep.SchemaVersion, rep.Capped)
 		return &rep, false
 	}
 	listed := map[string]bool{}
@@ -433,7 +469,8 @@ func (r *run) classifier(changed []string) (*behaviour.Report, bool) {
 	}
 	for _, p := range changed {
 		if !listed[p] {
-			r.add(ReasonClassifierUnavailable)
+			r.add(ReasonClassifierMismatch)
+			r.note("classifier report has no entry for changed path %q", p)
 			return &rep, false
 		}
 	}
@@ -444,16 +481,32 @@ func (r *run) classifier(changed []string) (*behaviour.Report, bool) {
 // fell back.
 func (r *run) affected() *facts.AffectedReport {
 	var rep facts.AffectedReport
-	if r.o.Affected == "" || readJSON(r.o.Affected, &rep, true) != nil ||
-		rep.SchemaVersion != facts.AffectedSchemaVersion || rep.Fallback != nil {
+	if r.o.Affected == "" {
 		r.add(ReasonAffectedFallback)
+		r.note("no affected report (--affected)")
+		return nil
+	}
+	if err := readJSON(r.o.Affected, &rep, true); err != nil {
+		r.add(ReasonAffectedInvalid)
+		r.note("affected report: %v", err)
+		return nil
+	}
+	if rep.SchemaVersion != facts.AffectedSchemaVersion {
+		r.add(ReasonAffectedInvalid)
+		r.note("affected report: schema_version %d", rep.SchemaVersion)
+		return nil
+	}
+	if rep.Fallback != nil {
+		r.add(ReasonAffectedFallback)
+		r.note("affected report fell back: %s", *rep.Fallback)
 		return nil
 	}
 	for _, e := range rep.Examples {
 		switch e.Reason {
 		case facts.ReasonTouched, facts.ReasonCaller, facts.ReasonAll:
 		default:
-			r.add(ReasonAffectedFallback)
+			r.add(ReasonAffectedInvalid)
+			r.note("affected report: example %q has reason %q", e.Dir, e.Reason)
 			return nil
 		}
 		if !safePath(e.Dir) {
