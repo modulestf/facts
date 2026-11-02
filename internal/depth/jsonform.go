@@ -318,7 +318,7 @@ func jsonConfig(mod *module, file string, src []byte, lim facts.Limits) string {
 			}
 			mod.items = append(mod.items, it)
 			if kind == kTerraform {
-				mod.requiredJSON(w, b)
+				mod.requiredJSON(b)
 			}
 		}
 	}
@@ -380,7 +380,7 @@ func jsonConfig(mod *module, file string, src []byte, lim facts.Limits) string {
 
 // requiredJSON records the required_providers entries of a JSON terraform
 // block.
-func (mod *module) requiredJSON(w *jsonWalker, body *jnode) {
+func (mod *module) requiredJSON(body *jnode) {
 	keys, vals, _ := body.pairs()
 	for i, k := range keys {
 		if k != "required_providers" {

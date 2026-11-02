@@ -159,9 +159,9 @@ func lineDiff(a, b []string) (add, del int) {
 	for i := range dp {
 		dp[i] = make([]int, len(b)+1)
 	}
-	for i := len(a) - 1; i >= 0; i-- {
-		for j := len(b) - 1; j >= 0; j-- {
-			if a[i] == b[j] {
+	for i, x := range slices.Backward(a) {
+		for j, y := range slices.Backward(b) {
+			if x == y {
 				dp[i][j] = dp[i+1][j+1] + 1
 			} else {
 				dp[i][j] = max(dp[i+1][j], dp[i][j+1])
@@ -312,7 +312,7 @@ func (fx *fixture) update(t *testing.T, want string) {
 	if k >= 0 {
 		rest = s[j+k+1:]
 	}
-	if err := os.WriteFile(fx.file, []byte(s[:j]+want+rest), 0o644); err != nil {
+	if err := os.WriteFile(fx.file, []byte(s[:j]+want+rest), 0o644); err != nil { //nolint:gosec // G703: fx.file is a fixture of this package's testdata
 		t.Fatal(err)
 	}
 }

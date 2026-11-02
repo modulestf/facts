@@ -194,11 +194,11 @@ func calleeOf(head *model, links *linker, it *item) (dir string, local, ok bool)
 	if !strings.HasPrefix(src, "./") && !strings.HasPrefix(src, "../") {
 		return "", false, true
 	}
-	real, out, ok := links.join(it.dir, src)
-	if out || !ok || head.mods[real] == nil {
+	dst, out, ok := links.join(it.dir, src)
+	if out || !ok || head.mods[dst] == nil {
 		return "", true, false
 	}
-	return real, true, true
+	return dst, true, true
 }
 
 func (an *analysis) add(r string) { an.reasons[r] = true }

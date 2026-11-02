@@ -186,9 +186,9 @@ type binding struct {
 
 // with returns c with one more iteration variable bound.
 func (c ctx) with(name string, b binding) ctx {
-	iter := map[string]binding{}
-	for k, v := range c.iter {
-		iter[k] = v
+	iter := maps.Clone(c.iter)
+	if iter == nil {
+		iter = map[string]binding{}
 	}
 	iter[name] = b
 	c.iter = iter
@@ -263,7 +263,7 @@ func (s *scanner) sink(e hclsyntax.Expression, c ctx, l loc) {
 		return
 	}
 	for _, p := range ps {
-		s.resolveTo(p, c, l)
+		s.resolveTo(p, l)
 	}
 }
 
@@ -308,8 +308,8 @@ func (s *scanner) call(x *hclsyntax.FunctionCallExpr, c ctx, l loc) {
 			s.unresolved = append(s.unresolved, l)
 			continue
 		}
-		s.resolveTo(p, c, l)
-		for _, f := range s.places(p, c) {
+		s.resolveTo(p, l)
+		for _, f := range s.places(p) {
 			if name == "templatefile" && !f.outside && !f.bad {
 				s.template(f.real, c, l)
 			}
@@ -494,6 +494,7 @@ func (s *scanner) valueAt(v hclsyntax.Expression, path []string, c ctx) []patter
 	if len(path) == 0 {
 		return s.eval(v, c)
 	}
+	key, rest := path[0], path[1:]
 	switch x := v.(type) {
 	case *hclsyntax.ObjectConsExpr:
 		for _, kv := range x.Items {
@@ -502,8 +503,8 @@ func (s *scanner) valueAt(v hclsyntax.Expression, path []string, c ctx) []patter
 			}
 		}
 		for _, kv := range x.Items {
-			if keyName(kv.KeyExpr) == path[0] {
-				return s.valueAt(kv.ValueExpr, path[1:], c)
+			if keyName(kv.KeyExpr) == key {
+				return s.valueAt(kv.ValueExpr, rest, c)
 			}
 		}
 		return nil // the object has no such attribute
@@ -913,32 +914,33 @@ type place struct {
 
 // places resolves an exact pattern against the module directory, or each
 // root for path.root and a relative path.
-func (s *scanner) places(p pattern, c ctx) []place {
+func (s *scanner) places(p pattern) []place {
 	bases := s.roots
-	lit := ""
+	var sb strings.Builder
 	for _, x := range p {
 		switch x.kind {
 		case pMod:
 			bases = []string{x.s}
 		case pLit:
-			lit += x.s
+			sb.WriteString(x.s)
 		}
 	}
+	lit := sb.String()
 	if len(p) > 0 && p[0].kind == pLit && (strings.HasPrefix(lit, "/") || strings.HasPrefix(lit, "~")) {
 		return []place{{outside: true}}
 	}
 	var out []place
 	for _, b := range bases {
-		real, outs, ok := s.links.join(b, lit)
+		dst, outs, ok := s.links.join(b, lit)
 		switch {
 		case !ok:
 			out = append(out, place{bad: true})
 		case outs:
 			out = append(out, place{outside: true})
 		default:
-			out = append(out, place{real: real})
+			out = append(out, place{real: dst})
 		}
-		if cand := path.Clean(path.Join(b, lit)); !outside(cand) && cand != real {
+		if cand := path.Clean(path.Join(b, lit)); !outside(cand) && cand != dst {
 			out = append(out, place{real: cand}) // the lexical reading too: either may be a changed path
 		}
 	}
@@ -947,7 +949,7 @@ func (s *scanner) places(p pattern, c ctx) []place {
 
 // resolveTo records whether one pattern of a sink value is a dependency
 // on a changed path, or does not resolve.
-func (s *scanner) resolveTo(p pattern, c ctx, l loc) {
+func (s *scanner) resolveTo(p pattern, l loc) {
 	if p.onlySrc() {
 		return // a resource or data attribute: no path
 	}
@@ -958,7 +960,7 @@ func (s *scanner) resolveTo(p pattern, c ctx, l loc) {
 	if len(p) == 0 || len(p) == 1 && p[0].kind == pLit && p[0].s == "" {
 		return // the empty string names no file
 	}
-	for _, f := range s.places(p, c) {
+	for _, f := range s.places(p) {
 		switch {
 		case f.bad:
 			s.unresolved = append(s.unresolved, l)
