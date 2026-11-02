@@ -55,7 +55,7 @@ type loc struct {
 // sinkRe matches the name of an argument whose string a provider or
 // Terraform may read as a path: a file sink. README.md lists the same
 // names.
-var sinkRe = regexp.MustCompile(`^(path|paths|file|files|filename|dir|directory|source|source_dir|source_file|chart|config|config_path|config_paths|template|template_dir|program|script|scripts|content_dir|output_path)$`)
+var sinkRe = regexp.MustCompile(`^(path|paths|file|files|filename|dir|directory|source|source_dir|source_file|chart|config|config_path|config_paths|template|template_dir|program|script|scripts|content_dir|output_path)$|^[a-z0-9_]+_(path|paths|file|files|filename|dir|dirs|directory|template|script|scripts)$`)
 
 // provisionerSinks are the provisioner arguments that read files: the file
 // provisioner's source, remote-exec's script and scripts, local-exec's
@@ -375,8 +375,19 @@ func (s *scanner) eval(e hclsyntax.Expression, c ctx) []pattern {
 		return union(s.eval(x.TrueResult, c), s.eval(x.FalseResult, c))
 	case *hclsyntax.FunctionCallExpr:
 		return s.evalCall(x, c)
-	case *hclsyntax.IndexExpr, *hclsyntax.RelativeTraversalExpr, *hclsyntax.SplatExpr, *hclsyntax.AnonSymbolExpr:
-		return anyString // an element picked at plan time
+	case *hclsyntax.IndexExpr:
+		return s.eval(x.Collection, c) // one of its elements
+	case *hclsyntax.RelativeTraversalExpr:
+		return s.valueAt(x.Source, attrNames(x.Traversal), c)
+	case *hclsyntax.SplatExpr:
+		if rt, ok := x.Each.(*hclsyntax.RelativeTraversalExpr); ok {
+			if _, anon := rt.Source.(*hclsyntax.AnonSymbolExpr); anon {
+				return s.elementsAt(x.Source, attrNames(rt.Traversal), c)
+			}
+		}
+		return anyString
+	case *hclsyntax.AnonSymbolExpr:
+		return anyString
 	case *hclsyntax.TupleConsExpr:
 		out := fromSrc
 		for _, el := range x.Exprs {
@@ -456,6 +467,8 @@ func (s *scanner) elementsAt(e hclsyntax.Expression, path []string, c ctx) []pat
 		return orPass(out)
 	case *hclsyntax.ForExpr:
 		return s.valueAt(x.ValExpr, path, s.forScope(x, c))
+	case *hclsyntax.IndexExpr:
+		return s.elementsAt(x.Collection, path, c) // an element's elements: valueAt opens nested collections
 	case *hclsyntax.ParenthesesExpr:
 		return s.elementsAt(x.Expression, path, c)
 	case *hclsyntax.ConditionalExpr:
@@ -496,6 +509,10 @@ func (s *scanner) valueAt(v hclsyntax.Expression, path []string, c ctx) []patter
 		return nil // the object has no such attribute
 	case *hclsyntax.ForExpr, *hclsyntax.TupleConsExpr:
 		return s.elementsAt(x, path, c) // a collection: an index, or flatten, opens it
+	case *hclsyntax.IndexExpr:
+		return s.elementsAt(x.Collection, path, c)
+	case *hclsyntax.RelativeTraversalExpr:
+		return s.valueAt(x.Source, append(attrNames(x.Traversal), path...), c)
 	case *hclsyntax.ParenthesesExpr:
 		return s.valueAt(x.Expression, path, c)
 	case *hclsyntax.ConditionalExpr:
@@ -770,10 +787,25 @@ func (s *scanner) evalCall(x *hclsyntax.FunctionCallExpr, c ctx) []pattern {
 	}
 	args := x.Args
 	switch {
+	case funcClass[name] == fnData:
+		return fromSrc // an encoding, hash, number, boolean or time: not a path
+	case (name == "chomp" || name == "trimspace") && len(args) == 1:
+		var out []pattern
+		for _, p := range s.eval(args[0], c) {
+			out = append(out, p.trimmed(name == "trimspace"))
+		}
+		return out
 	case name == "try" || name == "coalesce" || passOn[name]:
 	case name == "lookup":
 		if len(args) < 2 {
 			return anyString
+		}
+		if key, ok := litString(args[1]); ok {
+			out := s.valueAt(args[0], []string{key}, c) // the map's value at a literal key
+			for _, d := range args[2:] {
+				out = union(out, s.eval(d, c))
+			}
+			return orPass(out)
 		}
 		args = append([]hclsyntax.Expression{args[0]}, args[2:]...)
 	default:
@@ -797,6 +829,24 @@ func (s *scanner) spent() bool {
 		s.over = true
 	}
 	return s.over
+}
+
+// trimmed applies chomp, or trimspace when space is set, to a pattern:
+// the trailing newlines, or the leading and trailing white space, of its
+// literal ends. A wildcard end keeps its pattern unchanged.
+func (p pattern) trimmed(space bool) pattern {
+	p = append(pattern{}, p...)
+	if n := len(p); n > 0 && p[n-1].kind == pLit {
+		if space {
+			p[n-1].s = strings.TrimRight(p[n-1].s, " \t\n\r\v\f")
+		} else {
+			p[n-1].s = strings.TrimRight(p[n-1].s, "\r\n")
+		}
+	}
+	if space && len(p) > 0 && p[0].kind == pLit {
+		p[0].s = strings.TrimLeft(p[0].s, " \t\n\r\v\f")
+	}
+	return p.norm()
 }
 
 // norm merges adjacent literals and wildcards and drops empty literals.
@@ -905,7 +955,7 @@ func (s *scanner) resolveTo(p pattern, c ctx, l loc) {
 		s.unresolved = append(s.unresolved, l)
 		return
 	}
-	if len(p) == 1 && p[0].kind == pLit && p[0].s == "" {
+	if len(p) == 0 || len(p) == 1 && p[0].kind == pLit && p[0].s == "" {
 		return // the empty string names no file
 	}
 	for _, f := range s.places(p, c) {

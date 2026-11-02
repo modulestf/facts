@@ -1,0 +1,70 @@
+kind: other
+depth: focused
+-- base/examples/complete/main.tf --
+module "this" {
+  source  = "../.."
+  rules   = { a = {} }
+  targets = { a = [{ input_path = "$.detail" }] }
+}
+-- base/main.tf --
+locals {
+  targets = flatten([
+    for index, rule in var.rules : [
+      for target in var.targets[index] : merge(target, { rule = index, Name = "${replace(index, "_", "-")}-rule" })
+    ]
+  ])
+}
+
+resource "aws_cloudwatch_event_target" "this" {
+  for_each   = { for v in local.targets : v.rule => v }
+  rule       = each.value.rule
+  arn        = "arn"
+  input_path = lookup(each.value, "input_path", null)
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+variable "rules" {
+  type = any
+}
+
+variable "targets" {
+  type = any
+}
+-- head/examples/complete/main.tf --
+module "this" {
+  source  = "../.."
+  rules   = { a = {} }
+  targets = { a = [{ input_path = "$.detail" }] }
+}
+-- head/main.tf --
+locals {
+  targets = flatten([
+    for index, rule in var.rules : [
+      for target in var.targets[index] : merge(target, { rule = index, Name = "${replace(index, "_", "-")}-rule" })
+    ]
+  ])
+}
+
+resource "aws_cloudwatch_event_target" "this" {
+  for_each   = { for v in local.targets : v.rule => v }
+  rule       = each.value.rule
+  arn        = "arn"
+  input_path = lookup(each.value, "input_path", null)
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+variable "rules" {
+  type = any
+}
+
+variable "targets" {
+  type = any
+}

