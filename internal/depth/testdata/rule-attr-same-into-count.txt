@@ -1,0 +1,23 @@
+kind: other
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+resource "aws_sns_topic" "this" {
+  count = aws_sqs_queue.this.message_retention_seconds > 60 ? 1 : 0
+  name  = "t"
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+resource "aws_sns_topic" "this" {
+  count = aws_sqs_queue.this.message_retention_seconds > 60 ? 1 : 0
+  name  = "t"
+}

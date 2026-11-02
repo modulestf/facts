@@ -1,0 +1,23 @@
+kind: must-be-deep
+depth: deep
+reason: deep-path-unsafe
+-- base/docs/Guide.md --
+guide
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/docs/guide.md --
+guide
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

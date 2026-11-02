@@ -1,0 +1,71 @@
+kind: must-be-deep
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+module "net" {
+  source = "./modules/net"
+  vpc_id = var.vpc_id
+}
+
+resource "aws_route_table_association" "this" {
+  for_each       = toset(module.net.ids)
+  subnet_id      = each.value
+  route_table_id = var.route_table_id
+}
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "route_table_id" {
+  type = string
+}
+-- base/modules/net/main.tf --
+data "aws_subnets" "this" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+}
+
+output "ids" {
+  value = data.aws_subnets.this.ids
+}
+
+variable "vpc_id" {
+  type = string
+}
+-- head/main.tf --
+module "net" {
+  source = "./modules/net"
+  vpc_id = var.vpc_id
+}
+
+resource "aws_route_table_association" "this" {
+  for_each       = toset(module.net.ids)
+  subnet_id      = each.value
+  route_table_id = var.route_table_id
+}
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "route_table_id" {
+  type = string
+}
+-- head/modules/net/main.tf --
+data "aws_subnets" "this" {
+  filter {
+    name   = "tag:Vpc"
+    values = [var.vpc_id]
+  }
+}
+
+output "ids" {
+  value = data.aws_subnets.this.ids
+}
+
+variable "vpc_id" {
+  type = string
+}

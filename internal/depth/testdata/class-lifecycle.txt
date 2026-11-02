@@ -1,0 +1,19 @@
+kind: other
+depth: deep
+reason: deep-lifecycle-moved-removed-import
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+
+  lifecycle {
+    ignore_changes = [tags, name]
+  }
+}

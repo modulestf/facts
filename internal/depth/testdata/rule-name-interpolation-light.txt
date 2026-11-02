@@ -1,0 +1,43 @@
+kind: other
+depth: light
+reason: light-docs-only
+-- base/README.md --
+# Q
+-- base/examples/complete/main.tf --
+locals {
+  name = "ex-${basename(path.cwd)}"
+}
+
+module "this" {
+  source = "../.."
+  name   = local.name
+}
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "${var.name}-queue"
+}
+
+variable "name" {
+  type = string
+}
+-- head/README.md --
+# Q
+
+More.
+-- head/examples/complete/main.tf --
+locals {
+  name = "ex-${basename(path.cwd)}"
+}
+
+module "this" {
+  source = "../.."
+  name   = local.name
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "${var.name}-queue"
+}
+
+variable "name" {
+  type = string
+}

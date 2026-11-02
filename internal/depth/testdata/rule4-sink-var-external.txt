@@ -1,0 +1,24 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = var.package
+  timeout       = 3
+}
+
+variable "package" {
+  type = string
+}
+-- head/main.tf --
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = var.package
+  timeout       = 5
+}
+
+variable "package" {
+  type = string
+}

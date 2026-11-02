@@ -1,0 +1,17 @@
+kind: other
+depth: deep
+reason: deep-files-list-mismatch
+-- base/README.md --
+a
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "a"
+}
+-- head/README.md --
+b
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "b"
+}
+-- files.json --
+[{"filename": "main.tf", "status": "modified", "additions": 1, "deletions": 1}]

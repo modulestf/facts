@@ -1,0 +1,35 @@
+kind: other
+depth: deep
+reason: deep-test-or-mock
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- base/tests/main.tftest.hcl --
+run "plan" {
+  command = plan
+
+  variables {
+    name = "a"
+  }
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/tests/main.tftest.hcl --
+run "plan" {
+  command = plan
+
+  variables {
+    name = "b"
+  }
+}

@@ -1,0 +1,31 @@
+kind: other
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf.json --
+{
+  "locals": {
+    "n": 1
+  },
+  "resource": {
+    "aws_sqs_queue": {
+      "this": {
+        "count": "${local.n}",
+        "name": "q"
+      }
+    }
+  }
+}
+-- head/main.tf.json --
+{
+  "locals": {
+    "n": 2
+  },
+  "resource": {
+    "aws_sqs_queue": {
+      "this": {
+        "count": "${local.n}",
+        "name": "q"
+      }
+    }
+  }
+}

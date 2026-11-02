@@ -1,0 +1,25 @@
+kind: other
+depth: deep
+reason: deep-unresolved-file-dependency
+-- base/main.tf --
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = "${var.dir}/package.zip"
+  timeout       = 3
+}
+
+variable "dir" {
+  type = string
+}
+-- head/main.tf --
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = "${var.dir}/package.zip"
+  timeout       = 5
+}
+
+variable "dir" {
+  type = string
+}

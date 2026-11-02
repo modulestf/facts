@@ -1,0 +1,32 @@
+kind: other
+depth: focused
+-- base/main.tf --
+data "archive_file" "this" {
+  type        = "zip"
+  source_dir  = "${path.module}/src"
+  output_path = "${path.module}/build/package.zip"
+}
+
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = data.archive_file.this.output_path
+  timeout       = 3
+}
+-- base/src/index.py --
+print(1)
+-- head/main.tf --
+data "archive_file" "this" {
+  type        = "zip"
+  source_dir  = "${path.module}/src"
+  output_path = "${path.module}/build/package.zip"
+}
+
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = data.archive_file.this.output_path
+  timeout       = 5
+}
+-- head/src/index.py --
+print(1)

@@ -1,0 +1,23 @@
+kind: other
+depth: deep
+reason: deep-unresolved-consumer
+-- base/main.tf --
+locals {
+  name = "a"
+}
+
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 6.0"
+  name    = local.name
+}
+-- head/main.tf --
+locals {
+  name = "b"
+}
+
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 6.0"
+  name    = local.name
+}

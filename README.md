@@ -280,6 +280,79 @@ mtf-facts affected <dir> [--base <dir> | --diff <file>] [--json] [--timeout <dur
 
 It exits 0 with the list, or 2 on bad input, a limit, an example directory whose name is outside `[A-Za-z0-9._-]`, or the timeout, with nothing on stdout. Without `--json` it prints one `<reason> <dir>` line per example and a summary line.
 
+### depth
+
+`mtf-facts depth` decides how deep a review of a change must go: `light`, `focused` or `deep`. It reads the head tree and the merge base tree, the pull request files list, and the `behaviour --json` and `affected --json` reports of the same change, and never runs Terraform. Every rule fails closed: anything it cannot prove makes the change deep.
+
+```sh
+mtf-facts depth --head <dir> --base <dir> --files <files.json> [--classify <behaviour.json>] [--affected <affected.json>] [--examples <dir,dir>] [--timeout <duration>]
+```
+
+`--files` is GitHub's `pulls/<n>/files` list (`filename`, `status`, `previous_filename`, `additions`, `deletions`). `--examples` names example directories the host knows of besides those of the affected report; each is selected unless proven out of scope. It prints one JSON object:
+
+```json
+{"format": 1, "depth": "focused", "reasons": ["focused-within-limits"],
+ "checks_out_of_scope": [], "examples_selected": ["examples/complete"], "examples_out_of_scope": [],
+ "touched_types": ["aws_rds_cluster"], "walk": {"complete": true, "unwalked": 0},
+ "limits": {"tf_files": 1, "changed_lines": 2, "changed_blocks": 1, "selected_examples": 1},
+ "schema_providers": ["base:.:aws=hashicorp/aws:>=5.0", "head:.:aws=hashicorp/aws:>=5.0"],
+ "schema_types": [".:resource:aws_rds_cluster:hashicorp/aws"], "schema_locks": []}
+```
+
+- The changed paths are every path whose entry differs between the trees and every path the files list names; a list that disagrees with the trees is `deep-files-list-mismatch`. Terraform-read files are `.tf`, `.tf.json`, `.tfvars`, `.tfvars.json`, any `.hcl` (`.tftest.hcl` and `.terraform.lock.hcl` included), `.tftest.json`, `.tfmock.json`, `.terraformrc`, `terraform.rc` and `*.tfrc`, matched case-insensitively. Both trees are parsed, HCL and JSON forms; a Terraform-read file that does not parse, is not a regular file, or is an override file is `deep-parse-failure`, and `walk` counts it.
+- `light` needs all of: every changed path is Markdown (`*.md`), `CHANGELOG*`, under a `docs` directory at any level, `LICENSE`, `.gitignore` or `.editorconfig`; none is Terraform-read; no file sink string of the head (below) resolves to a changed path or a directory holding one, and every one resolves; the head calls only Terraform's built-in functions (a provider-defined function blocks light); the classifier report is valid, of this change, and `inert`; at most 50 changed files, else `deep-too-many-files`. Out of scope at light: checks A, B and D and the Check G ladder (`G-ladder`); every example is listed in `examples_selected`, for validate.
+- `focused` needs a Terraform change with no deep class, at most 6 changed Terraform-read files, 200 changed lines (`additions` plus `deletions` of every listed file), 4 changed resource, data and module blocks, and 12 selected examples, and every classifier trigger on the allow-list: an expression or literal change in a resource or data argument, a local, an output value or a module call argument; an added output; an unknown propagation candidate; an example `.tfvars` change. Selected examples are those the affected report lists as `touched` or `caller`, those it does not list, those holding a changed path, and those whose local module calls reach a changed directory or the closure; the rest, reason `all` in a report with no fallback, are out of scope. B is out of scope with no touched type, D with no selected example and no changed example.
+- `deep` is everything else, with every check and example in scope.
+- Changed values: every changed argument of a resource or data block, local, variable, output, module call or variables file assignment, and every argument whose file sink string resolves to a changed path. Each is followed to every consumer, through outputs to the calling module and through module call arguments into the callee's variables. A changed argument `X` of a managed resource `R` affects references to `R.X` and to `R` as a whole (`R`, `R[*]`, `R[k]`, a `for` expression over it); references to other attributes are not affected, and every reference is when `R` is added or its `count`, `for_each` or `provider` changes. A data source is a query: a changed argument affects every reference to it. A reference inside `depends_on` carries ordering, not a value. A consumer the parser does not model (a variable validation, a precondition or postcondition, `check`, `import`, `removed`, an unknown block, a registry or git module, a module call whose source does not resolve) is `deep-unresolved-consumer`.
+- File sinks: the path argument of the file functions (`file*`, `templatefile`, `fileset`); the provisioner arguments that read files (the file provisioner's `source`, remote-exec's `script` and `scripts`, local-exec's `working_dir` and `interpreter`); and any argument whose whole name is one of `path`, `paths`, `file`, `files`, `filename`, `dir`, `directory`, `source`, `source_dir`, `source_file`, `chart`, `config`, `config_path`, `config_paths`, `template`, `template_dir`, `program`, `script`, `scripts`, `content_dir`, `output_path`, at any nesting, in any block. A module call's arguments are sinks only for a registry or git module, since `file()` resolves against the working directory; a local module's sinks trace the value where it lands. Every string a sink can read must be a literal, or `path.module` or `path.root` joined with literals; anything else is `deep-unresolved-file-dependency`. References are traced to their sources: a local to its expression; a variable to its default and every in-repo assignment (callers' arguments and the variables files of its directory; module calls under a `wrappers` directory add none); a module output to its value in a local callee; `each.key` and `each.value`, a dynamic block's iterator and a `for` expression's variables to the collection they iterate, attribute by attribute through objects, `merge`, `flatten`, `concat` and the other collection functions that pass elements on; `try`, `coalesce` and `lookup` to their arguments. A variable with no default and no in-repo assignment is an external input and passes, as does a null, a number or a bool. An attribute of a managed resource or data source passes, except one of `local_file`, `local_sensitive_file`, `archive_file`, `template_file`, `template_dir` or `external`, which is traced to the argument of the same name. A string built in the repository (a template with any part that is not a path, or any other function) does not resolve. A local-exec `command` is not resolved, but its literal text is searched for the name of every changed path and of every directory holding one, case-folded; a match is `deep-unresolved-file-dependency`. A relative path resolves against every configuration directory, symbolic links in the head are resolved, and a link that is absolute, leaves the tree or loops does not resolve. A template a `templatefile` call reads is scanned for file function calls too. Strings outside sinks are not resolved. Tracing into registry and git modules is a later improvement: a changed value that reaches one is `deep-unresolved-consumer`.
+- Paths: a changed path that is not printable ASCII, has an empty, `.` or `..` segment, or a backslash; a changed link or special file; and two paths of either tree equal when case-folded are `deep-path-unsafe`. A change under `.github` or `.circleci`, to `action.yml` or `action.yaml`, `.pre-commit-config.yaml`, `.pre-commit-hooks.yaml`, `.releaserc*`, `release.config.*` or `.gitlab-ci.yml` at any path is `deep-ci-config`.
+- `touched_types` are the types of resource and data blocks with changed lines and those the closure reaches. `limits` gives the counts the focused limits compare.
+- `schema_providers`, `schema_types` and `schema_locks` are the schema pass's tokens, in the grammar of its Inputs section: `<rev>:<dir>:<local>=<namespace>/<name>:<constraints>` per revision and configuration directory from `required_providers` (`<rev>:<dir>:!constraint_unparsable` when it cannot be read or gives a local name two sources, `<rev>:<dir>:<local>=!registry_host` for another registry); `<dir>:<resource|data>:<type>:<namespace>/<name>` for every head resource and data block, bound by its `provider` argument, else its type's prefix, through that local name's source, else `hashicorp/<local>`, none for the builtin `terraform` provider; `<dir>:<namespace>/<name>=<version>` from each head `.terraform.lock.hcl`. A token that fails its pattern is left out. They are written at every depth.
+
+Reasons are fixed tokens, written in this order. A host that raises a report to deep writes one of the host tokens after them, or `deep-schema-<reason>` for a schema pass failure; `mtf-facts` never writes those.
+
+<!-- depth-reasons -->
+| Token | When |
+|---|---|
+| `light-docs-only` | the change is light |
+| `focused-within-limits` | the change is focused |
+| `deep-terraform-block` | a `terraform` block changed, or a changed value reaches one |
+| `deep-lock-file` | a `.terraform.lock.hcl` changed |
+| `deep-cli-config` | a CLI configuration file changed |
+| `deep-ci-config` | a CI, hook or release configuration file changed |
+| `deep-provider-config` | a provider block, alias, `provider` or `providers` argument changed or is reached |
+| `deep-depends-on` | a `depends_on` changed |
+| `deep-new-type` | a resource or data type new to its directory |
+| `deep-block-removed-or-renamed` | a resource, data, module, output or variable block removed or renamed |
+| `deep-variable-contract` | a variable added, or anything but its description changed |
+| `deep-output-sensitive` | an output's `sensitive` or `ephemeral` changed |
+| `deep-lifecycle-moved-removed-import` | a `lifecycle`, `moved`, `removed` or `import` block, a precondition or postcondition, changed or reached |
+| `deep-count-for-each` | a `count` or `for_each` changed or reached |
+| `deep-provisioner` | a provisioner or connection changed or reached |
+| `deep-policy` | an argument whose name contains `policy`, an IAM resource or data source (a type with `_iam_`), or a `*_policy_document` data source, changed or reached |
+| `deep-module-source-version` | a module call's `source` or `version` changed, or a module call added |
+| `deep-dynamic-structure` | a dynamic block changed or reached |
+| `deep-wrappers` | a file under a `wrappers` directory changed, or a changed value reaches an argument there other than a pass-through output |
+| `deep-limits` | over a focused limit, or a files list entry with no line counts |
+| `deep-classifier-category` | a classifier trigger outside the allow-list, or capped triggers |
+| `deep-classifier-unavailable` | no classifier report, an invalid one, or one of another change |
+| `deep-affected-fallback` | no affected report, an invalid one, or one with a fallback |
+| `deep-parse-failure` | a Terraform-read file does not parse |
+| `deep-unwalked` | a file, block or expression the parser cannot walk, or a limit of the walk |
+| `deep-unresolved-consumer` | a consumer the parser does not model |
+| `deep-unresolved-file-dependency` | a file sink string does not resolve, or a local-exec command names a changed path |
+| `deep-path-unsafe` | an unsafe path, a changed link, or a case-folded collision |
+| `deep-too-many-examples` | more than 12 selected examples |
+| `deep-too-many-files` | a light change of more than 50 files |
+| `deep-test-or-mock` | a test or mock file changed |
+| `deep-files-list-mismatch` | the files list and the trees disagree |
+| `deep-non-terraform-change` | not light, and no Terraform-read file changed |
+| `deep-owner-raise` | host only: the owner asked for `depth: deep` |
+| `deep-validate-failed` | host only: validate failed at light |
+<!-- /depth-reasons -->
+
+It exits 0 with the report, or 2 on a missing tree, a files list that does not read, an unsafe `--examples` entry, a limit or the timeout, with nothing on stdout.
+
 ### behaviour
 
 `mtf-facts behaviour` lists every changed tree entry and decomposes the change into triggers: one per AST-level change, each with one category and the verification levels it needs. It never runs Terraform.

@@ -1,0 +1,29 @@
+kind: must-be-deep
+depth: deep
+reason: deep-depends-on
+-- base/main.tf --
+resource "aws_sqs_queue" "a" {
+  name = "a"
+}
+
+resource "aws_sqs_queue" "b" {
+  name = "b"
+}
+
+resource "aws_sqs_queue" "c" {
+  name       = "c"
+  depends_on = [aws_sqs_queue.a]
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "a" {
+  name = "a"
+}
+
+resource "aws_sqs_queue" "b" {
+  name = "b"
+}
+
+resource "aws_sqs_queue" "c" {
+  name       = "c"
+  depends_on = [aws_sqs_queue.b]
+}

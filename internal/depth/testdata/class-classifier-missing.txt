@@ -1,0 +1,12 @@
+kind: other
+depth: deep
+reason: deep-classifier-unavailable
+classify: missing
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "a"
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "b"
+}

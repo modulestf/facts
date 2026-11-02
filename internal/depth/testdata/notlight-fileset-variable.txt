@@ -1,0 +1,25 @@
+kind: must-not-be-light
+-- base/README.md --
+a
+-- base/main.tf --
+resource "aws_s3_object" "this" {
+  for_each = fileset(var.dir, "**")
+  bucket   = "b"
+  key      = each.value
+}
+
+variable "dir" {
+  type = string
+}
+-- head/README.md --
+b
+-- head/main.tf --
+resource "aws_s3_object" "this" {
+  for_each = fileset(var.dir, "**")
+  bucket   = "b"
+  key      = each.value
+}
+
+variable "dir" {
+  type = string
+}

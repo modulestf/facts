@@ -1,0 +1,21 @@
+kind: must-be-deep
+depth: deep
+reason: deep-path-unsafe
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- "head/docs/a\nb.md" --
+x
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

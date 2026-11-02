@@ -1,0 +1,27 @@
+kind: must-be-deep
+depth: deep
+reason: deep-terraform-block
+-- base/versions.tf --
+terraform {
+  required_version = ">= 1.0"
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/versions.tf --
+terraform {
+  required_version = ">= 1.5"
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

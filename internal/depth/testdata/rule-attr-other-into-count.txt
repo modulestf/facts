@@ -1,0 +1,22 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+resource "aws_sns_topic" "this" {
+  count = length(aws_sqs_queue.this.id) > 0 ? 1 : 0
+  name  = "t"
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+resource "aws_sns_topic" "this" {
+  count = length(aws_sqs_queue.this.id) > 0 ? 1 : 0
+  name  = "t"
+}

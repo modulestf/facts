@@ -1,0 +1,37 @@
+kind: must-be-deep
+depth: deep
+reason: deep-terraform-block
+-- base/versions.tf --
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/versions.tf --
+terraform {
+  required_providers {
+    aws = {
+      source  = "acme/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

@@ -1,0 +1,49 @@
+kind: must-be-deep
+depth: deep
+reason: deep-wrappers
+-- base/main.tf --
+module "queue" {
+  source = "./modules/queue"
+  name   = "q"
+}
+-- base/modules/queue/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- base/modules/queue/wrappers/main.tf --
+module "wrapper" {
+  source   = "../"
+  for_each = var.items
+  name     = try(each.value.name, "a")
+}
+
+variable "items" {
+  type = any
+}
+-- head/main.tf --
+module "queue" {
+  source = "./modules/queue"
+  name   = "q"
+}
+-- head/modules/queue/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/modules/queue/wrappers/main.tf --
+module "wrapper" {
+  source   = "../"
+  for_each = var.items
+  name     = try(each.value.name, "b")
+}
+
+variable "items" {
+  type = any
+}

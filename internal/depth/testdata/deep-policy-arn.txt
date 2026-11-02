@@ -1,0 +1,13 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+resource "aws_iam_role_policy_attachment" "this" {
+  role       = "role"
+  policy_arn = "arn:aws:iam::aws:policy/A"
+}
+-- head/main.tf --
+resource "aws_iam_role_policy_attachment" "this" {
+  role       = "role"
+  policy_arn = "arn:aws:iam::aws:policy/B"
+}

@@ -1,0 +1,31 @@
+kind: must-be-deep
+depth: deep
+reason: deep-block-removed-or-renamed
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- base/outputs.tf --
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}
+
+output "url" {
+  value = aws_sqs_queue.this.url
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/outputs.tf --
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}

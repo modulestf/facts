@@ -1,0 +1,24 @@
+kind: other
+depth: deep
+reason: deep-lifecycle-moved-removed-import
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+
+moved {
+  from = aws_sqs_queue.old
+  to   = aws_sqs_queue.this
+}

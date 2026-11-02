@@ -1,0 +1,21 @@
+kind: other
+depth: deep
+reason: deep-output-sensitive
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}
+
+output "url" {
+  value     = aws_sqs_queue.this.url
+  sensitive = false
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}
+
+output "url" {
+  value     = aws_sqs_queue.this.url
+  sensitive = true
+}

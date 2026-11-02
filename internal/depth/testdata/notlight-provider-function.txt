@@ -1,0 +1,21 @@
+kind: must-not-be-light
+-- base/README.md --
+a
+-- base/main.tf --
+locals {
+  arn = provider::aws::arn_parse(var.arn)
+}
+
+variable "arn" {
+  type = string
+}
+-- head/README.md --
+b
+-- head/main.tf --
+locals {
+  arn = provider::aws::arn_parse(var.arn)
+}
+
+variable "arn" {
+  type = string
+}

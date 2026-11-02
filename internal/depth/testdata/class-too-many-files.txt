@@ -1,0 +1,223 @@
+kind: other
+depth: deep
+reason: deep-too-many-files
+-- base/docs/p00.md --
+a
+-- base/docs/p01.md --
+a
+-- base/docs/p02.md --
+a
+-- base/docs/p03.md --
+a
+-- base/docs/p04.md --
+a
+-- base/docs/p05.md --
+a
+-- base/docs/p06.md --
+a
+-- base/docs/p07.md --
+a
+-- base/docs/p08.md --
+a
+-- base/docs/p09.md --
+a
+-- base/docs/p10.md --
+a
+-- base/docs/p11.md --
+a
+-- base/docs/p12.md --
+a
+-- base/docs/p13.md --
+a
+-- base/docs/p14.md --
+a
+-- base/docs/p15.md --
+a
+-- base/docs/p16.md --
+a
+-- base/docs/p17.md --
+a
+-- base/docs/p18.md --
+a
+-- base/docs/p19.md --
+a
+-- base/docs/p20.md --
+a
+-- base/docs/p21.md --
+a
+-- base/docs/p22.md --
+a
+-- base/docs/p23.md --
+a
+-- base/docs/p24.md --
+a
+-- base/docs/p25.md --
+a
+-- base/docs/p26.md --
+a
+-- base/docs/p27.md --
+a
+-- base/docs/p28.md --
+a
+-- base/docs/p29.md --
+a
+-- base/docs/p30.md --
+a
+-- base/docs/p31.md --
+a
+-- base/docs/p32.md --
+a
+-- base/docs/p33.md --
+a
+-- base/docs/p34.md --
+a
+-- base/docs/p35.md --
+a
+-- base/docs/p36.md --
+a
+-- base/docs/p37.md --
+a
+-- base/docs/p38.md --
+a
+-- base/docs/p39.md --
+a
+-- base/docs/p40.md --
+a
+-- base/docs/p41.md --
+a
+-- base/docs/p42.md --
+a
+-- base/docs/p43.md --
+a
+-- base/docs/p44.md --
+a
+-- base/docs/p45.md --
+a
+-- base/docs/p46.md --
+a
+-- base/docs/p47.md --
+a
+-- base/docs/p48.md --
+a
+-- base/docs/p49.md --
+a
+-- base/docs/p50.md --
+a
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/docs/p00.md --
+b
+-- head/docs/p01.md --
+b
+-- head/docs/p02.md --
+b
+-- head/docs/p03.md --
+b
+-- head/docs/p04.md --
+b
+-- head/docs/p05.md --
+b
+-- head/docs/p06.md --
+b
+-- head/docs/p07.md --
+b
+-- head/docs/p08.md --
+b
+-- head/docs/p09.md --
+b
+-- head/docs/p10.md --
+b
+-- head/docs/p11.md --
+b
+-- head/docs/p12.md --
+b
+-- head/docs/p13.md --
+b
+-- head/docs/p14.md --
+b
+-- head/docs/p15.md --
+b
+-- head/docs/p16.md --
+b
+-- head/docs/p17.md --
+b
+-- head/docs/p18.md --
+b
+-- head/docs/p19.md --
+b
+-- head/docs/p20.md --
+b
+-- head/docs/p21.md --
+b
+-- head/docs/p22.md --
+b
+-- head/docs/p23.md --
+b
+-- head/docs/p24.md --
+b
+-- head/docs/p25.md --
+b
+-- head/docs/p26.md --
+b
+-- head/docs/p27.md --
+b
+-- head/docs/p28.md --
+b
+-- head/docs/p29.md --
+b
+-- head/docs/p30.md --
+b
+-- head/docs/p31.md --
+b
+-- head/docs/p32.md --
+b
+-- head/docs/p33.md --
+b
+-- head/docs/p34.md --
+b
+-- head/docs/p35.md --
+b
+-- head/docs/p36.md --
+b
+-- head/docs/p37.md --
+b
+-- head/docs/p38.md --
+b
+-- head/docs/p39.md --
+b
+-- head/docs/p40.md --
+b
+-- head/docs/p41.md --
+b
+-- head/docs/p42.md --
+b
+-- head/docs/p43.md --
+b
+-- head/docs/p44.md --
+b
+-- head/docs/p45.md --
+b
+-- head/docs/p46.md --
+b
+-- head/docs/p47.md --
+b
+-- head/docs/p48.md --
+b
+-- head/docs/p49.md --
+b
+-- head/docs/p50.md --
+b
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

@@ -1,0 +1,33 @@
+kind: must-be-deep
+depth: deep
+reason: deep-provider-config
+-- base/main.tf --
+provider "aws" {
+  alias  = "west"
+  region = "us-west-2"
+}
+
+provider "aws" {
+  alias  = "east"
+  region = "us-east-1"
+}
+
+resource "aws_sqs_queue" "this" {
+  provider = aws.west
+  name     = "q"
+}
+-- head/main.tf --
+provider "aws" {
+  alias  = "west"
+  region = "us-west-2"
+}
+
+provider "aws" {
+  alias  = "east"
+  region = "us-east-1"
+}
+
+resource "aws_sqs_queue" "this" {
+  provider = aws.east
+  name     = "q"
+}

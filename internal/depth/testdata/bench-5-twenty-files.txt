@@ -1,0 +1,212 @@
+kind: bench
+depth: deep
+-- base/CHANGELOG.md --
+# Page
+-- base/README.md --
+# Page
+-- base/docs/page-00.md --
+# Page
+-- base/docs/page-01.md --
+# Page
+-- base/docs/page-02.md --
+# Page
+-- base/docs/page-03.md --
+# Page
+-- base/docs/page-04.md --
+# Page
+-- base/docs/page-05.md --
+# Page
+-- base/docs/page-06.md --
+# Page
+-- base/docs/page-07.md --
+# Page
+-- base/docs/page-08.md --
+# Page
+-- base/docs/page-09.md --
+# Page
+-- base/docs/page-10.md --
+# Page
+-- base/examples/complete/README.md --
+# Page
+-- base/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+
+output "arn" {
+  value = module.this.arn
+}
+-- base/examples/simple/README.md --
+# Page
+-- base/examples/simple/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+}
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 60
+}
+-- base/outputs.tf --
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}
+-- base/variables.tf --
+variable "name" {
+  type = string
+}
+-- base/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- head/CHANGELOG.md --
+# Page
+
+Updated for FIFO queues.
+-- head/README.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-00.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-01.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-02.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-03.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-04.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-05.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-06.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-07.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-08.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-09.md --
+# Page
+
+Updated for FIFO queues.
+-- head/docs/page-10.md --
+# Page
+
+Updated for FIFO queues.
+-- head/examples/complete/README.md --
+# Page
+
+Updated for FIFO queues.
+-- head/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+  fifo   = true
+}
+
+output "arn" {
+  value = module.this.arn
+}
+-- head/examples/simple/README.md --
+# Page
+
+Updated for FIFO queues.
+-- head/examples/simple/main.tf --
+module "this" {
+  source = "../.."
+  name   = "simple"
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  fifo_queue                = var.fifo
+  message_retention_seconds = 60
+}
+-- head/outputs.tf --
+output "arn" {
+  value = aws_sqs_queue.this.arn
+}
+-- head/variables.tf --
+variable "name" {
+  type = string
+}
+
+variable "fifo" {
+  type    = bool
+  default = false
+}
+-- head/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.40"
+    }
+  }
+}
+-- want.json --
+{
+  "format": 1,
+  "depth": "deep",
+  "reasons": [
+    "deep-terraform-block",
+    "deep-variable-contract",
+    "deep-classifier-category"
+  ],
+  "checks_out_of_scope": [],
+  "examples_selected": [
+    "examples/complete",
+    "examples/simple"
+  ],
+  "examples_out_of_scope": [],
+  "touched_types": [
+    "aws_sqs_queue"
+  ],
+  "walk": {
+    "complete": true,
+    "unwalked": 0
+  },
+  "limits": {
+    "tf_files": 5,
+    "changed_lines": 41,
+    "changed_blocks": 3,
+    "selected_examples": 2
+  },
+  "schema_providers": [
+    "base:.:aws=hashicorp/aws:\u003e=5.0",
+    "head:.:aws=hashicorp/aws:\u003e=5.40"
+  ],
+  "schema_types": [
+    ".:resource:aws_sqs_queue:hashicorp/aws"
+  ],
+  "schema_locks": []
+}

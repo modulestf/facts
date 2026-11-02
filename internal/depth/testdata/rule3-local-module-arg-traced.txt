@@ -1,0 +1,32 @@
+kind: other
+depth-not: light
+-- base/docs/kube.md --
+a
+-- base/examples/complete/main.tf --
+module "this" {
+  source      = "../.."
+  config_path = "${path.module}/../../docs/kube.md"
+}
+-- base/main.tf --
+provider "kubernetes" {
+  config_path = var.config_path
+}
+
+variable "config_path" {
+  type = string
+}
+-- head/docs/kube.md --
+b
+-- head/examples/complete/main.tf --
+module "this" {
+  source      = "../.."
+  config_path = "${path.module}/../../docs/kube.md"
+}
+-- head/main.tf --
+provider "kubernetes" {
+  config_path = var.config_path
+}
+
+variable "config_path" {
+  type = string
+}

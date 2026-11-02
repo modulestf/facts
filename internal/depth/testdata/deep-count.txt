@@ -1,0 +1,29 @@
+kind: must-be-deep
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  count = var.create ? 1 : 0
+  name  = "q"
+}
+
+variable "create" {
+  type = bool
+}
+
+variable "enabled" {
+  type = bool
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  count = var.create && var.enabled ? 1 : 0
+  name  = "q"
+}
+
+variable "create" {
+  type = bool
+}
+
+variable "enabled" {
+  type = bool
+}

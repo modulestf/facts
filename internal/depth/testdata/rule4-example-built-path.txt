@@ -1,0 +1,43 @@
+kind: other
+depth: deep
+reason: deep-unresolved-file-dependency
+-- base/examples/complete/main.tf --
+locals {
+  build = "dist"
+}
+
+module "this" {
+  source  = "../.."
+  package = "${path.module}/${local.build}-${terraform.workspace}.zip"
+}
+-- base/main.tf --
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = var.package
+  timeout       = 3
+}
+
+variable "package" {
+  type = string
+}
+-- head/examples/complete/main.tf --
+locals {
+  build = "dist"
+}
+
+module "this" {
+  source  = "../.."
+  package = "${path.module}/${local.build}-${terraform.workspace}.zip"
+}
+-- head/main.tf --
+resource "aws_lambda_function" "this" {
+  function_name = "f"
+  role          = "r"
+  filename      = var.package
+  timeout       = 5
+}
+
+variable "package" {
+  type = string
+}

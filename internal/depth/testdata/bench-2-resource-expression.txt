@@ -1,0 +1,147 @@
+kind: bench
+depth: focused
+-- base/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+  vpc_id = "vpc-1"
+}
+
+output "cluster_arn" {
+  value = module.this.cluster_arn
+}
+-- base/main.tf --
+resource "aws_security_group" "this" {
+  count  = var.create_security_group ? 1 : 0
+  name   = var.name
+  vpc_id = var.vpc_id
+}
+
+resource "aws_rds_cluster" "this" {
+  cluster_identifier     = var.name
+  engine                 = "aurora-postgresql"
+  vpc_security_group_ids = compact(concat(aws_security_group.this[*].id, var.vpc_security_group_ids))
+}
+-- base/outputs.tf --
+output "cluster_arn" {
+  value = aws_rds_cluster.this.arn
+}
+-- base/variables.tf --
+variable "name" {
+  type = string
+}
+
+variable "create_security_group" {
+  type    = bool
+  default = true
+}
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "vpc_security_group_ids" {
+  type    = list(string)
+  default = []
+}
+-- base/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- head/examples/complete/main.tf --
+module "this" {
+  source = "../.."
+  name   = "example"
+  vpc_id = "vpc-1"
+}
+
+output "cluster_arn" {
+  value = module.this.cluster_arn
+}
+-- head/main.tf --
+resource "aws_security_group" "this" {
+  count  = var.create_security_group ? 1 : 0
+  name   = var.name
+  vpc_id = var.vpc_id
+}
+
+resource "aws_rds_cluster" "this" {
+  cluster_identifier     = var.name
+  engine                 = "aurora-postgresql"
+  vpc_security_group_ids = concat(aws_security_group.this[*].id, var.vpc_security_group_ids)
+}
+-- head/outputs.tf --
+output "cluster_arn" {
+  value = aws_rds_cluster.this.arn
+}
+-- head/variables.tf --
+variable "name" {
+  type = string
+}
+
+variable "create_security_group" {
+  type    = bool
+  default = true
+}
+
+variable "vpc_id" {
+  type = string
+}
+
+variable "vpc_security_group_ids" {
+  type    = list(string)
+  default = []
+}
+-- head/versions.tf --
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- want.json --
+{
+  "format": 1,
+  "depth": "focused",
+  "reasons": [
+    "focused-within-limits"
+  ],
+  "checks_out_of_scope": [],
+  "examples_selected": [
+    "examples/complete"
+  ],
+  "examples_out_of_scope": [],
+  "touched_types": [
+    "aws_rds_cluster"
+  ],
+  "walk": {
+    "complete": true,
+    "unwalked": 0
+  },
+  "limits": {
+    "tf_files": 1,
+    "changed_lines": 2,
+    "changed_blocks": 1,
+    "selected_examples": 1
+  },
+  "schema_providers": [
+    "base:.:aws=hashicorp/aws:\u003e=5.0",
+    "head:.:aws=hashicorp/aws:\u003e=5.0"
+  ],
+  "schema_types": [
+    ".:resource:aws_rds_cluster:hashicorp/aws",
+    ".:resource:aws_security_group:hashicorp/aws"
+  ],
+  "schema_locks": []
+}

@@ -1,0 +1,31 @@
+kind: must-be-deep
+depth: deep
+reason: deep-terraform-block
+-- base/main.tf --
+terraform {
+  cloud {
+    organization = "a"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/main.tf --
+terraform {
+  cloud {
+    organization = "b"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

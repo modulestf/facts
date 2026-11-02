@@ -1,0 +1,31 @@
+kind: must-be-deep
+depth: deep
+reason: deep-path-unsafe
+-- base/docs/current.md [link] --
+v1.md
+-- base/docs/v1.md --
+one
+-- base/docs/v2.md --
+two
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}
+-- head/docs/current.md [link] --
+v2.md
+-- head/docs/v1.md --
+one
+-- head/docs/v2.md --
+two
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = var.name
+}
+
+variable "name" {
+  type = string
+}

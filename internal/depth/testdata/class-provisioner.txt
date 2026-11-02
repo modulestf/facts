@@ -1,0 +1,15 @@
+kind: other
+depth: deep
+reason: deep-provisioner
+-- base/main.tf --
+resource "null_resource" "this" {
+  provisioner "local-exec" {
+    command = "echo a"
+  }
+}
+-- head/main.tf --
+resource "null_resource" "this" {
+  provisioner "local-exec" {
+    command = "echo b"
+  }
+}

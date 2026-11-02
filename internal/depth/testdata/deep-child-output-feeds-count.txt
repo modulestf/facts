@@ -1,0 +1,29 @@
+kind: must-be-deep
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+module "child" {
+  source = "./modules/child"
+}
+
+resource "aws_sqs_queue" "this" {
+  count = module.child.n
+  name  = "q"
+}
+-- base/modules/child/main.tf --
+output "n" {
+  value = 1
+}
+-- head/main.tf --
+module "child" {
+  source = "./modules/child"
+}
+
+resource "aws_sqs_queue" "this" {
+  count = module.child.n
+  name  = "q"
+}
+-- head/modules/child/main.tf --
+output "n" {
+  value = 2
+}

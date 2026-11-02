@@ -1,0 +1,17 @@
+kind: must-be-deep
+depth: deep
+reason: deep-ci-config
+-- base/.github/workflows/ci.yml --
+on: push
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+-- head/.github/workflows/ci.yml --
+on: pull_request
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}

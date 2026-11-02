@@ -1,0 +1,65 @@
+kind: other
+depth: deep
+reason: deep-unresolved-file-dependency
+-- base/main.tf --
+resource "aws_pipes_pipe" "this" {
+  for_each = var.pipes
+  name     = each.key
+  role_arn = "arn"
+  source   = "arn:source"
+  target   = "arn:target"
+
+  dynamic "target_parameters" {
+    for_each = try([each.value.target_parameters], [])
+
+    content {
+      dynamic "eventbridge_event_bus_parameters" {
+        for_each = try([target_parameters.value.bus], [])
+
+        content {
+          source = "${path.module}/${eventbridge_event_bus_parameters.value.source}"
+        }
+      }
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+variable "pipes" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_pipes_pipe" "this" {
+  for_each = var.pipes
+  name     = each.key
+  role_arn = "arn"
+  source   = "arn:source"
+  target   = "arn:target"
+
+  dynamic "target_parameters" {
+    for_each = try([each.value.target_parameters], [])
+
+    content {
+      dynamic "eventbridge_event_bus_parameters" {
+        for_each = try([target_parameters.value.bus], [])
+
+        content {
+          source = "${path.module}/${eventbridge_event_bus_parameters.value.source}"
+        }
+      }
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+variable "pipes" {
+  type = any
+}

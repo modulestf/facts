@@ -1,0 +1,25 @@
+kind: must-be-deep
+depth: deep
+reason: deep-policy
+-- base/main.tf --
+data "aws_iam_policy_document" "this" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["*"]
+  }
+}
+
+output "json" {
+  value = data.aws_iam_policy_document.this.json
+}
+-- head/main.tf --
+data "aws_iam_policy_document" "this" {
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["*"]
+  }
+}
+
+output "json" {
+  value = data.aws_iam_policy_document.this.json
+}

@@ -1,0 +1,56 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 60
+}
+
+output "queue_url" {
+  value = aws_sqs_queue.this.url
+}
+
+variable "name" {
+  type = string
+}
+-- base/wrappers/main.tf --
+module "wrapper" {
+  source   = "../"
+  for_each = var.items
+  name     = each.value.name
+}
+
+output "wrapper" {
+  value = module.wrapper
+}
+
+variable "items" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = var.name
+  message_retention_seconds = 120
+}
+
+output "queue_url" {
+  value = aws_sqs_queue.this.url
+}
+
+variable "name" {
+  type = string
+}
+-- head/wrappers/main.tf --
+module "wrapper" {
+  source   = "../"
+  for_each = var.items
+  name     = each.value.name
+}
+
+output "wrapper" {
+  value = module.wrapper
+}
+
+variable "items" {
+  type = any
+}

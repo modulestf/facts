@@ -1,0 +1,21 @@
+kind: must-be-deep
+depth: deep
+reason: deep-count-for-each
+-- base/main.tf --
+locals {
+  n = 1
+}
+
+resource "aws_sqs_queue" "this" {
+  count = local.n
+  name  = "q"
+}
+-- head/main.tf --
+locals {
+  n = 2
+}
+
+resource "aws_sqs_queue" "this" {
+  count = local.n
+  name  = "q"
+}

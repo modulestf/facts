@@ -1,0 +1,22 @@
+kind: other
+depth: focused
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+
+resource "aws_sns_topic" "this" {
+  name       = "t"
+  depends_on = [aws_sqs_queue.this]
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}
+
+resource "aws_sns_topic" "this" {
+  name       = "t"
+  depends_on = [aws_sqs_queue.this]
+}

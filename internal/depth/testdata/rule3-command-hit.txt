@@ -1,0 +1,25 @@
+kind: other
+depth: deep
+reason: deep-unresolved-file-dependency
+-- base/main.tf --
+resource "null_resource" "this" {
+  provisioner "local-exec" {
+    command = "terraform fmt -check main.tf"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 60
+}
+-- head/main.tf --
+resource "null_resource" "this" {
+  provisioner "local-exec" {
+    command = "terraform fmt -check main.tf"
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name                      = "q"
+  message_retention_seconds = 120
+}

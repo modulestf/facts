@@ -1,0 +1,131 @@
+kind: other
+-- base/versions.tf --
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"
+    }
+  }
+}
+-- head/.terraform.lock.hcl --
+provider "registry.terraform.io/hashicorp/aws" {
+  version     = "5.1.0"
+  constraints = ">= 5.0, < 7.0"
+}
+
+provider "example.com/acme/foo" {
+  version = "1.0.0"
+}
+-- head/main.tf --
+provider "aws" {
+  alias  = "west"
+  region = "us-west-2"
+}
+
+resource "aws_sqs_queue" "this" {
+  provider = aws.west
+  name     = "q"
+}
+
+data "aws_caller_identity" "this" {}
+
+resource "random_pet" "this" {}
+
+resource "terraform_data" "this" {}
+
+resource "foo_thing" "this" {}
+-- head/modules/bad/main.tf --
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+    }
+  }
+}
+
+terraform {
+  required_providers {
+    aws = {
+      source = "acme/aws"
+    }
+  }
+}
+
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}
+-- head/modules/json/main.tf.json --
+{
+  "terraform": {"required_providers": {"aws": {"source": "hashicorp/aws", "version": ">= 5.10"}}},
+  "resource": {"aws_s3_bucket": {"this": {"bucket": "b"}}},
+  "data": {"aws_region": {"current": {}}}
+}
+-- head/versions.tf --
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0, < 7.0"
+    }
+    random = "~> 3.0"
+    foo = {
+      source = "example.com/acme/foo"
+    }
+  }
+}
+-- want.json --
+{
+  "format": 1,
+  "depth": "deep",
+  "reasons": [
+    "deep-terraform-block",
+    "deep-lock-file",
+    "deep-provider-config",
+    "deep-new-type",
+    "deep-limits",
+    "deep-classifier-category",
+    "deep-affected-fallback"
+  ],
+  "checks_out_of_scope": [],
+  "examples_selected": [],
+  "examples_out_of_scope": [],
+  "touched_types": [
+    "aws_caller_identity",
+    "aws_region",
+    "aws_s3_bucket",
+    "aws_sqs_queue",
+    "foo_thing",
+    "random_pet",
+    "terraform_data"
+  ],
+  "walk": {
+    "complete": true,
+    "unwalked": 0
+  },
+  "limits": {
+    "tf_files": 5,
+    "changed_lines": 59,
+    "changed_blocks": 8,
+    "selected_examples": 0
+  },
+  "schema_providers": [
+    "base:.:aws=hashicorp/aws:\u003e=5.0",
+    "head:.:aws=hashicorp/aws:\u003e=5.0,\u003c7.0",
+    "head:.:foo=!registry_host",
+    "head:.:random=hashicorp/random:~\u003e3.0",
+    "head:modules/bad:!constraint_unparsable",
+    "head:modules/json:aws=hashicorp/aws:\u003e=5.10"
+  ],
+  "schema_types": [
+    ".:data:aws_caller_identity:hashicorp/aws",
+    ".:resource:aws_sqs_queue:hashicorp/aws",
+    ".:resource:random_pet:hashicorp/random",
+    "modules/bad:resource:aws_sqs_queue:hashicorp/aws",
+    "modules/json:data:aws_region:hashicorp/aws",
+    "modules/json:resource:aws_s3_bucket:hashicorp/aws"
+  ],
+  "schema_locks": [
+    ".:hashicorp/aws=5.1.0"
+  ]
+}
