@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/facts"
 )
@@ -31,7 +32,24 @@ const (
 const (
 	reasonMoved     = "a moved or renamed address needs prior state, so it stays unverifiable"
 	reasonApplyTime = "a provisioner or connection runs at apply time, which no plan shows, so it stays unverifiable"
+	reasonDataRead  = "a data source is not planned at L3: an unknown argument defers its read to apply, which L1 shows; " +
+		"a deferral by depends_on or by a pending change of a dependency is not modelled, so no claim that the read is not deferred can verify"
 )
+
+// noNullBase are the names under which an absent argument is not a null:
+// meta-arguments and blocks Terraform itself reads.
+var noNullBase = map[string]bool{
+	"count": true, "for_each": true, "depends_on": true, "provider": true, "lifecycle": true,
+	"provisioner": true, "connection": true, "dynamic": true, "moved": true, "import": true,
+	"removed": true, "check": true,
+}
+
+// nullFor is the null an absent argument reads as, as an expression.
+func nullFor() *exprInfo {
+	src := []byte("null")
+	e, _ := hclsyntax.ParseExpression(src, "", hcl.InitialPos)
+	return &exprInfo{e, src}
+}
 
 // item is one top-level unit of a module directory: a block, one local, or
 // one entry of a terraform block.
@@ -58,13 +76,17 @@ type view struct {
 	items     map[string]*item
 	vars      map[string]string // variable name -> type constraint text
 	providers map[string]string // local name -> source
+	// defaults are the defaults of the variables whose default is a bare
+	// literal: a quoted string with no interpolation or directive, true,
+	// false or null.
+	defaults map[string]CaseInput
 }
 
 // buildView parses the .tf files directly in dir. why is set when the
 // directory cannot be decomposed: a file that is not a regular file, does
 // not parse, or is an override file, or two units with one key.
 func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string) {
-	v = &view{items: map[string]*item{}, vars: map[string]string{}, providers: map[string]string{}}
+	v = &view{items: map[string]*item{}, vars: map[string]string{}, providers: map[string]string{}, defaults: map[string]CaseInput{}}
 	if t == nil {
 		return v, ""
 	}
@@ -122,6 +144,11 @@ func fileItems(file string, src []byte, body *hclsyntax.Body, v *view) []*item {
 			v.vars[labels] = "any"
 			if a := b.Body.Attributes["type"]; a != nil {
 				v.vars[labels] = strings.Join(strings.Fields(string(a.Expr.Range().SliceBytes(src))), " ")
+			}
+			if a := b.Body.Attributes["default"]; a != nil {
+				if in, ok := bareLiteral(a.Expr, src); ok {
+					v.defaults[labels] = in
+				}
 			}
 		case b.Type == "output" && len(b.Labels) == 1:
 			blk(b, "output."+labels, itemOutput, "output."+labels)
@@ -232,6 +259,9 @@ type spec struct {
 	noLevels    bool
 	levels      []string // overrides the category's levels when set
 	forEachOnly bool
+	// baseAbsent and headAbsent mark a side whose expression is the null
+	// of an absent provider attribute.
+	baseAbsent, headAbsent bool
 }
 
 // decomposer compares the base and head views of one directory.
@@ -332,8 +362,9 @@ func (d *decomposer) alone(it *item, kind string) {
 func (d *decomposer) pair(b, h *item) {
 	switch b.kind {
 	case itemResource, itemData:
-		local := providerLocal(h)
-		ctx := &resourceCtx{mode: b.kind, typ: b.typ, source: facts.ProviderKey(cmp.Or(d.head.providers[local], local))}
+		local, baseLocal := providerLocal(h), providerLocal(b)
+		ctx := &resourceCtx{mode: b.kind, typ: b.typ, source: facts.ProviderKey(cmp.Or(d.head.providers[local], local)),
+			baseSource: facts.ProviderKey(cmp.Or(d.base.providers[baseLocal], baseLocal))}
 		d.body(b, h, b.block.Body, h.block.Body, nil, true, ctx)
 	case itemLocal:
 		bx, hx := &exprInfo{b.attr.Expr, b.src}, &exprInfo{h.attr.Expr, h.src}
@@ -371,6 +402,7 @@ func onlyVersionDiffers(b, h *item) bool {
 // resourceCtx is the resource or data source a body belongs to.
 type resourceCtx struct {
 	mode, typ, source string
+	baseSource        string // the provider source at the base
 }
 
 // providerLocal is the provider local name of a resource: its provider
@@ -489,9 +521,28 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 			// The instances a block plans: terraform test plans them too.
 			s.levels = []string{LevelL1, LevelL2}
 		}
+		// After the category: the null of an absent attribute changes no
+		// category and no level.
+		if (bx == nil) != (hx == nil) && bb != nil && hb != nil && !slices.ContainsFunc(p, func(n string) bool { return noNullBase[n] }) &&
+			d.c.absentIsNull(ctx, p) {
+			if bx == nil {
+				s.b, s.baseAbsent = nullFor(), true
+			} else {
+				s.h, s.headAbsent = nullFor(), true
+			}
+		}
 		d.add(s)
 		s.levels = nil
-		if ctx != nil && !forced && (hx == nil || !isLiteral(bx) || !isLiteral(hx)) {
+		switch {
+		case ctx == nil || forced:
+		case ctx.mode == itemData:
+			// No prior state: an unknown argument defers the read, which L1
+			// shows; L3 plans no data source.
+			if !isLiteral(bx) || !isLiteral(hx) {
+				s.cat, s.reason, s.levels = CatUnknownPropagation, reasonDataRead, []string{LevelL1}
+				d.add(s)
+			}
+		case hx == nil || !isLiteral(bx) || !isLiteral(hx):
 			if emit, why := d.c.optionalComputed(ctx, p); emit {
 				s.cat, s.reason = CatUnknownPropagation, why
 				d.add(s)

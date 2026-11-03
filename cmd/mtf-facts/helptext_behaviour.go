@@ -23,17 +23,22 @@ each trigger selects its levels: L1 offline expression evaluation, L3 curated
 provider fixtures, L4 the example plans, or compat for a version floor. A
 changed resource argument also yields an unknown-propagation-candidate
 trigger when the provider schema given with --schema marks it Optional and
-Computed, or when there is no schema, or it lacks the attribute.
+Computed, or when there is no schema, or it lacks the attribute. A changed
+data source argument that is not a literal yields one at L1 only: L3 plans
+no data source. An argument added to or removed from a resource or data
+source reads as null at the other revision, marked base_absent or
+head_absent, only when the schema of both revisions marks it a plain
+attribute that is not write-only.
 
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the
-union. At most 40 triggers are listed; capped counts the rest. It never runs
+union; a trigger with a null side is never merged. At most 40 triggers are listed; capped counts the rest. It never runs
 Terraform. Exit 0 with the report, 2 on bad input, a limit or the timeout.`
 	behaviourExample = `  mtf-facts behaviour ./head --diff files.json --json > behaviour.json
   mtf-facts behaviour ./head --base ./base --schema schema.json --json`
 	behaviourBaseUsage      = "base `tree` the change started from"
 	behaviourDiffUsage      = "change as a GitHub pull request files list or a unified diff `file`"
-	behaviourSchemaUsage    = "terraform providers schema -json `file` that decides Optional and Computed"
+	behaviourSchemaUsage    = "terraform providers schema -json `file` that decides Optional and Computed, and a null side"
 	behaviourChangeRequired = "give the change with --base or --diff"
 )
 

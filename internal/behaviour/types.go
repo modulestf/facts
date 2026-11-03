@@ -133,6 +133,14 @@ type Trigger struct {
 	// ForEachOnly marks a dynamic-block-change whose for_each alone changed,
 	// routed to L1 on that for_each. An optional field.
 	ForEachOnly bool `json:"for_each_only,omitempty"`
+	// BaseAbsent marks a provider attribute the change adds: the base has
+	// no such argument, and base_expr is the null Terraform reads in its
+	// place. HeadAbsent is the same for an attribute the change removes.
+	// Set only when the provider schema of both revisions marks the name a
+	// plain attribute; they never change the category or the levels.
+	// Optional fields.
+	BaseAbsent bool `json:"base_absent,omitempty"`
+	HeadAbsent bool `json:"head_absent,omitempty"`
 }
 
 // Input is one variable a trigger reads.
