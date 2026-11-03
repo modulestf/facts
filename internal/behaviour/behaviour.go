@@ -207,6 +207,39 @@ func (c *classifier) optionalComputed(ctx *resourceCtx, attrPath []string) (bool
 	return false, ""
 }
 
+// absentIsNull reports whether an argument at one revision only reads as
+// null at the other: the given schema, at each revision's provider source,
+// marks the path a plain attribute that is not write-only, reached through
+// nested attribute types only. No schema, a changed provider requirement, a
+// name absent at either source, a legacy nested block on the path or a
+// disagreement is no.
+func (c *classifier) absentIsNull(ctx *resourceCtx, attrPath []string) bool {
+	if ctx == nil || ctx.requirementChanged || len(attrPath) == 0 {
+		return false
+	}
+	for _, source := range []string{ctx.baseSource, ctx.source} {
+		if !c.plainAttribute(source, ctx, attrPath) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *classifier) plainAttribute(source string, ctx *resourceCtx, attrPath []string) bool {
+	q := schema.Query{Source: source, DataSource: ctx.mode == itemData, Type: ctx.typ}
+	var f schema.Field
+	for i := range attrPath {
+		q.Path = attrPath[:i+1]
+		var o schema.Outcome
+		// Each prefix an attribute: walk passes one only through a nested
+		// attribute type, and a legacy nested block is no attribute.
+		if o, f = c.schema.Lookup(q); o != schema.Present || f.Attribute == nil {
+			return false
+		}
+	}
+	return !f.Attribute.WriteOnly
+}
+
 // diffEntries lists the changed entries, sorted by path. A removed and an
 // added regular file with the same content are a rename.
 func diffEntries(head, base *facts.Tree) []change {
@@ -304,7 +337,7 @@ func (c *classifier) decomposed(ch change) bool {
 // trigger turns a spec into a trigger without its id.
 func (c *classifier) trigger(s spec) Trigger {
 	t := Trigger{File: s.file, Category: s.cat, ChangeKind: s.kind, ReferencedInputs: []Input{}, ContextualRefs: []string{},
-		ForEachOnly: s.forEachOnly}
+		ForEachOnly: s.forEachOnly, BaseAbsent: s.baseAbsent, HeadAbsent: s.headAbsent}
 	if s.line > 0 {
 		line := s.line
 		t.Line = &line

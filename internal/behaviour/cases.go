@@ -96,6 +96,11 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 	}
 	for _, in := range t.ReferencedInputs {
 		addVar(in.Name, in.Type, false)
+		if v := c.views[dir]; v[1] != nil && v[0] != nil && v[0].vars[in.Name] == "" {
+			if def, ok := v[1].defaults[in.Name]; ok {
+				addDefault(inputs, in.Name, def)
+			}
+		}
 	}
 	for _, d := range t.ContextualRefDetails {
 		if seen[d.Text] {
@@ -115,6 +120,47 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 	// combination of the others.
 	strict := slices.Contains(t.Levels, LevelL2) || t.Category == CatDynamic
 	return sweepCases(inputs, strict)
+}
+
+// addDefault gives the input name, a variable the change adds, the state of
+// its bare literal default, unless a state of the same value is there.
+func addDefault(inputs []caseInput, name string, def CaseInput) {
+	i := slices.IndexFunc(inputs, func(in caseInput) bool { return in.name == name })
+	if i < 0 {
+		return
+	}
+	same := func(st caseState) bool {
+		return len(st.in.UnknownElements) == 0 && !st.in.Unknown && !st.in.Omitted &&
+			(def.Null && st.in.Null || def.Value != nil && st.in.Value != nil && jsonEqual(def.Value, st.in.Value))
+	}
+	if !slices.ContainsFunc(inputs[i].states, same) {
+		inputs[i].states = append(inputs[i].states, caseState{"default", def})
+	}
+}
+
+// bareLiteral is the value of a bare literal: a quoted string with no
+// interpolation or directive, true, false or null. Numbers, heredocs and
+// anything else are not.
+func bareLiteral(e hclsyntax.Expression, src []byte) (CaseInput, bool) {
+	text := string(e.Range().SliceBytes(src))
+	switch text {
+	case "true", "false":
+		return CaseInput{Value: raw(text == "true")}, true
+	case "null":
+		return CaseInput{Null: true}, true
+	}
+	t, ok := e.(*hclsyntax.TemplateExpr)
+	if !ok || !strings.HasPrefix(text, `"`) || strings.Contains(text, "${") || strings.Contains(text, "%{") || len(t.Parts) > 1 {
+		return CaseInput{}, false
+	}
+	if len(t.Parts) == 0 {
+		return CaseInput{Value: raw("")}, true
+	}
+	lit, ok := t.Parts[0].(*hclsyntax.LiteralValueExpr)
+	if !ok || !lit.Val.IsKnown() || lit.Val.IsNull() || lit.Val.Type() != cty.String {
+		return CaseInput{}, false
+	}
+	return CaseInput{Value: raw(lit.Val.AsString())}, true
 }
 
 // orderStates are the order states of a list or set type: two distinct

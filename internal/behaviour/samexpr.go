@@ -16,13 +16,15 @@ var levelOrder = []string{LevelL1, LevelL2, LevelL3, LevelL4, LevelCompat}
 // categories see, verified once. The first keeps its place, id and
 // category; the categories of the others go to also_categories, and their
 // levels and required cases join the first's. Triggers whose expressions
-// differ or are null are never merged, and a merge that would weaken or
-// break the sweep is not made: see mergeTwo. ts is sorted.
+// differ or are null are never merged, nor those with the null of an absent
+// attribute, whose levels must stay those of the change without it; and a
+// merge that would weaken or break the sweep is not made: see mergeTwo. ts
+// is sorted.
 func mergeSameExpr(ts []Trigger) []Trigger {
 	out := make([]Trigger, 0, len(ts))
 	at := map[string]int{}
 	for _, t := range ts {
-		if t.Line == nil || t.BaseExpr == nil || t.HeadExpr == nil {
+		if t.Line == nil || t.BaseExpr == nil || t.HeadExpr == nil || t.BaseAbsent || t.HeadAbsent {
 			out = append(out, t)
 			continue
 		}
