@@ -136,8 +136,10 @@ type Trigger struct {
 	// BaseAbsent marks a provider attribute the change adds: the base has
 	// no such argument, and base_expr is the null Terraform reads in its
 	// place. HeadAbsent is the same for an attribute the change removes.
-	// Set only when the provider schema of both revisions marks the name a
-	// plain attribute; they never change the category or the levels.
+	// Set only when the given schema, at each revision's provider source,
+	// marks the name a plain attribute, the provider requirement is the same
+	// at both revisions and neither writes the name as blocks; they never
+	// change the category or the levels.
 	// Optional fields.
 	BaseAbsent bool `json:"base_absent,omitempty"`
 	HeadAbsent bool `json:"head_absent,omitempty"`

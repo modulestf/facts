@@ -208,12 +208,13 @@ func (c *classifier) optionalComputed(ctx *resourceCtx, attrPath []string) (bool
 }
 
 // absentIsNull reports whether an argument at one revision only reads as
-// null at the other: the provider schema of both revisions, each by its own
-// provider source, marks the path a plain attribute that is not write-only,
-// reached through nested attribute types only. No schema, a name absent from
-// either, a legacy nested block on the path or a disagreement is no.
+// null at the other: the given schema, at each revision's provider source,
+// marks the path a plain attribute that is not write-only, reached through
+// nested attribute types only. No schema, a changed provider requirement, a
+// name absent at either source, a legacy nested block on the path or a
+// disagreement is no.
 func (c *classifier) absentIsNull(ctx *resourceCtx, attrPath []string) bool {
-	if ctx == nil || len(attrPath) == 0 {
+	if ctx == nil || ctx.requirementChanged || len(attrPath) == 0 {
 		return false
 	}
 	for _, source := range []string{ctx.baseSource, ctx.source} {

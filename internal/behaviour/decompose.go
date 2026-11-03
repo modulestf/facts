@@ -364,7 +364,8 @@ func (d *decomposer) pair(b, h *item) {
 	case itemResource, itemData:
 		local, baseLocal := providerLocal(h), providerLocal(b)
 		ctx := &resourceCtx{mode: b.kind, typ: b.typ, source: facts.ProviderKey(cmp.Or(d.head.providers[local], local)),
-			baseSource: facts.ProviderKey(cmp.Or(d.base.providers[baseLocal], baseLocal))}
+			baseSource:         facts.ProviderKey(cmp.Or(d.base.providers[baseLocal], baseLocal)),
+			requirementChanged: baseLocal != local || requirement(d.base, baseLocal) != requirement(d.head, local)}
 		d.body(b, h, b.block.Body, h.block.Body, nil, true, ctx)
 	case itemLocal:
 		bx, hx := &exprInfo{b.attr.Expr, b.src}, &exprInfo{h.attr.Expr, h.src}
@@ -403,6 +404,26 @@ func onlyVersionDiffers(b, h *item) bool {
 type resourceCtx struct {
 	mode, typ, source string
 	baseSource        string // the provider source at the base
+	// requirementChanged is set when the provider's required_providers
+	// entry, or its local name, differs between the revisions: the one
+	// schema given cannot stand for both.
+	requirementChanged bool
+}
+
+// requirement is the required_providers entry of a provider local name in a
+// view, normalised, or "" when there is none.
+func requirement(v *view, local string) string {
+	if it := v.items["terraform:required_providers."+local]; it != nil {
+		return it.norm
+	}
+	return ""
+}
+
+// asBlock reports a body that writes name in block syntax, as a nested
+// block or a dynamic block: an attribute as blocks, which is not absent.
+func asBlock(b *hclsyntax.Body, name string) bool {
+	g := groups(b)
+	return len(g[name]) > 0 || len(g["dynamic."+name]) > 0
 }
 
 // providerLocal is the provider local name of a resource: its provider
@@ -523,7 +544,9 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 		}
 		// After the category: the null of an absent attribute changes no
 		// category and no level.
-		if (bx == nil) != (hx == nil) && bb != nil && hb != nil && !slices.ContainsFunc(p, func(n string) bool { return noNullBase[n] }) &&
+		// A side that writes the name in block syntax is not absent.
+		blocks := bx == nil && asBlock(bb, name) || hx == nil && asBlock(hb, name)
+		if (bx == nil) != (hx == nil) && bb != nil && hb != nil && !blocks && !slices.ContainsFunc(p, func(n string) bool { return noNullBase[n] }) &&
 			d.c.absentIsNull(ctx, p) {
 			if bx == nil {
 				s.b, s.baseAbsent = nullFor(), true

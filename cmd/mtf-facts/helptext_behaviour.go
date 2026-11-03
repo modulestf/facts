@@ -27,8 +27,9 @@ Computed, or when there is no schema, or it lacks the attribute. A changed
 data source argument that is not a literal yields one at L1 only: L3 plans
 no data source. An argument added to or removed from a resource or data
 source reads as null at the other revision, marked base_absent or
-head_absent, only when the schema of both revisions marks it a plain
-attribute that is not write-only.
+head_absent, only when the given schema, at each revision's provider source,
+marks it a plain attribute that is not write-only, the provider requirement
+is the same at both revisions, and neither writes it as blocks.
 
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the

@@ -9,7 +9,8 @@ import (
 
 // absentSchema has aws_thing at two provider sources: hashicorp/aws with a
 // plain attribute "oc" (Optional and Computed), "opt" (Optional), a
-// write-only "wo", a nested attribute type "obj" and a legacy nested block
+// write-only "wo", an attribute "ing" that may be written as blocks, a
+// nested attribute type "obj" and a legacy nested block
 // "rule"; acme/aws lacks "oc", so a revision that resolves aws to acme/aws
 // disagrees about it. aws_look is a data source.
 const absentSchema = `{"format_version":"1.0","provider_schemas":{
@@ -19,6 +20,7 @@ const absentSchema = `{"format_version":"1.0","provider_schemas":{
       "oc":{"type":"string","optional":true,"computed":true},
       "opt":{"type":"string","optional":true},
       "wo":{"type":"string","optional":true,"write_only":true},
+      "ing":{"type":["list",["object",{"x":"number"}]],"optional":true,"computed":true},
       "obj":{"nested_type":{"nesting_mode":"single","attributes":{"inner":{"type":"string","optional":true}}},"optional":true}},
     "block_types":{"rule":{"nesting_mode":"list","block":{"attributes":{"x":{"type":"string","optional":true}}}}}}}},
   "data_source_schemas":{"aws_look":{"version":0,"block":{"attributes":{
@@ -108,6 +110,18 @@ func TestAbsentIsNull(t *testing.T) {
 			t.Errorf("no cases: %s", str(tr.Reason))
 		}
 	}
+	// The controls of the refusals in TestAbsentNotNull: the same provider
+	// requirement at both revisions, and "ing" absent in any syntax.
+	req := "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \">= 5.0\"\n    }\n  }\n}\n"
+	for name, c := range map[string][2]string{
+		"same requirement": {req + varX + "resource \"aws_thing\" \"t\" {}\n", req + varX + "resource \"aws_thing\" \"t\" {\n  oc = var.x\n}\n"},
+		"attribute ing":    {"resource \"aws_thing\" \"t\" {}\n", "resource \"aws_thing\" \"t\" {\n  ing = [{ x = 1 }]\n}\n"},
+	} {
+		r := runPair(t, map[string]string{"main.tf": c[0]}, map[string]string{"main.tf": c[1]}, sch)
+		if !slices.ContainsFunc(r.Triggers, func(tr Trigger) bool { return tr.BaseAbsent && str(tr.BaseExpr) == "null" }) {
+			t.Errorf("%s: want a null base: %v", name, categories(r))
+		}
+	}
 	// A literal added: still literal-argument-change, with the null side.
 	r = runPair(t, map[string]string{"main.tf": `resource "aws_thing" "t" {}` + "\n"},
 		map[string]string{"main.tf": `resource "aws_thing" "t" {
@@ -133,12 +147,23 @@ func TestAbsentNotNull(t *testing.T) {
   }
 }
 `
+	req := func(version string) string {
+		return "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"" + version + "\"\n    }\n  }\n}\n"
+	}
+	blocks := "  ing {\n    x = 1\n  }\n"
+	dynamic := "  dynamic \"ing\" {\n    for_each = [1]\n    content {\n      x = ing.value\n    }\n  }\n"
+	attr := "  ing = [{ x = 1 }]\n"
 	cases := []struct {
 		name       string
 		base, head string
 		schema     string
 	}{
 		{"no schema", res(""), res("  oc = var.x\n"), ""},
+		{"provider version constraint changed", req(">= 5.0") + res(""), req(">= 6.0") + res("  oc = var.x\n"), sch},
+		{"attribute as blocks, added", res(blocks), res(attr), sch},
+		{"attribute as blocks, removed", res(attr), res(blocks), sch},
+		{"attribute as a dynamic block, added", res(dynamic), res(attr), sch},
+		{"attribute as a dynamic block, removed", res(attr), res(dynamic), sch},
 		{"schema disagreement", acme + res(""), res("  oc = var.x\n"), sch},
 		{"write-only", res(""), res("  wo = var.x\n"), sch},
 		{"not in the schema", res(""), res("  nope = var.x\n"), sch},
