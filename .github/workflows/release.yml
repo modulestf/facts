@@ -126,6 +126,8 @@ jobs:
   # only; without it this job does nothing.
   homebrew:
     needs: release
+    # The release is already published; a failed dispatch must not fail the run.
+    continue-on-error: true
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

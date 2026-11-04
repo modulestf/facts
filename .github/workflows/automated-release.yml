@@ -1,12 +1,13 @@
 name: automated-release
 
 # Opens the release pull request. A push to master that carries a releasable
-# Conventional Commit (feat, fix or a breaking change) bumps version.json,
-# prepends the new section to CHANGELOG.md and opens "chore(release): vX.Y.Z"
+# Conventional Commit (feat, fix, perf, revert or a breaking change) bumps
+# version.json, prepends the new section to CHANGELOG.md and opens "chore(release): vX.Y.Z"
 # from release/next, then merges it. tag-release.yml tags the merged commit,
 # and the tag starts release.yml, which builds and publishes the binaries.
 #
-# Needs the repository secret RELEASE_TOKEN: a fine-grained token of an
+# Needs the secret RELEASE_TOKEN in the release-automation environment, which
+# only master may use: a fine-grained token of an
 # administrator with contents and pull requests write on this repository.
 # GITHUB_TOKEN cannot do this: a branch, pull request or tag it creates starts
 # no workflow, and only administrators may create v* tags here. Without the
@@ -27,6 +28,7 @@ jobs:
   release-pr:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: release-automation
     # Do not release the merged release commit again.
     if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):') }}
     steps:
@@ -45,6 +47,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.token.outputs.present == 'true'
         with:
+          # master, not the pushed commit: a queued run must see an earlier release.
+          ref: master
           fetch-depth: 0
           token: ${{ secrets.RELEASE_TOKEN }}
 
@@ -70,6 +74,8 @@ jobs:
           git-branch: release/next
           preset: angular
           tag-prefix: v
+          # Prepend one section; without input-file the action rewrites the file from tags.
+          input-file: CHANGELOG.md
           output-file: CHANGELOG.md
           version-file: ./version.json
           version-path: version
@@ -98,6 +104,14 @@ jobs:
             gh pr edit "$pr" --title "chore(release): ${TAG}"
           fi
           # Auto-merge needs a branch rule; without one, merge now. The pull
-          # request changes only CHANGELOG.md and version.json.
-          gh pr merge "$pr" --auto --squash --delete-branch --subject "chore(release): ${TAG}" ||
-            gh pr merge "$pr" --squash --delete-branch --subject "chore(release): ${TAG}"
+          # request changes only CHANGELOG.md and version.json. Right after it
+          # is opened GitHub may not know yet whether it can merge, so retry.
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge "$pr" --auto --squash --delete-branch --subject "chore(release): ${TAG}" ||
+               gh pr merge "$pr" --squash --delete-branch --subject "chore(release): ${TAG}"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not merge pull request #${pr}"
+          exit 1

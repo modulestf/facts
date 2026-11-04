@@ -629,11 +629,11 @@ Each release publishes one binary per platform, `mtf-facts_<tag>_darwin_amd64`, 
 
 Releases follow the [Conventional Commits](https://www.conventionalcommits.org/) in the titles of merged pull requests, which become the commit subjects on `master`. `pr-title-lint` checks each title.
 
-1. A merge to `master` that holds a `feat`, a `fix` or a breaking change starts `automated-release`. It bumps `version.json`, adds the new section to [CHANGELOG.md](CHANGELOG.md) and opens and merges `chore(release): vX.Y.Z`. Other commit types wait for the next releasable one.
+1. A merge to `master` that holds a `feat`, `fix`, `perf` or `revert` commit or a breaking change starts `automated-release`. It bumps `version.json`, adds the new section to [CHANGELOG.md](CHANGELOG.md) and opens and merges `chore(release): vX.Y.Z`. Other commit types wait for the next releasable one.
 2. `tag-release` tags that merged commit with the version.
 3. The tag starts the `release` workflow. It builds every binary, attests them and creates the GitHub release with the changelog section as its notes. The build job holds no token that can sign or write. The attestation runs in the `release` environment, so it waits for approval once that environment has reviewers. Only the job that creates the release can write to the repository. A last job asks [modulestf/homebrew-tap](https://github.com/modulestf/homebrew-tap) to update its formula.
 
-The first two steps need the repository secret `RELEASE_TOKEN`, a fine-grained token of an administrator with contents and pull requests write. A tag or pull request made with the default `GITHUB_TOKEN` starts no workflow, and only administrators may create `v*` tags. The last job needs `HOMEBREW_TAP_TOKEN`, which may run workflows in the tap; without it the tap picks up the release on its daily schedule.
+The first two steps need the secret `RELEASE_TOKEN` in the `release-automation` environment, which only `master` may use: a fine-grained token of an administrator with contents and pull requests write. A tag or pull request made with the default `GITHUB_TOKEN` starts no workflow, and only administrators may create `v*` tags. The last job needs `HOMEBREW_TAP_TOKEN`, which may run workflows in the tap; without it the tap picks up the release on its daily schedule.
 
 To cut a release by hand, as before, tag a commit on `master` whose `ci` run passed and push the tag. The workflow refuses a tag whose commit is not on `master`. A pre-release tag such as `v0.5.0-rc.1` is published as a pre-release.
 
