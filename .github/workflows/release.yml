@@ -53,6 +53,22 @@ jobs:
           path: ${{ runner.temp }}/dist/
           if-no-files-found: error
           retention-days: 1
+      # The release notes are the tag's section of CHANGELOG.md. A tag with no
+      # section, such as a pre-release, gets GitHub's generated notes.
+      - name: Extract the release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/notes"
+          awk -v v="${TAG#v}" '
+            /^#+ \[?[0-9]/ { if (found) exit; if (index($0, "[" v "]") || $2 == v) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes/notes.md"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes/
+          retention-days: 1
 
   attest:
     needs: build
@@ -86,6 +102,10 @@ jobs:
         with:
           name: dist
           path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notes
+          path: notes
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -95,6 +115,28 @@ jobs:
           sha256sum -c SHA256SUMS
           prerelease=()
           if [[ $TAG == *-* ]]; then prerelease=(--prerelease); fi
+          notes=(--generate-notes)
+          if grep -q '[^[:space:]]' ../notes/notes.md; then notes=(--notes-file ../notes/notes.md); fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title "$TAG" --generate-notes "${prerelease[@]}" \
+            --title "$TAG" "${notes[@]}" "${prerelease[@]}" \
             mtf-facts_* SHA256SUMS
+
+  # Asks modulestf/homebrew-tap to update its formula now, not at its next
+  # scheduled run. HOMEBREW_TAP_TOKEN may run workflows in that repository
+  # only; without it this job does nothing.
+  homebrew:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Dispatch the formula update
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN is not set; the tap updates on its schedule."
+            exit 0
+          fi
+          gh workflow run update-formula.yml -R modulestf/homebrew-tap

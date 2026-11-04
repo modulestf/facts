@@ -11,11 +11,19 @@ It reads files only. It makes no network call and runs no Terraform or other pro
 
 ## Install
 
+With Homebrew, on macOS or Linux:
+
+```sh
+brew install modulestf/tap/mtf-facts
+```
+
+Or with Go:
+
 ```sh
 go install github.com/modulestf/facts/cmd/mtf-facts@latest
 ```
 
-Pin a release with `@v0.4.0-rc.1` in place of `@latest`, or download a release binary and check it as in [Verify a release](#verify-a-release).
+Pin a release with `@v0.4.0` in place of `@latest`, or download a release binary and check it as in [Verify a release](#verify-a-release).
 
 Or build from a checkout:
 
@@ -615,19 +623,24 @@ The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
 ## Releases
 
-The current release is the pre-release `v0.4.0-rc.1`. Each release publishes one binary per platform, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
+Each release publishes one binary per platform, `mtf-facts_<tag>_darwin_amd64`, `mtf-facts_<tag>_darwin_arm64`, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
 
 ### Cut a release
 
-1. Pick a commit on `master` whose `ci` run passed. The workflow refuses a tag whose commit is not on `master`.
-2. Tag it and push the tag. Use a pre-release tag such as `v0.1.0-rc.1` to test the workflow; it is published as a pre-release.
+Releases follow the [Conventional Commits](https://www.conventionalcommits.org/) in the titles of merged pull requests, which become the commit subjects on `master`. `pr-title-lint` checks each title.
 
-   ```sh
-   git tag -a v0.1.0 -m v0.1.0 <commit>
-   git push origin v0.1.0
-   ```
+1. A merge to `master` that holds a `feat`, a `fix` or a breaking change starts `automated-release`. It bumps `version.json`, adds the new section to [CHANGELOG.md](CHANGELOG.md) and opens and merges `chore(release): vX.Y.Z`. Other commit types wait for the next releasable one.
+2. `tag-release` tags that merged commit with the version.
+3. The tag starts the `release` workflow. It builds every binary, attests them and creates the GitHub release with the changelog section as its notes. The build job holds no token that can sign or write. The attestation runs in the `release` environment, so it waits for approval once that environment has reviewers. Only the job that creates the release can write to the repository. A last job asks [modulestf/homebrew-tap](https://github.com/modulestf/homebrew-tap) to update its formula.
 
-3. The `release` workflow builds both binaries, attests them and creates the GitHub release. The build job holds no token that can sign or write. The attestation runs in the `release` environment, so it waits for approval once that environment has reviewers. Only the job that creates the release can write to the repository.
+The first two steps need the repository secret `RELEASE_TOKEN`, a fine-grained token of an administrator with contents and pull requests write. A tag or pull request made with the default `GITHUB_TOKEN` starts no workflow, and only administrators may create `v*` tags. The last job needs `HOMEBREW_TAP_TOKEN`, which may run workflows in the tap; without it the tap picks up the release on its daily schedule.
+
+To cut a release by hand, as before, tag a commit on `master` whose `ci` run passed and push the tag. The workflow refuses a tag whose commit is not on `master`. A pre-release tag such as `v0.5.0-rc.1` is published as a pre-release.
+
+```sh
+git tag -a v0.5.0 -m v0.5.0 <commit>
+git push origin v0.5.0
+```
 
 A pushed tag publishes a public release. Do not reuse or move a tag: delete a bad release and cut the next version.
 

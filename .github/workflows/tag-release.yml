@@ -1,0 +1,52 @@
+name: tag-release
+
+# Tags the merged "chore(release): vX.Y.Z" commit with the version in
+# version.json. The tag push starts release.yml, which builds, attests and
+# publishes. This workflow never commits, so it cannot start another release.
+# It pushes with RELEASE_TOKEN: a tag pushed with GITHUB_TOKEN starts no
+# workflow, and only administrators may create v* tags here.
+
+on:
+  push:
+    branches: [master]
+
+permissions: {}
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ startsWith(github.event.head_commit.message, 'chore(release):') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Tag the release commit
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version version.json)
+          tag="v${version}"
+          if ! [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::version.json holds '${version}', not a version"; exit 1
+          fi
+          subject=$(git log -1 --pretty=%s)
+          if [[ $subject != *"$tag"* ]]; then
+            echo "::error::release commit '${subject}' does not name ${tag}"; exit 1
+          fi
+          if existing=$(git rev-parse -q --verify "refs/tags/${tag}^{commit}"); then
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "::error::${tag} already points to ${existing}"; exit 1
+            fi
+            echo "${tag} already points to this commit."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git tag -a "$tag" -m "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/${tag}"
