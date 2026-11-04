@@ -1,3 +1,12 @@
+## [0.4.1](https://github.com/modulestf/facts/compare/v0.4.0...v0.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **diff:** a removed .tf file with no patch and no line was empty ([#23](https://github.com/modulestf/facts/issues/23)) ([fdd49a5](https://github.com/modulestf/facts/commit/fdd49a5afe6543cd658457a5c8e681bf299aa35d))
+
+
+
 # [0.4.0](https://github.com/modulestf/facts/compare/v0.4.0-rc.4...v0.4.0) (2026-11-04)
 
 First stable release. It is the code of v0.4.0-rc.4, plus the build and release changes below.
