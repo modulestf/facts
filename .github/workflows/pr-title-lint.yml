@@ -1,0 +1,43 @@
+name: pr-title-lint
+
+# Pull requests are squash-merged with the title as the commit subject, and
+# automated-release.yml reads those subjects for the version bump and the
+# changelog. A title that is not a Conventional Commit releases nothing.
+# pull_request_target runs for forks too; the action reads only the title from
+# the event and checks out no code.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-title-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+      statuses: write
+    steps:
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false

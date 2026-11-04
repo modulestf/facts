@@ -10,7 +10,7 @@
 # the published build and a local rebuild cannot drift apart.
 set -euo pipefail
 
-PLATFORMS=(linux/amd64 linux/arm64)
+PLATFORMS=(darwin/amd64 darwin/arm64 linux/amd64 linux/arm64)
 
 if [ "$#" -ne 2 ]; then
 	echo "usage: $0 <tag> <out-dir>" >&2

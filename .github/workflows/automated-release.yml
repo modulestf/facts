@@ -1,0 +1,117 @@
+name: automated-release
+
+# Opens the release pull request. A push to master that carries a releasable
+# Conventional Commit (feat, fix, perf, revert or a breaking change) bumps
+# version.json, prepends the new section to CHANGELOG.md and opens "chore(release): vX.Y.Z"
+# from release/next, then merges it. tag-release.yml tags the merged commit,
+# and the tag starts release.yml, which builds and publishes the binaries.
+#
+# Needs the secret RELEASE_TOKEN in the release-automation environment, which
+# only master may use: a fine-grained token of an
+# administrator with contents and pull requests write on this repository.
+# GITHUB_TOKEN cannot do this: a branch, pull request or tag it creates starts
+# no workflow, and only administrators may create v* tags here. Without the
+# secret the job does nothing.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: automated-release
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release-automation
+    # Do not release the merged release commit again.
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    steps:
+      - name: Check the token
+        id: token
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::notice::RELEASE_TOKEN is not set; no release pull request."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.token.outputs.present == 'true'
+        with:
+          # master, not the pushed commit: a queued run must see an earlier release.
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      # The changelog action commits on the current branch and pushes it, so
+      # release/next must exist locally and track its own remote branch.
+      - name: Prepare release/next
+        if: steps.token.outputs.present == 'true'
+        run: |
+          git push origin --delete release/next 2>/dev/null || true
+          git checkout -B release/next
+          git push origin release/next
+          git branch --set-upstream-to=origin/release/next release/next
+
+      - name: Bump the version and the changelog
+        if: steps.token.outputs.present == 'true'
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@469f0e5e35831fbd1962706f29f65daf0a5723f2 # v6.5.0
+        with:
+          github-token: ${{ secrets.RELEASE_TOKEN }}
+          git-message: 'chore(release): {version}'
+          git-user-name: 'github-actions[bot]'
+          git-user-email: 'github-actions[bot]@users.noreply.github.com'
+          git-branch: release/next
+          preset: angular
+          tag-prefix: v
+          # Prepend one section; without input-file the action rewrites the file from tags.
+          input-file: CHANGELOG.md
+          output-file: CHANGELOG.md
+          version-file: ./version.json
+          version-path: version
+          skip-on-empty: 'true'
+          skip-version-file: 'false'
+          skip-commit: 'false'
+          skip-tag: 'true'
+          skip-ci: 'false'
+
+      - name: Open and merge the release pull request
+        if: steps.token.outputs.present == 'true' && steps.changelog.outputs.skipped == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          TAG: ${{ steps.changelog.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Look up an open pull request only: a merged one may share the head.
+          pr=$(gh pr list --head release/next --base master --state open \
+                 --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            url=$(gh pr create --base master --head release/next \
+              --title "chore(release): ${TAG}" \
+              --body "Release ${TAG}. Merging it tags the commit, and the tag publishes the release.")
+            pr=${url##*/}
+          else
+            gh pr edit "$pr" --title "chore(release): ${TAG}"
+          fi
+          # Auto-merge needs a branch rule; without one, merge now. The pull
+          # request changes only CHANGELOG.md and version.json. Right after it
+          # is opened GitHub may not know yet whether it can merge, so retry.
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge "$pr" --auto --squash --delete-branch --subject "chore(release): ${TAG}" ||
+               gh pr merge "$pr" --squash --delete-branch --subject "chore(release): ${TAG}"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not merge pull request #${pr}"
+          exit 1
