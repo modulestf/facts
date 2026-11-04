@@ -150,6 +150,22 @@ func TestBaseFromDiff(t *testing.T) {
 			want: map[string]string{"big.tf": noPatch, "logo.png": noPatch},
 		},
 		{
+			name: "a removed .tf file with no patch and no line was empty",
+			head: map[string]string{"main.tf": v1},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "setup/variables.tf", Status: "removed"})
+			},
+			want: map[string]string{"main.tf": v1, "setup/variables.tf": ""},
+		},
+		{
+			name: "a .gitattributes that may hide a diff keeps a removed .tf file unknown",
+			head: map[string]string{"main.tf": v1, ".gitattributes": "*.tf -diff\n"},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "setup/variables.tf", Status: "removed"})
+			},
+			want: map[string]string{"main.tf": v1, ".gitattributes": "*.tf -diff\n", "setup/variables.tf": noPatch},
+		},
+		{
 			name: "a link at head with a patch",
 			head: map[string]string{"link.tf": "->other.tf", "other.tf": v1},
 			diff: func(t *testing.T) string {
