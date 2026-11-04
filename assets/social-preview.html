@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>modulestf/facts social preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1280px; height: 640px; }
+  body { font-family: 'Schibsted Grotesk', -apple-system, 'Segoe UI', sans-serif; background: #ffffff; color: #0f172a;
+    -webkit-font-smoothing: antialiased; }
+  .card { width: 1280px; height: 640px; position: relative; border: 1px solid #e5e7eb;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 90px; }
+  .accent { position: absolute; top: 0; left: 0; right: 0; height: 9px; background: #5c4ee5; }
+  .owner { font-size: 24px; font-weight: 500; color: #9ca3af; margin-bottom: 30px; }
+  .owner b { color: #5c4ee5; font-weight: 600; }
+  .title { font-family: 'Schibsted Grotesk', sans-serif; font-size: 84px; font-weight: 800; line-height: 1.02;
+    letter-spacing: -0.025em; margin-bottom: 30px; text-align: center; }
+  .subtitle { font-size: 27px; color: #4b5563; line-height: 1.42; max-width: 1080px; text-align: center; margin-bottom: 22px; }
+  .meta { font-size: 21px; font-weight: 500; color: #6b7280; text-align: center; margin-bottom: 40px; }
+  .meta i { color: #cbd5e1; font-style: normal; margin: 0 10px; }
+  .tags { display: flex; gap: 16px; justify-content: center; }
+  .tag { padding: 10px 22px; border-radius: 9999px; font-size: 20px; font-weight: 600; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="accent"></div>
+  <div class="owner">modulestf / <b>facts</b></div>
+  <h1 class="title">mtf-facts</h1>
+  <p class="subtitle">An offline Go CLI that parses Terraform module trees and reports deterministic facts: rule results, candidate findings with evidence, interface and schema diffs.</p>
+  <p class="meta"><span>Reads files only</span><i>&middot;</i><span>No network calls</span><i>&middot;</i><span>Runs no Terraform</span><i>&middot;</i><span>macOS and Linux</span></p>
+  <div class="tags">
+    <span class="tag" style="background:#eeecfd;color:#4a3dc9">terraform</span>
+    <span class="tag" style="background:#dbeafe;color:#1d4ed8">golang</span>
+    <span class="tag" style="background:#dcfce7;color:#15803d">cli</span>
+    <span class="tag" style="background:#fef3c7;color:#a16207">static-analysis</span>
+    <span class="tag" style="background:#ede9fe;color:#6d28d9">homebrew</span>
+  </div>
+</div>
+</body>
+</html>
