@@ -85,6 +85,11 @@ jobs:
           skip-tag: 'true'
           skip-ci: 'false'
 
+      # Nothing to release: drop the branch the prepare step pushed.
+      - name: Remove release/next
+        if: steps.token.outputs.present == 'true' && steps.changelog.outputs.skipped == 'true'
+        run: git push origin --delete release/next
+
       - name: Open and merge the release pull request
         if: steps.token.outputs.present == 'true' && steps.changelog.outputs.skipped == 'false'
         env:
