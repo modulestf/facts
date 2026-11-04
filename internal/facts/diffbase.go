@@ -143,6 +143,8 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 			c.status = statusPureRename
 		case (e.Status == "modified" || e.Status == "changed") && e.Additions == 0 && e.Deletions == 0:
 			c.status = statusModeOnly
+		case e.Status == "removed" && e.Deletions == 0 && strings.HasSuffix(e.Filename, ".tf"):
+			c.status = statusRemovedEmpty
 		}
 		out = append(out, c)
 	}
@@ -157,6 +159,12 @@ const statusPureRename = "pure-rename"
 // or removed line: for a text file at head only its mode can have changed.
 // A binary one may have changed content too; see rebuildEntry.
 const statusModeOnly = "mode-only"
+
+// statusRemovedEmpty marks a files list entry for a removed .tf file with no
+// patch and no removed line: the file was empty, or git saw it as binary. A
+// binary .tf file does not parse, so it holds no configuration either way,
+// unless a .gitattributes file hides the diff of a text file; see applyChanges.
+const statusRemovedEmpty = "removed-empty"
 
 func unifiedStart(t []byte) bool {
 	return bytes.HasPrefix(t, []byte("diff --git ")) || bytes.Contains(t, []byte("\n--- ")) ||
@@ -365,7 +373,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		switch c.status {
 		case "added", "copied":
 			at = ""
-		case "removed":
+		case "removed", statusRemovedEmpty:
 			if head.Entries[c.path] != nil {
 				return nil, fmt.Errorf("%s is removed by the diff but still in the head tree", c.path)
 			}
@@ -380,7 +388,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		default:
 			return nil, fmt.Errorf("%s: unknown status %q", c.path, c.status)
 		}
-		if c.status != "removed" && head.Entries[c.path] == nil {
+		if c.status != "removed" && c.status != statusRemovedEmpty && head.Entries[c.path] == nil {
 			return nil, fmt.Errorf("%s is in the diff but not in the head tree", c.path)
 		}
 		if c.status != "modified" && c.status != "changed" && c.status != statusModeOnly {
@@ -403,6 +411,13 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		}
 		entries[r.at] = e
 	}
+	if diffMayBeHidden(head.Entries, entries) {
+		for _, r := range todo {
+			if r.c.status == statusRemovedEmpty {
+				entries[r.at] = &Entry{Path: r.at, Kind: KindNoPatch}
+			}
+		}
+	}
 	for _, e := range entries {
 		total += int64(len(e.Data))
 	}
@@ -410,6 +425,24 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		return nil, fmt.Errorf("more than %d bytes", lim.MaxTotalBytes)
 	}
 	return indexTree(entries, head), nil
+}
+
+// diffMayBeHidden reports whether a .gitattributes file of either tree may
+// mark a text file binary or -diff, so that a removed file with no line may
+// have had content: any such file that is not a regular file, or that names
+// binary or -diff anywhere, counts.
+func diffMayBeHidden(trees ...map[string]*Entry) bool {
+	for _, t := range trees {
+		for p, e := range t {
+			if path.Base(p) != ".gitattributes" {
+				continue
+			}
+			if e.Kind != KindFile || bytes.Contains(e.Data, []byte("binary")) || bytes.Contains(e.Data, []byte("-diff")) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // safeDiffPath accepts a clean relative path with no control character.
@@ -464,6 +497,9 @@ func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, erro
 			return noPatch, nil // a binary rename shows no line either, changed or not
 		}
 		c.patch = []byte{}
+	}
+	if c.status == statusRemovedEmpty {
+		return fileEntry(at, nil), nil // applyChanges undoes this when .gitattributes may hide a diff
 	}
 	if c.patch == nil {
 		return noPatch, nil
