@@ -144,15 +144,19 @@ func TestFindAreasDeletedModule(t *testing.T) {
 	}
 }
 
-// A changed link or special entry that is not named like configuration may be
-// a directory of configuration the reader never follows: an Issue area, not
-// evaluated. A link named like configuration belongs to its directory.
+// A directory that held configuration at base and is a link at head stays an
+// area, not evaluated; a link with no such history is not an area, and a
+// changed link anywhere else leaves the root in scope exactly as before. A
+// link named like configuration belongs to its directory.
 func TestFindAreasOpaqueEntries(t *testing.T) {
-	base := mustTree(t, writeTree(t, map[string]string{"infra/a/main.tf": "", "infra/a/variables.tf": "", "infra/old/main.tf": ""}))
+	base := mustTree(t, writeTree(t, map[string]string{
+		"main.tf": "", "README.md": "", "infra/a/main.tf": "", "infra/a/variables.tf": "", "infra/old/main.tf": "",
+	}))
 	head := mustTree(t, writeTree(t, map[string]string{
+		"main.tf": "", "README.md": "->/etc/hostname",
 		"infra/a/main.tf": "->/etc/hostname", "infra/a/variables.tf": "",
 		"infra/old": "->/tmp", // was a directory with .tf files at base
-		"infra/new": "->/tmp",
+		"infra/new": "->/tmp", // never held configuration
 		"modules/m": "->/tmp",
 	}))
 	as, err := FindAreas(head, base, DefaultLimits, true)
@@ -163,10 +167,16 @@ func TestFindAreasOpaqueEntries(t *testing.T) {
 	for _, a := range as {
 		by[a.Path] = a
 	}
-	for _, p := range []string{"infra/old", "infra/new"} {
-		if a := by[p]; a == nil || a.Kind != AreaModule || a.Issue == "" || a.Untouched {
-			t.Errorf("%s: want an Issue area of kind module in scope, got %+v", p, a)
+	if a := by["infra/old"]; a == nil || a.Kind != AreaModule || a.Issue == "" || a.Untouched {
+		t.Errorf("infra/old: want an Issue area of kind module in scope, got %+v", a)
+	}
+	for _, p := range []string{"infra/new", "README.md"} {
+		if by[p] != nil {
+			t.Errorf("%s: a link with no configuration history became an area", p)
 		}
+	}
+	if a := by["."]; a == nil || a.Untouched {
+		t.Errorf("a changed root link must leave the root in scope, got %+v", a)
 	}
 	if a := by["infra/a"]; a == nil || a.Kind != AreaModule || a.Issue != "" || len(a.Head.Unsupported) == 0 {
 		t.Errorf("infra/a: want a module area whose link-named main.tf is unsupported, got %+v", a)
@@ -179,12 +189,18 @@ func TestFindAreasOpaqueEntries(t *testing.T) {
 	}
 }
 
-// Without a base tree no entry is changed, so an opaque entry is not listed.
-func TestDiscoverModulesIgnoresOpaqueWithoutBase(t *testing.T) {
-	head := mustTree(t, writeTree(t, map[string]string{"infra/new": "->/tmp", "main.tf": ""}))
-	mods, err := discoverModules(head, nil, DefaultLimits)
-	if err != nil || len(mods) != 0 {
-		t.Errorf("got %v, %v; want none", mods, err)
+// Many changed links never trip the area limit: only directories holding
+// configuration are counted.
+func TestChangedLinksDoNotCountAgainstLimit(t *testing.T) {
+	baseFiles, headFiles := map[string]string{"main.tf": ""}, map[string]string{"main.tf": ""}
+	for i := range 600 {
+		headFiles["l"+strings.Repeat("x", i%7)+string(rune('a'+i%26))+string(rune('a'+i/26))] = "->/tmp"
+	}
+	base, head := mustTree(t, writeTree(t, baseFiles)), mustTree(t, writeTree(t, headFiles))
+	lim := DefaultLimits
+	lim.MaxAreas = 2
+	if _, err := FindAreas(head, base, lim, true); err != nil {
+		t.Errorf("changed links counted against the area limit: %v", err)
 	}
 }
 

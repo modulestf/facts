@@ -85,19 +85,13 @@ func configName(p string) bool {
 	return strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")
 }
 
-func opaqueKind(k string) bool {
-	return k == KindSymlink || k == KindSpecial || k == KindUnreadable
-}
-
 // discoverModules returns the discovered module areas of the trees: each
 // discoverable directory that directly holds a .tf or .tf.json entry at head
-// or at base, a link or unreadable entry with such a name included, and, with a
-// base tree, each changed head entry that is a link, special file or
-// unreadable and is not named like configuration. Such an entry may be a
-// directory of configuration the reader never follows, so it is an area that
-// FindAreas reports as not evaluated. An untouched opaque entry is not listed,
-// and without a base tree none is. More than Limits.MaxAreas of them is an
-// error, before anything is parsed.
+// or at base, a link or unreadable entry with such a name included. A
+// directory that held configuration at base and is a link at head is still an
+// area, so FindAreas reports it as not evaluated. A link with no such history
+// is not listed. More than Limits.MaxAreas of them is an error, before
+// anything is parsed.
 func discoverModules(head, base *Tree, lim Limits) (map[string]bool, error) {
 	mods := map[string]bool{}
 	scan := func(t *Tree) {
@@ -110,11 +104,6 @@ func discoverModules(head, base *Tree, lim Limits) (map[string]bool, error) {
 	scan(head)
 	if base != nil {
 		scan(base)
-		for _, p := range head.Paths {
-			if e := head.Entries[p]; opaqueKind(e.Kind) && !configName(p) && discoverable(p) && !sameEntry(e, base.Entries[p]) {
-				mods[p] = true
-			}
-		}
 	}
 	if lim.MaxAreas > 0 && len(mods) > lim.MaxAreas {
 		return nil, fmt.Errorf("%w: %d discovered areas, the limit is %d", ErrAreaLimit, len(mods), lim.MaxAreas)
@@ -124,7 +113,8 @@ func discoverModules(head, base *Tree, lim Limits) (map[string]bool, error) {
 
 // ownerOf is the one ownership function: the area a file belongs to, and its
 // kind. In order: the top-level modules/<m> or examples/<n> that Classify
-// gives; a discovered area whose own path the file is; the root, for a file in
+// gives; a discovered area whose own path the file is, such as a link that
+// replaced a module directory; the root, for a file in
 // a directory with an ignored segment; the nearest discovered area above the
 // file, segment by segment; the root. isMod says whether a path is a
 // discovered area.
