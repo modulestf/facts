@@ -1,3 +1,12 @@
+# [0.5.0](https://github.com/modulestf/facts/compare/v0.4.1...v0.5.0) (2026-11-05)
+
+
+### Features
+
+* **areas:** discover module directories outside the modules/examples layout ([#26](https://github.com/modulestf/facts/issues/26)) ([8be9ae2](https://github.com/modulestf/facts/commit/8be9ae242ce6d837c42bcb9c0ad6a47979b4a2e9))
+
+
+
 ## [0.4.1](https://github.com/modulestf/facts/compare/v0.4.0...v0.4.1) (2026-11-04)
 
 
