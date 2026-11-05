@@ -1,6 +1,8 @@
 package facts
 
 import (
+	"errors"
+	"fmt"
 	"maps"
 	"path"
 	"slices"
@@ -16,7 +18,129 @@ const (
 	AreaRoot      = "root"
 	AreaSubmodule = "submodule"
 	AreaExample   = "example"
+	// AreaModule is a directory outside the layout above that directly holds
+	// Terraform configuration, such as infra/modules/network in a monorepo.
+	// FindAreas discovers it; see discoverModules. Only the rules in
+	// moduleRules apply to it.
+	AreaModule = "module"
 )
+
+// ErrAreaLimit is returned when a tree has more discovered areas than
+// Limits.MaxAreas.
+var ErrAreaLimit = errors.New("area_limit_exceeded")
+
+// moduleRules are the rules that apply to a discovered module area, besides
+// listing the submodule kind: the language-level compat and coverage rules.
+// The convention, profile and layout rules (structure.*, profile.*, scope.*,
+// examples.*) encode the terraform-aws-modules profile and are not applicable.
+// TestModuleRulesCoverEverySubmoduleRule keeps this list in step with the
+// registry.
+var moduleRules = map[string]bool{
+	"compat.default-changed":                 true,
+	"compat.generated-policy-narrowed":       true,
+	"compat.provider-floor-raised":           true,
+	"compat.resource-address-changed":        true,
+	"compat.type-narrowed":                   true,
+	"compat.variable-now-required":           true,
+	"compat.variable-removed":                true,
+	"compat.version-constraint-raised":       true,
+	"coverage.argument-above-min-version":    true,
+	"coverage.attribute-not-output":          true,
+	"coverage.block-attribute-mismatch":      true,
+	"coverage.deprecated-argument":           true,
+	"coverage.optional-argument-unexposed":   true,
+	"coverage.required-argument-unreachable": true,
+	"coverage.unknown-argument":              true,
+}
+
+// kindApplies reports whether rule r runs on an area of the given kind. A
+// module area takes the rules that list the submodule kind and are in
+// moduleRules, so the kinds the registry publishes stay as they are.
+func kindApplies(r Rule, kind string) bool {
+	if kind == AreaModule {
+		return slices.Contains(r.Kinds, AreaSubmodule) && moduleRules[r.ID]
+	}
+	return slices.Contains(r.Kinds, kind)
+}
+
+// ignoredDir reports whether a segment of dir keeps it from being a discovered
+// area: tests, wrappers, examples or a dot directory, at any depth, matched
+// exactly like Classify does.
+func ignoredDir(dir string) bool {
+	for s := range strings.SplitSeq(dir, "/") {
+		if s == "tests" || s == "wrappers" || s == "examples" || strings.HasPrefix(s, ".") {
+			return true
+		}
+	}
+	return false
+}
+
+// discoverable reports whether p may be a discovered area. The top-level
+// modules/ is Classify's, and the root is never discovered.
+func discoverable(p string) bool {
+	return p != "." && strings.SplitN(p, "/", 2)[0] != "modules" && !ignoredDir(p)
+}
+
+func configName(p string) bool {
+	return strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")
+}
+
+// discoverModules returns the discovered module areas of the trees: each
+// discoverable directory that directly holds a .tf or .tf.json entry at head
+// or at base, a link or unreadable entry with such a name included. A
+// directory that held configuration at base and is a link at head is still an
+// area, so FindAreas reports it as not evaluated. A link with no such history
+// is not listed. More than Limits.MaxAreas of them is an error, before
+// anything is parsed.
+func discoverModules(head, base *Tree, lim Limits) (map[string]bool, error) {
+	mods := map[string]bool{}
+	scan := func(t *Tree) {
+		for _, p := range t.Paths {
+			if d := path.Dir(p); configName(p) && discoverable(d) {
+				mods[d] = true
+			}
+		}
+	}
+	scan(head)
+	if base != nil {
+		scan(base)
+	}
+	if lim.MaxAreas > 0 && len(mods) > lim.MaxAreas {
+		return nil, fmt.Errorf("%w: %d discovered areas, the limit is %d", ErrAreaLimit, len(mods), lim.MaxAreas)
+	}
+	return mods, nil
+}
+
+// ownerOf is the one ownership function: the area a file belongs to, and its
+// kind. In order: the top-level modules/<m> or examples/<n> that Classify
+// gives; a discovered area whose own path the file is, such as a link that
+// replaced a module directory; the root, for a file in
+// a directory with an ignored segment; the nearest discovered area above the
+// file, segment by segment; the root. isMod says whether a path is a
+// discovered area.
+func ownerOf(file string, isMod func(string) bool) (area, kind string) {
+	if a, k, ok := Classify(file); ok && a != rootArea {
+		return a, k
+	}
+	if isMod(file) {
+		return file, AreaModule
+	}
+	dir := path.Dir(file)
+	if !ignoredDir(dir) {
+		for d := dir; d != "."; d = path.Dir(d) {
+			if isMod(d) {
+				return d, AreaModule
+			}
+		}
+	}
+	return rootArea, AreaRoot
+}
+
+// peerOwner is ownerOf over the areas of a run, by path.
+func peerOwner(file string, peers map[string]*Area) string {
+	a, _ := ownerOf(file, func(p string) bool { x := peers[p]; return x != nil && x.Kind == AreaModule })
+	return a
+}
 
 // Area is one module directory, with its head and base facts.
 type Area struct {
@@ -166,6 +290,11 @@ func (a *Area) newUnreadConfig() []string {
 // head is listed and parsed too, marked Untouched, for a cross-area pass to
 // read. Without it those areas are neither listed nor parsed.
 func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
+	mods, err := discoverModules(head, base, lim)
+	if err != nil {
+		return nil, err
+	}
+	isMod := func(p string) bool { return mods[p] }
 	add := func(set map[string]string, p string, t *Tree) {
 		// A link, special or unreadable entry where an example or submodule
 		// directory belongs is that area, so its rules report it. That holds
@@ -182,13 +311,10 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 				p += "/x"
 			}
 		}
-		a, k, ok := Classify(p)
-		if !ok {
-			// A path in no area, such as one under tests/ or wrappers/,
-			// counts as the root's, so the root's path rules read it and a
-			// change to such paths alone is not left with no area in scope.
-			a, k = rootArea, AreaRoot
-		}
+		// A path in no area, such as one under tests/ or wrappers/, counts
+		// as the root's, so the root's path rules read it and a change to
+		// such paths alone is not left with no area in scope.
+		a, k := ownerOf(p, isMod)
 		set[a] = k
 	}
 	// every collects each area at head.

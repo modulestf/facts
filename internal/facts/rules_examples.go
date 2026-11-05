@@ -307,7 +307,7 @@ func calledArea(ex *Area, call ModuleCall) *Area {
 		return nil
 	}
 	callee := ex.peers[path.Join(ex.Path, call.Source)]
-	if callee == nil || (callee.Kind != AreaRoot && callee.Kind != AreaSubmodule) {
+	if callee == nil || (callee.Kind != AreaRoot && callee.Kind != AreaSubmodule && callee.Kind != AreaModule) {
 		return nil
 	}
 	return callee

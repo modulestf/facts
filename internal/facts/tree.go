@@ -27,6 +27,7 @@ type Limits struct {
 	MaxOutputBytes int   // size of the JSON report
 	MaxTokens      int   // HCL tokens per file
 	MaxPrefixOps   int   // consecutive unary operators, which the parser recurses on
+	MaxAreas       int   // discovered module areas; zero means no limit
 	// Deadline stops a run that takes too long. Zero means no deadline.
 	Deadline time.Time
 }
@@ -50,6 +51,7 @@ var DefaultLimits = Limits{
 	MaxOutputBytes: 16 << 20,
 	MaxTokens:      100000,
 	MaxPrefixOps:   64,
+	MaxAreas:       512,
 }
 
 // Entry kinds.
