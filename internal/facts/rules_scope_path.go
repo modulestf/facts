@@ -406,8 +406,7 @@ func checkTooling(a *Area) Result {
 	tl := a.Profile.Tooling
 	var res Result
 	for _, p := range a.headTree.Paths {
-		area, _, ok := Classify(p)
-		if (ok && area != a.Path) || (!ok && a.Path != rootArea) || a.baseTree.Entries[p] != nil || a.baseTree.Dirs[p] {
+		if peerOwner(p, a.peers) != a.Path || a.baseTree.Entries[p] != nil || a.baseTree.Dirs[p] {
 			continue
 		}
 		parts := strings.Split(p, "/")

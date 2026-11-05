@@ -1,0 +1,64 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.variable-now-required",
+      "area": "infra/modules/network",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "infra/modules/network",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "coverage.attribute-not-output",
+      "area": "infra/modules/network",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.variable-removed",
+      "file": "infra/modules/network/variables.tf",
+      "line": null,
+      "subject": "infra/modules/network:var.region",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "infra/modules/network/variables.tf",
+            "line": 5,
+            "text": "variable \"region\" {"
+          }
+        ],
+        "base": "var.region",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.variable-now-required",
+      "file": "infra/modules/network/variables.tf",
+      "line": 5,
+      "subject": "infra/modules/network:var.tenant",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "infra/modules/network/variables.tf",
+            "line": 5,
+            "text": "variable \"tenant\" {"
+          }
+        ],
+        "base": null,
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    }
+  ]
+}

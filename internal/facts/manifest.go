@@ -212,16 +212,12 @@ func crossEntries(rule string, res Result, peers map[string]*Area) []ManifestEnt
 }
 
 // itemArea is the area of an item's file: an area directory itself, such as
-// the subject of a path rule, or the modules/<name> or examples/<name> that
-// holds the file; anything else is the root's.
+// the subject of a path rule, or the area ownerOf gives the file.
 func itemArea(file string, peers map[string]*Area) string {
 	if peers[file] != nil {
 		return file
 	}
-	if parts := strings.SplitN(file, "/", 3); len(parts) == 3 && (parts[0] == "modules" || parts[0] == "examples") {
-		return parts[0] + "/" + parts[1]
-	}
-	return rootArea
+	return peerOwner(file, peers)
 }
 
 // evaluate runs one rule in one area after the shared gate.
@@ -345,7 +341,7 @@ func lineOr0(l *int) int {
 // StatusNotApplicable as the reason for a rule that does not apply.
 func gate(r Rule, a *Area) (reason, code string) {
 	switch {
-	case !slices.Contains(r.Kinds, a.Kind):
+	case !kindApplies(r, a.Kind):
 		return StatusNotApplicable, ""
 	case a.Issue != "":
 		return a.Issue, a.issueCode
