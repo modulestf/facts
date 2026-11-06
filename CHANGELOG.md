@@ -1,3 +1,12 @@
+# [0.6.0](https://github.com/modulestf/facts/compare/v0.5.0...v0.6.0) (2026-11-06)
+
+
+### Features
+
+* module-area ownership, module callers and profile options ([#28](https://github.com/modulestf/facts/issues/28)) ([c2599c0](https://github.com/modulestf/facts/commit/c2599c0350d22e6cbe5f16ef6753e385c0c32129))
+
+
+
 # [0.5.0](https://github.com/modulestf/facts/compare/v0.4.1...v0.5.0) (2026-11-05)
 
 
