@@ -310,9 +310,10 @@ func checkScopeProvider(a *Area) Result {
 		if ch.over {
 			return Result{NotEvaluated: "a changed file is past the line diff limit", Code: ReasonLimitExceeded}
 		}
-		owner := areaOf(sites[0].file)
+		mods := moduleAreasOf(a.peers)
+		owner, _ := AreaOf(sites[0].file, mods)
 		if anchor != nil {
-			owner = areaOf(anchor.file)
+			owner, _ = AreaOf(anchor.file, mods)
 		}
 		switch {
 		case owner != a.Path || anchor == nil:
@@ -324,12 +325,6 @@ func checkScopeProvider(a *Area) Result {
 		}
 	}
 	return res
-}
-
-// areaOf is the area of a file path in a boundary directory.
-func areaOf(file string) string {
-	a, _, _ := Classify(file)
-	return a
 }
 
 // scope.module-call: a module block the change adds, or whose source it

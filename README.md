@@ -229,8 +229,13 @@ mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]
 
 The `--json` report holds the envelope, one manifest entry per rule and area (see [Areas](#areas) for a cross-area rule), findings in the reviewer's findings schema, and candidates. A `structure.argument-order` candidate carries `predates_change: true` when every item out of order in the head block, by name, is also out of order in the base block of the same address, so the same subject: the defect is older than the change. A change that puts a new item out of order does not predate it. No other rule sets it today; it is for a rule whose check already reads the base block. It also holds:
 
-- `scope`: how the change was given (`none`, `base` or `diff`), `full_tree`, and three disjoint lists of areas. `areas_checked` have their own manifest entries. `areas_calling` are the other areas that call a module listed in `callers`. `areas_left_out` are the rest, so no area is dropped without a trace.
+- `scope`: how the change was given (`none`, `base` or `diff`), `full_tree`, and three disjoint lists of areas. `areas_checked` have their own manifest entries. `areas_calling` are the other areas that call a module listed in `callers`. `areas_left_out` are the rest, so no area is dropped without a trace. `module_areas` lists every discovered area of kind `module`, at head or at base, sorted: the set that decides which area owns a file (see [Module ownership](#module-ownership)).
 - `callers`, with a change only: each root or submodule area the change touches whose `versions.tf` or `terraform` block, or `variables.tf` or a `variable` block, changed, with its version floors at base (`null` for a new module) and at head, and every area that calls it by a local path: the call's file and line, whether that area is checked, the floors it declares, and the ids of the `structure.version-floor-understated` candidates filed in it. A floor is an `address` (`required_version` or `required_providers.<name>`), the provider `source` and the `constraint` as written. Callers under `wrappers/` are not listed: no area reads that directory.
+
+- `module_callers`: always written, `[]` without a change. See [Module ownership](#module-ownership).
+- `in_repo_downgrade`: always written, sorted, often `[]`. See [In-repo downgrade](#in-repo-downgrade).
+- On a candidate, `downgrade: "in-repo"` and `severities: ["MEDIUM"]` when the in-repo downgrade covers it; absent otherwise.
+- A manifest entry for a rule the profile's options gate is `not_applicable` with `reason_code` `profile_option` and a reason text. See [Profile options](#profile-options).
 
 The text report prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](schema/).
 
@@ -242,7 +247,7 @@ The text report prints a `scope:` line, and with a change one line per changed m
 - `manifest_summary` is added. `status` counts every manifest entry of the full report by status. `omitted_by_family` counts the `clean` and `not_applicable` entries left out, per rule family: the rule id up to its first dot, such as `structure`. `areas` lists every area with a manifest entry, sorted. A rule with no entry in a listed area was `clean` or `not_applicable` there, or has no entry there in the full report either.
 - `envelope.inputs.head` and `envelope.inputs.base` keep `tree_sha256` and give `file_count` in place of the `files` list. Every other envelope key is unchanged, `schema_inputs` with its handoff hash, commits and tree hashes included.
 - `index`, `interface_diff` and `schema_coverage` are left out.
-- `findings`, `candidates`, `scope` and `callers` are unchanged.
+- `findings`, `candidates`, `scope`, `callers`, `module_callers` and `in_repo_downgrade` are unchanged.
 
 The report keeps `schema_version` 2 and the keys `envelope`, `manifest`, `findings` and `candidates` with their types, and `manifest_summary` is present only in the AI form. `bundle` and `merge final --report` need the index and the file lists, so they refuse a AI report and exit 2.
 
@@ -258,7 +263,7 @@ The envelope's `schema_inputs` records the handoff's hash, commits and tree hash
 
 The `coverage.*` rules read the bound handoff when one is given, and never fall back to the schema files. With schema files and no handoff, as in local `lint`, they resolve each block's provider source from `required_providers` and read the files as the latest schema; a provider no file has stays `schema_unavailable`. A schema file records no provider version, so its schema facts carry the version `schema-file`, and `coverage.argument-above-min-version`, which needs the declared minimum, stays `not_evaluated(schema_unavailable)`.
 
-`--profile-dir` reads the directory's `PROFILE.md` profile-constants blocks and the templates they name, without following a link and with size caps. The output envelope records its `profile_sha256`. A path that is missing, not a directory or itself a link exits 2; a link in a parent component of the path is resolved. A profile that cannot be read or parsed is no error: the rules that need it are `not_evaluated` with `profile_unavailable`, as they are without `--profile-dir`.
+`--profile-dir` reads the directory's `PROFILE.md` profile-constants blocks and the templates they name, without following a link and with size caps. The output envelope records its `profile_sha256`, and `profile_tree_sha256`: the SHA-256 of sorted `<sha256>  <path>` lines over every file of the directory, `null` when an entry is a link, special or unreadable, or when a name is not UTF-8 or holds a control character or DEL, which could forge a line of the hash input. `profile-snapshot` prints the same value as `tree_sha256`. A path that is missing, not a directory or itself a link exits 2; a link in a parent component of the path is resolved. A profile that cannot be read or parsed is no error: the rules that need it are `not_evaluated` with `profile_unavailable`, as they are without `--profile-dir`.
 
 `--timeout` must be greater than zero. A run that takes longer writes `mtf-facts: timeout` to stderr and exits with code 2.
 
@@ -454,6 +459,8 @@ FACTS-BUNDLE END
 
 `<json-string>` is one line holding the bundle as a JSON string with every byte outside printable ASCII escaped. The bundle inside that string has the shape of [facts-bundle.schema.json](schema/facts-bundle.schema.json), and `<n>` is the byte length of the string line. The 48 KiB cap counts that line. Over the cap, sections are shed lowest priority first (`file_index`, `schema_coverage`, `interface_diff`, `area_rules`), never `tool_findings` or `candidates`.
 
+The bundle carries `schema_version: 1`, `module_areas` (the report's `scope.module_areas`) and `in_repo_downgrade` together with `area_rules`, as one ownership unit: they are shed together, last, as `area-rules`. A report without `scope.module_areas`, from an older release, or with a module or downgrade area longer than 1024 bytes sheds the unit from the start. A bundle without `schema_version` is a legacy bundle.
+
 ### merge
 
 `mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
@@ -471,7 +478,27 @@ The reply is one JSON object with the arrays `candidate_decisions` and `findings
 
 `merge final` prints the merged findings, in the shape of [merged-findings.schema.json](schema/merged-findings.schema.json), and exits 0. It merges the first reply when that one is valid, and otherwise the repair reply, which must then be given: an empty file when the repair turn returned nothing. A repair reply that is still invalid keeps only its valid entries; a candidate it leaves undecided becomes `review.check-not-run`. `--report` takes a `lint --json` report, whose index derives the subject a lead finding dedups by. `--templates` takes the per-rule host text for confirmed entries the model gave no text for. A tool finding keeps the `predates_change` its bundle entry carries, which the host copies from the confirmed candidate; an `llm` or `host` finding never has it. A lead finding of `compat.expression-behaviour-changed` or a `claim.*` rule may carry `explains`, up to 256 difference ids as claims-eval lists them in `outstanding`, and `evidence_digest`; on any other rule, or malformed, they make the finding invalid. Lead findings that dedup into one and carry the same digest explain the union of their ids.
 
+A lead finding on a rule that is not an `llm` rule is kept only where the bundle's `area_rules` lists that rule `not_evaluated` for the finding's area, or under `.` for a cross-area rule. In a bundle with `schema_version` 1 the area is the one [`facts.AreaOf`](#module-ownership) gives with the bundle's `module_areas`, after the two-segment `examples/<n>` and `modules/<m>` directory of a path rule, which is its own area when the bundle lists it. A legacy bundle, without `schema_version`, maps paths as before module areas and has no downgrade. A `schema_version` other than 1, or one without all of `area_rules`, `module_areas` and `in_repo_downgrade`, or with an area that is not a clean relative path, exits 2.
+
+A model severity off its rule's list is clamped to the nearest permitted one, as before, with one exception: exactly `MEDIUM` on `compat.variable-removed`, `compat.variable-now-required`, `compat.type-narrowed`, `compat.default-changed` or `compat.generated-policy-narrowed`, in an area of the bundle's `in_repo_downgrade`, is kept. `merge final` writes the number of clamped severities to stderr when there are any.
+
 `merge counts` takes the replies as `merge final` does, picks the same reply, and prints its counts as `{"counts":{...}}`, or `{"counts":null}` when that reply has none, and exits 0. A reply without counts has none: no count is ever read as 0 for its absence. A repair reply that is still invalid keeps its counts when they are well formed. `merge counts` does not load the registry, the report or the templates, so it can succeed where `merge final` fails: a host reads the counts only after `merge final` succeeds.
+
+### profile-check
+
+```sh
+mtf-facts profile-check --profile-dir <dir> [--gates] [--downgrade-ids]
+```
+
+First reads the directory with the walker `profile-snapshot` uses and exits 2 on anything it refuses (a link, a special file, a bad name, another device or a bound), so a profile cannot pass the check and then fail the snapshot. Hosts run it on the snapshot directory. It then reads the profile as `lint --profile-dir` does and checks it, options included. It prints one JSON object: `valid`, `problems`, and for a valid profile `options` and `relaxing`. `--gates` adds `gates`, the gate table, and `gated_rules`, the rules this profile gates; `--downgrade-ids` adds `downgrade_ids`. Exit 0 for a valid profile, 1 for an invalid one, 2 when the directory is missing, a link or cannot be read.
+
+### profile-snapshot
+
+```sh
+mtf-facts profile-snapshot --profile-dir <dir>
+```
+
+Copies the profile directory into a new 0700 temporary directory and prints `{"dir", "tree_sha256", "profile_sha256"}` for the host. Each directory is opened relative to its parent and each file with `O_NOFOLLOW|O_NONBLOCK`, checked with `fstat` as the regular file the listing saw and on the source's `st_dev`, and copied from that descriptor. A link, a special file, another device, a name that is not UTF-8 or holds a control character or DEL, more than 256 entries, more than 8 MiB or a path more than 8 levels deep exits 2, and so does a copy that does not read back the same. The host reads options and gates only from the copy and removes it when done. `profile_sha256` is `null` when the copy is not a valid profile.
 
 ### ledger
 
@@ -608,6 +635,34 @@ A tree outside that layout, such as a monorepo with `infra/modules/network` call
 With a base tree, the root is in scope only when the change touches it. A cross-area rule has one entry under `.` for its pass, whether or not the root is in scope, and one more under each other area that holds one of its findings or candidates: the deepest area directory that holds the item's `file`. The `.` entry is `not_evaluated` when the pass is, and otherwise has the status of the items in the root area, `clean` when there are none. A `structure.version-floor-understated` candidate points at the caller's own floor, or at the call when the caller declares none, so it is filed under the caller's area; it is in the change when the caller's floor, the callee's floor or the call is a changed line. A cross-area pass reads every area of the module, in scope or not, and keeps only the findings and candidates of the areas in the change. When any area it reads cannot be evaluated, untouched areas included, that entry is `not_evaluated` with one reason code (`parse_error`, `unsupported_file`, `symlink` or `limit_exceeded`) and no findings or candidates.
 
 Files Terraform ignores (a leading `.`, a trailing `~`, `#...#`) are skipped. A directory gets `not_evaluated` for its configuration rules, never `clean`, when it has a parse error, a `.tf.json` file, an override file, a `.tf` file that is a link or cannot be read, or a file over the token, nesting or unary operator limits. Path rules still run: a link where a path rule looks for a file counts as present and is never followed. An area directory that is a link or cannot be read gets `not_evaluated` for every rule.
+
+### Module ownership
+
+`facts.AreaOf(file, module_areas)` is the one ownership function, shared by the engine and the merge: the top-level `modules/<m>` or `examples/<n>`; a module area whose own path the file is; the root for a file under a `tests`, `wrappers`, `examples` or dot segment; the nearest module area above the file; the root. It refuses a path that is empty, absolute, holds a backslash or a drive letter, is not clean or has a `..` segment.
+
+`module_callers` has one entry per head area of kind root, submodule or module (never example) with a file the change adds, changes or removes, sorted by `module`: `{module, complete, callers: [{area, file, line, file_changed}]}`, callers sorted by area, file and line. A module the change removes gets no entry. Callers come from every head `.tf` file, those under `tests/`, `wrappers/` and `examples/` included; `.git` and `.terraform` are never read. A literal source starting `./` or `../` is joined to the calling file's directory and must name exactly a discovered area path: `.`, a submodule or a module. Registry addresses, `git::`, `hg::`, `s3::`, `gcs::`, `http(s)://`, `github.com/` and `bitbucket.org/` sources are ignored. `file_changed` is true when the change adds the caller's file, changes its bytes or, with `--diff`, lists it. More than 4096 caller records exit 2.
+
+`complete` is one value for the whole tree, repeated on every entry. It is false when a local source escapes the tree or names no area (no ancestor is tried), a source is empty, not a literal, absolute, a drive letter or of no known form, a `.tf` or `.tf.json` file cannot be parsed or read, any entry is a link, special or unreadable, the tree holds a file that may call a module but that the engine does not parse (a `.tftest.hcl` or `.tftest.json` test file, a `terragrunt.hcl` or any other `.hcl` file except `.terraform.lock.hcl`, or an OpenTofu `.tofu` or `.tofu.json` file), or a change path is not a clean relative path. A changed or unchanged such file anywhere in the head tree is enough, so a Terragrunt caller beside the `.tf` ones blocks the downgrade.
+
+### Profile options
+
+A profile may hold a `profile-options` constants block: `format: 1`, `consumers` (`public` or `in-repo`), `partitions` (`portable` or `fixed`), `examples` (`required` or `none`) and `release` (`registry` or `none`), every key required. Without it the options are the defaults `public`, `portable`, `required`, `registry`; any other value relaxes the review. An unknown format, key or value, or another unknown block, makes the profile invalid (`profile_unavailable`). A key written as `<key>:` with nothing after the colon has the empty value: an empty list, or a single value that is not set; `<key>: ` with a trailing space stays invalid. Only these keys may be empty: `required-files` `example` and `example-dirs` (and only with `examples: none`, which needs both empty), `profile-owned-files` `verbatim` and `workflow-dir`, `tooling` `files` and `dirs`, and `banner` `line`. `template-destinations` may hold no key at all. An empty value judges nothing: no verbatim file and no workflow directory for `scope.profile-file`, no banner for `scope.readme-banner`, no scanner file or directory for `scope.tooling`, and no template for `profile.template-drift`.
+
+The gate table is held in the binary; `profile-check --gates` prints it. A listed value makes only the listed rules `not_applicable` with reason code `profile_option`:
+
+| Option | Rules |
+|--------|-------|
+| `partitions: fixed` | `structure.arn-partition-hardcoded` |
+| `examples: none` | `examples.argument-undemonstrated`, `examples.disabled-call-missing`, `examples.feature-undemonstrated`, `examples.submodule-missing`, `examples.versions-missing` |
+| `release: none` | `profile.changelog-handwritten`, `profile.commit-type-mismatch`, `profile.migration-notes-misplaced`, `profile.owner-identifier`, `profile.provider-meta-missing`, `profile.release-config-changed`, `profile.template-drift`, `profile.title-misspelling`, `profile.title-uninformative`, `profile.unrelated-change-bundled` |
+
+`profile.required-file-missing` is never gated; a profile with `examples: none` has no example entries for it to require. `consumers: in-repo` gates nothing: it only feeds the downgrade below.
+
+### In-repo downgrade
+
+`in_repo_downgrade` lists the modules of `module_callers` that have at least one caller and every caller's `file_changed` set, when the profile sets `consumers: in-repo`, the change is `base` or `diff`, the run is not `--full-tree`, and `complete` is true. The candidates of `compat.variable-removed`, `compat.variable-now-required`, `compat.type-narrowed`, `compat.default-changed` and `compat.generated-policy-narrowed` in those areas carry `downgrade: "in-repo"` and `severities: ["MEDIUM"]`.
+
+Depth limitation: `depth` does not read module areas. Examples nested under a module area, such as `infra/modules/network/examples/basic`, are out of its scope.
 
 ### Scope rules at area boundaries
 

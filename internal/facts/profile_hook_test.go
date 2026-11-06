@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -252,5 +253,61 @@ func TestProfileReasonHasNoHostPath(t *testing.T) {
 		if e.ReasonCode != ReasonProfileUnavailable || e.Reason != "profile: profile directory unreadable" || sum != nil {
 			t.Errorf("%s in %s: %s %q, hash %v", e.RuleID, e.Area, e.ReasonCode, e.Reason, sum)
 		}
+	}
+}
+
+// TestProfileTreeSHA256 checks the envelope's profile_tree_sha256 hashes
+// every regular file of the profile directory, and is null with no profile
+// or with an entry it cannot hash.
+func TestProfileTreeSHA256(t *testing.T) {
+	dir := copyProfile(t)
+	if err := os.WriteFile(filepath.Join(dir, "review-guide.md"), []byte("guide\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{}
+	fsys := os.DirFS(dir)
+	if err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		files[p], err = fs.ReadFile(fsys, p)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(profile.Preimage(files))
+	want := hex.EncodeToString(sum[:])
+	run1 := func(profileDir string) *Report {
+		t.Helper()
+		r, err := run(Options{Head: profileCase, ProfileDir: profileDir, Limits: DefaultLimits}, []Rule{profileRule})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	r := run1(dir)
+	if r.Envelope.ProfileTreeSHA256 == nil || *r.Envelope.ProfileTreeSHA256 != want {
+		t.Errorf("profile_tree_sha256 %v, want %s", r.Envelope.ProfileTreeSHA256, want)
+	}
+	if r.Envelope.ProfileSHA256 == nil || *r.Envelope.ProfileSHA256 == want {
+		t.Error("profile_sha256 is missing or covers the extra file")
+	}
+	if r := run1(""); r.Envelope.ProfileTreeSHA256 != nil {
+		t.Error("profile_tree_sha256 is set with no profile")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bad\nname.md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := run1(dir); r.Envelope.ProfileTreeSHA256 != nil || r.Envelope.ProfileSHA256 == nil {
+		t.Errorf("with a name holding LF: tree %v, profile %v; want null and set", r.Envelope.ProfileTreeSHA256, r.Envelope.ProfileSHA256)
+	}
+	if err := os.Remove(filepath.Join(dir, "bad\nname.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("review-guide.md", filepath.Join(dir, "link.md")); err != nil {
+		t.Fatal(err)
+	}
+	if r := run1(dir); r.Envelope.ProfileTreeSHA256 != nil || r.Envelope.ProfileSHA256 == nil {
+		t.Errorf("with a link: tree %v, profile %v; want null and set", r.Envelope.ProfileTreeSHA256, r.Envelope.ProfileSHA256)
 	}
 }

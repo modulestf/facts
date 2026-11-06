@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/profile"
 	"github.com/modulestf/facts/internal/registry"
 )
 
@@ -47,6 +48,17 @@ type Inputs struct {
 	// Templates are the per-rule host templates. The merge needs one for a
 	// severity_needed entry it materializes without model text.
 	Templates map[string]Template
+
+	stats *Stats // set by FinalStats
+}
+
+// Stats count what the merge changed in the reply it read.
+type Stats struct {
+	// OffList counts the findings whose model severity was given but not on
+	// the rule's list, which the merge dropped for the nearest permitted
+	// one, once per finding or candidate id.
+	OffList int
+	counted map[string]bool
 }
 
 // Final merges the bundle with the lead's reply into the merged findings.
@@ -55,6 +67,18 @@ type Inputs struct {
 // replaces it whole: all of it when it is valid, only its valid entries when
 // it is not. An empty or unreadable repair reply keeps nothing.
 func Final(in Inputs, first, repair []byte) ([]Finding, error) {
+	out, _, err := FinalStats(in, first, repair)
+	return out, err
+}
+
+// FinalStats is Final, with the counts of what the merge changed.
+func FinalStats(in Inputs, first, repair []byte) ([]Finding, Stats, error) {
+	in.stats = &Stats{counted: map[string]bool{}}
+	out, err := in.final(first, repair)
+	return out, *in.stats, err
+}
+
+func (in Inputs) final(first, repair []byte) ([]Finding, error) {
 	if err := in.check(); err != nil {
 		return nil, err
 	}
@@ -221,7 +245,7 @@ func (in Inputs) collect(r *Reply) ([]*item, error) {
 			continue
 		}
 		f := e.f
-		f.Severity = clamp(f.Severity, rule.Severities)
+		f.Severity = in.severity(f.ID, rule.ID, f.File, f.Severity, rule.Severities)
 		add(f, in.derivedSubject(rule, f), false)
 	}
 	return items, nil
@@ -240,7 +264,7 @@ func (in Inputs) answers(r *Reply) ([]Finding, error) {
 		case d.Confirm:
 			rule, _ := in.Registry.Rule(c.RuleID)
 			out = append(out, Finding{
-				RuleID: c.RuleID, Severity: clamp(d.Severity, rule.Severities), File: c.File, Line: c.Line,
+				RuleID: c.RuleID, Severity: in.severity(c.CandidateID, c.RuleID, c.File, d.Severity, rule.Severities), File: c.File, Line: c.Line,
 				Summary: d.Summary, SuggestedFix: d.SuggestedFix, Source: SourceLLM, Subject: c.Subject,
 				CandidateID: c.CandidateID, ConfirmedBy: "lead",
 			})
@@ -253,7 +277,7 @@ func (in Inputs) answers(r *Reply) ([]Finding, error) {
 		}
 		f.Summary, f.SuggestedFix = in.Templates[s.RuleID].fill(s.RuleID, s.Subject)
 		if d, st := r.answer(s.CandidateID, true); st == answerValid {
-			f.Source, f.Severity = SourceTool, clamp(d.Severity, s.Severities)
+			f.Source, f.Severity = SourceTool, in.severity(s.CandidateID, s.RuleID, s.File, d.Severity, s.Severities)
 			f.Summary, f.SuggestedFix = cmp.Or(d.Summary, f.Summary), cmp.Or(d.SuggestedFix, f.SuggestedFix)
 		} else {
 			f.Source, f.Severity = SourceHost, highest(s.Severities)
@@ -293,9 +317,13 @@ func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
 	if r.Engine == registry.EngineLLM {
 		return r, true
 	}
-	area, ok := findingArea(r, f.File, func(a string) bool {
+	known := func(a string) bool {
 		return slices.ContainsFunc(in.Bundle.AreaRules, func(ar AreaRules) bool { return ar.Area == a })
-	})
+	}
+	area, ok := legacyFindingArea(r, f.File, known)
+	if in.Bundle.Versioned {
+		area, ok = findingArea(r, f.File, known, in.Bundle.ModuleAreas)
+	}
 	if !ok {
 		return r, false
 	}
@@ -312,14 +340,58 @@ func (in Inputs) allowed(f Finding) (registry.Rule, bool) {
 	return r, false
 }
 
-// findingArea is the area of a finding's file, as the facts engine maps a
-// path. A path rule's subject may be an area directory itself, such as
+// findingArea is the area of a finding's file in a versioned bundle, as the
+// facts engine maps a path with the bundle's module areas. A path rule's
+// subject may be an area directory itself, such as examples/complete; for a
+// path rule that directory is its own area when the bundle lists it (known).
+// Any other path is facts.AreaOf's, which refuses a path that is not clean.
+func findingArea(r registry.Rule, file string, known func(string) bool, moduleAreas []string) (string, bool) {
+	if r.Class == classPath {
+		if parts := strings.Split(file, "/"); len(parts) == 2 &&
+			(parts[0] == "examples" || parts[0] == "modules") && parts[1] != "" && known(file) {
+			return file, true
+		}
+	}
+	return facts.AreaOf(file, moduleAreas)
+}
+
+// severity is the merged severity of a model severity sev on rule id in
+// file: exactly MEDIUM on a downgrade rule in an in_repo_downgrade area of a
+// versioned bundle is kept, and any other severity is clamped to permitted
+// as before. A given severity not on the list counts in Stats.OffList, once
+// per finding id key.
+func (in Inputs) severity(key, id, file, sev string, permitted []string) string {
+	if sev == registry.SeverityMedium && in.downgraded(id, file) {
+		return sev
+	}
+	if st := in.stats; st != nil && sev != "" && !slices.Contains(permitted, sev) && !st.counted[key] {
+		if st.counted == nil {
+			st.counted = map[string]bool{}
+		}
+		st.counted[key] = true
+		st.OffList++
+	}
+	return clamp(sev, permitted)
+}
+
+// downgraded reports whether the in-repo downgrade covers rule id in file.
+func (in Inputs) downgraded(id, file string) bool {
+	b := in.Bundle
+	if !b.Versioned || !slices.Contains(profile.DowngradeRules, id) {
+		return false
+	}
+	area, ok := facts.AreaOf(file, b.ModuleAreas)
+	return ok && slices.Contains(b.InRepoDowngrade, area)
+}
+
+// legacyFindingArea is the area of a finding's file in a legacy bundle, as
+// the facts engine mapped a path before module areas. A path rule's subject may be an area directory itself, such as
 // examples/complete, which facts.Classify reads as a loose file under
 // examples/; for a path rule that directory is its own area when the bundle
 // lists it (known). Any other path in no area, such as one under tests/ or
 // wrappers/ or a loose file like examples/.checkov.yaml, is the root's for a
 // path rule, as the engine reads it there.
-func findingArea(r registry.Rule, file string, known func(string) bool) (string, bool) {
+func legacyFindingArea(r registry.Rule, file string, known func(string) bool) (string, bool) {
 	if area, _, ok := facts.Classify(file); ok {
 		return area, true
 	}

@@ -59,6 +59,13 @@ func goldenOutput(t *testing.T, dir string, rules []Rule) []byte {
 		dir = setupOracle(t, dir) // links a case cannot commit as such
 	}
 	o := Options{Head: filepath.Join(dir, "head"), ProfileDir: testProfile, Limits: DefaultLimits}
+	// A case with its own profile directory also pins the ownership facts
+	// the profile's options feed.
+	_, err := os.Stat(filepath.Join(dir, "profile"))
+	ownProfile := err == nil
+	if ownProfile {
+		o.ProfileDir = filepath.Join(dir, "profile")
+	}
 	if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
 		o.Base = filepath.Join(dir, "base")
 	}
@@ -69,11 +76,18 @@ func goldenOutput(t *testing.T, dir string, rules []Rule) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := json.MarshalIndent(struct {
-		Manifest   []ManifestEntry `json:"manifest"`
-		Findings   []Finding       `json:"findings"`
-		Candidates []Candidate     `json:"candidates"`
-	}{r.Manifest, r.Findings, r.Candidates}, "", "  ")
+	out := struct {
+		Manifest        []ManifestEntry  `json:"manifest"`
+		Findings        []Finding        `json:"findings"`
+		Candidates      []Candidate      `json:"candidates"`
+		ModuleAreas     *[]string        `json:"module_areas,omitempty"`
+		ModuleCallers   *[]ModuleCallers `json:"module_callers,omitempty"`
+		InRepoDowngrade *[]string        `json:"in_repo_downgrade,omitempty"`
+	}{Manifest: r.Manifest, Findings: r.Findings, Candidates: r.Candidates}
+	if ownProfile {
+		out.ModuleAreas, out.ModuleCallers, out.InRepoDowngrade = &r.Scope.ModuleAreas, &r.ModuleCallers, &r.InRepoDowngrade
+	}
+	got, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +104,8 @@ func readExpected(t *testing.T, dir string) []byte {
 }
 
 // TestGolden runs every case under testdata/. A case has head/, an optional
-// base/, an optional schema-handoff.json recording the oracle's placeholder
+// base/, an optional profile/ that replaces the test profile and adds the
+// module areas, module callers and in-repo downgrade to the output, an optional schema-handoff.json recording the oracle's placeholder
 // commits, a rules file naming the rules it compares, and expected.json with
 // the manifest, findings and candidates a person checked for those rules.
 func TestGolden(t *testing.T) {

@@ -3,6 +3,7 @@ package facts
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -320,5 +321,60 @@ func TestRegionForms(t *testing.T) {
 	}
 	if _, ok := decodeQuoted(`"\q"`); ok {
 		t.Error("an invalid escape decoded")
+	}
+}
+
+// emptyValuesProfile writes the test profile with every key that may be
+// empty written with no value and no template, as the in-repo-modules
+// profile ships.
+func emptyValuesProfile(t *testing.T) string {
+	t.Helper()
+	dir := writeProfile(t)
+	p := filepath.Join(dir, "PROFILE.md")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(data)
+	for _, re := range []string{`(?m)^verbatim: .*$`, `(?m)^workflow-dir: .*$`, `(?m)^files: .*$`, `(?m)^dirs: .*$`, `(?m)^line: .*$`} {
+		key := re[5:strings.Index(re, ":")]
+		doc = regexp.MustCompile(re).ReplaceAllString(doc, key+":")
+	}
+	doc = regexp.MustCompile("(?s)name: template-destinations\n.*?```").ReplaceAllString(doc, "name: template-destinations\n```")
+	if err := os.WriteFile(p, []byte(doc), 0o644); err != nil { //nolint:gosec // G703: the test's own temp dir
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// TestScopePathEmptyValues checks empty profile values judge nothing: no
+// workflow directory, no verbatim file, no banner and no tooling list,
+// while the test profile's values find each case.
+func TestScopePathEmptyValues(t *testing.T) {
+	empty := emptyValuesProfile(t)
+	for name, c := range map[string]struct {
+		rule       string
+		base, head map[string]string
+	}{
+		"workflow dir": {"scope.profile-file", map[string]string{"main.tf": ""}, map[string]string{"main.tf": "", ".github/workflows/x.yml": "on: push\n"}},
+		"verbatim":     {"scope.profile-file", map[string]string{"main.tf": "", ".editorconfig": "root = true\n"}, map[string]string{"main.tf": ""}},
+		"banner":       {"scope.readme-banner", map[string]string{"README.md": "# a\n\nb\n"}, map[string]string{"main.tf": ""}},
+		"tooling file": {"scope.tooling", map[string]string{"main.tf": ""}, map[string]string{"main.tf": "", ".checkov.yaml": "x\n"}},
+		"tooling dir":  {"scope.tooling", map[string]string{"main.tf": ""}, map[string]string{"main.tf": "", ".tfsec/config.yml": "x\n"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if name != "banner" {
+				if n := len(candidatesOf(runScopePath(t, c.base, c.head, testProfile), c.rule)); n == 0 {
+					t.Fatalf("the test profile finds no %s candidate", c.rule)
+				}
+			}
+			r := runScopePath(t, c.base, c.head, empty)
+			if n := len(candidatesOf(r, c.rule)); n != 0 {
+				t.Errorf("%d %s candidates with an empty value", n, c.rule)
+			}
+			if s := statusOf(r.Manifest, c.rule, "."); s != StatusClean {
+				t.Errorf("%s at the root: %s, want clean", c.rule, s)
+			}
+		})
 	}
 }

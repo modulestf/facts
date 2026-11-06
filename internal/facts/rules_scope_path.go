@@ -362,7 +362,8 @@ func checkReadmeBanner(a *Area) Result {
 	if res, ok := needProfile(a); !ok {
 		return res
 	}
-	if unchanged(a, f) {
+	// An empty banner line asks for no banner: it would match any blank line.
+	if unchanged(a, f) || a.Profile.Banner == "" {
 		return Result{}
 	}
 	banner := []byte(a.Profile.Banner)
@@ -551,7 +552,8 @@ func checkProfileFile(a *Area) Result {
 		return res
 	}
 	po := a.Profile.ProfileOwned
-	inWorkflows := func(p string) bool { return strings.HasPrefix(p, po.WorkflowDir+"/") }
+	// An empty workflow directory holds no path.
+	inWorkflows := func(p string) bool { return po.WorkflowDir != "" && strings.HasPrefix(p, po.WorkflowDir+"/") }
 	paths := slices.Clone(po.Verbatim)
 	for _, t := range []*Tree{a.headTree, a.baseTree} {
 		if t != nil {

@@ -3,6 +3,8 @@ package facts
 import (
 	"reflect"
 	"testing"
+
+	"github.com/modulestf/facts/internal/profile"
 )
 
 func TestEvaluateStatuses(t *testing.T) {
@@ -358,3 +360,61 @@ func TestCrossAreaUntouchedNeedsFileInChange(t *testing.T) {
 		}
 	}
 }
+
+// TestProfileOptionGates checks a relaxing profile turns exactly its gated
+// rules not_applicable with the reason profile_option, a cross-area rule's
+// one root entry included, and the default profile gates none.
+func TestProfileOptionGates(t *testing.T) {
+	head := map[string]string{
+		"main.tf":                   "resource \"aws_s3_bucket\" \"this\" {\n  arn = \"arn:aws:s3:::x\"\n}\n",
+		"modules/x/main.tf":         "variable \"a\" {}\n",
+		"examples/complete/main.tf": "module \"m\" {\n  source = \"../../\"\n}\n",
+	}
+	base := map[string]string{"main.tf": "\n"}
+	for name, c := range map[string]struct {
+		profile string
+		gated   bool
+	}{
+		"in-repo": {writeProfile(t, inRepoOptions...), true},
+		"default": {testProfile, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r, err := run(Options{Head: writeTree(t, head), Base: writeTree(t, base), ProfileDir: c.profile, Limits: DefaultLimits}, Rules)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gatedSeen := map[string]bool{}
+			for _, e := range r.Manifest {
+				opt := e.ReasonCode == ReasonProfileOption
+				gated := c.gated && inRepo.Gated(e.RuleID)
+				switch {
+				case gated && e.Status != StatusNotApplicable:
+					t.Errorf("%s in %s: %s, want not_applicable", e.RuleID, e.Area, e.Status)
+				case opt && (!gated || e.Reason == ""):
+					t.Errorf("%s in %s: profile_option on a rule the options do not gate, or with no reason text", e.RuleID, e.Area)
+				case opt:
+					gatedSeen[e.RuleID] = true
+				}
+			}
+			if c.gated {
+				for _, id := range []string{"structure.arn-partition-hardcoded", "examples.versions-missing", "examples.disabled-call-missing", "examples.submodule-missing", "profile.template-drift"} {
+					if !gatedSeen[id] {
+						t.Errorf("%s has no profile_option entry", id)
+					}
+				}
+			}
+			for _, f := range r.Findings {
+				if c.gated && inRepo.Gated(f.RuleID) {
+					t.Errorf("gated rule %s has a finding", f.RuleID)
+				}
+			}
+			for _, cd := range r.Candidates {
+				if c.gated && inRepo.Gated(cd.RuleID) {
+					t.Errorf("gated rule %s has a candidate", cd.RuleID)
+				}
+			}
+		})
+	}
+}
+
+var inRepo = profile.Options{Format: 1, Consumers: profile.ConsumersInRepo, Partitions: "fixed", Examples: "none", Release: "none"}

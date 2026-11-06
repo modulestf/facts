@@ -153,10 +153,13 @@ func mergeCountsWork(files []string) ([]byte, error) {
 // mergeFinal prints the findings merged from the files: the bundle, the
 // first reply and the repair reply, if given.
 func mergeFinal(regFile, reportFile, templatesFile string, files []string, stdout, stderr io.Writer) int {
-	out, err := mergeFinalWork(regFile, reportFile, templatesFile, files)
+	out, stats, err := mergeFinalWork(regFile, reportFile, templatesFile, files)
 	if err != nil {
 		fmt.Fprintln(stderr, "mtf-facts:", err)
 		return exitError
+	}
+	if note := offListNote(stats.OffList); note != "" {
+		fmt.Fprintln(stderr, note)
 	}
 	if _, err := stdout.Write(out); err != nil {
 		return exitError
@@ -164,53 +167,73 @@ func mergeFinal(regFile, reportFile, templatesFile string, files []string, stdou
 	return 0
 }
 
-// mergeFinalWork reads the inputs and returns the merged findings as JSON.
-func mergeFinalWork(regFile, reportFile, templatesFile string, files []string) ([]byte, error) {
-	in := factsmerge.Inputs{}
-	data, err := mergeReadFile(regFile, maxRegistryFileBytes)
+// offListNote is the stderr line for n model severities off their rule's
+// list, or "" for none.
+func offListNote(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf("mtf-facts: merge: %d finding severities were off their rule's list and dropped for the nearest permitted one", n)
+}
+
+// mergeFinalWork reads the inputs and returns the merged findings as JSON,
+// with the merge's counts.
+func mergeFinalWork(regFile, reportFile, templatesFile string, files []string) ([]byte, factsmerge.Stats, error) {
+	in, first, repair, err := mergeFinalInputs(regFile, reportFile, templatesFile, files)
 	if err != nil {
-		return nil, err
+		return nil, factsmerge.Stats{}, err
+	}
+	findings, stats, err := factsmerge.FinalStats(in, first, repair)
+	if err != nil {
+		return nil, stats, err
+	}
+	out, err := factsmerge.Write(findings)
+	return out, stats, err
+}
+
+// mergeFinalInputs reads the registry, the bundle, the optional report and
+// templates, and the replies.
+func mergeFinalInputs(regFile, reportFile, templatesFile string, files []string) (in factsmerge.Inputs, first, repair []byte, err error) {
+	var data []byte
+	data, err = mergeReadFile(regFile, maxRegistryFileBytes)
+	if err != nil {
+		return in, nil, nil, err
 	}
 	if len(data) > maxRegistryFileBytes {
-		return nil, fmt.Errorf("registry is larger than %d bytes", maxRegistryFileBytes)
+		return in, nil, nil, fmt.Errorf("registry is larger than %d bytes", maxRegistryFileBytes)
 	}
 	if in.Registry, err = registry.Parse(string(data)); err != nil {
-		return nil, fmt.Errorf("registry: %w", err)
+		return in, nil, nil, fmt.Errorf("registry: %w", err)
 	}
 	if in.Bundle, err = mergeBundle(files[0]); err != nil {
-		return nil, err
+		return in, nil, nil, err
 	}
 	if reportFile != "" {
 		if data, err = mergeReadFile(reportFile, factsmerge.MaxReportBytes); err != nil {
-			return nil, err
+			return in, nil, nil, err
 		}
 		if in.Index, err = factsmerge.ParseIndex(data); err != nil {
-			return nil, err
+			return in, nil, nil, err
 		}
 	}
 	if templatesFile != "" {
 		if data, err = mergeReadFile(templatesFile, factsmerge.MaxTemplateBytes); err != nil {
-			return nil, err
+			return in, nil, nil, err
 		}
 		if in.Templates, err = factsmerge.ParseTemplates(data); err != nil {
-			return nil, err
+			return in, nil, nil, err
 		}
 	}
-	first, err := mergeReadFile(files[1], factsmerge.MaxReplyBytes)
+	first, err = mergeReadFile(files[1], factsmerge.MaxReplyBytes)
 	if err != nil {
-		return nil, err
+		return in, nil, nil, err
 	}
-	var repair []byte
 	if len(files) == 3 {
 		if repair, err = mergeReadFile(files[2], factsmerge.MaxReplyBytes); err != nil {
-			return nil, err
+			return in, nil, nil, err
 		}
 	}
-	findings, err := factsmerge.Final(in, first, repair)
-	if err != nil {
-		return nil, err
-	}
-	return factsmerge.Write(findings)
+	return in, first, repair, nil
 }
 
 func mergeBundle(path string) (*factsmerge.Bundle, error) {

@@ -1,0 +1,9 @@
+[
+  {
+    "rule_id": "structure.arn-partition-hardcoded",
+    "area": ".",
+    "status": "not_applicable",
+    "reason": "gated",
+    "reason_code": "no_base"
+  }
+]

@@ -136,6 +136,43 @@ func ownerOf(file string, isMod func(string) bool) (area, kind string) {
 	return rootArea, AreaRoot
 }
 
+// AreaOf is the area that owns file, given the discovered module areas of the
+// run, as ownerOf gives it. It refuses a path that is empty, absolute, holds a
+// backslash or a drive letter, is not clean or names a .. segment: ok is then
+// false. A caller outside the engine, such as the merge, maps a path with it
+// exactly as the engine does.
+func AreaOf(file string, moduleAreas []string) (area string, ok bool) {
+	if !cleanRelative(file) {
+		return "", false
+	}
+	a, _ := ownerOf(file, func(p string) bool { return slices.Contains(moduleAreas, p) })
+	return a, true
+}
+
+// cleanRelative reports whether p is a clean relative slash path with no ..
+// segment, no backslash and no drive letter. "." is clean.
+func cleanRelative(p string) bool {
+	switch {
+	case p == "", path.IsAbs(p), strings.Contains(p, `\`), path.Clean(p) != p:
+		return false
+	case len(p) >= 2 && p[1] == ':' && ('a' <= p[0]|0x20 && p[0]|0x20 <= 'z'):
+		return false
+	}
+	return !slices.Contains(strings.Split(p, "/"), "..")
+}
+
+// moduleAreasOf lists the module areas among peers, sorted.
+func moduleAreasOf(peers map[string]*Area) []string {
+	var out []string
+	for p, a := range peers {
+		if a.Kind == AreaModule {
+			out = append(out, p)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // peerOwner is ownerOf over the areas of a run, by path.
 func peerOwner(file string, peers map[string]*Area) string {
 	a, _ := ownerOf(file, func(p string) bool { x := peers[p]; return x != nil && x.Kind == AreaModule })
