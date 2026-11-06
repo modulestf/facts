@@ -14,8 +14,11 @@ in-repo), partitions (portable or fixed), examples (required or none) and
 release (registry or none). Without the block a profile has the defaults
 public, portable, required and registry; any other value relaxes the
 review. An unknown format, key or value is invalid, and so is examples: none
-with any required-files example or example-dirs entry. Those two keys may be
-written with no value ("example:") only with examples: none.
+with any required-files example or example-dirs entry. A key written as
+"<key>:" with nothing after the colon is empty; only required-files example
+and example-dirs (with examples: none), profile-owned-files verbatim and
+workflow-dir, tooling files and dirs, and banner line may be, and
+template-destinations may hold no key.
 
 It prints one JSON object: valid, the problems, and for a valid profile its
 options and whether they relax the review. --gates adds the gate table, the

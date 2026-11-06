@@ -142,16 +142,11 @@ func TestNewRefuses(t *testing.T) {
 		"tab in value":       {replace("first: count for_each", "first: count\tfor_each"), "stray space"},
 		"backslash in path":  {replace("dirs: .tfsec", "dirs: a\\b"), "unsafe path"},
 		"NUL in destination": {replace(".gitignore.template: .gitignore", ".gitignore.template: a\x00b"), "unsafe template or destination"},
-		"name-only template-destinations": {func(f map[string][]byte) {
-			start := strings.Index(doc, "name: template-destinations\n") + len("name: template-destinations\n")
-			end := start + strings.Index(doc[start:], "```")
-			f[File] = []byte(doc[:start] + doc[end:])
-		}, "block template-destinations: no template"},
-		"carriage return": {replace("last: tags labels", "last: tags labels\r"), "stray space"},
-		"no name line":    {replace("name: banner\n", "line0: x\n"), "the first line is not the name line"},
-		"nameless block":  {replace("```profile-constants\nname: banner\n", "```profile-constants\n```\n```profile-constants\nname: banner\n"), "a block with no name line"},
-		"not key value":   {replace("dirs: .tfsec\n", "dirs .tfsec\n"), "not <key>: <value>"},
-		"nested block":    {replace("name: banner\n", "name: banner\n```profile-constants\n"), "a block opens inside another"},
+		"carriage return":    {replace("last: tags labels", "last: tags labels\r"), "stray space"},
+		"no name line":       {replace("name: banner\n", "line0: x\n"), "the first line is not the name line"},
+		"nameless block":     {replace("```profile-constants\nname: banner\n", "```profile-constants\n```\n```profile-constants\nname: banner\n"), "a block with no name line"},
+		"not key value":      {replace("dirs: .tfsec\n", "dirs .tfsec\n"), "not <key>: <value>"},
+		"nested block":       {replace("name: banner\n", "name: banner\n```profile-constants\n"), "a block opens inside another"},
 		"unclosed block": {func(f map[string][]byte) {
 			f[File] = []byte(strings.TrimRight(strings.TrimSuffix(strings.TrimRight(doc, "\n"), "```"), "\n"))
 		}, "not closed"},

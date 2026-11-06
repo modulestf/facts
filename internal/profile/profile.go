@@ -106,8 +106,13 @@ var (
 )
 
 // emptyAllowed are the keys, as block.key, that may be written with no
-// value: the example entries a profile with examples: none leaves empty.
-var emptyAllowed = map[string]bool{"required-files.example": true, "required-files.example-dirs": true}
+// value: an empty list, or a single value that is not set. The example
+// entries may be empty only with examples: none.
+var emptyAllowed = map[string]bool{
+	"required-files.example": true, "required-files.example-dirs": true,
+	"profile-owned-files.verbatim": true, "profile-owned-files.workflow-dir": true,
+	"tooling.files": true, "tooling.dirs": true, "banner.line": true,
+}
 
 // block is one parsed constants block: its keys in file order and values.
 type block struct {
@@ -306,17 +311,17 @@ func fromBlocks(blocks map[string]*block) (*Profile, error) {
 		return nil, err
 	}
 	paths := slices.Concat(p.RequiredFiles.Root, p.RequiredFiles.Submodule, p.RequiredFiles.Example,
-		p.RequiredFiles.ExampleDirs, p.ProfileOwned.Verbatim, []string{p.ProfileOwned.WorkflowDir}, p.Tooling.Files, p.Tooling.Dirs)
+		p.RequiredFiles.ExampleDirs, p.ProfileOwned.Verbatim, p.Tooling.Files, p.Tooling.Dirs)
+	if p.ProfileOwned.WorkflowDir != "" {
+		paths = append(paths, p.ProfileOwned.WorkflowDir)
+	}
 	for _, v := range paths {
 		if !safePath(v) {
 			return nil, fmt.Errorf("unsafe path %q", v)
 		}
 	}
-	td := blocks["template-destinations"]
-	if len(td.keys) == 0 {
-		return nil, fmt.Errorf("block template-destinations: no template")
-	}
-	for _, k := range td.keys {
+	// A profile may ship no template: the block then has no key.
+	for _, k := range blocks["template-destinations"].keys {
 		v, err := one("template-destinations", k)
 		if err != nil {
 			return nil, err
