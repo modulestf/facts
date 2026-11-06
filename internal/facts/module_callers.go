@@ -74,7 +74,8 @@ type callersScan struct {
 // one area path once joined to the calling file's directory; anything else
 // that is not a known remote form, a source that is not a literal, a
 // Terraform file the engine could not parse, any link, special or unreadable
-// entry, any test file and any change path AreaOf refuses make the scan
+// entry, any test, Terragrunt, other .hcl or OpenTofu file (see
+// unparsedConfig) and any change path AreaOf refuses make the scan
 // incomplete. touched holds the areas the change touches.
 func BuildModuleCallers(head, base *Tree, change string, areas []*Area, touched map[string]bool, lim Limits) ([]ModuleCallers, error) {
 	out := []ModuleCallers{}
@@ -125,8 +126,7 @@ func BuildModuleCallers(head, base *Tree, change string, areas []*Area, touched 
 func (s *callersScan) checkEntries() {
 	for _, p := range s.head.Paths {
 		e := s.head.Entries[p]
-		if e.Kind == KindSymlink || e.Kind == KindSpecial || e.Kind == KindUnreadable ||
-			strings.HasSuffix(p, ".tftest.hcl") || strings.HasSuffix(p, ".tftest.json") {
+		if e.Kind == KindSymlink || e.Kind == KindSpecial || e.Kind == KindUnreadable || unparsedConfig(p) {
 			s.complete = false
 		}
 		if !sameEntry(e, s.base.Entries[p]) && !cleanRelative(p) {
@@ -138,6 +138,20 @@ func (s *callersScan) checkEntries() {
 			s.complete = false
 		}
 	}
+}
+
+// unparsedConfig reports a file that may call a module but that the engine
+// does not parse: a test file, Terragrunt or other HCL configuration but the
+// provider lock file, and OpenTofu configuration.
+func unparsedConfig(p string) bool {
+	name := path.Base(p)
+	switch {
+	case strings.HasSuffix(name, ".tftest.json"), strings.HasSuffix(name, ".tofu"), strings.HasSuffix(name, ".tofu.json"):
+		return true
+	case strings.HasSuffix(name, ".hcl"):
+		return name != ".terraform.lock.hcl" // .tftest.hcl and terragrunt.hcl included
+	}
+	return false
 }
 
 // scanDirs parses every head directory that holds a .tf or .tf.json entry,

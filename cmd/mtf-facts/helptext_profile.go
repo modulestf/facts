@@ -26,8 +26,13 @@ rules each relaxing value makes not_applicable with the reason
 profile_option, and the rules this profile gates. --downgrade-ids adds the
 rule ids whose candidates carry the in-repo downgrade.
 
+It first reads the directory as profile-snapshot does and refuses what
+that refuses: a link, a special file, a name that is not UTF-8 or holds a
+control character, another device, or a tree over the snapshot's bounds.
+A host runs it on the snapshot directory, so it checks the copy it uses.
+
 Exit 0 for a valid profile, 1 for an invalid one with the problems listed,
-and 2 when the directory is missing, a link or cannot be read.`
+and 2 when the directory is missing, a link, cannot be read or is refused.`
 	profileCheckExample = `  mtf-facts profile-check --profile-dir ./profile --gates --downgrade-ids`
 
 	profileSnapshotShort = "Copy a module profile directory into a private temporary directory"
@@ -36,8 +41,9 @@ directory, so the options, the gates and the profile are read from one fixed
 copy. Each directory is opened relative to its parent and each file is
 opened without following a link or blocking, checked as the regular file
 the listing saw and on the source's device, and copied from that one
-descriptor. A link, a special file, a file on another device, more than 256
-entries, more than 8 MiB or a path more than 8 levels deep is refused. The
+descriptor. A link, a special file, a file on another device, a name that is
+not UTF-8 or holds a control character or DEL, more than 256 entries, more
+than 8 MiB or a path more than 8 levels deep is refused. The
 copy is read back and compared before it is printed.
 
 It prints one JSON object for the host: dir, the copy; tree_sha256, the

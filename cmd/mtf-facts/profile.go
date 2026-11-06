@@ -55,6 +55,15 @@ func newProfileCheckCmd() *cobra.Command {
 }
 
 func profileCheck(cmd *cobra.Command, dir string, gates, downgrade bool) int {
+	// Refuse what profile-snapshot refuses, so a check cannot pass on a tree
+	// the snapshot would not copy.
+	if err := snapshot.Check(dir); err != nil {
+		if !errors.Is(err, snapshot.ErrRefused) {
+			err = fmt.Errorf("profile: %w", err)
+		}
+		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", err)
+		return exitError
+	}
 	p, unreadable, invalid := facts.ReadProfile(dir)
 	if unreadable != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: profile:", unreadable)

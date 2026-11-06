@@ -77,10 +77,20 @@ func TestTakeInvalidProfileHasNoProfileHash(t *testing.T) {
 
 func TestTakeRefuses(t *testing.T) {
 	for name, setup := range map[string]func(t *testing.T, dir string){
-		"symlink file": func(t *testing.T, dir string) { must(t, os.Symlink("PROFILE.md", filepath.Join(dir, "link.md"))) },
-		"symlink dir":  func(t *testing.T, dir string) { must(t, os.Symlink("templates", filepath.Join(dir, "tpl"))) },
-		"dangling":     func(t *testing.T, dir string) { must(t, os.Symlink("/nonexistent", filepath.Join(dir, "x"))) },
-		"fifo":         func(t *testing.T, dir string) { must(t, syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644)) },
+		"symlink file":  func(t *testing.T, dir string) { must(t, os.Symlink("PROFILE.md", filepath.Join(dir, "link.md"))) },
+		"symlink dir":   func(t *testing.T, dir string) { must(t, os.Symlink("templates", filepath.Join(dir, "tpl"))) },
+		"dangling":      func(t *testing.T, dir string) { must(t, os.Symlink("/nonexistent", filepath.Join(dir, "x"))) },
+		"fifo":          func(t *testing.T, dir string) { must(t, syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644)) },
+		"name with LF":  func(t *testing.T, dir string) { must(t, os.WriteFile(filepath.Join(dir, "a\nb"), nil, 0o644)) },
+		"name with DEL": func(t *testing.T, dir string) { must(t, os.WriteFile(filepath.Join(dir, "a\x7fb"), nil, 0o644)) },
+		"name not UTF-8": func(t *testing.T, dir string) {
+			if err := os.WriteFile(filepath.Join(dir, "a\xffb"), nil, 0o644); errors.Is(err, syscall.EILSEQ) {
+				t.Skip("the file system refuses a name that is not UTF-8")
+			} else {
+				must(t, err)
+			}
+		},
+		"dir name with tab": func(t *testing.T, dir string) { must(t, os.Mkdir(filepath.Join(dir, "a\tb"), 0o755)) },
 		"too many files": func(t *testing.T, dir string) {
 			for i := range maxEntries {
 				must(t, os.WriteFile(filepath.Join(dir, "f"+strconv.Itoa(i)), nil, 0o644))
@@ -167,5 +177,57 @@ func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestTakeRefusesSwaps swaps an entry between the Lstat and the open: a file
+// for a link or a fifo, and a directory for a link to another directory.
+// Each is refused, and the fifo without blocking.
+func TestTakeRefusesSwaps(t *testing.T) {
+	other := t.TempDir()
+	must(t, os.WriteFile(filepath.Join(other, "PROFILE.md"), []byte("x"), 0o644))
+	for name, c := range map[string]struct {
+		target string
+		swap   func(t *testing.T, full string)
+	}{
+		"file to link": {"PROFILE.md", func(t *testing.T, full string) {
+			must(t, os.Remove(full))
+			must(t, os.Symlink(filepath.Join(other, "PROFILE.md"), full))
+		}},
+		"file to fifo": {"PROFILE.md", func(t *testing.T, full string) {
+			must(t, os.Remove(full))
+			must(t, syscall.Mkfifo(full, 0o644))
+		}},
+		"dir to link": {"templates", func(t *testing.T, full string) {
+			must(t, os.RemoveAll(full))
+			must(t, os.Symlink(other, full))
+		}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := copyProfile(t)
+			orig := beforeOpen
+			beforeOpen = func(p string) {
+				if p == c.target {
+					c.swap(t, filepath.Join(src, filepath.FromSlash(p)))
+				}
+			}
+			t.Cleanup(func() { beforeOpen = orig })
+			done := make(chan error, 1)
+			go func() {
+				s, err := Take(src)
+				if err == nil {
+					_ = os.RemoveAll(s.Dir)
+				}
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				if !errors.Is(err, ErrRefused) {
+					t.Errorf("error %v, want ErrRefused", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Take hangs")
+			}
+		})
 	}
 }

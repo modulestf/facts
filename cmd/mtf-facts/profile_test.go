@@ -92,6 +92,30 @@ func TestProfileCheckInvalid(t *testing.T) {
 	}
 }
 
+// TestProfileCheckRefusesWhatSnapshotRefuses checks profile-check exits 2
+// on a tree profile-snapshot would refuse, so a check cannot pass where the
+// snapshot later fails.
+func TestProfileCheckRefusesWhatSnapshotRefuses(t *testing.T) {
+	for name, setup := range map[string]func(dir string) error{
+		"symlink":  func(dir string) error { return os.Symlink("PROFILE.md", filepath.Join(dir, "x.md")) },
+		"fifo":     func(dir string) error { return syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },
+		"bad name": func(dir string) error { return os.WriteFile(filepath.Join(dir, "a\nb"), nil, 0o644) },
+		"over the byte cap": func(dir string) error {
+			return os.WriteFile(filepath.Join(dir, "big"), make([]byte, 8<<20+1), 0o644)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := relaxedProfile(t)
+			if err := setup(src); err != nil {
+				t.Fatal(err)
+			}
+			if code, _, _ := runProfileCheck(t, "--profile-dir", src); code != 2 {
+				t.Errorf("exit %d, want 2", code)
+			}
+		})
+	}
+}
+
 func TestProfileCheckUnreadable(t *testing.T) {
 	link := filepath.Join(t.TempDir(), "link")
 	if err := os.Symlink(cliTestProfile, link); err != nil {

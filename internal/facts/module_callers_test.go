@@ -316,3 +316,19 @@ func TestModuleCallersCap(t *testing.T) {
 func downgradeIDs() []string {
 	return []string{"compat.default-changed", "compat.generated-policy-narrowed", "compat.type-narrowed", "compat.variable-now-required", "compat.variable-removed"}
 }
+
+// TestModuleCallersTerragruntBlocksDowngrade checks an unchanged
+// terragrunt.hcl beside a changed .tf caller makes the scan incomplete, so
+// no downgrade applies.
+func TestModuleCallersTerragruntBlocksDowngrade(t *testing.T) {
+	tg := "terraform {\n  source = \"../../infra/modules/network\"\n}\n"
+	head := withFiles(monoHead(), "live/stage/terragrunt.hcl", tg)
+	base := withFiles(monoBase(), "live/stage/terragrunt.hcl", tg)
+	r := runMono(t, head, base, writeProfile(t, "format: 1", "consumers: in-repo", "partitions: portable", "examples: required", "release: registry"), false)
+	if m := callersOf(r, netModule); m == nil || m.Complete {
+		t.Errorf("entry %+v, want complete false", m)
+	}
+	if len(r.InRepoDowngrade) != 0 {
+		t.Errorf("in_repo_downgrade %q, want []", r.InRepoDowngrade)
+	}
+}

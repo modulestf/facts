@@ -242,3 +242,14 @@ func TestShippedInRepoProfile(t *testing.T) {
 		t.Errorf("options %+v", p.Options)
 	}
 }
+
+func TestValidName(t *testing.T) {
+	for name, want := range map[string]bool{
+		"PROFILE.md": true, "templates/a b.template": true, "dir/caf\u00e9.md": true,
+		"a\nb": false, "a\tb": false, "a\x7fb": false, "a\xffb": false, "a\x00b": false, "x\r": false,
+	} {
+		if got := ValidName(name); got != want {
+			t.Errorf("ValidName(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

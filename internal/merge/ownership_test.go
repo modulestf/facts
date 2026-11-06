@@ -152,3 +152,18 @@ func TestDowngradeSeverity(t *testing.T) {
 	}
 	_ = registry.SeverityMedium
 }
+
+// TestOffListCountedOncePerID checks an empty severity is not counted and a
+// finding id is counted once however often its severity is clamped.
+func TestOffListCountedOncePerID(t *testing.T) {
+	in := Inputs{Registry: testRegistry(t), Bundle: testBundle(t, unitBundle), stats: &Stats{}}
+	high := []string{"CRITICAL", "HIGH"}
+	in.severity("F-001", "compat.variable-removed", "variables.tf", "", high)
+	in.severity("F-002", "compat.variable-removed", "variables.tf", "HIGH", high)
+	in.severity("F-003", "compat.variable-removed", "variables.tf", "LOW", high)
+	in.severity("F-003", "compat.variable-removed", "variables.tf", "LOW", high)
+	in.severity("C-001", "compat.variable-removed", "infra/modules/network/variables.tf", "MEDIUM", high)
+	if in.stats.OffList != 1 {
+		t.Errorf("off-list count %d, want 1", in.stats.OffList)
+	}
+}

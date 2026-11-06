@@ -54,9 +54,11 @@ type Inputs struct {
 
 // Stats count what the merge changed in the reply it read.
 type Stats struct {
-	// OffList counts the model's severities that were not on the rule's
-	// list, which the merge dropped for the nearest permitted one.
+	// OffList counts the findings whose model severity was given but not on
+	// the rule's list, which the merge dropped for the nearest permitted
+	// one, once per finding or candidate id.
 	OffList int
+	counted map[string]bool
 }
 
 // Final merges the bundle with the lead's reply into the merged findings.
@@ -71,7 +73,7 @@ func Final(in Inputs, first, repair []byte) ([]Finding, error) {
 
 // FinalStats is Final, with the counts of what the merge changed.
 func FinalStats(in Inputs, first, repair []byte) ([]Finding, Stats, error) {
-	in.stats = &Stats{}
+	in.stats = &Stats{counted: map[string]bool{}}
 	out, err := in.final(first, repair)
 	return out, *in.stats, err
 }
@@ -243,7 +245,7 @@ func (in Inputs) collect(r *Reply) ([]*item, error) {
 			continue
 		}
 		f := e.f
-		f.Severity = in.severity(rule.ID, f.File, f.Severity, rule.Severities)
+		f.Severity = in.severity(f.ID, rule.ID, f.File, f.Severity, rule.Severities)
 		add(f, in.derivedSubject(rule, f), false)
 	}
 	return items, nil
@@ -262,7 +264,7 @@ func (in Inputs) answers(r *Reply) ([]Finding, error) {
 		case d.Confirm:
 			rule, _ := in.Registry.Rule(c.RuleID)
 			out = append(out, Finding{
-				RuleID: c.RuleID, Severity: in.severity(c.RuleID, c.File, d.Severity, rule.Severities), File: c.File, Line: c.Line,
+				RuleID: c.RuleID, Severity: in.severity(c.CandidateID, c.RuleID, c.File, d.Severity, rule.Severities), File: c.File, Line: c.Line,
 				Summary: d.Summary, SuggestedFix: d.SuggestedFix, Source: SourceLLM, Subject: c.Subject,
 				CandidateID: c.CandidateID, ConfirmedBy: "lead",
 			})
@@ -275,7 +277,7 @@ func (in Inputs) answers(r *Reply) ([]Finding, error) {
 		}
 		f.Summary, f.SuggestedFix = in.Templates[s.RuleID].fill(s.RuleID, s.Subject)
 		if d, st := r.answer(s.CandidateID, true); st == answerValid {
-			f.Source, f.Severity = SourceTool, in.severity(s.RuleID, s.File, d.Severity, s.Severities)
+			f.Source, f.Severity = SourceTool, in.severity(s.CandidateID, s.RuleID, s.File, d.Severity, s.Severities)
 			f.Summary, f.SuggestedFix = cmp.Or(d.Summary, f.Summary), cmp.Or(d.SuggestedFix, f.SuggestedFix)
 		} else {
 			f.Source, f.Severity = SourceHost, highest(s.Severities)
@@ -356,16 +358,20 @@ func findingArea(r registry.Rule, file string, known func(string) bool, moduleAr
 // severity is the merged severity of a model severity sev on rule id in
 // file: exactly MEDIUM on a downgrade rule in an in_repo_downgrade area of a
 // versioned bundle is kept, and any other severity is clamped to permitted
-// as before. A severity not on the list counts in Stats.OffList.
-func (in Inputs) severity(id, file, sev string, permitted []string) string {
+// as before. A given severity not on the list counts in Stats.OffList, once
+// per finding id key.
+func (in Inputs) severity(key, id, file, sev string, permitted []string) string {
 	if sev == registry.SeverityMedium && in.downgraded(id, file) {
 		return sev
 	}
-	got := clamp(sev, permitted)
-	if got != sev && in.stats != nil {
-		in.stats.OffList++
+	if st := in.stats; st != nil && sev != "" && !slices.Contains(permitted, sev) && !st.counted[key] {
+		if st.counted == nil {
+			st.counted = map[string]bool{}
+		}
+		st.counted[key] = true
+		st.OffList++
 	}
-	return got
+	return clamp(sev, permitted)
 }
 
 // downgraded reports whether the in-repo downgrade covers rule id in file.

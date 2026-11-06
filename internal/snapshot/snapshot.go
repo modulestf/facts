@@ -40,6 +40,17 @@ type Snapshot struct {
 	ProfileSHA256 *string `json:"profile_sha256"`
 }
 
+// beforeOpen runs between the Lstat of an entry and its open, with the
+// entry's path below the source. It does nothing; a test swaps the entry.
+var beforeOpen = func(string) {}
+
+// Check reads src as Take does and refuses what Take refuses, without
+// copying it: a host checks the same tree it snapshots.
+func Check(src string) error {
+	_, _, err := read(src)
+	return err
+}
+
 // devOf returns the device of a file; a test replaces it.
 var devOf = func(fi os.FileInfo) uint64 {
 	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
@@ -174,7 +185,13 @@ func (w *reader) walk(r *os.Root, rel string) error {
 
 // entry reads one directory entry of r.
 func (w *reader) entry(r *os.Root, name, p string) error {
+	if !profile.ValidName(p) {
+		return fmt.Errorf("%w: a name is not UTF-8 or holds a control character", ErrRefused)
+	}
 	info, err := r.Lstat(name)
+	if err == nil {
+		beforeOpen(p)
+	}
 	switch {
 	case err != nil:
 		return refused(p, "cannot be read")

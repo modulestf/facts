@@ -295,6 +295,15 @@ func TestProfileTreeSHA256(t *testing.T) {
 	if r := run1(""); r.Envelope.ProfileTreeSHA256 != nil {
 		t.Error("profile_tree_sha256 is set with no profile")
 	}
+	if err := os.WriteFile(filepath.Join(dir, "bad\nname.md"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if r := run1(dir); r.Envelope.ProfileTreeSHA256 != nil || r.Envelope.ProfileSHA256 == nil {
+		t.Errorf("with a name holding LF: tree %v, profile %v; want null and set", r.Envelope.ProfileTreeSHA256, r.Envelope.ProfileSHA256)
+	}
+	if err := os.Remove(filepath.Join(dir, "bad\nname.md")); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink("review-guide.md", filepath.Join(dir, "link.md")); err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // File is the profile file that holds the constants blocks, relative to the
@@ -166,9 +167,15 @@ func Preimage(files map[string][]byte) []byte {
 	return b.Bytes()
 }
 
+// ValidName reports whether a relative path may enter a tree hash: valid
+// UTF-8 with no control byte or DEL, so no name can forge a preimage line.
+func ValidName(p string) bool {
+	return utf8.ValidString(p) && !strings.ContainsFunc(p, func(r rune) bool { return r < 0x20 || r == 0x7f })
+}
+
 // TreeSHA256 is the tree hash of a profile directory: the SHA-256 of the
 // Preimage of every one of its files, not only those the profile is built
-// from.
+// from. Every name must pass ValidName; the caller checks.
 func TreeSHA256(files map[string][]byte) string { return hashFiles(files) }
 
 func hashFiles(files map[string][]byte) string {

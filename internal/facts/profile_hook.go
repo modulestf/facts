@@ -110,6 +110,9 @@ func profileFromTree(t *Tree) (p *profile.Profile, treeSum string, err error) {
 		} else {
 			regular = false
 		}
+		if !profile.ValidName(e.Path) {
+			regular = false // a name the tree hash cannot carry unambiguously
+		}
 	}
 	if regular {
 		treeSum = profile.TreeSHA256(files)
