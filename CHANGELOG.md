@@ -1,3 +1,12 @@
+## [0.6.1](https://github.com/modulestf/facts/compare/v0.6.0...v0.6.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* check outputs of discovered module areas for structure.output-no-try ([#31](https://github.com/modulestf/facts/issues/31)) ([097e3d4](https://github.com/modulestf/facts/commit/097e3d411cde73f0901edfc537c4e807a8e00f80))
+
+
+
 # [0.6.0](https://github.com/modulestf/facts/compare/v0.5.0...v0.6.0) (2026-11-06)
 
 
