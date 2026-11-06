@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -173,6 +174,8 @@ func TestMergeFinal(t *testing.T) {
 
 // TestMergeOnRealBundle runs the bundle mtf-facts bundle writes from a lint
 // report through merge check and merge final, with that report's index.
+var offListLine = regexp.MustCompile(`^(mtf-facts: merge: \d+ finding severities were off their rule's list and dropped for the nearest permitted one\n)?$`)
+
 func TestMergeOnRealBundle(t *testing.T) {
 	bundleFile, report, regFile := bundleFromLint(t, "../../testdata/compat-iface-positive", "../../testdata/profile", "")
 	f, err := os.Open(bundleFile)
@@ -220,7 +223,9 @@ func TestMergeOnRealBundle(t *testing.T) {
 		t.Helper()
 		var out, errb bytes.Buffer
 		args := append([]string{"merge", "final", "--registry", regFile, "--report", report, bundleFile}, replies...)
-		if code := run(args, &out, &errb); code != 0 || errb.Len() != 0 {
+		// The confirm reply asks CRITICAL for every candidate, so rules
+		// without CRITICAL clamp and merge notes how many on stderr.
+		if code := run(args, &out, &errb); code != 0 || !offListLine.MatchString(errb.String()) {
 			t.Fatalf("exit %d, stderr %q", code, errb.String())
 		}
 		var got []map[string]any
