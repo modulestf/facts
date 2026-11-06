@@ -30,9 +30,11 @@ const (
 var ErrAreaLimit = errors.New("area_limit_exceeded")
 
 // moduleRules are the rules that apply to a discovered module area, besides
-// listing the submodule kind: the language-level compat and coverage rules.
-// The convention, profile and layout rules (structure.*, profile.*, scope.*,
-// examples.*) encode the terraform-aws-modules profile and are not applicable.
+// listing the submodule kind: the language-level compat and coverage rules,
+// and structure.output-no-try, since an output that fails when its object was
+// not created breaks any caller. The other convention, profile and layout
+// rules (structure.*, profile.*, scope.*, examples.*) encode the
+// terraform-aws-modules profile and are not applicable.
 // TestModuleRulesCoverEverySubmoduleRule keeps this list in step with the
 // registry.
 var moduleRules = map[string]bool{
@@ -51,6 +53,7 @@ var moduleRules = map[string]bool{
 	"coverage.optional-argument-unexposed":   true,
 	"coverage.required-argument-unreachable": true,
 	"coverage.unknown-argument":              true,
+	"structure.output-no-try":                true,
 }
 
 // kindApplies reports whether rule r runs on an area of the given kind. A

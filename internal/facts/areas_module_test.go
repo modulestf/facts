@@ -2,6 +2,7 @@ package facts
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -235,6 +236,9 @@ func TestDiscoverModulesLimit(t *testing.T) {
 // the submodule kind must be classified here before it can run on a module.
 func TestModuleRulesCoverEverySubmoduleRule(t *testing.T) {
 	excluded := func(id string) bool {
+		if id == "structure.output-no-try" {
+			return false // language-level: an output that fails breaks any caller
+		}
 		for _, p := range []string{"structure.", "profile.", "scope.", "examples."} {
 			if strings.HasPrefix(id, p) {
 				return true
@@ -297,6 +301,31 @@ func TestRunMonorepoModuleChange(t *testing.T) {
 	}
 	if r.Scope == nil || !slices.Contains(r.Scope.AreasCalling, "infra/live/prod") || !slices.Contains(r.Scope.AreasChecked, "infra/modules/network") {
 		t.Errorf("scope = %+v", r.Scope)
+	}
+}
+
+// A new output in a discovered module area that indexes a map by a variable
+// key, outside try(), is an output-no-try candidate; one wrapped in try()
+// with a null fallback is not.
+func TestRunMonorepoModuleOutputNoTry(t *testing.T) {
+	baseFiles := monorepo()
+	headFiles := monorepo()
+	headFiles["infra/modules/network/elb.tf"] = "locals {\n  elb_account_ids = {\n    us-east-1 = \"111111111111\"\n  }\n}\n"
+	headFiles["infra/modules/network/outputs.tf"] = "output \"elb_account_id\" {\n  value = local.elb_account_ids[var.region]\n}\n" +
+		"output \"elb_account_id_safe\" {\n  value = try(local.elb_account_ids[var.region], null)\n}\n"
+	r, err := run(Options{Head: writeTree(t, headFiles), Base: writeTree(t, baseFiles), Limits: DefaultLimits, ProfileDir: testProfile}, Rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range r.Candidates {
+		if c.RuleID == "structure.output-no-try" {
+			got = append(got, fmt.Sprintf("%s:%d %s", c.File, *c.Line, c.Subject))
+		}
+	}
+	want := []string{"infra/modules/network/outputs.tf:1 infra/modules/network:output.elb_account_id"}
+	if !slices.Equal(got, want) {
+		t.Errorf("output-no-try candidates = %q, want %q", got, want)
 	}
 }
 
