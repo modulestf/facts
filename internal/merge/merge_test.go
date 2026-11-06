@@ -538,7 +538,7 @@ func TestFindingArea(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			known := func(a string) bool { return a == "examples/complete" || a == "modules/m" }
-			got, ok := findingArea(tt.rule, tt.file, known)
+			got, ok := legacyFindingArea(tt.rule, tt.file, known)
 			if got != tt.want || ok != (tt.want != "") {
 				t.Errorf("findingArea(%q) = %q, %v; want %q", tt.file, got, ok, tt.want)
 			}

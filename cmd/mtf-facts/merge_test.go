@@ -256,3 +256,9 @@ func TestMergeOnRealBundle(t *testing.T) {
 		}
 	})
 }
+
+func TestOffListNote(t *testing.T) {
+	if offListNote(0) != "" || !strings.Contains(offListNote(3), " 3 finding severities ") {
+		t.Errorf("notes %q, %q", offListNote(0), offListNote(3))
+	}
+}

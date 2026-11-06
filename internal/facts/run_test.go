@@ -173,11 +173,11 @@ func TestRunScope(t *testing.T) {
 		want Scope
 	}{
 		{"change", Options{Diff: filepath.Join(diffFixture, "files.json")}, Scope{Change: ChangeDiff,
-			AreasChecked: []string{"examples/c", "examples/old", "modules/log"}, AreasCalling: []string{".", "examples/a", "examples/b"}, AreasLeftOut: []string{"modules/other"}}},
+			AreasChecked: []string{"examples/c", "examples/old", "modules/log"}, AreasCalling: []string{".", "examples/a", "examples/b"}, AreasLeftOut: []string{"modules/other"}, ModuleAreas: []string{}}},
 		{"full tree", Options{Diff: filepath.Join(diffFixture, "files.json"), FullTree: true}, Scope{Change: ChangeDiff, FullTree: true,
-			AreasChecked: all, AreasCalling: []string{}, AreasLeftOut: []string{}}},
+			AreasChecked: all, AreasCalling: []string{}, AreasLeftOut: []string{}, ModuleAreas: []string{}}},
 		{"no change", Options{}, Scope{Change: ChangeNone,
-			AreasChecked: slices.DeleteFunc(slices.Clone(all), func(a string) bool { return a == "examples/old" }), AreasCalling: []string{}, AreasLeftOut: []string{}}},
+			AreasChecked: slices.DeleteFunc(slices.Clone(all), func(a string) bool { return a == "examples/old" }), AreasCalling: []string{}, AreasLeftOut: []string{}, ModuleAreas: []string{}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := runDiffFixture(t, tc.o)

@@ -58,12 +58,17 @@ type (
 )
 
 // Bundle is the part of the facts bundle the merge reads. A shed area_rules
-// section is nil.
+// section is nil. Versioned is set for a bundle with schema_version 1, which
+// carries ModuleAreas and InRepoDowngrade with its area rules; a bundle
+// without it is a legacy bundle, read as before and with no downgrade.
 type Bundle struct {
-	ToolFindings   []Finding
-	Candidates     []Candidate
-	AreaRules      []AreaRules
-	SeverityNeeded []SeverityNeeded
+	ToolFindings    []Finding
+	Candidates      []Candidate
+	AreaRules       []AreaRules
+	SeverityNeeded  []SeverityNeeded
+	Versioned       bool
+	ModuleAreas     []string
+	InRepoDowngrade []string
 }
 
 // ParseBundle reads a bundle file in the region form mtf-facts bundle
@@ -82,6 +87,9 @@ func ParseBundle(data []byte) (*Bundle, error) {
 	if d.AreaRules != nil {
 		b.AreaRules = *d.AreaRules
 	}
+	if err := b.readUnit(d); err != nil {
+		return nil, fmt.Errorf("bundle: %w", err)
+	}
 	for _, t := range d.ToolFindings {
 		b.ToolFindings = append(b.ToolFindings, Finding{
 			ID: t.ID, RuleID: t.RuleID, Severity: t.Severity, File: t.File, Line: t.Line,
@@ -94,6 +102,42 @@ func ParseBundle(data []byte) (*Bundle, error) {
 		return nil, fmt.Errorf("bundle: %w", err)
 	}
 	return b, nil
+}
+
+// readUnit reads the ownership unit. A missing schema_version is a legacy
+// bundle, which may not carry module_areas or in_repo_downgrade; a version
+// other than 1 is an error; with version 1, area_rules, module_areas and
+// in_repo_downgrade must all be there, each area a clean relative path, the
+// module areas sorted and not the root.
+func (b *Bundle) readUnit(d *fb.Bundle) error {
+	if d.SchemaVersion == nil {
+		if d.ModuleAreas != nil || d.InRepoDowngrade != nil {
+			return errors.New("module_areas or in_repo_downgrade without schema_version")
+		}
+		return nil
+	}
+	if *d.SchemaVersion != fb.SchemaVersion {
+		return fmt.Errorf("schema_version %d is not %d", *d.SchemaVersion, fb.SchemaVersion)
+	}
+	if d.AreaRules == nil || d.ModuleAreas == nil || d.InRepoDowngrade == nil {
+		return errors.New("schema_version without all of area_rules, module_areas and in_repo_downgrade")
+	}
+	valid := func(areas []string, root bool) bool {
+		for i, a := range areas {
+			if _, ok := facts.AreaOf(a, nil); !ok || a == "." && !root || i > 0 && areas[i-1] >= a {
+				return false
+			}
+		}
+		return true
+	}
+	if !valid(*d.ModuleAreas, false) {
+		return errors.New("module_areas: an area is not a clean relative path, is the root, or is out of order")
+	}
+	if !valid(*d.InRepoDowngrade, true) {
+		return errors.New("in_repo_downgrade: an area is not a clean relative path or is out of order")
+	}
+	b.Versioned, b.ModuleAreas, b.InRepoDowngrade = true, *d.ModuleAreas, *d.InRepoDowngrade
+	return nil
 }
 
 func (b *Bundle) check() error {

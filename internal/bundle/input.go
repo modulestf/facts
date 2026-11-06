@@ -26,9 +26,10 @@ const (
 )
 
 // Report is the lint report the bundle is built from. InterfaceDiff and
-// SchemaCoverage stay raw: the bundle only caps their strings. Scope and
-// Callers are read so a report that has them decodes; no bundle section
-// carries them.
+// SchemaCoverage stay raw: the bundle only caps their strings. Scope is read
+// for its module_areas, and InRepoDowngrade as it is: both travel with
+// area_rules. Callers and ModuleCallers are read so a report that has them
+// decodes; no bundle section carries them.
 type Report struct {
 	Envelope       facts.Envelope        `json:"envelope"`
 	Manifest       []facts.ManifestEntry `json:"manifest"`
@@ -39,6 +40,10 @@ type Report struct {
 	SchemaCoverage json.RawMessage       `json:"schema_coverage"`
 	Scope          json.RawMessage       `json:"scope"`
 	Callers        json.RawMessage       `json:"callers"`
+	ModuleCallers  json.RawMessage       `json:"module_callers"`
+	// InRepoDowngrade is nil in a report from a release that does not write
+	// it, read as empty.
+	InRepoDowngrade []string `json:"in_repo_downgrade"`
 }
 
 // ReadReport reads and decodes a lint --json report. An unknown field, a

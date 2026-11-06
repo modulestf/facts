@@ -151,3 +151,35 @@ func TestSubmoduleOnlyChangeHasNoRootEntries(t *testing.T) {
 func isCrossArea(id string) bool {
 	return slices.ContainsFunc(Rules, func(r Rule) bool { return r.ID == id && r.CrossArea })
 }
+
+func TestAreaOf(t *testing.T) {
+	mods := []string{"infra/modules/network", "infra/modules/network/nested", "live/prod"}
+	for file, want := range map[string]string{
+		"main.tf":                                  ".",
+		"modules/x/main.tf":                        "modules/x",
+		"modules/x/sub/y.tf":                       "modules/x",
+		"examples/complete/main.tf":                "examples/complete",
+		"infra/modules/network/main.tf":            "infra/modules/network",
+		"infra/modules/network/nested/main.tf":     "infra/modules/network/nested",
+		"infra/modules/network/deeper/dir/main.tf": "infra/modules/network",
+		"infra/modules/network":                    "infra/modules/network",
+		"infra/other/main.tf":                      ".",
+		"live/prod/tests/x.tf":                     ".",
+		"tests/basic.tftest.hcl":                   ".",
+		"wrappers/main.tf":                         ".",
+		".":                                        ".",
+	} {
+		got, ok := AreaOf(file, mods)
+		if !ok || got != want {
+			t.Errorf("AreaOf(%q) = %q, %v, want %q", file, got, ok, want)
+		}
+	}
+	for _, file := range []string{
+		"", "/etc/passwd", "/main.tf", `infra\modules\network\main.tf`, "C:/x/main.tf", "c:main.tf",
+		"./main.tf", "a//b.tf", "a/./b.tf", "a/../b.tf", "../main.tf", "..", "a/b/", "infra/modules/network/../../x.tf",
+	} {
+		if got, ok := AreaOf(file, mods); ok {
+			t.Errorf("AreaOf(%q) = %q, want a refusal", file, got)
+		}
+	}
+}

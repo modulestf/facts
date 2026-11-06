@@ -1,0 +1,125 @@
+{
+  "manifest": [
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": "infra/modules/network",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": "live/prod",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.generated-policy-narrowed",
+      "area": "live/stage",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "infra/modules/network",
+      "status": "candidate"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "live/prod",
+      "status": "clean"
+    },
+    {
+      "rule_id": "compat.variable-removed",
+      "area": "live/stage",
+      "status": "clean"
+    }
+  ],
+  "findings": [],
+  "candidates": [
+    {
+      "candidate_id": "C-001",
+      "rule_id": "compat.generated-policy-narrowed",
+      "file": "infra/modules/network/main.tf",
+      "line": 3,
+      "subject": "infra/modules/network:data.aws_iam_policy_document.flow_logs.statement[0].actions",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "infra/modules/network/main.tf",
+            "line": 3,
+            "text": "    actions   = [\"logs:PutLogEvents\"]"
+          }
+        ],
+        "base": "[\"logs:CreateLogStream\", \"logs:PutLogEvents\"]",
+        "head": "[\"logs:PutLogEvents\"]",
+        "schema_facts": []
+      },
+      "evidence_complete": true,
+      "downgrade": "in-repo",
+      "severities": [
+        "MEDIUM"
+      ]
+    },
+    {
+      "candidate_id": "C-002",
+      "rule_id": "compat.variable-removed",
+      "file": "infra/modules/network/variables.tf",
+      "line": null,
+      "subject": "infra/modules/network:var.name",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "merge_base",
+            "file": "infra/modules/network/variables.tf",
+            "line": 6,
+            "text": "variable \"name\" {"
+          }
+        ],
+        "base": "var.name",
+        "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true,
+      "downgrade": "in-repo",
+      "severities": [
+        "MEDIUM"
+      ]
+    }
+  ],
+  "module_areas": [
+    "infra/modules/network",
+    "live/prod",
+    "live/stage"
+  ],
+  "module_callers": [
+    {
+      "module": "infra/modules/network",
+      "complete": true,
+      "callers": [
+        {
+          "area": "live/prod",
+          "file": "live/prod/main.tf",
+          "line": 2,
+          "file_changed": true
+        },
+        {
+          "area": "live/stage",
+          "file": "live/stage/main.tf",
+          "line": 2,
+          "file_changed": true
+        }
+      ]
+    },
+    {
+      "module": "live/prod",
+      "complete": true,
+      "callers": []
+    },
+    {
+      "module": "live/stage",
+      "complete": true,
+      "callers": []
+    }
+  ],
+  "in_repo_downgrade": [
+    "infra/modules/network"
+  ]
+}

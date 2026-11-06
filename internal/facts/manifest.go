@@ -27,7 +27,13 @@ const (
 	ReasonNoBase             = "no_base"
 	ReasonSchemaUnavailable  = "schema_unavailable"
 	ReasonProfileUnavailable = "profile_unavailable"
+	// ReasonProfileOption is the reason code of a not_applicable entry for a
+	// rule the profile's options gate; see profile.Gates.
+	ReasonProfileOption = "profile_option"
 )
+
+// profileOptionReason is the reason text of a rule the profile's options gate.
+const profileOptionReason = "the profile's options make the rule not applicable"
 
 // reasonCodes is the closed list, as manifest.schema.json has it.
 var reasonCodes = map[string]bool{
@@ -98,6 +104,11 @@ type Candidate struct {
 	// same subject, for a rule whose check reads the base block: today
 	// structure.argument-order. An optional field, true or absent.
 	PredatesChange bool `json:"predates_change,omitempty"`
+	// Downgrade is "in-repo" on a candidate of a downgrade rule in an area of
+	// the report's in_repo_downgrade, and Severities is then ["MEDIUM"]: the
+	// one severity the merge may keep. Both are absent otherwise.
+	Downgrade  string   `json:"downgrade,omitempty"`
+	Severities []string `json:"severities,omitempty"`
 	// cause, when set, is the changed line that brings a cross-area candidate
 	// into the change, where File and Line are the defect it points at, such
 	// as a caller's floor that a callee's raise makes too low.
@@ -154,6 +165,10 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 	}
 	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
+		if r.CrossArea && len(areas) > 0 && profileGated(r, areas[0]) {
+			manifest = append(manifest, manifestEntry(r.ID, rootArea, Result{NotEvaluated: StatusNotApplicable, Code: ReasonProfileOption}))
+			continue
+		}
 		if r.CrossArea {
 			res := evaluateCrossArea(r, areas, ch)
 			manifest = append(manifest, crossEntries(r.ID, res, peers)...)
@@ -301,6 +316,9 @@ func manifestEntry(rule, area string, res Result) ManifestEntry {
 	switch {
 	case res.NotEvaluated == StatusNotApplicable:
 		e.Status = StatusNotApplicable
+		if res.Code == ReasonProfileOption {
+			e.Reason, e.ReasonCode = profileOptionReason, ReasonProfileOption
+		}
 	case res.NotEvaluated != "":
 		e.Status, e.Reason, e.ReasonCode = StatusNotEvaluated, res.NotEvaluated, res.Code
 	case len(res.Findings) > 0:
@@ -343,6 +361,8 @@ func gate(r Rule, a *Area) (reason, code string) {
 	switch {
 	case !kindApplies(r, a.Kind):
 		return StatusNotApplicable, ""
+	case profileGated(r, a):
+		return StatusNotApplicable, ReasonProfileOption
 	case a.Issue != "":
 		return a.Issue, a.issueCode
 	case r.NeedsBase && a.Base == nil:
@@ -364,6 +384,12 @@ func gate(r Rule, a *Area) (reason, code string) {
 		return "at base: " + strings.Join(a.Base.Unsupported, "; "), a.Base.reasonCode()
 	}
 	return "", ""
+}
+
+// profileGated reports whether the profile of a, when it has a valid one,
+// gates rule r by its options. Every area shares the one profile.
+func profileGated(r Rule, a *Area) bool {
+	return a.Profile != nil && a.Profile.Options.Gated(r.ID)
 }
 
 var severityRank = map[string]int{"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}

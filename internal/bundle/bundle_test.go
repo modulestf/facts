@@ -94,6 +94,10 @@ func testReport() *Report {
 		Index:          []facts.IndexEntry{{File: "variables.tf", StartLine: 1, EndLine: 5, Subject: ".:var.name"}},
 		InterfaceDiff:  json.RawMessage(`{"head_sha":"` + headSHA + `","merge_base_sha":"` + baseSHA + `","areas":[{"path":".","kind":"root","required_version":null,"variables":[{"base":{"default":null,"description":null,"nullable":true,"sensitive":false,"type":null,"validation":[]},"change":"removed","head":null,"name":"retention_days"}],"outputs":[],"providers":[],"resources":[],"moved":[],"module_calls":[]}]}`),
 		SchemaCoverage: json.RawMessage(testCoverage),
+		Scope: json.RawMessage(`{"change":"base","full_tree":false,"areas_checked":["."],"areas_calling":[],"areas_left_out":[],` +
+			`"module_areas":["infra/modules/network"]}`),
+		ModuleCallers:   json.RawMessage(`[]`),
+		InRepoDowngrade: []string{"infra/modules/network"},
 	}
 }
 
@@ -169,9 +173,12 @@ func TestBuildJudgment(t *testing.T) {
 		t.Fatalf("mode %s, shed %v, reason %q", res.Mode, res.Shed, res.Reason)
 	}
 	payload, d := parseRegion(t, res.Bundle)
-	want := []string{"tool_findings", "candidates", "area_rules", "interface_diff", "schema_coverage", "file_index", "severity_needed"}
+	want := []string{"schema_version", "tool_findings", "candidates", "area_rules", "module_areas", "in_repo_downgrade", "interface_diff", "schema_coverage", "file_index", "severity_needed"}
 	if got := keys(t, payload); !slices.Equal(got, want) {
 		t.Errorf("keys %v, want %v", got, want)
+	}
+	if string(d["schema_version"]) != "1" || string(d["module_areas"]) != `["infra/modules/network"]` || string(d["in_repo_downgrade"]) != `["infra/modules/network"]` {
+		t.Errorf("ownership unit: schema_version %s, module_areas %s, in_repo_downgrade %s", d["schema_version"], d["module_areas"], d["in_repo_downgrade"])
 	}
 	if got := string(d["file_index"]); got != `[{"path":"examples/complete/main.tf","change":"added"},{"path":"outputs.tf","change":"removed"},{"path":"variables.tf","change":"modified"}]` {
 		t.Errorf("file_index %s", got)
@@ -245,13 +252,16 @@ func orderedDoc(t *testing.T, d map[string]json.RawMessage) any {
 		t.Fatal(err)
 	}
 	var out struct {
-		ToolFindings   json.RawMessage `json:"tool_findings"`
-		Candidates     json.RawMessage `json:"candidates"`
-		AreaRules      json.RawMessage `json:"area_rules,omitempty"`
-		InterfaceDiff  json.RawMessage `json:"interface_diff,omitempty"`
-		SchemaCoverage json.RawMessage `json:"schema_coverage,omitempty"`
-		FileIndex      json.RawMessage `json:"file_index,omitempty"`
-		SeverityNeeded json.RawMessage `json:"severity_needed"`
+		SchemaVersion   json.RawMessage `json:"schema_version,omitempty"`
+		ToolFindings    json.RawMessage `json:"tool_findings"`
+		Candidates      json.RawMessage `json:"candidates"`
+		AreaRules       json.RawMessage `json:"area_rules,omitempty"`
+		ModuleAreas     json.RawMessage `json:"module_areas,omitempty"`
+		InRepoDowngrade json.RawMessage `json:"in_repo_downgrade,omitempty"`
+		InterfaceDiff   json.RawMessage `json:"interface_diff,omitempty"`
+		SchemaCoverage  json.RawMessage `json:"schema_coverage,omitempty"`
+		FileIndex       json.RawMessage `json:"file_index,omitempty"`
+		SeverityNeeded  json.RawMessage `json:"severity_needed"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
@@ -302,7 +312,7 @@ func TestShedOrder(t *testing.T) {
 		{[]string{"file-index"}, []string{"file_index"}},
 		{[]string{"file-index", "schema-coverage"}, []string{"file_index", "schema_coverage"}},
 		{[]string{"file-index", "schema-coverage", "interface-diff"}, []string{"file_index", "schema_coverage", "interface_diff"}},
-		{[]string{"file-index", "schema-coverage", "interface-diff", "area-rules"}, []string{"file_index", "schema_coverage", "interface_diff", "area_rules"}},
+		{[]string{"file-index", "schema-coverage", "interface-diff", "area-rules"}, []string{"file_index", "schema_coverage", "interface_diff", "area_rules", "schema_version", "module_areas", "in_repo_downgrade"}},
 	}
 	prev := full
 	for _, s := range steps {
@@ -673,5 +683,48 @@ func TestSchemaCoverageNeedsHandoff(t *testing.T) {
 	r.SchemaCoverage = nil
 	if _, d := parseRegion(t, build(t, r, big).Bundle); d["schema_coverage"] != nil {
 		t.Errorf("schema_coverage %s without one in the report", d["schema_coverage"])
+	}
+}
+
+// TestOwnershipUnitShed checks schema_version, module_areas and
+// in_repo_downgrade are shed with area_rules, from the start, for a report
+// without scope.module_areas or with a path over the cap.
+func TestOwnershipUnitShed(t *testing.T) {
+	unit := []string{"schema_version", "area_rules", "module_areas", "in_repo_downgrade"}
+	for name, edit := range map[string]func(r *Report){
+		"no scope": func(r *Report) { r.Scope = nil },
+		"no module_areas": func(r *Report) {
+			r.Scope = json.RawMessage(`{"change":"base","full_tree":false,"areas_checked":[],"areas_calling":[],"areas_left_out":[]}`)
+		},
+		"long module path": func(r *Report) {
+			r.Scope = json.RawMessage(`{"change":"base","full_tree":false,"areas_checked":[],"areas_calling":[],"areas_left_out":[],"module_areas":["` + strings.Repeat("a", maxPRString+1) + `"]}`)
+		},
+		"long downgrade path": func(r *Report) { r.InRepoDowngrade = []string{strings.Repeat("b", maxPRString+1)} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := testReport()
+			edit(r)
+			res := build(t, r, big)
+			if !slices.Equal(res.Shed, []string{registry.SectionAreaRules}) {
+				t.Errorf("shed %v, want area-rules", res.Shed)
+			}
+			payload, d := parseRegion(t, res.Bundle)
+			for _, k := range unit {
+				if _, ok := d[k]; ok {
+					t.Errorf("bundle keeps %s", k)
+				}
+			}
+			if _, err := Decode(bytes.NewReader(region(payload))); err != nil {
+				t.Errorf("legacy bundle does not decode: %v", err)
+			}
+		})
+	}
+	// A report with module_areas and no in_repo_downgrade field, from no
+	// change, keeps the unit with an empty list.
+	r := testReport()
+	r.InRepoDowngrade = nil
+	_, d := parseRegion(t, build(t, r, big).Bundle)
+	if string(d["in_repo_downgrade"]) != "[]" || string(d["schema_version"]) != "1" {
+		t.Errorf("in_repo_downgrade %s, schema_version %s", d["in_repo_downgrade"], d["schema_version"])
 	}
 }

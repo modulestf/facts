@@ -26,6 +26,9 @@ const (
 	maxPRString            = 1024
 )
 
+// SchemaVersion is the version of the ownership unit a bundle carries.
+const SchemaVersion = 1
+
 // Modes. A run uses one from start to end.
 const (
 	ModeJudgment = "judgment"
@@ -79,6 +82,10 @@ func Build(r *Report, reg *registry.Registry, text EngineText, o Options) (*Resu
 	// engine's exhaustive answer. An llm rule that reads a shed section is
 	// judged from the files in any case.
 	var shed []string
+	if b.SchemaVersion == nil && b.drop(registry.SectionAreaRules) {
+		// No ownership unit to send: the area rules go with it, from the start.
+		shed = append(shed, registry.SectionAreaRules)
+	}
 	for _, section := range shedOrder {
 		payload, err := encode(b)
 		if err != nil {
@@ -191,9 +198,31 @@ func fullBundle(r *Report, reg *registry.Registry) (*Bundle, error) {
 	}
 	ar := areaRulesOf(r.Manifest)
 	d.AreaRules = &ar
+	if mods, ok := moduleAreas(r); ok {
+		down := append([]string{}, r.InRepoDowngrade...)
+		d.SchemaVersion, d.ModuleAreas, d.InRepoDowngrade = new(SchemaVersion), &mods, &down
+	}
 	idx := fileIndex(r.Envelope.Inputs)
 	d.FileIndex = &idx
 	return d, nil
+}
+
+// moduleAreas returns the report's scope.module_areas. ok is false when the
+// report has none, from a release that does not write it, or when a module
+// area or an in_repo_downgrade area is over the string cap: a cut path names
+// no area, so the ownership unit cannot travel.
+func moduleAreas(r *Report) ([]string, bool) {
+	var scope struct {
+		ModuleAreas *[]string `json:"module_areas"`
+	}
+	if r.Scope == nil || json.Unmarshal(r.Scope, &scope) != nil || scope.ModuleAreas == nil {
+		return nil, false
+	}
+	over := func(p string) bool { return len(p) > maxPRString }
+	if slices.ContainsFunc(*scope.ModuleAreas, over) || slices.ContainsFunc(r.InRepoDowngrade, over) {
+		return nil, false
+	}
+	return append([]string{}, *scope.ModuleAreas...), true
 }
 
 // findingSubject derives a tool finding's subject: a path rule's is the file

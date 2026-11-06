@@ -21,6 +21,8 @@ type AIReport struct {
 	Candidates      []Candidate      `json:"candidates"`
 	Scope           *Scope           `json:"scope,omitempty"`
 	Callers         *[]ChangedModule `json:"callers,omitempty"`
+	ModuleCallers   []ModuleCallers  `json:"module_callers"`
+	InRepoDowngrade []string         `json:"in_repo_downgrade"`
 }
 
 // ErrAIReport refuses a AI report where the full one is needed.
@@ -45,6 +47,8 @@ type AIEnvelope struct {
 	Inputs         AIInputs      `json:"inputs"`
 	SchemaInputs   *SchemaInputs `json:"schema_inputs"`
 	ProfileSHA256  *string       `json:"profile_sha256"`
+	// ProfileTreeSHA256 is Envelope.ProfileTreeSHA256.
+	ProfileTreeSHA256 *string `json:"profile_tree_sha256"`
 }
 
 // AIInputs is Inputs with each tree's file list replaced by its count.
@@ -90,7 +94,7 @@ func (r *Report) AIReport() *AIReport {
 	e := r.Envelope
 	c := &AIReport{
 		Envelope: AIEnvelope{SchemaVersion: e.SchemaVersion, Tool: e.Tool, HeadSHA: e.HeadSHA, MergeBaseSHA: e.MergeBaseSHA,
-			RegistrySHA256: e.RegistrySHA256, SchemaInputs: e.SchemaInputs, ProfileSHA256: e.ProfileSHA256,
+			RegistrySHA256: e.RegistrySHA256, SchemaInputs: e.SchemaInputs, ProfileSHA256: e.ProfileSHA256, ProfileTreeSHA256: e.ProfileTreeSHA256,
 			Inputs: AIInputs{Head: aiTree(e.Inputs.Head), Diff: e.Inputs.Diff}},
 		Manifest:        []ManifestEntry{},
 		ManifestSummary: ManifestSummary{Omitted: map[string]OmittedCounts{}, Areas: []string{}},
@@ -98,6 +102,8 @@ func (r *Report) AIReport() *AIReport {
 		Candidates:      r.Candidates,
 		Scope:           r.Scope,
 		Callers:         r.Callers,
+		ModuleCallers:   r.ModuleCallers,
+		InRepoDowngrade: r.InRepoDowngrade,
 	}
 	if e.Inputs.Base != nil {
 		b := aiTree(*e.Inputs.Base)

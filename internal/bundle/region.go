@@ -28,14 +28,20 @@ const maxBundleBytes = 16 << 20
 // Bundle is the facts bundle of facts-bundle.schema.json, its keys in the
 // schema's order. A nil section was left out; schema_coverage is also left
 // out when the report has none, that is when no schema handoff bound.
+// SchemaVersion, ModuleAreas and InRepoDowngrade are the ownership unit with
+// AreaRules: all four are there or none is, and a bundle without them is a
+// legacy bundle.
 type Bundle struct {
-	ToolFindings   []ToolFinding     `json:"tool_findings"`
-	Candidates     []facts.Candidate `json:"candidates"`
-	AreaRules      *[]AreaRules      `json:"area_rules,omitempty"`
-	InterfaceDiff  json.RawMessage   `json:"interface_diff,omitempty"`
-	SchemaCoverage json.RawMessage   `json:"schema_coverage,omitempty"`
-	FileIndex      *[]FileChange     `json:"file_index,omitempty"`
-	SeverityNeeded []SeverityNeeded  `json:"severity_needed"`
+	SchemaVersion   *int              `json:"schema_version,omitempty"`
+	ToolFindings    []ToolFinding     `json:"tool_findings"`
+	Candidates      []facts.Candidate `json:"candidates"`
+	AreaRules       *[]AreaRules      `json:"area_rules,omitempty"`
+	ModuleAreas     *[]string         `json:"module_areas,omitempty"`
+	InRepoDowngrade *[]string         `json:"in_repo_downgrade,omitempty"`
+	InterfaceDiff   json.RawMessage   `json:"interface_diff,omitempty"`
+	SchemaCoverage  json.RawMessage   `json:"schema_coverage,omitempty"`
+	FileIndex       *[]FileChange     `json:"file_index,omitempty"`
+	SeverityNeeded  []SeverityNeeded  `json:"severity_needed"`
 }
 
 // ToolFinding is a final finding with the fields the bundle adds. A finding
@@ -88,7 +94,9 @@ func (b *Bundle) drop(section string) bool {
 	had := false
 	switch section {
 	case registry.SectionAreaRules:
+		// The ownership unit goes as one.
 		had, b.AreaRules = b.AreaRules != nil, nil
+		b.SchemaVersion, b.ModuleAreas, b.InRepoDowngrade = nil, nil, nil
 	case registry.SectionInterfaceDiff:
 		had, b.InterfaceDiff = b.InterfaceDiff != nil, nil
 	case registry.SectionSchemaCoverage:

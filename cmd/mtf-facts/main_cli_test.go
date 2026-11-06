@@ -419,24 +419,26 @@ Usage:
   mtf-facts <command> [flags]
 
 Check a module:
-  lint           Check a module tree, or only the areas a change touched
-  ledger         List the provider fields of each type, or check a coverage ledger
-  schema-diff    Compare two provider schemas for the types a module uses
+  lint              Check a module tree, or only the areas a change touched
+  ledger            List the provider fields of each type, or check a coverage ledger
+  schema-diff       Compare two provider schemas for the types a module uses
 
 Review pipeline (run by hosts):
-  affected       List the examples a change can affect, most likely first
-  depth          Decide how deep a review of a change must go: light, focused or deep
-  bundle         Build the facts bundle a model reviewer reads
-  merge          Check a model reply and merge it into the final findings
-  fixture-check  Check a ladder scratch tree against its allowlist
-  behaviour      Classify a change into triggers and the verification levels each needs
-  claims-eval    Validate review claims and evaluate them and the triggers against a ladder record
+  affected          List the examples a change can affect, most likely first
+  depth             Decide how deep a review of a change must go: light, focused or deep
+  bundle            Build the facts bundle a model reviewer reads
+  merge             Check a model reply and merge it into the final findings
+  fixture-check     Check a ladder scratch tree against its allowlist
+  behaviour         Classify a change into triggers and the verification levels each needs
+  claims-eval       Validate review claims and evaluate them and the triggers against a ladder record
+  profile-check     Check a module profile and print its options, gates and downgrade rules
+  profile-snapshot  Copy a module profile directory into a private temporary directory
 
 Other commands:
-  rules          List the implemented rules and their tier
-  version        Print the binary version
-  completion     Generate a shell completion script
-  help           Help about any command
+  rules             List the implemented rules and their tier
+  version           Print the binary version
+  completion        Generate a shell completion script
+  help              Help about any command
 
 Flags:
   -h, --help      help for mtf-facts

@@ -27,10 +27,13 @@ type Scope struct {
 	AreasChecked []string `json:"areas_checked"`
 	AreasCalling []string `json:"areas_calling"`
 	AreasLeftOut []string `json:"areas_left_out"`
+	// ModuleAreas are the discovered module areas of head and base: the set
+	// AreaOf takes.
+	ModuleAreas []string `json:"module_areas"`
 }
 
 func buildScope(change string, fullTree bool, areas []*Area, touched map[string]bool, callers *[]ChangedModule) *Scope {
-	s := &Scope{Change: change, FullTree: fullTree, AreasChecked: []string{}, AreasCalling: []string{}, AreasLeftOut: []string{}}
+	s := &Scope{Change: change, FullTree: fullTree, AreasChecked: []string{}, AreasCalling: []string{}, AreasLeftOut: []string{}, ModuleAreas: []string{}}
 	calling := map[string]bool{}
 	if callers != nil {
 		for _, m := range *callers {
@@ -40,6 +43,9 @@ func buildScope(change string, fullTree bool, areas []*Area, touched map[string]
 		}
 	}
 	for _, a := range areas {
+		if a.Kind == AreaModule {
+			s.ModuleAreas = append(s.ModuleAreas, a.Path)
+		}
 		switch {
 		case !a.Untouched:
 			s.AreasChecked = append(s.AreasChecked, a.Path)

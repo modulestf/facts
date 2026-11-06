@@ -11,6 +11,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	"github.com/modulestf/facts/internal/profile"
 )
 
 // SchemaVersion is the version of the report format in schema/.
@@ -62,6 +64,12 @@ type Report struct {
 	// Callers lists the callers of each module whose versions or inputs the
 	// change touches. It is left out without a change.
 	Callers *[]ChangedModule `json:"callers,omitempty"`
+	// ModuleCallers lists every local call of each area the change touches;
+	// empty without a change. See BuildModuleCallers.
+	ModuleCallers []ModuleCallers `json:"module_callers"`
+	// InRepoDowngrade are the areas of ModuleCallers whose candidates of the
+	// downgrade rules carry downgrade "in-repo". See inRepoDowngrade.
+	InRepoDowngrade []string `json:"in_repo_downgrade"`
 }
 
 // IndexEntry maps the lines of one block or argument to its area-scoped
@@ -87,6 +95,10 @@ type Envelope struct {
 	// input or no profile.
 	SchemaInputs  *SchemaInputs `json:"schema_inputs"`
 	ProfileSHA256 *string       `json:"profile_sha256"`
+	// ProfileTreeSHA256 hashes every file of the profile directory, as
+	// profile-snapshot prints it; null with no valid profile or with an entry
+	// that is not a regular file.
+	ProfileTreeSHA256 *string `json:"profile_tree_sha256"`
 }
 
 // SchemaInputs binds a report to the schema input it read: the handoff's
@@ -199,7 +211,7 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if env.SchemaInputs, err = applySchema(o, head, base, areas); err != nil {
 		return nil, err
 	}
-	if env.ProfileSHA256, err = applyProfile(o, areas); err != nil {
+	if env.ProfileSHA256, env.ProfileTreeSHA256, err = applyProfile(o, areas); err != nil {
 		return nil, err
 	}
 	ch, err := BuildChangeMap(head, base, areas, o.Limits)
@@ -215,9 +227,20 @@ func run(o Options, rules []Rule) (*Report, error) {
 		cs := BuildCallers(areas, ch, candidates)
 		callers = &cs
 	}
+	mcs, err := BuildModuleCallers(head, base, change, areas, touched, o.Limits)
+	if err != nil {
+		return nil, err
+	}
+	scope := buildScope(change, o.FullTree, areas, touched, callers)
+	var prof *profile.Profile
+	if len(areas) > 0 {
+		prof = areas[0].Profile
+	}
+	downgrade := inRepoDowngrade(mcs, prof, change, o.FullTree)
+	markDowngrade(candidates, downgrade, scope.ModuleAreas)
 	return &Report{Envelope: env, Manifest: manifest, Findings: findings, Candidates: candidates, Index: BuildIndex(areas),
 		InterfaceDiff: BuildInterfaceDiff(env.HeadSHA, env.MergeBaseSHA, areas), SchemaCoverage: BuildSchemaCoverage(areas),
-		Scope: buildScope(change, o.FullTree, areas, touched, callers), Callers: callers}, nil
+		Scope: scope, Callers: callers, ModuleCallers: mcs, InRepoDowngrade: downgrade}, nil
 }
 
 func optionalSHA(name, s string) (*string, error) {

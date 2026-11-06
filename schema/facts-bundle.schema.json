@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json",
   "title": "Facts bundle",
-  "description": "Host-built bundle the model reads. Six sections in priority order: tool_findings, candidates, area_rules, interface_diff, schema_coverage, file_index; the host writes the keys in that order. A shed section is left out; tool_findings and candidates are never shed. severity_needed holds confirmed candidates on a rule with several severities, which the lead must answer with a severity.",
+  "description": "Host-built bundle the model reads. Six sections in priority order: tool_findings, candidates, area_rules, interface_diff, schema_coverage, file_index; the host writes the keys in that order. A shed section is left out; tool_findings and candidates are never shed. schema_version, module_areas and in_repo_downgrade travel with area_rules as one ownership unit, written before it is shed and shed with it, last: a bundle with schema_version holds all four, and a bundle without it is a legacy bundle whose area_rules the merge reads as before, with no downgrade. severity_needed holds confirmed candidates on a rule with several severities, which the lead must answer with a severity.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,7 +10,24 @@
     "candidates",
     "severity_needed"
   ],
+  "dependentRequired": {
+    "schema_version": [
+      "area_rules",
+      "module_areas",
+      "in_repo_downgrade"
+    ],
+    "module_areas": [
+      "schema_version"
+    ],
+    "in_repo_downgrade": [
+      "schema_version"
+    ]
+  },
   "properties": {
+    "schema_version": {
+      "description": "Version of the ownership unit: present, and 1, together with area_rules, module_areas and in_repo_downgrade.",
+      "const": 1
+    },
     "tool_findings": {
       "type": "array",
       "items": {
@@ -84,6 +101,20 @@
             }
           }
         }
+      }
+    },
+    "module_areas": {
+      "description": "The report's scope.module_areas: every discovered module area, sorted. The merge maps a finding's file to its area with these, as the engine does.",
+      "type": "array",
+      "items": {
+        "$ref": "finding.schema.json#/$defs/path"
+      }
+    },
+    "in_repo_downgrade": {
+      "description": "The report's in_repo_downgrade: the areas where the merge keeps exactly MEDIUM on a finding of the five downgrade rules.",
+      "type": "array",
+      "items": {
+        "$ref": "finding.schema.json#/$defs/path"
       }
     },
     "interface_diff": {
@@ -419,10 +450,28 @@
           "description": "False when a cap cut a pull request string in the evidence. Such a candidate escalates without a confirmer call.",
           "type": "boolean"
         },
+        "downgrade": {
+          "description": "The report's in-repo downgrade marker of the candidate.",
+          "const": "in-repo"
+        },
+        "severities": {
+          "description": "Present with downgrade: the one severity the merge may keep.",
+          "const": [
+            "MEDIUM"
+          ]
+        },
         "predates_change": {
           "description": "Present, and true, when the same rule fires on the base with the same subject; lint sets it for structure.argument-order.",
           "const": true
         }
+      },
+      "dependentRequired": {
+        "downgrade": [
+          "severities"
+        ],
+        "severities": [
+          "downgrade"
+        ]
       },
       "description": "A candidate the model or the confirmer answers. The bundle does not carry confirm_class: the host reads it from the pinned rule registry by rule_id."
     }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"maps"
 	"path"
@@ -39,6 +40,8 @@ type Profile struct {
 	Tooling      Tooling
 	Banner       string
 	AdjunctTypes []string
+	// Options are the profile-options block, or DefaultOptions without one.
+	Options Options
 }
 
 // RequiredFiles are the files each area kind starts with, relative to the
@@ -96,7 +99,15 @@ const (
 	fenceClose = "```"
 )
 
-var keyLine = regexp.MustCompile(`^([A-Za-z0-9._-]+): (.*)$`)
+var (
+	keyLine = regexp.MustCompile(`^([A-Za-z0-9._-]+): (.*)$`)
+	// emptyLine is a key with no value, which only emptyAllowed may have.
+	emptyLine = regexp.MustCompile(`^([A-Za-z0-9._-]+):$`)
+)
+
+// emptyAllowed are the keys, as block.key, that may be written with no
+// value: the example entries a profile with examples: none leaves empty.
+var emptyAllowed = map[string]bool{"required-files.example": true, "required-files.example-dirs": true}
 
 // block is one parsed constants block: its keys in file order and values.
 type block struct {
@@ -150,6 +161,11 @@ func Preimage(files map[string][]byte) []byte {
 	return b.Bytes()
 }
 
+// TreeSHA256 is the tree hash of a profile directory: the SHA-256 of the
+// Preimage of every one of its files, not only those the profile is built
+// from.
+func TreeSHA256(files map[string][]byte) string { return hashFiles(files) }
+
 func hashFiles(files map[string][]byte) string {
 	sum := sha256.Sum256(Preimage(files))
 	return hex.EncodeToString(sum[:])
@@ -158,7 +174,8 @@ func hashFiles(files map[string][]byte) string {
 // parseBlocks reads every profile-constants block of doc. The grammar is the
 // one PROFILE.md states: the first line is name: <block name>, each later line
 // <key>: <value>, a block name once per file and a key once per block, and no
-// empty value, double space or trailing space in a value.
+// double space or trailing space in a value. A later line may also be <key>:
+// with no value; fromBlocks refuses it outside emptyAllowed.
 func parseBlocks(doc []byte) (map[string]*block, error) {
 	blocks := map[string]*block{}
 	var cur *block
@@ -183,8 +200,12 @@ func parseBlocks(doc []byte) (map[string]*block, error) {
 			continue
 		}
 		m := keyLine.FindStringSubmatch(line)
+		empty := false
 		if m == nil {
-			return nil, fmt.Errorf("%s line %d: not <key>: <value>", File, n)
+			if m = emptyLine.FindStringSubmatch(line); m == nil || name == "" {
+				return nil, fmt.Errorf("%s line %d: not <key>: <value>", File, n)
+			}
+			m, empty = append(m, ""), true
 		}
 		k, v := m[1], m[2]
 		if name == "" {
@@ -200,7 +221,7 @@ func parseBlocks(doc []byte) (map[string]*block, error) {
 		if _, dup := cur.values[k]; dup {
 			return nil, fmt.Errorf("%s line %d: block %s: key %s used twice", File, n, name, k)
 		}
-		if v == "" || strings.Contains(v, "  ") || strings.HasSuffix(v, " ") || strings.ContainsAny(v, "\r\t") {
+		if !empty && v == "" || strings.Contains(v, "  ") || strings.HasSuffix(v, " ") || strings.ContainsAny(v, "\r\t") {
 			return nil, fmt.Errorf("%s line %d: block %s: key %s has an empty value or a stray space", File, n, name, k)
 		}
 		cur.keys = append(cur.keys, k)
@@ -216,8 +237,15 @@ func parseBlocks(doc []byte) (map[string]*block, error) {
 // profile. A missing or unknown block or key is an error.
 func fromBlocks(blocks map[string]*block) (*Profile, error) {
 	for name := range blocks {
-		if _, ok := blockKeys[name]; !ok {
+		if _, ok := blockKeys[name]; !ok && name != optionsBlock {
 			return nil, fmt.Errorf("unknown block %s", name)
+		}
+	}
+	for name, b := range blocks {
+		for _, k := range b.keys {
+			if b.values[k] == "" && !emptyAllowed[name+"."+k] {
+				return nil, fmt.Errorf("block %s: key %s has an empty value", name, k)
+			}
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(blockKeys)) {
@@ -231,7 +259,12 @@ func fromBlocks(blocks map[string]*block) (*Profile, error) {
 			}
 		}
 	}
-	list := func(name, key string) []string { return strings.Split(blocks[name].values[key], " ") }
+	list := func(name, key string) []string {
+		if v := blocks[name].values[key]; v != "" {
+			return strings.Split(v, " ")
+		}
+		return nil
+	}
 	one := func(name, key string) (string, error) {
 		v := blocks[name].values[key]
 		if strings.Contains(v, " ") {
@@ -253,6 +286,16 @@ func fromBlocks(blocks map[string]*block) (*Profile, error) {
 		AdjunctTypes:  list("adjunct-types", "types"),
 	}
 	var err error
+	if p.Options, err = optionsFrom(blocks); err != nil {
+		return nil, err
+	}
+	exampleEntries := len(p.RequiredFiles.Example) + len(p.RequiredFiles.ExampleDirs)
+	switch {
+	case p.Options.Examples == "none" && exampleEntries > 0:
+		return nil, fmt.Errorf("block %s: examples: none, but required-files names example files or directories", optionsBlock)
+	case p.Options.Examples != "none" && (p.RequiredFiles.Example == nil || p.RequiredFiles.ExampleDirs == nil):
+		return nil, errors.New("block required-files: key example or example-dirs has an empty value, but examples are required")
+	}
 	if p.Regions.Primary, err = one("regions", "primary"); err != nil {
 		return nil, err
 	}
