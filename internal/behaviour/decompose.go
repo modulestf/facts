@@ -259,6 +259,9 @@ type spec struct {
 	noLevels    bool
 	levels      []string // overrides the category's levels when set
 	forEachOnly bool
+	// typeExpr marks b and h as type constraints: their keywords, such as
+	// string or bool, are no references.
+	typeExpr bool
 	// baseAbsent and headAbsent mark a side whose expression is the null
 	// of an absent provider attribute.
 	baseAbsent, headAbsent bool
@@ -537,6 +540,7 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 		p := append(slices.Clone(prefix), name)
 		s := d.at(bi, hi, bb, hb, name, bx, hx)
 		s.cat, s.attr = cat, strings.Join(p, ".")
+		s.typeExpr = top && bi.kind == itemVariable && name == "type"
 		if top && (name == "count" || name == "for_each") &&
 			(bi.kind == itemResource || bi.kind == itemData || bi.kind == itemModule) {
 			// The instances a block plans: terraform test plans them too.
@@ -640,11 +644,23 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 		switch {
 		case strings.HasPrefix(k, "dynamic."):
 			s.cat = CatDynamic
-			s.b, s.h = forEachOf(first.base, bi.src), forEachOf(first.head, hi.src)
 			if onlyForEach(bi.src, hi.src, bl, hl) {
 				// Only the for_each changed: L1 evaluates it.
 				s.levels, s.forEachOnly = []string{LevelL1}, true
+			} else if p, kind, ok := soleDiff(bi.src, hi.src, bl, hl); ok {
+				// A change inside nested dynamic blocks is placed at the
+				// innermost one that holds all of it.
+				if inner, p, kind := narrow(bi.src, hi.src, p, kind); len(inner) > 0 {
+					first, s.kind = p, kind
+					s.attr = strings.Join(append([]string{attr}, inner...), ".")
+					if p.head != nil {
+						s.file, s.line = hi.file, p.head.TypeRange.Start.Line
+					} else {
+						s.file, s.line = bi.file, p.base.TypeRange.Start.Line
+					}
+				}
 			}
+			s.b, s.h = forEachOf(first.base, bi.src), forEachOf(first.head, hi.src)
 			d.add(s)
 		case strings.HasPrefix(k, "provisioner.") || k == "connection":
 			s.cat, s.reason, s.noLevels = CatUnclassified, reasonApplyTime, true
@@ -696,16 +712,84 @@ func onlyForEach(bsrc, hsrc []byte, bl, hl []*hclsyntax.Block) bool {
 		changed++
 		bf, hf := b.Body.Attributes["for_each"], h.Body.Attributes["for_each"]
 		if changed > 1 || bf == nil || hf == nil || !slices.Equal(b.Labels, h.Labels) ||
-			withoutAttr(b.Body, "for_each", bsrc) != withoutAttr(h.Body, "for_each", hsrc) {
+			withoutAttr(b.Body, "for_each", bsrc, true) != withoutAttr(h.Body, "for_each", hsrc, true) {
 			return false
 		}
 	}
 	return changed == 1
 }
 
-// withoutAttr is a key of a body's arguments but one, and its nested
-// blocks.
-func withoutAttr(b *hclsyntax.Body, skip string, src []byte) string {
+// soleDiff returns the one position at which two block lists differ, and
+// false when they are the same or differ at more than one position.
+func soleDiff(bsrc, hsrc []byte, bl, hl []*hclsyntax.Block) (blockPair, string, bool) {
+	p, kind, same := firstDiff(bsrc, hsrc, bl, hl)
+	if same {
+		return p, kind, false
+	}
+	if kind != KindModified {
+		return p, kind, max(len(bl), len(hl))-min(len(bl), len(hl)) == 1
+	}
+	if len(bl) != len(hl) {
+		return p, kind, false
+	}
+	n := 0
+	for i := range bl {
+		if normKey(bl[i].Range().SliceBytes(bsrc), true) != normKey(hl[i].Range().SliceBytes(hsrc), true) {
+			n++
+		}
+	}
+	return p, kind, n == 1
+}
+
+// narrow follows a change of two dynamic blocks into their content while
+// the blocks agree in labels and arguments, their content blocks agree in
+// arguments, and the content differs in one dynamic block group alone, at
+// one position. It returns the group keys it passed and the innermost
+// position with its change kind.
+func narrow(bsrc, hsrc []byte, p blockPair, kind string) ([]string, blockPair, string) {
+	var keys []string
+	for kind == KindModified && slices.Equal(p.base.Labels, p.head.Labels) &&
+		withoutAttr(p.base.Body, "", bsrc, false) == withoutAttr(p.head.Body, "", hsrc, false) {
+		bc, hc := contentOf(p.base), contentOf(p.head)
+		if bc == nil || hc == nil || withoutAttr(bc, "", bsrc, false) != withoutAttr(hc, "", hsrc, false) {
+			break
+		}
+		bg, hg := groups(bc), groups(hc)
+		var changed []string
+		for k := range bg {
+			if _, _, same := firstDiff(bsrc, hsrc, bg[k], hg[k]); !same {
+				changed = append(changed, k)
+			}
+		}
+		for k := range hg {
+			if _, _, same := firstDiff(bsrc, hsrc, bg[k], hg[k]); !same && bg[k] == nil {
+				changed = append(changed, k)
+			}
+		}
+		if len(changed) != 1 || !strings.HasPrefix(changed[0], "dynamic.") {
+			break
+		}
+		np, nk, ok := soleDiff(bsrc, hsrc, bg[changed[0]], hg[changed[0]])
+		if !ok {
+			break
+		}
+		keys, p, kind = append(keys, changed[0]), np, nk
+	}
+	return keys, p, kind
+}
+
+// contentOf is the body of a dynamic block's content block when that is
+// its only nested block.
+func contentOf(b *hclsyntax.Block) *hclsyntax.Body {
+	if len(b.Body.Blocks) != 1 || b.Body.Blocks[0].Type != "content" || len(b.Body.Blocks[0].Labels) != 0 {
+		return nil
+	}
+	return b.Body.Blocks[0].Body
+}
+
+// withoutAttr is a key of a body's arguments but one, and, with blocks
+// set, its nested blocks.
+func withoutAttr(b *hclsyntax.Body, skip string, src []byte, blocks bool) string {
 	var parts []string
 	for _, name := range sortedAttrNames(b) {
 		if name != skip {
@@ -713,7 +797,9 @@ func withoutAttr(b *hclsyntax.Body, skip string, src []byte) string {
 		}
 	}
 	for _, nb := range b.Blocks {
-		parts = append(parts, normKey(nb.Range().SliceBytes(src), true))
+		if blocks {
+			parts = append(parts, normKey(nb.Range().SliceBytes(src), true))
+		}
 	}
 	return strings.Join(parts, "\x00")
 }

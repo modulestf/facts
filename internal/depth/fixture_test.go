@@ -23,7 +23,7 @@ import (
 //
 // Header keys: kind (must-be-deep, must-not-be-light, must-be-light, bench),
 // depth (the expected depth), reason (a reason the report must hold; one or
-// more), depth-not (a depth the report must not have), classify and affected (set to "missing" to give none), examples
+// more), reason-not (a reason the report must not hold), depth-not (a depth the report must not have), classify and affected (set to "missing" to give none), examples
 // (the --examples value).
 type fixture struct {
 	name     string
@@ -275,6 +275,11 @@ func (fx *fixture) check(t *testing.T, rep *Report) {
 	for _, r := range fx.header["reason"] {
 		if !slices.Contains(rep.Reasons, r) {
 			t.Errorf("reasons %v lack %s", rep.Reasons, r)
+		}
+	}
+	for _, r := range fx.header["reason-not"] {
+		if slices.Contains(rep.Reasons, r) {
+			t.Errorf("reasons %v hold %s, which the fixture rules out", rep.Reasons, r)
 		}
 	}
 	want, ok := fx.sections["want.json"]

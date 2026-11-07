@@ -643,3 +643,73 @@ func TestCasesKeepOrderStates(t *testing.T) {
 		t.Errorf("%d cases, duplicate %v: %s", len(tr.Cases), dup, mustJSON(t, tr.Cases))
 	}
 }
+
+// TestTypeChangeNoKeywordRefs: the keywords of a type constraint, such as
+// string or bool, are no references, so a type change has no contextual
+// reference and no case for one.
+func TestTypeChangeNoKeywordRefs(t *testing.T) {
+	r := runPair(t, map[string]string{"variables.tf": "variable \"o\" {\n  type = map(object({\n    a = string\n    b = optional(bool)\n  }))\n}\n"},
+		map[string]string{"variables.tf": "variable \"o\" {\n  type = map(object({\n    a = string\n    b = optional(bool)\n    c = optional(number)\n  }))\n}\n"}, "")
+	if len(r.Triggers) != 1 {
+		t.Fatalf("%s", mustJSON(t, r))
+	}
+	tr := r.Triggers[0]
+	if tr.Category != CatTypeValidation || len(tr.ContextualRefs) != 0 || len(tr.ContextualRefDetails) != 0 {
+		t.Errorf("type keywords taken for references: %s", mustJSON(t, tr))
+	}
+	for _, c := range tr.Cases {
+		if _, ok := c.Inputs["o"]; len(c.Inputs) != 1 || !ok {
+			t.Errorf("case %s: want the variable as its one input: %s", c.ID, mustJSON(t, c))
+		}
+	}
+	if len(tr.Cases) == 0 {
+		t.Errorf("no cases: %s", mustJSON(t, tr))
+	}
+}
+
+// TestNestedDynamicNarrowed: a change inside nested dynamic blocks is placed
+// at the innermost dynamic block that holds all of it.
+func TestNestedDynamicNarrowed(t *testing.T) {
+	block := func(inner string) string {
+		return "resource \"aws_cloudfront_distribution\" \"this\" {\n" +
+			"  dynamic \"origin\" {\n    for_each = var.origin\n    content {\n      domain_name = origin.value.domain_name\n" +
+			"      dynamic \"custom_origin_config\" {\n        for_each = origin.value.custom != null ? [origin.value.custom] : []\n" +
+			"        content {\n          http_port = custom_origin_config.value.http_port\n" + inner +
+			"        }\n      }\n    }\n  }\n}\n"
+	}
+	mtls := "          dynamic \"origin_mtls_config\" {\n            for_each = custom_origin_config.value.mtls != null ? [custom_origin_config.value.mtls] : []\n" +
+		"            content {\n              client_certificate_arn = origin_mtls_config.value.arn\n            }\n          }\n"
+	vars := "variable \"origin\" {\n  type = any\n}\n"
+	cases := []struct {
+		name, base, head string
+		line             int
+		attr, kind       string
+	}{
+		{"inner dynamic added", block(""), block(mtls), 10, "dynamic.origin.dynamic.custom_origin_config.dynamic.origin_mtls_config", KindAdded},
+		{"inner dynamic removed", block(mtls), block(""), 10, "dynamic.origin.dynamic.custom_origin_config.dynamic.origin_mtls_config", KindRemoved},
+		{"inner content argument", block(""), strings.Replace(block(""), "value.http_port", "value.port", 1), 6, "dynamic.origin.dynamic.custom_origin_config", KindModified},
+		{"outer content argument too", block(""), strings.Replace(block(mtls), "origin.value.domain_name", "origin.value.domain", 1), 2, "dynamic.origin", KindModified},
+		{"outer for_each too", block(""), strings.Replace(block(mtls), "var.origin", "var.origins", 1), 2, "dynamic.origin", KindModified},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := runPair(t, map[string]string{"variables.tf": vars + "variable \"origins\" {\n  type = any\n}\n", "main.tf": c.base},
+				map[string]string{"variables.tf": vars + "variable \"origins\" {\n  type = any\n}\n", "main.tf": c.head}, "")
+			var dyn []Trigger
+			for _, tr := range r.Triggers {
+				if tr.Category == CatDynamic {
+					dyn = append(dyn, tr)
+				}
+			}
+			if len(dyn) != 1 {
+				t.Fatalf("want one dynamic trigger: %s", mustJSON(t, r))
+			}
+			tr := dyn[0]
+			if tr.Line == nil || *tr.Line != c.line || str(tr.Attribute) != c.attr || tr.ChangeKind != c.kind ||
+				!slices.Equal(tr.Levels, []string{LevelL4}) || tr.ForEachOnly {
+				t.Errorf("got line %v %s %s %v, want %d %s %s: %s", tr.Line, str(tr.Attribute), tr.ChangeKind, tr.Levels,
+					c.line, c.attr, c.kind, mustJSON(t, tr))
+			}
+		})
+	}
+}

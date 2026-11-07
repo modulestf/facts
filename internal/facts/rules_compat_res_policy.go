@@ -5,7 +5,6 @@ package facts
 
 import (
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -250,31 +249,55 @@ func policyArgDiff(base, head Body, path string, line int, out *[]policyChange) 
 		}
 	}
 	for _, t := range resSortedKeys(hd) {
-		policyDynamicDiff(bd[t], hd[t], path+"."+t, line, out, func(b Body) bool { return len(policyTexts(b)) > 0 })
+		policyDynamicDiff(bd[t], hd[t], path+"."+t, line, out, policyShape)
 	}
 	for _, t := range resSortedKeys(bd) {
 		if hd[t] == nil {
-			policyDynamicDiff(bd[t], nil, path+"."+t, line, out, func(b Body) bool { return len(policyTexts(b)) > 0 })
+			policyDynamicDiff(bd[t], nil, path+"."+t, line, out, policyShape)
 		}
 	}
 }
 
+// policyShape is the text of the policy arguments of blocks and of what
+// decides how many copies of each there are: the for_each and iterator of
+// every block on the way to one. A block with no policy argument adds
+// nothing, so an edit beside the policy text leaves it the same.
+func policyShape(bs []*NestedBlock) string {
+	var parts []string
+	for _, nb := range bs {
+		if len(policyTexts(nb.Body)) == 0 {
+			continue
+		}
+		parts = append(parts, "{", nb.Type, nb.Iterator)
+		if nb.ForEach != nil {
+			parts = append(parts, nb.ForEach.Text)
+		}
+		for _, a := range nb.Body.Attributes {
+			if policyAttr(a.Name) {
+				parts = append(parts, a.Name+"="+a.Value.Text)
+			}
+		}
+		for i := range nb.Body.Blocks {
+			if s := policyShape([]*NestedBlock{&nb.Body.Blocks[i]}); s != "" {
+				parts = append(parts, s)
+			}
+		}
+		parts = append(parts, "}")
+	}
+	return strings.Join(parts, "\x00")
+}
+
 // policyDynamicDiff adds one change when the dynamic blocks of one type
-// differ and relevant says one of them holds policy text.
-func policyDynamicDiff(base, head []*NestedBlock, path string, line int, out *[]policyChange, relevant func(Body) bool) {
-	if dynText(base) == dynText(head) {
+// differ in the text that text gives.
+func policyDynamicDiff(base, head []*NestedBlock, path string, line int, out *[]policyChange, text func([]*NestedBlock) string) {
+	if text(base) == text(head) {
 		return
 	}
-	for _, nb := range slices.Concat(base, head) {
-		if relevant(nb.Body) {
-			l := line
-			if len(head) > 0 {
-				l = head[0].Range.Start.Line
-			}
-			*out = append(*out, policyChange{line: l, path: path, base: new(dynText(base)), head: new(dynText(head))})
-			return
-		}
+	l := line
+	if len(head) > 0 {
+		l = head[0].Range.Start.Line
 	}
+	*out = append(*out, policyChange{line: l, path: path, base: new(dynText(base)), head: new(dynText(head))})
 }
 
 func dynText(bs []*NestedBlock) string {
@@ -387,13 +410,12 @@ func docDiff(base, head Body, blockType, path string, line int, allow bool, out 
 			*out = append(*out, policyChange{line: line, path: path + "." + t + "[" + strconv.Itoa(i) + "]"})
 		}
 	}
-	all := func(Body) bool { return true }
 	for _, t := range resSortedKeys(hd) {
-		policyDynamicDiff(bd[t], hd[t], path+"."+t, line, out, all)
+		policyDynamicDiff(bd[t], hd[t], path+"."+t, line, out, dynText)
 	}
 	for _, t := range resSortedKeys(bd) {
 		if hd[t] == nil {
-			policyDynamicDiff(bd[t], nil, path+"."+t, line, out, all)
+			policyDynamicDiff(bd[t], nil, path+"."+t, line, out, dynText)
 		}
 	}
 }

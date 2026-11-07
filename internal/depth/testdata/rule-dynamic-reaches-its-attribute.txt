@@ -1,0 +1,44 @@
+kind: other
+depth: deep
+reason: deep-dynamic-structure
+reason: deep-policy
+-- base/main.tf --
+resource "aws_demo_widget" "this" {
+  dynamic "rule" {
+    for_each = var.rules
+    content {
+      id = rule.key
+    }
+  }
+}
+
+data "aws_iam_policy_document" "p" {
+  statement {
+    actions   = ["demo:Get"]
+    resources = [for r in aws_demo_widget.this.rule : r.id]
+  }
+}
+
+variable "rules" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_demo_widget" "this" {
+  dynamic "rule" {
+    for_each = var.rules
+    content {
+      id = rule.value
+    }
+  }
+}
+
+data "aws_iam_policy_document" "p" {
+  statement {
+    actions   = ["demo:Get"]
+    resources = [for r in aws_demo_widget.this.rule : r.id]
+  }
+}
+
+variable "rules" {
+  type = any
+}

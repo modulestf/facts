@@ -1,0 +1,90 @@
+kind: other
+depth: deep
+reason: deep-dynamic-structure
+reason-not: deep-policy
+-- base/main.tf --
+resource "aws_cloudfront_distribution" "this" {
+  dynamic "origin" {
+    for_each = var.origin
+    content {
+      domain_name = origin.value.domain_name
+      dynamic "custom_origin_config" {
+        for_each = origin.value.custom != null ? [origin.value.custom] : []
+        content {
+          origin_protocol_policy = custom_origin_config.value.protocol
+        }
+      }
+    }
+  }
+}
+
+output "arn" {
+  value = aws_cloudfront_distribution.this.arn
+}
+
+variable "origin" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_cloudfront_distribution" "this" {
+  dynamic "origin" {
+    for_each = var.origin
+    content {
+      domain_name = origin.value.domain_name
+      dynamic "custom_origin_config" {
+        for_each = origin.value.custom != null ? [origin.value.custom] : []
+        content {
+          origin_protocol_policy = custom_origin_config.value.protocol
+          dynamic "origin_mtls_config" {
+            for_each = custom_origin_config.value.mtls != null ? [custom_origin_config.value.mtls] : []
+            content {
+              client_certificate_arn = origin_mtls_config.value.arn
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+output "arn" {
+  value = aws_cloudfront_distribution.this.arn
+}
+
+variable "origin" {
+  type = any
+}
+-- base/examples/complete/main.tf --
+module "cdn" {
+  source = "../../"
+  origin = {}
+}
+
+data "aws_iam_policy_document" "s3" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [module.cdn.arn]
+    }
+  }
+}
+-- head/examples/complete/main.tf --
+module "cdn" {
+  source = "../../"
+  origin = {}
+}
+
+data "aws_iam_policy_document" "s3" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [module.cdn.arn]
+    }
+  }
+}
