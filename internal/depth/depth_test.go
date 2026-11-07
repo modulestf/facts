@@ -47,7 +47,7 @@ var gate = map[string][]string{
 		"rule4-nested-dynamic-built", "rule4-nested-dynamic-iterator", "rule4-sink-var-external",
 		"rule4-try-each-value", "rule5-lookup-index-nested", "rule5-suffix-sink-built",
 		"rule5-suffix-sink-external", "schema-tokens", "rule-policy-name-beside-change", "rule-policy-name-changed-in-block",
-		"rule-policy-type-keys", "rule-dynamic-reaches-its-attribute",
+		"rule-policy-type-keys", "rule-dynamic-reaches-its-attribute", "rule-policy-for-each-above", "rule-policy-name-for-each",
 	},
 	"bench": {
 		"bench-1-readme-only", "bench-2-resource-expression", "bench-3-data-argument-added",

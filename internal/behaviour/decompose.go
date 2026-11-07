@@ -649,7 +649,10 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 				s.levels, s.forEachOnly = []string{LevelL1}, true
 			} else if p, kind, ok := soleDiff(bi.src, hi.src, bl, hl); ok {
 				// A change inside nested dynamic blocks is placed at the
-				// innermost one that holds all of it.
+				// innermost one that holds all of it. It stays L4 and is never
+				// for_each_only, even when only that block's for_each changed:
+				// the for_each of an inner block reads the iterator around it,
+				// which no L1 case stands in for.
 				if inner, p, kind := narrow(bi.src, hi.src, p, kind); len(inner) > 0 {
 					first, s.kind = p, kind
 					s.attr = strings.Join(append([]string{attr}, inner...), ".")

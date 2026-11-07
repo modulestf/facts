@@ -687,6 +687,10 @@ func TestNestedDynamicNarrowed(t *testing.T) {
 	}{
 		{"inner dynamic added", block(""), block(mtls), 10, "dynamic.origin.dynamic.custom_origin_config.dynamic.origin_mtls_config", KindAdded},
 		{"inner dynamic removed", block(mtls), block(""), 10, "dynamic.origin.dynamic.custom_origin_config.dynamic.origin_mtls_config", KindRemoved},
+		// The inner for_each reads the iterator of the block around it, which
+		// no L1 case stands in for, so it stays L4 and is not for_each_only.
+		{"inner for_each alone", block(mtls), strings.Replace(block(mtls), "custom_origin_config.value.mtls != null", "custom_origin_config.value.mtls_config != null", 1),
+			10, "dynamic.origin.dynamic.custom_origin_config.dynamic.origin_mtls_config", KindModified},
 		{"inner content argument", block(""), strings.Replace(block(""), "value.http_port", "value.port", 1), 6, "dynamic.origin.dynamic.custom_origin_config", KindModified},
 		{"outer content argument too", block(""), strings.Replace(block(mtls), "origin.value.domain_name", "origin.value.domain", 1), 2, "dynamic.origin", KindModified},
 		{"outer for_each too", block(""), strings.Replace(block(mtls), "var.origin", "var.origins", 1), 2, "dynamic.origin", KindModified},

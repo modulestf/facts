@@ -364,6 +364,7 @@ func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope, src []byte, pre
 		a.policy = append(a.policy, prefix+normKey(nb.Range().SliceBytes(src), true))
 		inPolicy = true
 	}
+	start := len(a.policy)
 	inner := scope
 	if nb.Type == "dynamic" && len(nb.Labels) == 1 {
 		d := dynScope{name: nb.Labels[0]}
@@ -393,6 +394,17 @@ func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope, src []byte, pre
 	}
 	for _, child := range nb.Body.Blocks {
 		collectBlock(child, a, inner, src, prefix, inPolicy)
+	}
+	// A dynamic block decides how many copies of the policy parts inside it
+	// there are, so its for_each and iterator are policy parts too.
+	if nb.Type == "dynamic" && !inPolicy && len(a.policy) > start {
+		meta := []string{prefix}
+		for _, name := range []string{"for_each", "iterator"} {
+			if at := nb.Body.Attributes[name]; at != nil {
+				meta = append(meta, name+"="+normKey(at.Expr.Range().SliceBytes(src), false))
+			}
+		}
+		a.policy = slices.Insert(a.policy, start, strings.Join(meta, "\x00"))
 	}
 }
 

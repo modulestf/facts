@@ -1,0 +1,44 @@
+kind: other
+depth: deep
+reason: deep-dynamic-structure
+reason: deep-policy
+-- base/main.tf --
+resource "aws_cloudfront_distribution" "this" {
+  dynamic "origin" {
+    for_each = var.origin
+    content {
+      domain_name = origin.value.domain_name
+      custom_origin_config {
+        origin_protocol_policy = origin.value.protocol
+      }
+    }
+  }
+}
+
+variable "origin" {
+  type = any
+}
+
+variable "origins" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_cloudfront_distribution" "this" {
+  dynamic "origin" {
+    for_each = var.origins
+    content {
+      domain_name = origin.value.domain_name
+      custom_origin_config {
+        origin_protocol_policy = origin.value.protocol
+      }
+    }
+  }
+}
+
+variable "origin" {
+  type = any
+}
+
+variable "origins" {
+  type = any
+}
