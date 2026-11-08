@@ -1,3 +1,12 @@
+## [0.6.2](https://github.com/modulestf/facts/compare/v0.6.1...v0.6.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* classifier noise and policy false positives in nested dynamic blocks ([#34](https://github.com/modulestf/facts/issues/34)) ([f89b333](https://github.com/modulestf/facts/commit/f89b33334592e98a91a7d1b51f0f8097e8829439)), closes [terraform-aws-modules/terraform-aws-cloudfront#210](https://github.com/terraform-aws-modules/terraform-aws-cloudfront/issues/210) [terraform-aws-modules/terraform-aws-dynamodb-table#117](https://github.com/terraform-aws-modules/terraform-aws-dynamodb-table/issues/117)
+
+
+
 ## [0.6.1](https://github.com/modulestf/facts/compare/v0.6.0...v0.6.1) (2026-11-06)
 
 
