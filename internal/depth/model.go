@@ -43,7 +43,12 @@ type arg struct {
 	// first, whose iterators it may read.
 	scopes [][]dynScope
 	names  []string // the names inside: its own, nested arguments, blocks and object keys
-	line   int
+	// policy is the text of the parts whose names policyName matches, in
+	// source order: such an argument, or a whole block of such a type or
+	// label. policyKnown is set when it was computed, for the HCL form.
+	policy      []string
+	policyKnown bool
+	line        int
 }
 
 // dynScope is one dynamic block: its iterator's name and its for_each.
@@ -297,8 +302,27 @@ func hclFile(fm *fileModel, src []byte, lim facts.Limits) string {
 
 // attrArg returns the arg of one attribute.
 func attrArg(a *hclsyntax.Attribute, src []byte) *arg {
-	return &arg{name: a.Name, canon: normKey(a.Expr.Range().SliceBytes(src), false),
-		exprs: []hclsyntax.Expression{a.Expr}, attrs: []string{a.Name}, scopes: [][]dynScope{nil}, names: append([]string{a.Name}, objectKeys(a.Expr)...), line: a.SrcRange.Start.Line}
+	out := &arg{name: a.Name, canon: normKey(a.Expr.Range().SliceBytes(src), false),
+		exprs: []hclsyntax.Expression{a.Expr}, attrs: []string{a.Name}, scopes: [][]dynScope{nil}, names: append([]string{a.Name}, objectKeys(a.Expr)...),
+		policyKnown: true, line: a.SrcRange.Start.Line}
+	out.policy = policyPart(nil, "", a, src)
+	return out
+}
+
+// policyName reports a name that may carry a policy: one holding policy, or
+// an object key or block named Statement or Principal, in any case.
+func policyName(n string) bool {
+	l := strings.ToLower(n)
+	return strings.Contains(l, "policy") || l == "statement" || l == "principal"
+}
+
+// policyPart adds to out the text of attribute a, at prefix, when its name or
+// one of its object keys is a policy name.
+func policyPart(out []string, prefix string, a *hclsyntax.Attribute, src []byte) []string {
+	if policyName(a.Name) || slices.ContainsFunc(objectKeys(a.Expr), policyName) {
+		out = append(out, prefix+a.Name+"="+normKey(a.Expr.Range().SliceBytes(src), false))
+	}
+	return out
 }
 
 // blockArgs returns the args of a block body, sorted by name.
@@ -314,11 +338,11 @@ func blockArgs(body *hclsyntax.Body, src []byte) []*arg {
 		}
 		a := by[key]
 		if a == nil {
-			a = &arg{name: key, line: nb.DefRange().Start.Line}
+			a = &arg{name: key, policyKnown: true, line: nb.DefRange().Start.Line}
 			by[key] = a
 		}
 		a.canon += normKey(nb.Range().SliceBytes(src), true) + "\x01"
-		collectBlock(nb, a, nil)
+		collectBlock(nb, a, nil, src, "", false)
 	}
 	out := make([]*arg, 0, len(by))
 	for _, a := range by {
@@ -330,10 +354,17 @@ func blockArgs(body *hclsyntax.Body, src []byte) []*arg {
 
 // collectBlock adds every expression and name of a nested block to a.
 // scope is the dynamic blocks around it; a dynamic block's content is in
-// one more.
-func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope) {
+// one more. prefix names the blocks around it, and inPolicy is set inside a
+// block whose whole text is already in a.policy.
+func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope, src []byte, prefix string, inPolicy bool) {
 	a.names = append(a.names, nb.Type)
 	a.names = append(a.names, nb.Labels...)
+	prefix += strings.Join(append([]string{nb.Type}, nb.Labels...), ".") + "/"
+	if !inPolicy && (policyName(nb.Type) || slices.ContainsFunc(nb.Labels, policyName)) {
+		a.policy = append(a.policy, prefix+normKey(nb.Range().SliceBytes(src), true))
+		inPolicy = true
+	}
+	start := len(a.policy)
 	inner := scope
 	if nb.Type == "dynamic" && len(nb.Labels) == 1 {
 		d := dynScope{name: nb.Labels[0]}
@@ -357,9 +388,23 @@ func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope) {
 		a.scopes = append(a.scopes, in)
 		a.names = append(a.names, at.Name)
 		a.names = append(a.names, objectKeys(at.Expr)...)
+		if !inPolicy {
+			a.policy = policyPart(a.policy, prefix, at, src)
+		}
 	}
 	for _, child := range nb.Body.Blocks {
-		collectBlock(child, a, inner)
+		collectBlock(child, a, inner, src, prefix, inPolicy)
+	}
+	// A dynamic block decides how many copies of the policy parts inside it
+	// there are, so its for_each and iterator are policy parts too.
+	if nb.Type == "dynamic" && !inPolicy && len(a.policy) > start {
+		meta := []string{prefix}
+		for _, name := range []string{"for_each", "iterator"} {
+			if at := nb.Body.Attributes[name]; at != nil {
+				meta = append(meta, name+"="+normKey(at.Expr.Range().SliceBytes(src), false))
+			}
+		}
+		a.policy = slices.Insert(a.policy, start, strings.Join(meta, "\x00"))
 	}
 }
 

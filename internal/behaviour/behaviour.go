@@ -357,7 +357,11 @@ func (c *classifier) trigger(s spec) Trigger {
 	if (!okB || !okH) && reason == "" {
 		reason = fmt.Sprintf("an expression is over %d bytes and is left out", maxExprBytes)
 	}
-	inputs, ctx := refs(s.b, s.h)
+	rb, rh := s.b, s.h
+	if s.typeExpr {
+		rb, rh = nil, nil
+	}
+	inputs, ctx := refs(rb, rh)
 	v := c.views[path.Dir(s.file)]
 	for _, name := range inputs {
 		typ := ""
@@ -370,7 +374,7 @@ func (c *classifier) trigger(s spec) Trigger {
 		t.ReferencedInputs = append(t.ReferencedInputs, Input{Name: name, Type: cmp.Or(typ, "any")})
 	}
 	t.ContextualRefs = append(t.ContextualRefs, ctx...)
-	t.ContextualRefDetails = c.refDetails(path.Dir(s.file), s.b, s.h)
+	t.ContextualRefDetails = c.refDetails(path.Dir(s.file), rb, rh)
 	t.Pure = (s.b != nil || s.h != nil) && isPure(s.b, s.h)
 	t.Levels = []string{}
 	switch {

@@ -1,0 +1,38 @@
+kind: other
+depth: deep
+reason: deep-dynamic-structure
+reason: deep-policy
+-- base/main.tf --
+resource "aws_demo_widget" "this" {
+  dynamic "inline" {
+    for_each = var.a
+    content {
+      policy = inline.value
+    }
+  }
+}
+
+variable "a" {
+  type = any
+}
+
+variable "b" {
+  type = any
+}
+-- head/main.tf --
+resource "aws_demo_widget" "this" {
+  dynamic "inline" {
+    for_each = var.b
+    content {
+      policy = inline.value
+    }
+  }
+}
+
+variable "a" {
+  type = any
+}
+
+variable "b" {
+  type = any
+}

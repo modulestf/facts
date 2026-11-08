@@ -30,12 +30,15 @@ type caller struct{ dir, name string }
 
 // analysis is the structural diff and the consumer closure.
 type analysis struct {
-	head, base    *model
-	links         *linker
-	reasons       map[string]bool
-	touched       map[string]bool // resource and data types
-	blocks        int             // changed resource, data and module blocks
-	seen          map[node]bool
+	head, base *model
+	links      *linker
+	reasons    map[string]bool
+	touched    map[string]bool // resource and data types
+	blocks     int             // changed resource, data and module blocks
+	seen       map[node]bool
+	// policySame holds the direct changes whose policy parts are the same
+	// at both revisions.
+	policySame    map[*arg]bool
 	queue         []node
 	callers       map[string][]caller
 	unknownCaller bool // a module call whose source does not resolve
@@ -45,7 +48,7 @@ type analysis struct {
 
 func newAnalysis(head, base *model, links *linker) *analysis {
 	an := &analysis{head: head, base: base, links: links, reasons: map[string]bool{}, touched: map[string]bool{},
-		seen: map[node]bool{}, callers: map[string][]caller{}, index: map[string]map[string][]consumer{}, dirs: map[string]bool{}}
+		seen: map[node]bool{}, policySame: map[*arg]bool{}, callers: map[string][]caller{}, index: map[string]map[string][]consumer{}, dirs: map[string]bool{}}
 	for _, d := range head.configDirs() {
 		idx := map[string][]consumer{}
 		an.index[d] = idx
@@ -224,11 +227,12 @@ func (an *analysis) meta(it *item, a *arg, direct bool) bool {
 	if policyType(it) {
 		an.add(ReasonPolicy)
 	}
-	for _, n := range a.names {
-		if l := strings.ToLower(n); strings.Contains(l, "policy") || l == "statement" || l == "principal" {
-			an.add(ReasonPolicy)
-			break
-		}
+	// The keys of a type constraint name attributes of an input, not
+	// values; a direct change whose policy parts are the same at both
+	// revisions edits none of them.
+	typeKeys := it.kind == kVariable && a.name == "type"
+	if !typeKeys && (!direct || !an.policySame[a]) && slices.ContainsFunc(a.names, policyName) {
+		an.add(ReasonPolicy)
 	}
 	switch n := a.name; {
 	case n == "count" || n == "for_each":
@@ -263,7 +267,10 @@ func (an *analysis) flow(it *item, a *arg, direct bool) {
 		return // a reference in depends_on carries ordering, not a value
 	}
 	if an.meta(it, a, direct) {
-		if it.kind == kResource || it.kind == kData {
+		if label, ok := strings.CutPrefix(a.name, "dynamic."); ok && it.kind == kResource {
+			an.touch(it.typ)
+			an.push(node{it.dir, it.addr, label}) // the nested blocks it generates, as any other argument
+		} else if it.kind == kResource || it.kind == kData {
 			an.touch(it.typ)
 			an.push(node{it.dir, it.addr, ""}) // every reference to it is affected
 		}
@@ -492,6 +499,9 @@ func (an *analysis) diffArgs(b, h *item) {
 		}
 		if ha == nil {
 			ha = ba
+		}
+		if ba != nil && ha != ba && ba.policyKnown && ha.policyKnown && slices.Equal(ba.policy, ha.policy) {
+			an.policySame[ha] = true
 		}
 		an.flow(h, ha, true)
 	}

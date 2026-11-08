@@ -1,0 +1,17 @@
+kind: other
+depth: deep
+reason: deep-variable-contract
+reason-not: deep-policy
+-- base/variables.tf --
+variable "origin" {
+  type = object({
+    origin_protocol_policy = string
+  })
+}
+-- head/variables.tf --
+variable "origin" {
+  type = object({
+    origin_protocol_policy = string
+    origin_mtls_config     = optional(string)
+  })
+}

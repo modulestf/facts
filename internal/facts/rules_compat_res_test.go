@@ -380,6 +380,14 @@ func doc(stmts string) string {
 	return "data \"aws_iam_policy_document\" \"p\" {\n" + stmts + "}\n"
 }
 
+// cdn is a resource whose nested dynamic blocks hold a policy argument and
+// inner after it.
+func cdn(inner string) string {
+	return "resource \"aws_cloudfront_distribution\" \"d\" {\n  dynamic \"origin\" {\n    for_each = var.origin\n    content {\n" +
+		"      domain_name = origin.value.domain_name\n      dynamic \"custom_origin_config\" {\n        for_each = [origin.value]\n        iterator = o\n" +
+		"        content {\n          origin_protocol_policy = o.value.policy\n" + inner + "        }\n      }\n    }\n  }\n}\n"
+}
+
 func TestPolicyCases(t *testing.T) {
 	allow := "  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n  }\n"
 	for name, tc := range map[string]struct {
@@ -409,6 +417,23 @@ func TestPolicyCases(t *testing.T) {
 			[]string{"main.tf:3 .:aws_r.x.inline_policy[0].policy"}},
 		"policy removed from a block": {"resource \"aws_r\" \"x\" {\n  assume_role_policy = \"a\"\n}\n", "resource \"aws_r\" \"x\" {\n}\n",
 			[]string{"main.tf:1 .:aws_r.x.assume_role_policy"}},
+		// A dynamic block is a candidate only when its policy text, or the
+		// for_each or iterator of a block on the way to it, changes; an
+		// edit beside the policy text is none.
+		"edit beside a policy argument in a dynamic block": {cdn(""),
+			cdn("          dynamic \"origin_mtls_config\" {\n            for_each = []\n            content {\n              client_certificate_arn = \"a\"\n            }\n          }\n"), nil},
+		"policy argument in a dynamic block edited": {cdn(""), strings.Replace(cdn(""), "o.value.policy", "o.value.p", 1),
+			[]string{"main.tf:2 .:aws_cloudfront_distribution.d.origin"}},
+		"for_each above a policy argument edited": {cdn(""), strings.Replace(cdn(""), "var.origin", "var.origins", 1),
+			[]string{"main.tf:2 .:aws_cloudfront_distribution.d.origin"}},
+		"iterator above a policy argument edited": {cdn(""), strings.NewReplacer("iterator = o", "iterator = q", "o.value.policy", "q.value.policy").Replace(cdn("")),
+			[]string{"main.tf:2 .:aws_cloudfront_distribution.d.origin"}},
+		"policy argument in a dynamic block renamed": {cdn(""), strings.Replace(cdn(""), "origin_protocol_policy", "viewer_protocol_policy", 1),
+			[]string{"main.tf:2 .:aws_cloudfront_distribution.d.origin"}},
+		"policy argument in a dynamic block removed": {cdn(""), strings.Replace(cdn(""), "          origin_protocol_policy = o.value.policy\n", "", 1),
+			[]string{"main.tf:2 .:aws_cloudfront_distribution.d.origin"}},
+		"policy argument added to a dynamic block with none": {strings.Replace(cdn(""), "          origin_protocol_policy = o.value.policy\n", "", 1), cdn(""),
+			[]string{"main.tf:2 .:aws_cloudfront_distribution.d.origin"}},
 		"local through a local": {"locals {\n  a = local.b\n  b = [\"x\", \"y\"]\n}\nresource \"aws_r\" \"x\" {\n  policy = jsonencode(local.a)\n}\n",
 			"locals {\n  a = local.b\n  b = [\"x\"]\n}\nresource \"aws_r\" \"x\" {\n  policy = jsonencode(local.a)\n}\n",
 			[]string{"main.tf:3 .:local.b"}},
