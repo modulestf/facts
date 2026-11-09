@@ -71,7 +71,7 @@ func TestProfileCheck(t *testing.T) {
 	}) {
 		t.Errorf("gates %+v, want the table", c.Gates)
 	}
-	if !slices.Equal(c.DowngradeIDs, profile.DowngradeRules) || !slices.Contains(c.GatedRules, "profile.template-drift") || len(c.GatedRules) != 16 {
+	if !slices.Equal(c.DowngradeIDs, profile.DowngradeRules) || !slices.Contains(c.GatedRules, "profile.template-drift") || len(c.GatedRules) != 17 {
 		t.Errorf("downgrade ids %q, gated rules %q", c.DowngradeIDs, c.GatedRules)
 	}
 }
