@@ -654,7 +654,7 @@ The gate table is held in the binary; `profile-check --gates` prints it. A liste
 |--------|-------|
 | `partitions: fixed` | `structure.arn-partition-hardcoded` |
 | `examples: none` | `examples.argument-undemonstrated`, `examples.disabled-call-missing`, `examples.feature-undemonstrated`, `examples.submodule-missing`, `examples.versions-missing` |
-| `release: none` | `profile.changelog-handwritten`, `profile.commit-type-mismatch`, `profile.migration-notes-misplaced`, `profile.owner-identifier`, `profile.provider-meta-missing`, `profile.release-config-changed`, `profile.template-drift`, `profile.title-misspelling`, `profile.title-uninformative`, `profile.unrelated-change-bundled` |
+| `release: none` | `profile.changelog-handwritten`, `profile.commit-type-mismatch`, `profile.migration-notes-misplaced`, `profile.owner-identifier`, `profile.provider-meta-missing`, `profile.release-config-changed`, `profile.template-drift`, `profile.title-misspelling`, `profile.title-truncated`, `profile.title-uninformative`, `profile.unrelated-change-bundled` |
 
 `profile.required-file-missing` is never gated; a profile with `examples: none` has no example entries for it to require. `consumers: in-repo` gates nothing: it only feeds the downgrade below.
 

@@ -131,7 +131,7 @@ func TestGatedRules(t *testing.T) {
 		"structure.arn-partition-hardcoded",
 		"examples.disabled-call-missing", "examples.submodule-missing", "examples.versions-missing",
 		"examples.feature-undemonstrated", "examples.argument-undemonstrated",
-		"profile.commit-type-mismatch", "profile.title-uninformative", "profile.title-misspelling",
+		"profile.commit-type-mismatch", "profile.title-uninformative", "profile.title-misspelling", "profile.title-truncated",
 		"profile.unrelated-change-bundled", "profile.changelog-handwritten", "profile.release-config-changed",
 		"profile.owner-identifier", "profile.provider-meta-missing", "profile.migration-notes-misplaced", "profile.template-drift",
 	} {

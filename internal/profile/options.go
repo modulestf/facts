@@ -57,7 +57,7 @@ var Gates = []Gate{
 	{Option: "release", Value: "none", Rules: []string{
 		"profile.changelog-handwritten", "profile.commit-type-mismatch", "profile.migration-notes-misplaced",
 		"profile.owner-identifier", "profile.provider-meta-missing", "profile.release-config-changed",
-		"profile.template-drift", "profile.title-misspelling", "profile.title-uninformative",
+		"profile.template-drift", "profile.title-misspelling", "profile.title-truncated", "profile.title-uninformative",
 		"profile.unrelated-change-bundled",
 	}},
 }
