@@ -1,3 +1,12 @@
+# [0.7.0](https://github.com/modulestf/facts/compare/v0.6.2...v0.7.0) (2026-11-09)
+
+
+### Features
+
+* Gate profile.title-truncated under release: none ([#36](https://github.com/modulestf/facts/issues/36)) ([a03e864](https://github.com/modulestf/facts/commit/a03e864ed9e26af949aa0de9beea43bd13de0018)), closes [modulestf/modulestf#130](https://github.com/modulestf/modulestf/issues/130) [#130](https://github.com/modulestf/facts/issues/130)
+
+
+
 ## [0.6.2](https://github.com/modulestf/facts/compare/v0.6.1...v0.6.2) (2026-11-08)
 
 
