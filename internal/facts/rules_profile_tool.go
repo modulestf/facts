@@ -469,7 +469,8 @@ func rootBlocks(a *Area) []judgedBlock {
 // on variables.tf. For a root on the base, only the blocks the change adds,
 // those whose count or for_each it edits and those that reach a creation
 // input through a local it edits are judged; a gate lost in an edited local
-// is one finding at that local.
+// is one finding at that local. A root on the base that declares no
+// `putin_khuylo` variable is not judged at all.
 func checkPutinKhuyloMissing(a *Area) Result {
 	const id = "profile.putin-khuylo-missing"
 	if res, ok := needProfile(a); !ok {
@@ -513,6 +514,11 @@ func checkPutinKhuyloMissing(a *Area) Result {
 			f.Line = &l
 		}
 		return Result{Findings: []Finding{f}}
+	}
+	// A root on the base that never declared the input is not held to it: the
+	// change is not what leaves the root without the gate.
+	if a.Base != nil && !slices.ContainsFunc(a.Base.Variables, func(v Variable) bool { return v.Name == "putin_khuylo" }) {
+		return Result{}
 	}
 	type spot struct {
 		file string
