@@ -214,7 +214,7 @@ func TestPutinGateFromSyntax(t *testing.T) {
 }
 
 // TestPutinBaseRootWithoutInput checks the base decides the scope: a root on
-// the base that never declared the input is silent, a root the change adds is
+// the base that never declared the input is silent unless the head adds it, a root the change adds is
 // judged whole, and a base root that declared it and loses it is reported.
 func TestPutinBaseRootWithoutInput(t *testing.T) {
 	const id = "profile.putin-khuylo-missing"
@@ -224,6 +224,11 @@ func TestPutinBaseRootWithoutInput(t *testing.T) {
 	base := map[string]string{"main.tf": locals + block}
 	if got := findingSpots(runProfileTool(t, base, map[string]string{"main.tf": locals + edited}), id); len(got) != 0 {
 		t.Errorf("base root without the input: %q", got)
+	}
+	// A change that adds the input to the root and bypasses its gate is judged.
+	added := "locals {\n  create = var.create\n}\n" + edited + putinVar
+	if got := findingSpots(runProfileTool(t, base, map[string]string{"main.tf": added}), id); !slices.Equal(got, []string{"main.tf:6"}) {
+		t.Errorf("head adds the input, gate bypassed: %q", got)
 	}
 	// A new root with the same blocks is still judged.
 	if got := findingSpots(runProfileTool(t, map[string]string{}, map[string]string{"main.tf": locals + block}), id); len(got) == 0 {
