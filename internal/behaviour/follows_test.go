@@ -345,12 +345,22 @@ func TestRuleADeclines(t *testing.T) {
 		"a read no trigger holds": with(asgHead(asgLine), "main.tf", asgMain,
 			"provisioned.tf", "resource \"aws_thing\" \"p\" {\n  provisioner \"local-exec\" {\n    command = var.alarm_specification\n  }\n}\n"),
 		"a reference the walk cannot name": added("resource \"aws_thing\" \"t\" {\n  spec = var[local.k]\n}\n"),
+		"another argument":                 newVar("  default    = null\n  deprecated = \"x\"\n"),
+		"a non-empty object default":       newVar("  default = { a = 1 }\n"),
+		"a read in a nested block of a new type": with(asgHead(asgLine), "main.tf", asgMain,
+			"provisioned.tf", "resource \"aws_thing\" \"p\" {\n  timeouts {\n    create = var.alarm_specification\n  }\n}\n"),
+		// One file, one resource: a read before and a read after the added
+		// argument lie outside its source.
+		"a read before the argument": with(asgHead(asgLine), "main.tf", asgMain,
+			"provisioned.tf", "resource \"aws_thing\" \"p\" {\n  provisioner \"local-exec\" {\n    command = var.alarm_specification\n  }\n  spec = var.alarm_specification\n}\n"),
+		"a read after the argument": with(asgHead(asgLine), "main.tf", asgMain,
+			"provisioned.tf", "resource \"aws_thing\" \"p\" {\n  spec = var.alarm_specification\n  provisioner \"local-exec\" {\n    command = var.alarm_specification\n  }\n}\n"),
 	}
 	for name, head := range cases {
 		t.Run(name, func(t *testing.T) {
 			base := asgBase()
-			if name == "a read no trigger holds" {
-				// The resource is there at the base; the head adds only its provisioner.
+			if strings.HasPrefix(name, "a read ") {
+				// The resource is there at the base; the head adds to it.
 				base = with(base, "provisioned.tf", "resource \"aws_thing\" \"p\" {\n}\n")
 			}
 			r := runPair(t, base, head, "")
@@ -379,6 +389,13 @@ func TestRuleAExistingVariable(t *testing.T) {
 	r := runPair(t, asgBase(), head, "")
 	if tr := find(t, r, "variables.tf", "var.name", "default"); tr.Category != CatDefault || tr.Follows != nil {
 		t.Errorf("changed default: %s %v", tr.Category, tr.Follows)
+	}
+	// A removed optional variable nothing reads follows nothing.
+	base := with(asgBase(), "variables.tf", asgVars+asgNewVar)
+	if tr := find(t, runPair(t, base, asgBase(), ""), "variables.tf", "var.alarm_specification", ""); tr.ChangeKind != KindRemoved {
+		t.Errorf("removed variable: %s", tr.ChangeKind)
+	} else {
+		wantNotFollower(t, tr)
 	}
 	head = with(asgBase(), "variables.tf", "", "inputs.tf", asgVars)
 	if r := runPair(t, asgBase(), head, ""); len(r.Triggers) != 0 || !r.Inert {
@@ -427,11 +444,25 @@ func TestRuleBDeclines(t *testing.T) {
 			with(asgHead(asgLine), "wrappers/main.tf", strings.Replace(asgHead(asgLine)["wrappers/main.tf"], `"wrapper"`, `"other"`, 1)),
 			"wrappers/main.tf", "module.other"},
 	}
+	other["a file other than main.tf"] = struct {
+		base, head map[string]string
+		file, addr string
+	}{with(asgBase(), "wrappers/main.tf", "", "wrappers/other.tf", asgWrapper),
+		with(asgHead(asgLine), "wrappers/main.tf", "", "wrappers/other.tf", asgHead(asgLine)["wrappers/main.tf"]),
+		"wrappers/other.tf", "module.wrapper"}
 	for name, tc := range other {
 		t.Run(name, func(t *testing.T) {
 			r := runPair(t, tc.base, tc.head, "")
 			wantNotFollower(t, find(t, r, tc.file, tc.addr, n))
 		})
+	}
+	// A line the base already had in another form, rewritten to the
+	// generator form, is a change, not an added line.
+	changed := with(asgBase(), "wrappers/main.tf",
+		asgHead("  " + n + " = lookup(each.value, \"" + n + "\", null)\n")["wrappers/main.tf"])
+	tr := find(t, runPair(t, changed, asgHead(asgLine), ""), "wrappers/main.tf", "module.wrapper", n)
+	if tr.ChangeKind != KindModified || tr.Follows != nil || len(tr.Levels) == 0 {
+		t.Errorf("changed line: %s follows %v levels %v", tr.ChangeKind, tr.Follows, tr.Levels)
 	}
 	// The module default is a string: a null fallback is not its default,
 	// and the line with the string accepted is.
@@ -455,12 +486,52 @@ func TestFollowsPastTheCap(t *testing.T) {
 		fmt.Fprintf(&locals, "  l%02d = var.alarm_specification\n", i)
 	}
 	locals.WriteString("}\n")
-	head := with(asgBase(), "a.tf", asgNewVar, "main.tf", asgMain+locals.String())
+	// zz.tf sorts after the wrapper, so the reads are the triggers past
+	// the cap and the wrapper line is listed: it follows a reverted
+	// variable, so it reverts too.
+	head := with(asgHead(asgLine), "main.tf", asgMain, "variables.tf", asgVars, "a.tf", asgNewVar, "zz.tf", locals.String())
 	r := runPair(t, asgBase(), head, "")
-	v := find(t, r, "a.tf", "var.alarm_specification", "")
-	if v.Follows != nil || !slices.Equal(v.Levels, []string{LevelL4}) || deref(v.Reason) != reasonFollowCapped || r.Capped == 0 {
-		t.Errorf("capped follows: %v %v %q capped %d", v.Follows, v.Levels, deref(v.Reason), r.Capped)
+	if r.Capped == 0 {
+		t.Fatalf("not capped:\n%s", mustJSON(t, r))
 	}
+	for _, tr := range []Trigger{find(t, r, "a.tf", "var.alarm_specification", ""),
+		find(t, r, "wrappers/main.tf", "module.wrapper", "alarm_specification")} {
+		if tr.Follows != nil || !slices.Equal(tr.Levels, []string{LevelL4}) || deref(tr.Reason) != reasonFollowCapped {
+			t.Errorf("%s capped follows: %v %v %q", tr.ID, tr.Follows, tr.Levels, deref(tr.Reason))
+		}
+	}
+}
+
+// TestFollowsMergedTrigger: a read in a changed data source argument lies
+// in two specs that merge into one trigger; the variable follows the
+// merged trigger's id.
+func TestFollowsMergedTrigger(t *testing.T) {
+	data := "data \"aws_thing\" \"d\" {\n  name = \"x\"\n}\n"
+	base := with(asgBase(), "data.tf", data)
+	head := with(asgHead(asgLine), "main.tf", asgMain,
+		"data.tf", strings.Replace(data, `"x"`, `coalesce(var.alarm_specification, "x")`, 1))
+	r := runPair(t, base, head, "")
+	d := find(t, r, "data.tf", "data.aws_thing.d", "name")
+	if len(d.AlsoCategories) == 0 {
+		t.Fatalf("not merged:\n%s", mustJSON(t, r))
+	}
+	wantFollower(t, find(t, r, "variables.tf", "var.alarm_specification", ""), d.ID)
+}
+
+// TestFollowsDeduplicated: a follower of a spec that the report drops as a
+// duplicate of another follows the trigger that stays.
+func TestFollowsDeduplicated(t *testing.T) {
+	c := &classifier{views: map[string][2]*view{}}
+	dup := spec{file: "main.tf", line: 2, cat: CatResourceAddRemove, kind: KindAdded, addr: "aws_thing.t"}
+	a, b := dup, dup
+	a.sid, b.sid = 0, 1
+	f := spec{file: "variables.tf", line: 1, cat: CatUnclassified, kind: KindAdded, addr: "var.x",
+		levels: []string{}, reason: reasonFollowsReads, sid: 2, follows: []int{1}}
+	r := c.report(nil, []spec{a, b, f}, nil)
+	if len(r.Triggers) != 2 {
+		t.Fatalf("not deduplicated:\n%s", mustJSON(t, r))
+	}
+	wantFollower(t, find(t, r, "variables.tf", "var.x", ""), find(t, r, "main.tf", "aws_thing.t", "").ID)
 }
 
 // TestEvaluateFollowers: claims-eval decides a follower from the triggers
@@ -489,7 +560,9 @@ func TestEvaluateFollowers(t *testing.T) {
 		follower("T-012", "T-013"), // a refuted use site
 		l4("T-013", "dynamic.rule"),
 		follower("T-014", "T-010"), // follows a verified follower only
+		follower("T-015", "T-001"), // in an inert entry
 	}}
+	b.Entries = []Entry{{Path: "inert.tf", ChangeKind: KindModified, Inert: true, TriggerIDs: []string{"T-015"}}}
 	cov := `{"class":"complete","examples":[{"dir":"examples/complete","head":"planned","base":null,
 	  "addresses":["aws_s3_bucket.b"],"attributes":{"aws_s3_bucket.b":["rule"]}}]}`
 	b.Triggers[0].File, b.Triggers[12].File = "examples/complete/main.tf", "examples/complete/main.tf"
@@ -502,7 +575,7 @@ func TestEvaluateFollowers(t *testing.T) {
 	want := map[string]string{"T-001": StateCovered, "T-002": StateUnverifiable, "T-003": StateCovered,
 		"T-004": StateUnverifiable, "T-005": StateUnverifiable, "T-006": StateUnverifiable, "T-007": StateUnverifiable,
 		"T-008": StateUnverifiable, "T-009": StateCovered, "T-010": StateVerified, "T-011": StateUnverifiable,
-		"T-012": StateUnverifiable, "T-013": StateRefuted, "T-014": StateVerified}
+		"T-012": StateUnverifiable, "T-013": StateRefuted, "T-014": StateVerified, "T-015": StateInert}
 	for id, s := range want {
 		if tr[id] != s {
 			t.Errorf("%s: %s, want %s\n%s", id, tr[id], s, mustJSON(t, r))
