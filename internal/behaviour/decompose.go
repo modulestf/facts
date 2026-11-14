@@ -80,6 +80,16 @@ type view struct {
 	// literal: a quoted string with no interpolation or directive, true,
 	// false or null.
 	defaults map[string]CaseInput
+	// files are the parsed .tf files of the directory; jsonFile is set when
+	// it also holds a .tf.json file, which is not decomposed.
+	files    []viewFile
+	jsonFile bool
+}
+
+// viewFile is one parsed .tf file of a view.
+type viewFile struct {
+	path string
+	body *hclsyntax.Body
 }
 
 // buildView parses the .tf files directly in dir. why is set when the
@@ -92,6 +102,9 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 	}
 	for _, e := range t.DirEntries(dir) {
 		name := path.Base(e.Path)
+		if !ignoredName(name) && strings.HasSuffix(name, ".tf.json") {
+			v.jsonFile = true
+		}
 		if ignoredName(name) || !strings.HasSuffix(name, ".tf") {
 			continue
 		}
@@ -105,6 +118,7 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 		if err != nil {
 			return nil, e.Path + " does not parse"
 		}
+		v.files = append(v.files, viewFile{e.Path, body})
 		for _, it := range fileItems(e.Path, e.Data, body, v) {
 			if v.items[it.key] != nil {
 				return nil, fmt.Sprintf("%s is declared twice", it.addr)
@@ -265,6 +279,15 @@ type spec struct {
 	// baseAbsent and headAbsent mark a side whose expression is the null
 	// of an absent provider attribute.
 	baseAbsent, headAbsent bool
+	// rng is the head source the trigger stands for: a read of a variable
+	// inside it is evaluated with it. Unset where no evaluation covers it.
+	rng *hcl.Range
+	// variable is the block of a variable the change adds.
+	variable *item
+	// sid numbers the spec; follows are the sids of the specs whose state
+	// this one follows, non-nil for a follower.
+	sid     int
+	follows []int
 }
 
 // decomposer compares the base and head views of one directory.
@@ -340,10 +363,20 @@ func (d *decomposer) alone(it *item, kind string) {
 	switch it.kind {
 	case itemResource, itemData, itemModule:
 		s.cat = CatResourceAddRemove
+		s.rng = new(it.block.Range())
 	case itemLocal:
 		s.cat, e = CatLocalsOutputs, x(it.attr)
+		s.rng = new(it.attr.SrcRange)
 	case itemOutput:
 		s.cat, s.attr, e = CatLocalsOutputs, "value", x(it.block.Body.Attributes["value"])
+		if a := it.block.Body.Attributes["value"]; a != nil {
+			s.rng = new(a.SrcRange)
+		}
+	case itemVariable:
+		s.cat = CatUnclassified
+		if kind == KindAdded {
+			s.variable = it
+		}
 	case itemTFVersion:
 		s.cat, s.attr, e = CatVersionFloor, "required_version", x(it.attr)
 	case itemTFProvider:
@@ -354,7 +387,7 @@ func (d *decomposer) alone(it *item, kind string) {
 		s.cat = CatUnclassified
 	}
 	if kind == KindRemoved {
-		s.b = e
+		s.b, s.rng = e, nil // a base range holds no head read
 	} else {
 		s.h = e
 	}
@@ -373,7 +406,7 @@ func (d *decomposer) pair(b, h *item) {
 	case itemLocal:
 		bx, hx := &exprInfo{b.attr.Expr, b.src}, &exprInfo{h.attr.Expr, h.src}
 		d.add(spec{file: h.file, line: h.line(), cat: classify(bx, hx, CatLocalsOutputs), kind: KindModified,
-			addr: h.addr, b: bx, h: hx})
+			addr: h.addr, b: bx, h: hx, rng: new(h.attr.SrcRange)})
 	case itemTFVersion:
 		d.add(spec{file: h.file, line: h.line(), cat: CatVersionFloor, kind: KindModified, addr: "terraform",
 			attr: "required_version", b: &exprInfo{b.attr.Expr, b.src}, h: &exprInfo{h.attr.Expr, h.src}})
@@ -588,6 +621,7 @@ func (d *decomposer) at(bi, hi *item, bb, hb *hclsyntax.Body, name string, bx, h
 		return s
 	}
 	s.file, s.line = hi.file, hb.Attributes[name].SrcRange.Start.Line
+	s.rng = new(hb.Attributes[name].SrcRange)
 	if bx == nil {
 		s.kind = KindAdded
 	}
@@ -664,6 +698,12 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 				}
 			}
 			s.b, s.h = forEachOf(first.base, bi.src), forEachOf(first.head, hi.src)
+			switch {
+			case s.forEachOnly:
+				s.rng = new(first.head.Body.Attributes["for_each"].SrcRange)
+			case first.head != nil:
+				s.rng = new(first.head.Range())
+			}
 			d.add(s)
 		case strings.HasPrefix(k, "provisioner.") || k == "connection":
 			s.cat, s.reason, s.noLevels = CatUnclassified, reasonApplyTime, true
@@ -673,6 +713,9 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 		case bi.kind == itemVariable && k == "validation" && top:
 			s.cat = CatTypeValidation
 			s.b, s.h = conditionOf(first.base, bi.src), conditionOf(first.head, hi.src)
+			if s.h != nil {
+				s.rng = new(s.h.expr.Range())
+			}
 			d.add(s)
 		case bi.kind == itemOutput && top:
 			s.cat = CatLocalsOutputs
@@ -686,6 +729,7 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 				e.kind = extra.kind
 				if extra.head != nil {
 					e.file, e.line = hi.file, extra.head.TypeRange.Start.Line
+					e.rng = new(extra.head.Range())
 				} else {
 					e.file, e.line = bi.file, extra.base.TypeRange.Start.Line
 				}

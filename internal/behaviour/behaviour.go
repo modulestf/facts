@@ -99,6 +99,7 @@ func (c *classifier) run() (*Report, error) {
 		specs = append(specs, c.decompose(dir, changes)...)
 	}
 	specs = append(specs, readTF(changes, specs, sc)...)
+	c.follow(specs)
 	return c.report(changes, specs, inert), nil
 }
 
@@ -286,7 +287,7 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 		triggers = append(triggers, c.trigger(s))
 	}
 	slices.SortStableFunc(triggers, compareTriggers)
-	triggers = slices.CompactFunc(triggers, func(a, b Trigger) bool { return compareTriggers(a, b) == 0 })
+	triggers = compactTriggers(triggers)
 	triggers = mergeSameExpr(triggers)
 	r := &Report{SchemaVersion: SchemaVersion, Inert: true, Entries: []Entry{}, Triggers: []Trigger{}}
 	hasTrigger := map[string]bool{}
@@ -302,6 +303,7 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 		triggers[i].ID = fmt.Sprintf("T-%03d", i+1)
 		ids[triggers[i].File] = append(ids[triggers[i].File], triggers[i].ID)
 	}
+	resolveFollows(triggers)
 	r.Triggers = triggers
 	for _, ch := range changes {
 		e := Entry{Path: ch.path, ChangeKind: ch.kind, TriggerIDs: append([]string{}, ids[ch.path]...)}
@@ -337,7 +339,8 @@ func (c *classifier) decomposed(ch change) bool {
 // trigger turns a spec into a trigger without its id.
 func (c *classifier) trigger(s spec) Trigger {
 	t := Trigger{File: s.file, Category: s.cat, ChangeKind: s.kind, ReferencedInputs: []Input{}, ContextualRefs: []string{},
-		ForEachOnly: s.forEachOnly, BaseAbsent: s.baseAbsent, HeadAbsent: s.headAbsent}
+		ForEachOnly: s.forEachOnly, BaseAbsent: s.baseAbsent, HeadAbsent: s.headAbsent,
+		sids: []int{s.sid}, followSIDs: s.follows}
 	if s.line > 0 {
 		line := s.line
 		t.Line = &line
