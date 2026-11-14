@@ -74,6 +74,7 @@ func mergeTwo(a, b Trigger) (Trigger, bool) {
 		return a, false
 	}
 	m := a
+	m.sids = slices.Concat(a.sids, b.sids)
 	if len(cases) > 0 {
 		m.Cases = cases
 	}

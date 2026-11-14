@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "inert": false,
+  "entries": [
+    {
+      "path": "main.tf",
+      "change_kind": "modified",
+      "inert": false,
+      "trigger_ids": [
+        "T-001"
+      ]
+    },
+    {
+      "path": "variables.tf",
+      "change_kind": "modified",
+      "inert": false,
+      "trigger_ids": [
+        "T-002"
+      ]
+    },
+    {
+      "path": "wrappers/main.tf",
+      "change_kind": "modified",
+      "inert": false,
+      "trigger_ids": [
+        "T-003"
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "T-001",
+      "file": "main.tf",
+      "line": 4,
+      "category": "dynamic-block-change",
+      "change_kind": "added",
+      "address": "aws_autoscaling_group.this",
+      "attribute": "dynamic.alarm_specification",
+      "base_expr": null,
+      "head_expr": "var.alarm_specification != null ? [var.alarm_specification] : []",
+      "referenced_inputs": [
+        {
+          "name": "alarm_specification",
+          "type": "object({ alarms = optional(list(string)) })"
+        }
+      ],
+      "contextual_refs": [],
+      "contextual_ref_details": [],
+      "pure": true,
+      "levels": [
+        "L4"
+      ],
+      "reason": null
+    },
+    {
+      "id": "T-002",
+      "file": "variables.tf",
+      "line": 6,
+      "category": "unclassified-change",
+      "change_kind": "added",
+      "address": "var.alarm_specification",
+      "attribute": null,
+      "base_expr": null,
+      "head_expr": null,
+      "referenced_inputs": [],
+      "contextual_refs": [],
+      "contextual_ref_details": [],
+      "pure": false,
+      "levels": [],
+      "reason": "an added optional variable: its state follows the triggers whose source holds a read of it",
+      "follows": [
+        "T-001"
+      ]
+    },
+    {
+      "id": "T-003",
+      "file": "wrappers/main.tf",
+      "line": 7,
+      "category": "unclassified-change",
+      "change_kind": "added",
+      "address": "module.wrapper",
+      "attribute": "alarm_specification",
+      "base_expr": null,
+      "head_expr": "try(each.value.alarm_specification, var.defaults.alarm_specification, null)",
+      "referenced_inputs": [
+        {
+          "name": "defaults",
+          "type": "any"
+        }
+      ],
+      "contextual_refs": [
+        "each.value"
+      ],
+      "contextual_ref_details": [
+        {
+          "text": "each.value.alarm_specification",
+          "kind": "each",
+          "type": null,
+          "multi": null
+        }
+      ],
+      "pure": true,
+      "levels": [],
+      "reason": "a generated wrapper line that passes an added optional variable through: its state follows that variable's trigger",
+      "follows": [
+        "T-002"
+      ]
+    }
+  ],
+  "capped": 0
+}
