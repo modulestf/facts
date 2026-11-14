@@ -143,6 +143,16 @@ type Trigger struct {
 	// Optional fields.
 	BaseAbsent bool `json:"base_absent,omitempty"`
 	HeadAbsent bool `json:"head_absent,omitempty"`
+	// Follows marks a trigger whose state follows other triggers': an added
+	// optional variable, which follows every trigger whose source range holds
+	// a read of it, or a generated wrapper line passing one through, which
+	// follows that variable's trigger. Such a trigger selects no level. An
+	// empty list is a variable nothing reads. An optional field.
+	Follows []string `json:"follows,omitzero"`
+
+	// sids are the specs this trigger stands for, and followSIDs the specs
+	// it follows, until the report numbers the triggers.
+	sids, followSIDs []int
 }
 
 // Input is one variable a trigger reads.

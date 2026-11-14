@@ -181,6 +181,14 @@ func ReadBehaviour(file string) (*Report, error) {
 			return nil, fmt.Errorf("behaviour: trigger id %q is malformed or used twice", t.ID)
 		}
 		seen[t.ID] = true
+		if t.Follows != nil && len(t.Levels) > 0 {
+			return nil, fmt.Errorf("behaviour: trigger %s follows other triggers and selects levels", t.ID)
+		}
+		for _, id := range t.Follows {
+			if !triggerIDPattern.MatchString(id) {
+				return nil, fmt.Errorf("behaviour: trigger %s follows %q, which is not a trigger id", t.ID, id)
+			}
+		}
 		cases := map[string]bool{}
 		for _, c := range t.Cases {
 			if cases[c.ID] {
@@ -311,10 +319,88 @@ func Evaluate(b *Report, l *Ladder, claims []Claim, discarded []Discarded) *Eval
 			}
 		}
 	}
+	f := &followEval{byID: map[string]Trigger{}, states: map[string]TriggerState{}, visiting: map[string]bool{},
+		claims: byTrigger, inert: inert}
 	for _, t := range b.Triggers {
-		r.Triggers = append(r.Triggers, evalTrigger(t, l, byTrigger[t.ID], claimsOf[t.ID], verified, inert[t.ID]))
+		f.byID[t.ID] = t
+		if t.Follows == nil {
+			f.states[t.ID] = evalTrigger(t, l, byTrigger[t.ID], claimsOf[t.ID], verified, inert[t.ID])
+		}
+	}
+	for _, t := range b.Triggers {
+		r.Triggers = append(r.Triggers, f.state(t.ID))
 	}
 	return r
+}
+
+// followEval decides the followers once every other trigger is decided.
+type followEval struct {
+	byID     map[string]Trigger
+	states   map[string]TriggerState
+	visiting map[string]bool
+	claims   map[string][]ClaimState
+	inert    map[string]bool
+}
+
+// state is the state of a trigger. A follower is unverifiable unless every
+// trigger it follows is verified or covered; it is then covered when one of
+// them is, else verified. A follow id that names no trigger, or a cycle,
+// leaves it unverifiable, as does a claim of it that is not verified.
+func (f *followEval) state(id string) TriggerState {
+	if ts, ok := f.states[id]; ok {
+		return ts
+	}
+	ts := TriggerState{ID: id, State: StateUnverifiable}
+	t := f.byID[id]
+	f.visiting[id] = true
+	defer func() {
+		delete(f.visiting, id)
+		f.states[id] = ts
+	}()
+	if f.inert[id] {
+		ts.State, ts.Reason = StateInert, "the entry is inert"
+		return ts
+	}
+	for _, c := range f.claims[id] {
+		if c.State == StateRefuted {
+			ts.State, ts.Reason = StateRefuted, "claim "+c.ClaimID+" is refuted: "+c.Reason
+			return ts
+		}
+	}
+	for _, c := range f.claims[id] {
+		if c.State != StateVerified {
+			ts.Reason = "claim " + c.ClaimID + " of it is " + c.State
+			return ts
+		}
+	}
+	if len(t.Follows) == 0 {
+		ts.State, ts.Reason = StateVerified, "no expression of its module reads it"
+		return ts
+	}
+	covered := false
+	for _, fid := range t.Follows {
+		switch _, known := f.byID[fid]; {
+		case !known:
+			ts.Reason = "it follows " + fid + ", which is no trigger of the report"
+			return ts
+		case f.visiting[fid]:
+			ts.Reason = "its follows form a cycle through " + fid
+			return ts
+		}
+		switch fs := f.state(fid); fs.State {
+		case StateCovered:
+			covered = true
+		case StateVerified:
+		default:
+			ts.Reason = "it follows " + fid + ", which is " + fs.State
+			return ts
+		}
+	}
+	ts.State, ts.Reason = StateVerified, "every trigger it follows is verified: "+strings.Join(t.Follows, ", ")
+	if covered {
+		ts.State, ts.Reason = StateCovered, "every trigger it follows is verified or covered: "+strings.Join(t.Follows, ", ")
+	}
+	return ts
 }
 
 func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, verified map[string]bool, inert bool) TriggerState {

@@ -31,6 +31,11 @@ head_absent, only when the given schema, at each revision's provider source,
 marks it a plain attribute that is not write-only, the provider requirement
 is the same at both revisions, and neither writes it as blocks.
 
+An added optional variable with a scope-invariant default, read only inside
+the source of other triggers of its fully walked module directory, selects no
+level and lists those triggers in follows; a generated wrapper line that
+passes it through as try(each.value.N, var.defaults.N, <default>) follows it.
+
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the
 union; a trigger with a null side is never merged. At most 40 triggers are listed; capped counts the rest. It never runs
@@ -60,7 +65,10 @@ listed in its changes, and the ones no verified claim explains in
 outstanding, with complete and an evidence_digest bound to their
 observations. A trigger that selects L4 is covered when its address
 and changed attribute are in a planned example and no claim of it is
-unverifiable. A merged trigger that selects both needs both. An inert
+unverifiable. A merged trigger that selects both needs both. A trigger
+with follows is verified or covered only when every trigger it follows is,
+covered when one of them is; a dangling id or a cycle leaves it
+unverifiable. An inert
 entry's triggers are inert; anything else is unverifiable. Refuted
 outranks covered.
 
