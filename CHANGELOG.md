@@ -1,3 +1,12 @@
+## [0.7.1](https://github.com/modulestf/facts/compare/v0.7.0...v0.7.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* skip profile.putin-khuylo-missing for a base root that never declared the input ([#38](https://github.com/modulestf/facts/issues/38)) ([c6dba22](https://github.com/modulestf/facts/commit/c6dba22c8346fd6df30472cdfc1e0b724d53b36f)), closes [modulestf/modulestf#150](https://github.com/modulestf/modulestf/issues/150)
+
+
+
 # [0.7.0](https://github.com/modulestf/facts/compare/v0.6.2...v0.7.0) (2026-11-09)
 
 
