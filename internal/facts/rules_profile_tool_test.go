@@ -137,13 +137,17 @@ func TestNewModule(t *testing.T) {
 	}
 }
 
+// putinVar is the input a base root declares for the creation gate rule to
+// judge it; it goes last so the line numbers of the other blocks hold.
+const putinVar = "\nvariable \"putin_khuylo\" {\n  type = bool\n}\n"
+
 // TestPutinGateLostInBaseInput checks a creation input named only by the
 // base: the change drops the gate from the create_<x> local, and the
 // untouched block that reads it is reported at that local.
 func TestPutinGateLostInBaseInput(t *testing.T) {
 	block := "\nresource \"a\" \"b\" {\n  count = local.create_bucket ? 1 : 0\n}\n"
-	base := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket && var.putin_khuylo\n}\n" + block}
-	head := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket\n}\n" + block}
+	base := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket && var.putin_khuylo\n}\n" + block + putinVar}
+	head := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket\n}\n" + block + putinVar}
 	if got := findingSpots(runProfileTool(t, base, head), "profile.putin-khuylo-missing"); !slices.Equal(got, []string{"main.tf:2"}) {
 		t.Errorf("findings %q", got)
 	}
@@ -153,11 +157,11 @@ func TestPutinGateLostInBaseInput(t *testing.T) {
 // only create and create_<x> variables are creation inputs.
 func TestPutinGateThroughLocals(t *testing.T) {
 	locals := "locals {\n  gate          = var.putin_khuylo\n  create_bucket = var.create_bucket && local.gate\n  subnets       = length(var.subnets) > 0 && local.gate\n}\n"
-	base := map[string]string{"main.tf": locals}
+	base := map[string]string{"main.tf": locals + putinVar}
 	head := map[string]string{"main.tf": locals +
 		"\nresource \"a\" \"gated\" {\n  count = local.create_bucket ? 1 : 0\n}\n" +
 		"\nresource \"a\" \"bypass\" {\n  count = var.create_bucket ? 1 : 0\n}\n" +
-		"\nresource \"a\" \"subnets\" {\n  count = length(var.subnets)\n}\n"}
+		"\nresource \"a\" \"subnets\" {\n  count = length(var.subnets)\n}\n" + putinVar}
 	if got := findingSpots(runProfileTool(t, base, head), "profile.putin-khuylo-missing"); !slices.Equal(got, []string{"main.tf:12"}) {
 		t.Errorf("findings %q", got)
 	}
@@ -167,11 +171,12 @@ func TestPutinGateThroughLocals(t *testing.T) {
 // the gate is a creation input, and a block that reads it past the gate is
 // a finding.
 func TestPutinCreationInputs(t *testing.T) {
-	base := map[string]string{"main.tf": "locals {\n  create_bucket = var.create_bucket && var.putin_khuylo\n}\n"}
-	head := map[string]string{"main.tf": base["main.tf"] +
+	locals := "locals {\n  create_bucket = var.create_bucket && var.putin_khuylo\n}\n"
+	base := map[string]string{"main.tf": locals + putinVar}
+	head := map[string]string{"main.tf": locals +
 		"\nresource \"a\" \"gated\" {\n  count = local.create_bucket ? 1 : 0\n}\n" +
 		"\nresource \"a\" \"bypass\" {\n  count = var.create_bucket ? 1 : 0\n}\n" +
-		"\nresource \"a\" \"other\" {\n  count = var.create ? 1 : 0\n}\n"}
+		"\nresource \"a\" \"other\" {\n  count = var.create ? 1 : 0\n}\n" + putinVar}
 	if got := findingSpots(runProfileTool(t, base, head), "profile.putin-khuylo-missing"); !slices.Equal(got, []string{"main.tf:10"}) {
 		t.Errorf("findings %q", got)
 	}
@@ -200,10 +205,38 @@ func TestPutinGateFromSyntax(t *testing.T) {
 		"empty for_each":    {"for_each = local.create ? var.m : toset([])", false},
 		"for filter":        {"for_each = { for k, v in var.m : k => v if local.create }", false},
 	} {
-		head := map[string]string{"main.tf": locals + "\nresource \"a\" \"b\" {\n  " + c.meta + "\n}\n"}
-		got := findingSpots(runProfileTool(t, map[string]string{"main.tf": locals}, head), "profile.putin-khuylo-missing")
+		head := map[string]string{"main.tf": locals + "\nresource \"a\" \"b\" {\n  " + c.meta + "\n}\n" + putinVar}
+		got := findingSpots(runProfileTool(t, map[string]string{"main.tf": locals + putinVar}, head), "profile.putin-khuylo-missing")
 		if want := map[bool][]string{true: {"main.tf:8"}}[c.want]; !slices.Equal(got, want) {
 			t.Errorf("%s: %q, want %q", name, got, want)
 		}
+	}
+}
+
+// TestPutinBaseRootWithoutInput checks the base decides the scope: a root on
+// the base that never declared the input is silent unless the head adds it, a root the change adds is
+// judged whole, and a base root that declared it and loses it is reported.
+func TestPutinBaseRootWithoutInput(t *testing.T) {
+	const id = "profile.putin-khuylo-missing"
+	locals := "locals {\n  create = var.create\n}\n"
+	block := "\nresource \"a\" \"b\" {\n  count = local.create ? 1 : 0\n}\n"
+	edited := "\nresource \"a\" \"b\" {\n  count = local.create ? 2 : 0\n}\n"
+	base := map[string]string{"main.tf": locals + block}
+	if got := findingSpots(runProfileTool(t, base, map[string]string{"main.tf": locals + edited}), id); len(got) != 0 {
+		t.Errorf("base root without the input: %q", got)
+	}
+	// A change that adds the input to the root and bypasses its gate is judged.
+	added := "locals {\n  create = var.create\n}\n" + edited + putinVar
+	if got := findingSpots(runProfileTool(t, base, map[string]string{"main.tf": added}), id); !slices.Equal(got, []string{"main.tf:6"}) {
+		t.Errorf("head adds the input, gate bypassed: %q", got)
+	}
+	// A new root with the same blocks is still judged.
+	if got := findingSpots(runProfileTool(t, map[string]string{}, map[string]string{"main.tf": locals + block}), id); len(got) == 0 {
+		t.Error("new root without the input: no finding")
+	}
+	// A base root that declared the input and gated the local; the head drops both.
+	gated := "locals {\n  create = var.create && var.putin_khuylo\n}\n" + block + putinVar
+	if got := findingSpots(runProfileTool(t, map[string]string{"main.tf": gated}, map[string]string{"main.tf": locals + block}), id); !slices.Equal(got, []string{"main.tf:2"}) {
+		t.Errorf("input removed at head: %q", got)
 	}
 }
