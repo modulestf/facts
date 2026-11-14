@@ -11,7 +11,8 @@
       "severities": [
         "CRITICAL",
         "HIGH",
-        "MEDIUM"
+        "MEDIUM",
+        "LOW"
       ],
       "confirmed_by": "mid"
     }
