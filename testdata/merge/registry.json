@@ -15,7 +15,8 @@
       "severities": [
         "CRITICAL",
         "HIGH",
-        "MEDIUM"
+        "MEDIUM",
+        "LOW"
       ],
       "confirm_class": "lead",
       "summary_template": "The default of {subject} changed, so a caller that does not set it gets different resources.",
