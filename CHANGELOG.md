@@ -1,3 +1,12 @@
+# [0.8.0](https://github.com/modulestf/facts/compare/v0.7.1...v0.8.0) (2026-11-15)
+
+
+### Features
+
+* **behaviour:** Let an added optional variable follow its use-site triggers ([#39](https://github.com/modulestf/facts/issues/39)) ([5f7b962](https://github.com/modulestf/facts/commit/5f7b962c1df8c947590589a96609b26905f95829))
+
+
+
 ## [0.7.1](https://github.com/modulestf/facts/compare/v0.7.0...v0.7.1) (2026-11-14)
 
 
