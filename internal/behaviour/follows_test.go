@@ -467,6 +467,8 @@ func TestRuleBDeclines(t *testing.T) {
 		"defaults at the base":     {withKey, asgWrapperVars},
 		"items at the head":        {asgWrapperVars, withItem},
 		"defaults with a nullable": {asgWrapperVars, strings.Replace(asgWrapperVars, "default = {}", "default  = {}\n  nullable = false", 1)},
+		"defaults with an optional default": {asgWrapperVars, strings.Replace(asgWrapperVars, "type    = any",
+			"type    = object({ alarm_specification = optional(object({ alarms = list(string) }), { alarms = [\"x\"] }) })", 1)},
 	} {
 		other["wrapper "+name] = struct {
 			base, head map[string]string
@@ -474,6 +476,12 @@ func TestRuleBDeclines(t *testing.T) {
 		}{with(asgBase(), "wrappers/variables.tf", vars[0]), with(asgHead(asgLine), "wrappers/variables.tf", vars[1]),
 			"wrappers/main.tf", "module.wrapper"}
 	}
+	// A wrapper directory the walk cannot read in full.
+	other["an unwalked wrapper directory"] = struct {
+		base, head map[string]string
+		file, addr string
+	}{asgBase(), with(asgHead(asgLine), "wrappers/variables.tofu", "variable \"extra\" {\n  default = null\n}\n"),
+		"wrappers/main.tf", "module.wrapper"}
 	for name, tc := range other {
 		t.Run(name, func(t *testing.T) {
 			r := runPair(t, tc.base, tc.head, "")

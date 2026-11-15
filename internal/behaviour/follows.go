@@ -227,8 +227,8 @@ func invariantDefault(e hclsyntax.Expression, src []byte) (cty.Value, bool) {
 // generated wrapper passes through, and false when the line does not
 // qualify: module "wrapper" in wrappers/main.tf or wrappers/<one>/main.tf,
 // source unchanged and resolving to a module directory, for_each =
-// var.items, the wrapper's defaults and items variables {} at both
-// revisions, and the argument's tokens exactly try(each.value.N,
+// var.items, the wrapper's defaults and items variables {} of type any at
+// both revisions, the wrapper directory fully walked, and the argument's tokens exactly try(each.value.N,
 // var.defaults.N, <the module's default>).
 func (c *classifier) ruleB(s *spec, accepted map[string]int) (int, bool) {
 	dir := path.Dir(s.file)
@@ -237,7 +237,7 @@ func (c *classifier) ruleB(s *spec, accepted map[string]int) (int, bool) {
 		return 0, false
 	}
 	v, ok := c.views[dir]
-	if !ok || v[0] == nil || v[1] == nil {
+	if !ok || v[0] == nil || v[1] == nil || v[0].unwalked || v[1].unwalked {
 		return 0, false
 	}
 	bm, hm := v[0].items["module.wrapper"], v[1].items["module.wrapper"]
@@ -344,8 +344,10 @@ func resolveFollows(ts []Trigger) {
 	}
 }
 
-// emptyObjectVar reports a variable block whose default is exactly {} and
-// that sets nothing else but a description and a type.
+// emptyObjectVar reports a variable block whose default is exactly {},
+// whose type is absent or exactly any, as the generator writes it, and that
+// sets nothing else but a description. Any other type could fill an
+// optional attribute with a default for every caller.
 func emptyObjectVar(it *item) bool {
 	if it == nil || it.block == nil || len(it.block.Body.Blocks) > 0 {
 		return false
@@ -354,6 +356,9 @@ func emptyObjectVar(it *item) bool {
 		if name != "description" && name != "type" && name != "default" {
 			return false
 		}
+	}
+	if ty := it.block.Body.Attributes["type"]; ty != nil && (&exprInfo{ty.Expr, it.src}).key() != normKey([]byte("any"), false) {
+		return false
 	}
 	a := it.block.Body.Attributes["default"]
 	return a != nil && (&exprInfo{a.Expr, it.src}).key() == normKey([]byte("{}"), false)
