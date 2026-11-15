@@ -80,10 +80,11 @@ type view struct {
 	// literal: a quoted string with no interpolation or directive, true,
 	// false or null.
 	defaults map[string]CaseInput
-	// files are the parsed .tf files of the directory; jsonFile is set when
-	// it also holds a .tf.json file, which is not decomposed.
+	// files are the parsed .tf files of the directory; unwalked is set when
+	// it also holds a .tf.json, .tofu or .tofu.json file, which is not
+	// decomposed.
 	files    []viewFile
-	jsonFile bool
+	unwalked bool
 }
 
 // viewFile is one parsed .tf file of a view.
@@ -102,8 +103,8 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 	}
 	for _, e := range t.DirEntries(dir) {
 		name := path.Base(e.Path)
-		if !ignoredName(name) && strings.HasSuffix(name, ".tf.json") {
-			v.jsonFile = true
+		if !ignoredName(name) && (strings.HasSuffix(name, ".tf.json") || strings.HasSuffix(name, ".tofu") || strings.HasSuffix(name, ".tofu.json")) {
+			v.unwalked = true
 		}
 		if ignoredName(name) || !strings.HasSuffix(name, ".tf") {
 			continue

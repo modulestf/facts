@@ -339,6 +339,9 @@ func TestRuleADeclines(t *testing.T) {
 		"a function default":                newVar("  default = upper(\"a\")\n"),
 		"an interpolated default":           newVar("  default = \"${\"a\"}\"\n"),
 		"a .tf.json file":                   with(asgHead(asgLine), "extra.tf.json", "{}\n"),
+		"a .tofu file": with(asgHead(asgLine), "main.tf", asgMain,
+			"extra.tofu", "resource \"aws_thing\" \"t\" {\n  spec = var.alarm_specification\n}\n"),
+		"a .tofu.json file": with(asgHead(asgLine), "main.tf", asgMain, "extra.tofu.json", "{}\n"),
 		"a templatefile read": added("resource \"aws_thing\" \"t\" {\n" +
 			"  spec = templatefile(\"t.tpl\", { a = var.alarm_specification })\n}\n"),
 		"no read but a file call": added("resource \"aws_thing\" \"t\" {\n  spec = file(\"x\")\n}\n"),
@@ -450,6 +453,27 @@ func TestRuleBDeclines(t *testing.T) {
 	}{with(asgBase(), "wrappers/main.tf", "", "wrappers/other.tf", asgWrapper),
 		with(asgHead(asgLine), "wrappers/main.tf", "", "wrappers/other.tf", asgHead(asgLine)["wrappers/main.tf"]),
 		"wrappers/other.tf", "module.wrapper"}
+	// The wrapper's own defaults and items must be the generated {} at both
+	// revisions: a default that sets N forwards a value to every caller.
+	withKey := strings.Replace(asgWrapperVars, "default = {}", "default = { alarm_specification = { alarms = [\"x\"] } }", 1)
+	withItem := strings.Replace(asgWrapperVars, "default = {}\n}\n\nvariable \"items\" {\n  type    = any\n  default = {}",
+		"default = {}\n}\n\nvariable \"items\" {\n  type    = any\n  default = { a = { alarm_specification = { alarms = [\"x\"] } } }", 1)
+	if withKey == asgWrapperVars || withItem == asgWrapperVars {
+		t.Fatal("fixture replace did not apply")
+	}
+	for name, vars := range map[string][2]string{
+		"defaults set the key":     {withKey, withKey},
+		"items set the key":        {withItem, withItem},
+		"defaults at the base":     {withKey, asgWrapperVars},
+		"items at the head":        {asgWrapperVars, withItem},
+		"defaults with a nullable": {asgWrapperVars, strings.Replace(asgWrapperVars, "default = {}", "default  = {}\n  nullable = false", 1)},
+	} {
+		other["wrapper "+name] = struct {
+			base, head map[string]string
+			file, addr string
+		}{with(asgBase(), "wrappers/variables.tf", vars[0]), with(asgHead(asgLine), "wrappers/variables.tf", vars[1]),
+			"wrappers/main.tf", "module.wrapper"}
+	}
 	for name, tc := range other {
 		t.Run(name, func(t *testing.T) {
 			r := runPair(t, tc.base, tc.head, "")

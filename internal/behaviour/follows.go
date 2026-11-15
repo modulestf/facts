@@ -66,7 +66,7 @@ func (c *classifier) follow(specs []spec) {
 // another spec's source.
 func (c *classifier) ruleA(dir string, it *item, specs []spec) ([]int, bool) {
 	v, ok := c.views[dir]
-	if !ok || v[1] == nil || v[1].jsonFile || !optionalVar(it.block, it.src) {
+	if !ok || v[1] == nil || v[1].unwalked || !optionalVar(it.block, it.src) {
 		return nil, false
 	}
 	name := it.block.Labels[0]
@@ -227,7 +227,8 @@ func invariantDefault(e hclsyntax.Expression, src []byte) (cty.Value, bool) {
 // generated wrapper passes through, and false when the line does not
 // qualify: module "wrapper" in wrappers/main.tf or wrappers/<one>/main.tf,
 // source unchanged and resolving to a module directory, for_each =
-// var.items, and the argument's tokens exactly try(each.value.N,
+// var.items, the wrapper's defaults and items variables {} at both
+// revisions, and the argument's tokens exactly try(each.value.N,
 // var.defaults.N, <the module's default>).
 func (c *classifier) ruleB(s *spec, accepted map[string]int) (int, bool) {
 	dir := path.Dir(s.file)
@@ -249,6 +250,16 @@ func (c *classifier) ruleB(s *spec, accepted map[string]int) (int, bool) {
 		(&exprInfo{bs.Expr, bm.src}).key() != (&exprInfo{hs.Expr, hm.src}).key() ||
 		(&exprInfo{fe.Expr, hm.src}).key() != normKey([]byte("var.items"), false) {
 		return 0, false
+	}
+	// The value the line forwards for an item that does not set N comes
+	// from the wrapper's own defaults and items: both must be the generated
+	// empty object at both revisions.
+	for _, side := range v {
+		for _, name := range []string{"defaults", "items"} {
+			if !emptyObjectVar(side.items["variable."+name]) {
+				return 0, false
+			}
+		}
 	}
 	parts, ok := templateParts(hs.Expr)
 	if !ok {
@@ -331,4 +342,19 @@ func resolveFollows(ts []Trigger) {
 		}
 		t.sids, t.followSIDs = nil, nil
 	}
+}
+
+// emptyObjectVar reports a variable block whose default is exactly {} and
+// that sets nothing else but a description and a type.
+func emptyObjectVar(it *item) bool {
+	if it == nil || it.block == nil || len(it.block.Body.Blocks) > 0 {
+		return false
+	}
+	for name := range it.block.Body.Attributes {
+		if name != "description" && name != "type" && name != "default" {
+			return false
+		}
+	}
+	a := it.block.Body.Attributes["default"]
+	return a != nil && (&exprInfo{a.Expr, it.src}).key() == normKey([]byte("{}"), false)
 }
