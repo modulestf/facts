@@ -65,13 +65,30 @@ const maxLiterals = 8
 // matching type. It returns no cases and a reason when an input has no
 // states, as a local, module or self reference, or the sweep is over
 // maxSweepCases.
-func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, string) {
-	if why := computedConstant(xs...); why != "" {
-		return []Case{}, why
+//
+// A trigger whose head is its base for every caller that exists at the base
+// (see noopPins) is decided by that proof, and its cases only confirm it:
+// each added toggle has the one state of its default, no literal is a
+// state, and when the sweep is over the cap the cases are one per state at
+// a time, the first non-typical state of each input.
+func (c *classifier) cases(t Trigger, dir string, base, head *exprInfo) ([]Case, string, bool) {
+	// Instances and dynamic blocks follow the order and the duplicates of
+	// a collection, so those triggers need the order states and the full
+	// combination of the others.
+	strict := slices.Contains(t.Levels, LevelL2) || t.Category == CatDynamic
+	var pins []string
+	if !strict {
+		pins = c.noopPins(dir, base, head)
 	}
-	lits, why := literals(xs...)
-	if why != "" {
-		return []Case{}, why
+	var lits literalSet
+	if pins == nil {
+		if why := computedConstant(base, head); why != "" {
+			return []Case{}, why, false
+		}
+		var why string
+		if lits, why = literals(base, head); why != "" {
+			return []Case{}, why, false
+		}
 	}
 	var inputs []caseInput
 	seen := map[string]bool{}
@@ -80,6 +97,10 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 			return
 		}
 		seen[name] = true
+		if slices.Contains(pins, name) {
+			inputs = append(inputs, caseInput{name: name, states: []caseState{{"default", CaseInput{Value: raw(false)}}}})
+			return
+		}
 		ty := parseType(typ)
 		inputs = append(inputs, caseInput{name: name, states: varStates(ty, omittable, lits), extra: orderStates(ty)})
 	}
@@ -109,17 +130,40 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 		seen[d.Text] = true
 		st, why := refStates(d, lits)
 		if why != "" {
-			return []Case{}, why
+			return []Case{}, why, false
 		}
 		if st != nil {
 			inputs = append(inputs, caseInput{name: d.Text, states: st, extra: refOrderStates(d)})
 		}
 	}
-	// Instances and dynamic blocks follow the order and the duplicates of
-	// a collection, so those triggers need the order states and the full
-	// combination of the others.
-	strict := slices.Contains(t.Levels, LevelL2) || t.Category == CatDynamic
-	return sweepCases(inputs, strict)
+	cs, why := sweepCases(inputs, strict)
+	if why != "" && pins != nil {
+		cs, why = firstStates(inputs)
+	}
+	return cs, why, pins != nil
+}
+
+// firstStates is one typical case and one case per input with the input in
+// its first non-typical state, order states left out, or no cases and a
+// reason when that is over maxSweepCases.
+func firstStates(inputs []caseInput) ([]Case, string) {
+	typical := map[string]CaseInput{}
+	for _, in := range inputs {
+		typical[in.name] = in.states[0].in
+	}
+	out := []Case{{ID: "typical", Inputs: typical}}
+	for _, in := range inputs {
+		if len(in.states) < 2 {
+			continue
+		}
+		m := maps.Clone(typical)
+		m[in.name] = in.states[1].in
+		out = append(out, Case{ID: caseID(in.name, in.states[1].label), Inputs: m})
+	}
+	if len(out) > maxSweepCases {
+		return []Case{}, fmt.Sprintf("one state at a time needs %d cases, over the cap of %d", len(out), maxSweepCases)
+	}
+	return out, ""
 }
 
 // addDefault gives the input name, a variable the change adds, the state of

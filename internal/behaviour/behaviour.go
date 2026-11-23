@@ -387,8 +387,12 @@ func (c *classifier) trigger(s spec) Trigger {
 		t.Levels = append(t.Levels, levelsOf[s.cat]...)
 	}
 	if slices.Contains(t.Levels, LevelL1) {
-		var why string
-		if t.Cases, why = c.cases(t, path.Dir(s.file), s.b, s.h); why != "" {
+		cs, why, proven := c.cases(t, path.Dir(s.file), s.b, s.h)
+		t.Cases = cs
+		if proven {
+			why = strings.TrimSuffix(reasonNoop+"; "+why, "; ")
+		}
+		if why != "" {
 			reason = strings.TrimPrefix(reason+"; "+why, "; ")
 		}
 	}
