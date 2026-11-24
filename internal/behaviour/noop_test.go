@@ -3,9 +3,13 @@ package behaviour
 import (
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // toggleShape is a module whose local picks a description from a list of
@@ -17,14 +21,17 @@ import (
 type toggleShape struct {
 	toggles, insertAt int
 	newArg, newVar    string
+	// prefix starts the old toggle names, t when empty.
+	prefix string
 }
 
 func (s toggleShape) trees() (base, head map[string]string) {
 	vars := "variable \"desc\" {\n  type    = string\n  default = null\n}\n"
 	var args []string
+	p := cmpOr(s.prefix, "t")
 	for i := range s.toggles {
-		vars += fmt.Sprintf("variable \"t%02d\" {\n  type    = bool\n  default = false\n}\n", i)
-		args = append(args, fmt.Sprintf("    var.t%02d ? \"Text %02d\" : null,\n", i, i))
+		vars += fmt.Sprintf("variable \"%s%02d\" {\n  type    = bool\n  default = false\n}\n", p, i)
+		args = append(args, fmt.Sprintf("    var.%s%02d ? \"Text %02d\" : null,\n", p, i, i))
 	}
 	local := func(args []string) string {
 		return "locals {\n  description = try(coalesce(\n    var.desc,\n" + strings.Join(args, "") + "  ), null)\n}\n"
@@ -112,6 +119,7 @@ func TestAddedToggleNoopRefused(t *testing.T) {
 		"negated":                  {toggles: 16, insertAt: 3, newArg: `!var.t_new ? "Text new" : null`},
 		"number result":            {toggles: 16, insertAt: 3, newArg: `var.t_new ? 1 : null`},
 		"no other string argument": {toggles: 0, insertAt: 0},
+		"attribute of the toggle":  {toggles: 16, insertAt: 3, newArg: `var.t_new.x ? "Text new" : null`},
 		"old toggle var":           {toggles: 16, insertAt: 3, newArg: `var.t00 ? "Text new" : null`, newVar: "\n"},
 	}
 	for name, s := range cases {
@@ -124,8 +132,17 @@ func TestAddedToggleNoopRefused(t *testing.T) {
 			}
 		})
 	}
-	// A for expression that names its iterator var shadows the variables.
+	// A var reference whose name the walk cannot tell, such as
+	// var[var.k], may be the toggle.
 	base, head := toggleShape{toggles: 16, insertAt: 3}.trees()
+	for _, m := range []map[string]string{base, head} {
+		m["main.tf"] = strings.Replace(m["main.tf"], "    var.desc,\n", "    var.desc,\n    var[var.k] != null ? \"k\" : null,\n", 1)
+	}
+	if tr := descTrigger(t, runPair(t, base, head, "")); len(tr.Cases) != 0 || proven(tr) {
+		t.Errorf("var[var.k]: %d cases, reason %q", len(tr.Cases), str(tr.Reason))
+	}
+	// A for expression that names its iterator var shadows the variables.
+	base, head = toggleShape{toggles: 16, insertAt: 3}.trees()
 	for _, m := range []map[string]string{base, head} {
 		m["main.tf"] = strings.Replace(m["main.tf"], "    var.desc,\n", "    var.desc,\n    [for var in [{ a = \"x\" }] : var.a][0],\n", 1)
 	}
@@ -160,6 +177,7 @@ func TestAddedToggleNoopPremise(t *testing.T) {
 		"head override.tf.json":  {head: map[string]string{"override.tf.json": `{"variable":{"t_new":{"default":true}}}`}},
 		"head .tofu":             {head: map[string]string{"variables.tofu": "variable \"t_new\" {\n  default = true\n}\n"}},
 		"head .tofu.json":        {head: map[string]string{"x.tofu.json": "{}"}},
+		"both .tofu.json":        {base: map[string]string{"x.tofu.json": "{}"}, head: map[string]string{"x.tofu.json": "{}"}},
 		"base .tf.json declares": {base: map[string]string{"extra.tf.json": `{"variable":{"t_new":{"type":"bool"}}}`}},
 		"head terraform.tfvars":  {head: map[string]string{"terraform.tfvars": "t_new = true\n"}},
 		"base auto.tfvars.json":  {base: map[string]string{"x.auto.tfvars.json": `{"t_new": true}`}},
@@ -187,6 +205,9 @@ func TestAddedToggleNoopPremise(t *testing.T) {
 		proof      bool
 	}{
 		"tfvars below":              {named("modules/m/env/prod.tfvars", "x = 1\n"), nil, false},
+		"tfvars below head only":    {nil, named("modules/m/env/prod.tfvars", "x = 1\n"), false},
+		"lock file names it":        {named(".terraform.lock.hcl", "# t_new\n"), nil, true},
+		"longer name in yaml":       {named("live/vars.yaml", "my_t_new: 1\n"), nil, true},
 		"sibling tfvars":            {named("examples/x/terraform.tfvars", "t_new = true\n"), nil, false},
 		"parent tfvars":             {named("modules/common.tfvars", "t_new = true\n"), nil, false},
 		"root auto.tfvars":          {nil, named("common.auto.tfvars", "t_new = true\n"), false},
@@ -225,12 +246,49 @@ func TestAddedToggleNoopPremise(t *testing.T) {
 	if tr := descTrigger(t, runPair(t, base, head, "")); !proven(tr) {
 		t.Errorf("backslash caller: %s", str(tr.Reason))
 	}
+	// A changed .tf file of a directory the walk cannot decompose: no proof.
+	base, head = toggleShape{toggles: 16, insertAt: 12}.trees()
+	base["other/override.tf"], head["other/override.tf"] = "locals {}\n", "locals {}\n"
+	base["other/main.tf"], head["other/main.tf"] = "locals {\n  a = 1\n}\n", "locals {\n  a = 2\n}\n"
+	if tr := descTrigger(t, runPair(t, base, head, "")); proven(tr) {
+		t.Errorf("changed .tf beside an override file: %s", str(tr.Reason))
+	}
+	// A scanned file or a .tf file of the base outside the directory that
+	// is a link: its content is not seen, so no proof.
+	for _, link := range []string{"live/x.hcl", "examples/e/main.tf"} {
+		base, head = toggleShape{toggles: 16, insertAt: 12}.trees()
+		if tr := descTrigger(t, runPairLinks(t, base, head, map[string]string{link: "nowhere"})); proven(tr) {
+			t.Errorf("link %s: %s", link, str(tr.Reason))
+		}
+	}
 	// A change to a configuration file the walk does not read: no proof.
 	base, head = toggleShape{toggles: 16, insertAt: 12}.trees()
 	head["other/main.tf.json"] = "{}"
 	if tr := descTrigger(t, runPair(t, base, head, "")); proven(tr) {
 		t.Errorf("changed .tf.json: %s", str(tr.Reason))
 	}
+}
+
+// runPairLinks is runPair with the same symbolic links in both trees.
+func runPairLinks(t *testing.T, base, head, links map[string]string) *Report {
+	t.Helper()
+	trees := [2]string{writeTree(t, base), writeTree(t, head)}
+	for _, root := range trees {
+		for p, target := range links {
+			full := filepath.Join(root, filepath.FromSlash(p))
+			if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, full); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	r, err := Run(Options{Head: trees[1], Base: trees[0], Limits: facts.DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
 // under puts the files of a tree under dir.
@@ -244,34 +302,30 @@ func under(dir string, files map[string]string) map[string]string {
 
 func proven(tr Trigger) bool { return strings.Contains(str(tr.Reason), reasonNoop) }
 
-// TestAddedToggleNoopReads: a dropped argument that reads a resource, data
-// source, module call or local the base expression does not read gives the
-// block a new dependency, so it gets no proof; one the base already reads
-// keeps it.
-func TestAddedToggleNoopReads(t *testing.T) {
-	res := "resource \"aws_kms_key\" \"k\" {}\nresource \"aws_kms_key\" \"j\" {}\n"
+// TestAddedToggleNoopTrueResult: the guarded true result must be a bare
+// quoted string. An interpolation adds its marks (sensitive, ephemeral) and
+// its dependencies to the coalesce result whatever the toggle, even of a
+// value the base expression reads, so it gets no proof, as do a heredoc
+// and a directive.
+func TestAddedToggleNoopTrueResult(t *testing.T) {
+	extra := "variable \"secret\" {\n  type      = string\n  sensitive = true\n}\nresource \"aws_kms_key\" \"j\" {}\n"
 	for arg, want := range map[string]bool{
-		`var.t_new ? "key ${aws_kms_key.k.arn}" : null`:       false,
-		`var.t_new ? "key ${data.aws_region.q.name}" : null`:  false,
-		`var.t_new ? "key ${ephemeral.aws_s.b.value}" : null`: false,
-		`var.t_new ? "key ${data.aws_region.r.name}" : null`:  true,
-		`var.t_new ? "key ${ephemeral.aws_s.a.value}" : null`: true,
-		`var.t_new ? "key ${local.other}" : null`:             false,
-		`var.t_new ? "key ${module.m.out}" : null`:            false,
-		`var.t_new ? "x ${var.nope}" : null`:                  false,
-		`var.t_new ? "x ${path.nope}" : null`:                 false,
-		`var.t_new ? "x ${terraform.nope}" : null`:            false,
-		`var.t_new ? "x ${each.key}" : null`:                  false,
-		`var.t_new ? "x ${count.index}" : null`:               false,
-		`var.t_new ? "x ${terraform.workspace}" : null`:       true,
-		`var.t_new ? "key ${aws_kms_key.j.arn}" : null`:       true,
-		`var.t_new ? "key ${var.desc} ${path.module}" : null`: true,
+		`var.t_new ? "Text new" : null`:                 true,
+		`var.t_new ? "" : null`:                         true,
+		`var.t_new ? "x-${var.secret}" : null`:          false,
+		`var.t_new ? "x-${sensitive("s")}" : null`:      false,
+		`var.t_new ? "x-${var.desc}" : null`:            false,
+		`var.t_new ? "x-${aws_kms_key.j.arn}" : null`:   false,
+		`var.t_new ? "x-${terraform.workspace}" : null`: false,
+		`var.t_new ? "%{if true}x%{endif}" : null`:      false,
+		`var.t_new ? "$${x}" : null`:                    false,
+		"var.t_new ? <<-T\n    x\n    T\n    : null":    false,
 	} {
 		t.Run(arg, func(t *testing.T) {
 			base, head := toggleShape{toggles: 16, insertAt: 12, newArg: arg}.trees()
 			for _, m := range []map[string]string{base, head} {
-				m["res.tf"] = res
-				m["main.tf"] = strings.Replace(m["main.tf"], "    var.desc,\n", "    var.desc,\n    var.t00 ? aws_kms_key.j.arn : null,\n    var.t00 ? data.aws_region.r.name : null,\n    var.t00 ? ephemeral.aws_s.a.value : null,\n", 1)
+				m["extra.tf"] = extra
+				m["main.tf"] = strings.Replace(m["main.tf"], "    var.desc,\n", "    var.desc,\n    var.t00 ? aws_kms_key.j.arn : null,\n", 1)
 			}
 			if tr := descTrigger(t, runPair(t, base, head, "")); proven(tr) != want {
 				t.Errorf("proof %v, want %v: %s", proven(tr), want, str(tr.Reason))
@@ -302,6 +356,9 @@ func TestAddedToggleNoopCallSets(t *testing.T) {
 			map[string]string{"root/main.tf": call("../modules/m", "  t_new = true\n")}, false},
 		"existing call with backslashes": {map[string]string{"root/main.tf": call(`..\\modules\\m`, "")},
 			map[string]string{"root/main.tf": call(`..\\modules\\m`, "  t_new = true\n")}, false},
+		"renamed call sets it": {map[string]string{"root/main.tf": call("../modules/m", "")},
+			map[string]string{"root/main.tf": strings.Replace(call("../modules/m", "  t_new = true\n"), `"m"`, `"n"`, 1) +
+				"moved {\n  from = module.m\n  to   = module.n\n}\n"}, false},
 		"added call sets it": {map[string]string{"root/main.tf": ""},
 			map[string]string{"root/main.tf": call("../modules/m", "  t_new = true\n")}, true},
 		"wrapper line": {map[string]string{"wrappers/main.tf": wrapper(""), "wrappers/variables.tf": wrapperVars},
@@ -325,6 +382,23 @@ func TestAddedToggleNoopCallSets(t *testing.T) {
 				t.Errorf("proof %v, want %v: %s", proven(tr), c.proof, str(tr.Reason))
 			}
 		})
+	}
+}
+
+// TestAddedToggleNoopLongNames: inputs whose names share their first 59
+// bytes still get distinct case ids past the cap.
+func TestAddedToggleNoopLongNames(t *testing.T) {
+	base, head := toggleShape{toggles: 20, insertAt: 10, prefix: strings.Repeat("a", 59)}.trees()
+	tr := descTrigger(t, runPair(t, base, head, ""))
+	ids := map[string]bool{}
+	for _, c := range tr.Cases {
+		if ids[c.ID] || len(c.ID) > 64 {
+			t.Errorf("case id %q repeated or too long", c.ID)
+		}
+		ids[c.ID] = true
+	}
+	if !proven(tr) || len(tr.Cases) < 21 {
+		t.Errorf("%d cases, reason %s", len(tr.Cases), str(tr.Reason))
 	}
 }
 
@@ -381,9 +455,13 @@ func TestAddedToggleNoopScope(t *testing.T) {
 			"resource \"aws_iam_role\" \"r\" {\n  count = length(" + co(added) + ") > 0 ? 1 : 0\n}\n", false},
 		"dynamic for_each": {"resource \"aws_iam_role\" \"r\" {\n  dynamic \"d\" {\n    for_each = " + co("") + " == null ? [] : [1]\n    content {}\n  }\n}\n",
 			"resource \"aws_iam_role\" \"r\" {\n  dynamic \"d\" {\n    for_each = " + co(added) + " == null ? [] : [1]\n    content {}\n  }\n}\n", false},
+		"try instead of coalesce": {"locals {\n  description = try(var.desc, var.t00 ? \"Text 00\" : null, \"b\")\n}\n",
+			"locals {\n  description = try(var.desc, var.t_new ? \"Text new\" : null, var.t00 ? \"Text 00\" : null, \"b\")\n}\n", false},
+		"no string argument but a number false result": {"locals {\n  description = try(coalesce(var.desc, var.t00 ? \"a\" : var.n), null)\n}\n",
+			"locals {\n  description = try(coalesce(var.desc, var.t_new ? \"n\" : null, var.t00 ? \"a\" : var.n), null)\n}\n", false},
 		"template wrap": {"locals {\n  description = " + co("") + "\n}\n", "locals {\n  description = " + co(`, var.t_new ? "${var.desc}" : null`) + "\n}\n", false},
-		"expanded last argument": {"locals {\n  description = try(coalesce(var.t00 ? \"x\" : null, \"a\", local.l...), null)\n}\n",
-			"locals {\n  description = try(coalesce(var.t00 ? \"x\" : null, \"a\", var.t_new ? \"n\" : null, local.l...), null)\n}\n", false},
+		"expanded last argument": {"locals {\n  description = try(coalesce(var.t00 ? \"x\" : null, \"a\", var.l...), null)\n}\n",
+			"locals {\n  description = try(coalesce(var.t00 ? \"x\" : null, \"a\", var.t_new ? \"n\" : null, var.l...), null)\n}\n", false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := runPair(t, map[string]string{"variables.tf": vars, "main.tf": c.base, "caller/main.tf": localCaller},

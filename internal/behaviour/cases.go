@@ -165,6 +165,7 @@ func firstStates(inputs []caseInput) ([]Case, string) {
 	}
 	var out []Case
 	offCase := Case{ID: "off", Inputs: off}
+	used := map[string]bool{"off": true}
 	for _, in := range inputs {
 		st, ok := on[in.name]
 		if !ok {
@@ -172,7 +173,12 @@ func firstStates(inputs []caseInput) ([]Case, string) {
 		}
 		m := maps.Clone(off)
 		m[in.name] = st.in
-		out = append(out, Case{ID: caseID(in.name, st.label), Inputs: m})
+		id := caseID(in.name, st.label)
+		for i := 2; used[id]; i++ {
+			id = caseID(in.name, fmt.Sprintf("%s-%d", st.label, i))
+		}
+		used[id] = true
+		out = append(out, Case{ID: id, Inputs: m})
 	}
 	// Every input off may fail at both revisions, so it is not the first
 	// case, which a sweep must observe.

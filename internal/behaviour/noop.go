@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -15,7 +16,7 @@ import (
 
 // reasonNoop is the reason of a trigger the sweep confirms a proof for.
 const reasonNoop = "the head is the base for every caller that does not already pass the name of an added toggle: " +
-	"each keeps its default false, so coalesce skips the argument it guards, which reads nothing the base does not; " +
+	"each keeps its default false, so coalesce skips the argument it guards, a bare string that reads nothing; " +
 	"the directory is a module that a local module call of the tree uses, and no configuration, variable definitions, " +
 	"test, Terragrunt, YAML or JSON file of the tree names a toggle outside it; " +
 	"any other way a root receives the name, such as the environment or a file outside the tree, is not seen; " +
@@ -26,12 +27,13 @@ const reasonSmoke = "past the cap the cases are every input off and each turned 
 
 // addedToggles are the variables of dir the head adds that no module call
 // at the base can set: optional, as rule A asks, and defaulting to false.
-// A directory with a file the walk does not read (.tf.json, .tofu,
-// .tofu.json, which may declare or override a variable), or a variable
-// definitions file at or below it, at either revision, has none.
+// A directory with a variable definitions file at or below it, at either
+// revision, has none.
 func (c *classifier) addedToggles(dir string) map[string]bool {
 	v := c.views[dir]
-	if v[0] == nil || v[1] == nil || v[0].unwalked || v[1].unwalked || hasVarFiles(c.base, dir) || hasVarFiles(c.head, dir) {
+	// A directory of the change with a file the walk does not read sets
+	// blind, which silent refuses.
+	if v[0] == nil || v[1] == nil || hasVarFiles(c.base, dir) || hasVarFiles(c.head, dir) {
 		return nil
 	}
 	out := map[string]bool{}
@@ -107,9 +109,20 @@ func (c *classifier) silent(dir string, pins []string) bool {
 	if c.blind {
 		return false
 	}
+	if c.mention == nil {
+		c.mention = map[string]bool{}
+	}
 	for _, name := range pins {
 		word := wordRE(name)
-		if mentioned(c.base, name) || mentioned(c.head, name) {
+		if expired(c.lim) {
+			return false
+		}
+		m, ok := c.mention[name]
+		if !ok {
+			m = mentioned(c.base, name) || mentioned(c.head, name)
+			c.mention[name] = m
+		}
+		if m {
 			return false
 		}
 		for _, p := range c.base.Paths {
@@ -137,14 +150,15 @@ func (c *classifier) silent(dir string, pins []string) bool {
 
 // newCallerRanges are the byte ranges of a head file of directory d that
 // cannot pass name to an existing caller: the module calls the head adds,
-// and the line rule B would accept for name.
+// unless a moved block renames an existing one to it, and the line rule B
+// would accept for name.
 func (c *classifier) newCallerRanges(d string, v [2]*view, file, name string) []hcl.Range {
 	var out []hcl.Range
 	for key, it := range v[1].items {
 		if it.file != file || it.kind != itemModule {
 			continue
 		}
-		if v[0] == nil || v[0].items[key] == nil {
+		if (v[0] == nil || v[0].items[key] == nil) && !movedTo(v[1], it.addr) {
 			out = append(out, it.block.Range())
 			continue
 		}
@@ -155,14 +169,29 @@ func (c *classifier) newCallerRanges(d string, v [2]*view, file, name string) []
 	return out
 }
 
+// movedTo reports a moved block of the view whose to names addr or one of
+// its instances: the call is an existing one renamed.
+func movedTo(v *view, addr string) bool {
+	for _, it := range v.items {
+		if it.kind != itemMoved {
+			continue
+		}
+		to := strings.Join(strings.Fields(it.addr), "")
+		if to == addr || strings.HasPrefix(to, addr+"[") || strings.HasPrefix(to, addr+".") {
+			return true
+		}
+	}
+	return false
+}
+
 // wrapperLine reports the generated wrapper line of rule B: module
-// "wrapper" in wrappers/main.tf or wrappers/<one>/main.tf, both revisions
-// walked, for_each = var.items, the defaults and items variables {} of type
-// any at both revisions, and the line try(each.value.N, var.defaults.N,
-// false).
+// "wrapper" in wrappers/main.tf or wrappers/<one>/main.tf (a directory the
+// walk cannot read sets blind), for_each = var.items, the defaults and
+// items variables {} of type any at both revisions, and the line
+// try(each.value.N, var.defaults.N, false).
 func (c *classifier) wrapperLine(d string, v [2]*view, it *item, a *hclsyntax.Attribute, name string) bool {
 	if it.key != "module.wrapper" || path.Base(it.file) != "main.tf" || d != "wrappers" && path.Dir(d) != "wrappers" ||
-		v[0] == nil || v[0].unwalked || v[1].unwalked {
+		v[0] == nil {
 		return false
 	}
 	fe := it.block.Body.Attributes["for_each"]
@@ -194,23 +223,33 @@ func blank(data []byte, rs []hcl.Range) []byte {
 }
 
 // calledLocally reports a module call of a head .tf file whose source is a
-// local path to dir, so the directory is used as a module.
+// local path to dir, so the directory is used as a module. The targets are
+// found once per run; past the deadline nothing is called.
 func (c *classifier) calledLocally(dir string) bool {
-	for _, d := range slices.Sorted(maps.Keys(c.head.Dirs)) {
-		v, ok := c.views[d]
-		hv := v[1]
-		if !ok {
-			if hv, _ = buildView(c.head, d, c.lim); hv == nil {
-				continue
+	if c.called == nil {
+		c.called = map[string]bool{}
+		for _, d := range slices.Sorted(maps.Keys(c.head.Dirs)) {
+			if expired(c.lim) {
+				c.called = map[string]bool{}
+				return false
 			}
-		}
-		for _, it := range hv.items {
-			if it.kind == itemModule && localSourceDir(d, it) == dir {
-				return true
+			v, ok := c.views[d]
+			hv := v[1]
+			if !ok {
+				if hv, _ = buildView(c.head, d, c.lim); hv == nil {
+					continue
+				}
+			}
+			for _, it := range hv.items {
+				if it.kind == itemModule {
+					if t := localSourceDir(d, it); t != "" {
+						c.called[t] = true
+					}
+				}
 			}
 		}
 	}
-	return false
+	return c.called[dir] && !expired(c.lim)
 }
 
 // localSourceDir is the directory a module call's literal local source
@@ -238,9 +277,9 @@ func localSourceDir(d string, it *item) string {
 // toggle at its default false is the base: each read of a toggle is the
 // condition of a coalesce argument `var.<toggle> ? <string template> :
 // null`, which is then a null coalesce skips, beside another argument of
-// string type, so the arguments unify to the same type; those arguments
-// read nothing that may not resolve or that the base does not read; the
-// head without them is the base, token for token; and dir is a module a
+// string type, so the arguments unify to the same type; the true result is
+// a bare quoted string, which reads nothing; the head without them is the
+// base, token for token; and dir is a module a
 // local call uses, which nothing outside it can pass a toggle (see silent).
 func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 	if base == nil || head == nil {
@@ -285,7 +324,11 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 			}
 			_, tmpl := cond.TrueResult.(*hclsyntax.TemplateExpr)
 			name, read := toggleRead(cond.Condition)
-			if tmpl && read && toggles[name] && isNullLit(cond.FalseResult) {
+			// A bare quoted string reads nothing: an interpolation would add
+			// its marks (sensitive, ephemeral) and its dependencies to the
+			// result whatever the condition.
+			_, bare := bareLiteral(cond.TrueResult, head.src)
+			if tmpl && bare && read && toggles[name] && isNullLit(cond.FalseResult) {
 				guarded = append(guarded, a.Range())
 				if !slices.Contains(pins, name) {
 					pins = append(pins, name)
@@ -300,82 +343,18 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 		}
 		return nil
 	})
-	if len(drop) == 0 || len(drop) != reads || !readsKnown(head, drop, base, c.views[dir][1].vars) || !c.calledLocally(dir) || !c.silent(dir, pins) {
+	if len(drop) == 0 || len(drop) != reads || normKey(base.expr.Range().SliceBytes(base.src), false) != tokensWithout(head, drop) {
 		return nil
 	}
-	if normKey(base.expr.Range().SliceBytes(base.src), false) != tokensWithout(head, drop) {
+	if !c.calledLocally(dir) || !c.silent(dir, pins) {
 		return nil
 	}
 	slices.Sort(pins)
 	return pins
 }
 
-// readsKnown reports that the dropped arguments read only what resolves
-// whatever the toggle and adds no dependency: a variable the directory
-// declares, path.module, path.root, path.cwd, terraform.workspace, and the
-// resources, data sources, module calls and locals, and count or each, the
-// base expression reads. Terraform resolves every reference of an
-// expression, so one that does not resolve fails the head for every caller.
-func readsKnown(head *exprInfo, drop []hcl.Range, base *exprInfo, vars map[string]string) bool {
-	baseRefs, baseRoots := map[string]bool{}, map[string]bool{}
-	for _, tr := range base.expr.Variables() {
-		baseRoots[tr.RootName()] = true
-		if k, ok := refKey(tr); ok {
-			baseRefs[k] = true
-		}
-	}
-	for _, tr := range head.expr.Variables() {
-		r := tr.SourceRange()
-		if !slices.ContainsFunc(drop, func(d hcl.Range) bool { return d.Start.Byte <= r.Start.Byte && r.End.Byte <= d.End.Byte }) {
-			continue
-		}
-		k, ok := refKey(tr)
-		switch tr.RootName() {
-		case "var":
-			if name, known := varName(tr); !known || vars[name] == "" {
-				return false
-			}
-		case "path":
-			if k != "path.module" && k != "path.root" && k != "path.cwd" {
-				return false
-			}
-		case "terraform":
-			if k != "terraform.workspace" {
-				return false
-			}
-		case "count", "each":
-			if !baseRoots[tr.RootName()] {
-				return false
-			}
-		default:
-			if !ok || !baseRefs[k] {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// refKey is the object a traversal reads: type.name, data.type.name,
-// ephemeral.type.name, module.name or local.name.
-func refKey(tr hcl.Traversal) (string, bool) {
-	n := 2
-	if tr.RootName() == "data" || tr.RootName() == "ephemeral" {
-		n = 3
-	}
-	if len(tr) < n {
-		return "", false
-	}
-	parts := []string{tr.RootName()}
-	for _, step := range tr[1:n] {
-		a, ok := step.(hcl.TraverseAttr)
-		if !ok {
-			return "", false
-		}
-		parts = append(parts, a.Name)
-	}
-	return strings.Join(parts, "."), true
-}
+// expired reports a deadline of the limits that has passed.
+func expired(l facts.Limits) bool { return !l.Deadline.IsZero() && time.Now().After(l.Deadline) }
 
 // toggleRead is the variable a bare var.<name> traversal reads.
 func toggleRead(n hclsyntax.Node) (string, bool) {

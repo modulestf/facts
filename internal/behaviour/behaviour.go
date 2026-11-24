@@ -34,6 +34,11 @@ type classifier struct {
 	// does not read: a .tf.json, .tofu or .tofu.json file, or a .tf file of
 	// a directory that has no view or holds such a file.
 	blind bool
+	// called and mention cache the tree scans of the toggle proof: the
+	// directories a local module call uses, and the names a scanned file
+	// mentions.
+	called  map[string]bool
+	mention map[string]bool
 }
 
 // change is one changed tree entry.
