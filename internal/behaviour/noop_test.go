@@ -2,6 +2,7 @@ package behaviour
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -65,7 +66,7 @@ func TestAddedToggleNoop(t *testing.T) {
 	if len(tr.Cases) == 0 || len(tr.Cases) > maxSweepCases {
 		t.Fatalf("%d cases: %s", len(tr.Cases), mustJSON(t, tr))
 	}
-	if str(tr.Reason) != reasonNoop {
+	if str(tr.Reason) != reasonNoop+"; "+reasonSmoke {
 		t.Errorf("reason: %s", str(tr.Reason))
 	}
 	states := map[string]map[string]bool{}
@@ -103,11 +104,11 @@ func TestAddedToggleNoopRefused(t *testing.T) {
 			newVar: "variable \"t_new\" {\n  type     = bool\n  default  = false\n  nullable = false\n}\n"},
 		"validated": {toggles: 16, insertAt: 3,
 			newVar: "variable \"t_new\" {\n  type    = bool\n  default = false\n  validation {\n    condition     = true\n    error_message = \"x\"\n  }\n}\n"},
-		"read twice":     {toggles: 16, insertAt: 3, newArg: `var.t_new ? "Text new" : null, var.t_new ? "Again" : "x"`},
-		"negated":        {toggles: 16, insertAt: 3, newArg: `!var.t_new ? "Text new" : null`},
-		"number result":  {toggles: 16, insertAt: 3, newArg: `var.t_new ? 1 : null`},
+		"read twice":               {toggles: 16, insertAt: 3, newArg: `var.t_new ? "Text new" : null, var.t_new ? "Again" : "x"`},
+		"negated":                  {toggles: 16, insertAt: 3, newArg: `!var.t_new ? "Text new" : null`},
+		"number result":            {toggles: 16, insertAt: 3, newArg: `var.t_new ? 1 : null`},
 		"no other string argument": {toggles: 0, insertAt: 0},
-		"old toggle var": {toggles: 16, insertAt: 3, newArg: `var.t00 ? "Text new" : null`, newVar: "\n"},
+		"old toggle var":           {toggles: 16, insertAt: 3, newArg: `var.t00 ? "Text new" : null`, newVar: "\n"},
 	}
 	for name, s := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -143,5 +144,38 @@ func TestAddedToggleNoopOverCap(t *testing.T) {
 	tr := descTrigger(t, runPair(t, base, head, ""))
 	if len(tr.Cases) != 0 || !strings.Contains(str(tr.Reason), "cap") {
 		t.Errorf("%d cases, reason %q", len(tr.Cases), str(tr.Reason))
+	}
+}
+
+// TestAddedToggleNoopPremise: no caller at the base can set the toggle only
+// when the walk read every file that may declare, override or set it, so a
+// directory with a .tf.json, .tofu or .tofu.json file or a variable
+// definitions file at either revision keeps the plain sweep and its refusal.
+func TestAddedToggleNoopPremise(t *testing.T) {
+	cases := map[string]struct{ base, head map[string]string }{
+		"head override.tf.json":  {head: map[string]string{"override.tf.json": `{"variable":{"t_new":{"default":true}}}`}},
+		"head .tofu":             {head: map[string]string{"variables.tofu": "variable \"t_new\" {\n  default = true\n}\n"}},
+		"head .tofu.json":        {head: map[string]string{"x.tofu.json": "{}"}},
+		"base .tf.json declares": {base: map[string]string{"extra.tf.json": `{"variable":{"t_new":{"type":"bool"}}}`}},
+		"head terraform.tfvars":  {head: map[string]string{"terraform.tfvars": "t_new = true\n"}},
+		"base auto.tfvars.json":  {base: map[string]string{"x.auto.tfvars.json": `{"t_new": true}`}},
+		"head upper-case TFVARS": {head: map[string]string{"Prod.TFVARS": "t_new = true\n"}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			base, head := toggleShape{toggles: 16, insertAt: 12}.trees()
+			maps.Copy(base, c.base)
+			maps.Copy(head, c.head)
+			tr := descTrigger(t, runPair(t, base, head, ""))
+			if len(tr.Cases) != 0 || strings.Contains(str(tr.Reason), "exists at the base") {
+				t.Errorf("%d cases, reason %q", len(tr.Cases), str(tr.Reason))
+			}
+		})
+	}
+	// A variable definitions file in another directory does not matter.
+	base, head := toggleShape{toggles: 16, insertAt: 12}.trees()
+	head["examples/x/terraform.tfvars"] = "t_new = true\n"
+	if tr := descTrigger(t, runPair(t, base, head, "")); len(tr.Cases) == 0 {
+		t.Errorf("tfvars in another directory: %s", str(tr.Reason))
 	}
 }

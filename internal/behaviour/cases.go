@@ -163,7 +163,7 @@ func firstStates(inputs []caseInput) ([]Case, string) {
 	if len(out) > maxSweepCases {
 		return []Case{}, fmt.Sprintf("one state at a time needs %d cases, over the cap of %d", len(out), maxSweepCases)
 	}
-	return out, ""
+	return out, reasonSmoke
 }
 
 // addDefault gives the input name, a variable the change adds, the state of

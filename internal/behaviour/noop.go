@@ -1,21 +1,30 @@
 package behaviour
 
 import (
+	"path"
 	"slices"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // reasonNoop is the reason of a trigger the sweep confirms a proof for.
 const reasonNoop = "the head is the base for every caller that exists at the base: each added toggle keeps its default false, " +
 	"so coalesce skips the argument it guards; the cases confirm it with the toggles pinned"
 
+// reasonSmoke is added when the cases of a proven trigger are past the cap.
+const reasonSmoke = "past the cap the cases are one state at a time, a smoke check of the proof, not coverage"
+
 // addedToggles are the variables of dir the head adds that no caller at
-// the base can set: optional, as rule A asks, and defaulting to false.
+// the base can set: optional, as rule A asks, and defaulting to false. A
+// directory with a file the walk does not read (.tf.json, .tofu,
+// .tofu.json, which may declare or override a variable) or a variable
+// definitions file at either revision has none.
 func (c *classifier) addedToggles(dir string) map[string]bool {
 	v := c.views[dir]
-	if v[0] == nil || v[1] == nil {
+	if v[0] == nil || v[1] == nil || v[0].unwalked || v[1].unwalked || hasVarFiles(c.base, dir) || hasVarFiles(c.head, dir) {
 		return nil
 	}
 	out := map[string]bool{}
@@ -30,6 +39,19 @@ func (c *classifier) addedToggles(dir string) map[string]bool {
 		}
 	}
 	return out
+}
+
+// hasVarFiles reports a variable definitions file in dir, such as
+// terraform.tfvars or x.auto.tfvars.json, which sets variables of a root
+// module with no caller.
+func hasVarFiles(t *facts.Tree, dir string) bool {
+	if t == nil {
+		return true
+	}
+	return slices.ContainsFunc(t.DirEntries(dir), func(e *facts.Entry) bool {
+		name := strings.ToLower(path.Base(e.Path))
+		return strings.HasSuffix(name, ".tfvars") || strings.HasSuffix(name, ".tfvars.json")
+	})
 }
 
 // noopPins returns the added toggles of dir that the head expression reads

@@ -38,7 +38,8 @@ passes it through as try(each.value.N, var.defaults.N, <default>) follows it.
 When such a variable defaults to false and only guards coalesce arguments
 var.N ? "<string>" : null that the head adds beside another string argument,
 and the head without them is the base, the use site is the base for every
-existing caller: its L1 cases pin N to false and only confirm that.
+existing caller: its L1 cases pin N to false and only confirm that. A
+directory with a .tf.json, .tofu, .tofu.json or .tfvars file gets no proof.
 
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the
