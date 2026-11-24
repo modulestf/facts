@@ -182,6 +182,8 @@ func TestAddedToggleNoopPremise(t *testing.T) {
 	}{
 		"tfvars below":           {map[string]string{"modules/m/env/prod.tfvars": "t_new = true\n"}, false},
 		"tftest names it":        {map[string]string{"tests/x.tftest.hcl": "variables {\n  t_new = true\n}\n"}, false},
+		"tftest.json names it":   {map[string]string{"tests/x.tftest.json": `{"variables": {"t_new": true}}`}, false},
+		"tofutest.json names it": {map[string]string{"tests/x.tofutest.json": `{"variables": {"t_new": true}}`}, false},
 		"terragrunt names it":    {map[string]string{"live/terragrunt.hcl": "inputs = {\n  t_new = true\n}\n"}, false},
 		"sibling tfvars":         {map[string]string{"examples/x/terraform.tfvars": "t_new = true\n"}, true},
 		"terragrunt other names": {map[string]string{"live/terragrunt.hcl": "inputs = {\n  t_newer = true\n}\n"}, true},
@@ -220,6 +222,12 @@ func TestAddedToggleNoopReads(t *testing.T) {
 		`var.t_new ? "key ${data.aws_region.r.name}" : null`:  false,
 		`var.t_new ? "key ${local.other}" : null`:             false,
 		`var.t_new ? "key ${module.m.out}" : null`:            false,
+		`var.t_new ? "x ${var.nope}" : null`:                  false,
+		`var.t_new ? "x ${path.nope}" : null`:                 false,
+		`var.t_new ? "x ${terraform.nope}" : null`:            false,
+		`var.t_new ? "x ${each.key}" : null`:                  false,
+		`var.t_new ? "x ${count.index}" : null`:               false,
+		`var.t_new ? "x ${terraform.workspace}" : null`:       true,
 		`var.t_new ? "key ${aws_kms_key.j.arn}" : null`:       true,
 		`var.t_new ? "key ${var.desc} ${path.module}" : null`: true,
 	} {
@@ -244,16 +252,18 @@ func TestAddedToggleNoopCallSets(t *testing.T) {
 		"true": false,
 		"try(each.value.t_new, var.defaults.t_new, false)": true,
 	} {
-		t.Run(value, func(t *testing.T) {
-			base, head := toggleShape{toggles: 16, insertAt: 12}.trees()
-			base, head = under("modules/m", base), under("modules/m", head)
-			call := "module \"m\" {\n  source = \"../modules/m\"\n%s}\n"
-			base["root/main.tf"] = fmt.Sprintf(call, "")
-			head["root/main.tf"] = fmt.Sprintf(call, "  t_new  = "+value+"\n")
-			if tr := descTrigger(t, runPair(t, base, head, "")); proven(tr) != want {
-				t.Errorf("proof %v, want %v: %s", proven(tr), want, str(tr.Reason))
-			}
-		})
+		for _, source := range []string{"../modules/m", `..\\modules\\m`} {
+			t.Run(value+" "+source, func(t *testing.T) {
+				base, head := toggleShape{toggles: 16, insertAt: 12}.trees()
+				base, head = under("modules/m", base), under("modules/m", head)
+				call := "module \"m\" {\n  source = \"" + source + "\"\n%s}\n"
+				base["root/main.tf"] = fmt.Sprintf(call, "")
+				head["root/main.tf"] = fmt.Sprintf(call, "  t_new  = "+value+"\n")
+				if tr := descTrigger(t, runPair(t, base, head, "")); proven(tr) != want {
+					t.Errorf("proof %v, want %v: %s", proven(tr), want, str(tr.Reason))
+				}
+			})
+		}
 	}
 }
 

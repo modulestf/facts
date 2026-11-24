@@ -61,9 +61,10 @@ func hasVarFiles(t *facts.Tree, dir string) bool {
 	})
 }
 
-// mentioned reports a name as a word in an HCL file of the tree that is no
-// Terraform configuration and no lock file, such as x.tftest.hcl or
-// terragrunt.hcl; such a file that is not a regular file counts.
+// mentioned reports a name as a word in an .hcl or .json file of the tree
+// other than the lock file, such as x.tftest.hcl, x.tftest.json or
+// terragrunt.hcl, which may set it for a root; such a file that is not a
+// regular file counts.
 func mentioned(t *facts.Tree, name string) bool {
 	if t == nil {
 		return true
@@ -71,7 +72,7 @@ func mentioned(t *facts.Tree, name string) bool {
 	word := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(name) + `($|[^A-Za-z0-9_-])`)
 	for _, p := range t.Paths {
 		base := strings.ToLower(path.Base(p))
-		if !strings.HasSuffix(base, ".hcl") && !strings.HasSuffix(base, ".hcl.json") || base == ".terraform.lock.hcl" {
+		if !strings.HasSuffix(base, ".hcl") && !strings.HasSuffix(base, ".json") || base == ".terraform.lock.hcl" {
 			continue
 		}
 		if e := t.Entries[p]; e.Kind != facts.KindFile || word.Match(e.Data) {
@@ -147,7 +148,7 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 		}
 		return nil
 	})
-	if len(drop) == 0 || len(drop) != reads || !readsKnown(head, drop, base) || c.callSets(dir, pins) {
+	if len(drop) == 0 || len(drop) != reads || !readsKnown(head, drop, base, c.views[dir][1].vars) || c.callSets(dir, pins) {
 		return nil
 	}
 	if normKey(base.expr.Range().SliceBytes(base.src), false) != tokensWithout(head, drop) {
@@ -157,13 +158,16 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 	return pins
 }
 
-// readsKnown reports that the dropped arguments read only variables,
-// path, terraform, count and each, and the resources, data sources, module
-// calls and locals the base expression reads: a new reference would give
-// the block a new dependency whatever the toggle.
-func readsKnown(head *exprInfo, drop []hcl.Range, base *exprInfo) bool {
-	baseRefs := map[string]bool{}
+// readsKnown reports that the dropped arguments read only what resolves
+// whatever the toggle and adds no dependency: a variable the directory
+// declares, path.module, path.root, path.cwd, terraform.workspace, and the
+// resources, data sources, module calls and locals, and count or each, the
+// base expression reads. Terraform resolves every reference of an
+// expression, so one that does not resolve fails the head for every caller.
+func readsKnown(head *exprInfo, drop []hcl.Range, base *exprInfo, vars map[string]string) bool {
+	baseRefs, baseRoots := map[string]bool{}, map[string]bool{}
 	for _, tr := range base.expr.Variables() {
+		baseRoots[tr.RootName()] = true
 		if k, ok := refKey(tr); ok {
 			baseRefs[k] = true
 		}
@@ -173,12 +177,28 @@ func readsKnown(head *exprInfo, drop []hcl.Range, base *exprInfo) bool {
 		if !slices.ContainsFunc(drop, func(d hcl.Range) bool { return d.Start.Byte <= r.Start.Byte && r.End.Byte <= d.End.Byte }) {
 			continue
 		}
+		k, ok := refKey(tr)
 		switch tr.RootName() {
-		case "var", "path", "terraform", "count", "each":
-			continue
-		}
-		if k, ok := refKey(tr); !ok || !baseRefs[k] {
-			return false
+		case "var":
+			if name, known := varName(tr); !known || vars[name] == "" {
+				return false
+			}
+		case "path":
+			if k != "path.module" && k != "path.root" && k != "path.cwd" {
+				return false
+			}
+		case "terraform":
+			if k != "terraform.workspace" {
+				return false
+			}
+		case "count", "each":
+			if !baseRoots[tr.RootName()] {
+				return false
+			}
+		default:
+			if !ok || !baseRefs[k] {
+				return false
+			}
 		}
 	}
 	return true
@@ -234,6 +254,8 @@ func (c *classifier) callSets(dir string, names []string) bool {
 			if !static {
 				return true
 			}
+			// Terraform reads a backslash in a local source as a slash.
+			s = strings.ReplaceAll(s, `\`, "/")
 			if (strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../")) && path.Clean(path.Join(d, s)) == dir {
 				return true
 			}
