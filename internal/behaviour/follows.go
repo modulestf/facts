@@ -160,7 +160,7 @@ func refReads(v *view, root, name string) (reads []varRead, fileCalls, ok bool) 
 				// A dynamic block's iterator is its label unless an iterator
 				// argument names it; iterator = <root> is itself a bare root
 				// reference, which names nothing.
-				ok = ok && !(x.Type == "dynamic" && x.Body.Attributes["iterator"] == nil && slices.Equal(x.Labels, []string{root}))
+				ok = ok && (x.Type != "dynamic" || x.Body.Attributes["iterator"] != nil || !slices.Equal(x.Labels, []string{root}))
 			}
 			return nil
 		})
