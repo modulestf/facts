@@ -283,8 +283,9 @@ type spec struct {
 	// rng is the head source the trigger stands for: a read of a variable
 	// inside it is evaluated with it. Unset where no evaluation covers it.
 	rng *hcl.Range
-	// variable is the block of a variable the change adds.
-	variable *item
+	// variable is the block of a variable the change adds, and local the
+	// attribute of a local it adds.
+	variable, local *item
 	// sid numbers the spec; follows are the sids of the specs whose state
 	// this one follows, non-nil for a follower.
 	sid     int
@@ -368,6 +369,9 @@ func (d *decomposer) alone(it *item, kind string) {
 	case itemLocal:
 		s.cat, e = CatLocalsOutputs, x(it.attr)
 		s.rng = new(it.attr.SrcRange)
+		if kind == KindAdded {
+			s.local = it
+		}
 	case itemOutput:
 		s.cat, s.attr, e = CatLocalsOutputs, "value", x(it.block.Body.Attributes["value"])
 		if a := it.block.Body.Attributes["value"]; a != nil {

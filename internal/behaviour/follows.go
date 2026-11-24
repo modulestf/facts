@@ -17,6 +17,7 @@ const (
 	reasonFollowsNone  = "an added optional variable that no expression of its module reads"
 	reasonFollowsLine  = "a generated wrapper line that passes an added optional variable through: its state follows that variable's trigger"
 	reasonFollowCapped = "a trigger it would follow is past the cap, so it selects its category's levels"
+	reasonFollowsLocal = "an added local: its state follows the triggers whose source holds a read of it"
 )
 
 // fileFuncs are the functions that read files: what a file holds is not
@@ -28,8 +29,9 @@ var fileFuncs = map[string]bool{
 }
 
 // follow numbers the specs and links the followers: rule A, an added
-// optional variable that follows the triggers holding its reads, then rule
-// B, a generated wrapper line that follows the variable it passes through.
+// optional variable that follows the triggers holding its reads, and an
+// added local that does the same, then rule B, a generated wrapper line that
+// follows the variable it passes through.
 func (c *classifier) follow(specs []spec) {
 	for i := range specs {
 		specs[i].sid = i
@@ -37,6 +39,11 @@ func (c *classifier) follow(specs []spec) {
 	accepted := map[string]int{} // dir + "\x00" + name -> sid
 	for i := range specs {
 		s := &specs[i]
+		if s.local != nil {
+			if follows, ok := c.ruleLocal(path.Dir(s.file), s.local, specs, s.sid); ok {
+				s.levels, s.follows, s.reason = []string{}, follows, reasonFollowsLocal
+			}
+		}
 		if s.variable == nil {
 			continue
 		}
@@ -70,10 +77,37 @@ func (c *classifier) ruleA(dir string, it *item, specs []spec) ([]int, bool) {
 		return nil, false
 	}
 	name := it.block.Labels[0]
-	reads, fileCalls, ok := varReads(v[1], name)
+	reads, fileCalls, ok := refReads(v[1], "var", name)
 	if !ok || len(reads) == 0 && fileCalls {
 		return nil, false
 	}
+	return holders(reads, specs, -1)
+}
+
+// ruleLocal returns the sids of the specs other than self whose head source
+// holds a read of the added local it, and false when it does not qualify:
+// both revisions of its directory fully walked, every reference to local
+// naming a local, at least one read, and every read inside another spec's
+// source and outside the arguments of a file function. A local nothing
+// reads does not follow: Terraform evaluates it all the same, and an error
+// in it fails the plan. The directory's views exist: only a decomposed
+// directory has specs of its items.
+func (c *classifier) ruleLocal(dir string, it *item, specs []spec, self int) ([]int, bool) {
+	v := c.views[dir]
+	if v[0].unwalked || v[1].unwalked {
+		return nil, false
+	}
+	reads, _, ok := refReads(v[1], "local", it.attr.Name)
+	if !ok || len(reads) == 0 {
+		return nil, false
+	}
+	return holders(reads, specs, self)
+}
+
+// holders returns the sids of the specs other than self whose head source
+// holds a read, and false when a read lies inside the arguments of a file
+// function or inside no such spec.
+func holders(reads []varRead, specs []spec, self int) ([]int, bool) {
 	follows := []int{}
 	seen := map[int]bool{}
 	for _, r := range reads {
@@ -82,7 +116,7 @@ func (c *classifier) ruleA(dir string, it *item, specs []spec) ([]int, bool) {
 		}
 		held := false
 		for _, s := range specs {
-			if s.rng == nil || s.file != r.file || s.rng.Start.Byte > r.rng.Start.Byte || r.rng.End.Byte > s.rng.End.Byte {
+			if s.sid == self || s.rng == nil || s.file != r.file || s.rng.Start.Byte > r.rng.Start.Byte || r.rng.End.Byte > s.rng.End.Byte {
 				continue
 			}
 			held = true
@@ -98,30 +132,42 @@ func (c *classifier) ruleA(dir string, it *item, specs []spec) ([]int, bool) {
 	return follows, true
 }
 
-// varRead is one head read of a variable.
+// varRead is one head read of a variable or a local.
 type varRead struct {
 	file       string
 	rng        hcl.Range
 	inFileCall bool // inside the arguments of a call of a file function
 }
 
-// varReads walks every file of a view for the reads of var.<name>. fileCalls
-// is set when a file function is called anywhere; ok is false when a
-// reference to var names no variable the walk can tell.
-func varReads(v *view, name string) (reads []varRead, fileCalls, ok bool) {
+// refReads walks every file of a view for the reads of <root>.<name>, root
+// being var or local. fileCalls is set when a file function is called
+// anywhere; ok is false when a reference to root names nothing the walk can
+// tell, or when a for expression or a dynamic block names its iterator root,
+// so a traversal from root may read the iterator.
+func refReads(v *view, root, name string) (reads []varRead, fileCalls, ok bool) {
 	ok = true
 	for _, f := range v.files {
 		var calls []hcl.Range
 		_ = hclsyntax.VisitAll(f.body, func(n hclsyntax.Node) hcl.Diagnostics {
-			if fc, isCall := n.(*hclsyntax.FunctionCallExpr); isCall && fileFuncs[fc.Name] {
-				calls = append(calls, fc.Range())
+			switch x := n.(type) {
+			case *hclsyntax.FunctionCallExpr:
+				if fileFuncs[x.Name] {
+					calls = append(calls, x.Range())
+				}
+			case *hclsyntax.ForExpr:
+				ok = ok && x.KeyVar != root && x.ValVar != root
+			case *hclsyntax.Block:
+				// A dynamic block's iterator is its label unless an iterator
+				// argument names it; iterator = <root> is itself a bare root
+				// reference, which names nothing.
+				ok = ok && !(x.Type == "dynamic" && x.Body.Attributes["iterator"] == nil && slices.Equal(x.Labels, []string{root}))
 			}
 			return nil
 		})
 		fileCalls = fileCalls || len(calls) > 0
 		_ = hclsyntax.VisitAll(f.body, func(n hclsyntax.Node) hcl.Diagnostics {
 			st, isTraversal := n.(*hclsyntax.ScopeTraversalExpr)
-			if !isTraversal || st.Traversal.RootName() != "var" {
+			if !isTraversal || st.Traversal.RootName() != root {
 				return nil
 			}
 			got, known := varName(st.Traversal)
@@ -141,7 +187,7 @@ func varReads(v *view, name string) (reads []varRead, fileCalls, ok bool) {
 	return reads, fileCalls, ok
 }
 
-// varName is the variable a var traversal reads: var.x or var["x"].
+// varName is the name a var or local traversal reads: var.x or var["x"].
 func varName(tr hcl.Traversal) (string, bool) {
 	if len(tr) < 2 {
 		return "", false

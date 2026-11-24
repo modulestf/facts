@@ -35,6 +35,8 @@ An added optional variable with a scope-invariant default, read only inside
 the source of other triggers of its fully walked module directory, selects no
 level and lists those triggers in follows; a generated wrapper line that
 passes it through as try(each.value.N, var.defaults.N, <default>) follows it.
+An added local read only inside the source of other triggers of its fully
+walked module directory does the same.
 
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the
