@@ -66,11 +66,11 @@ const maxLiterals = 8
 // states, as a local, module or self reference, or the sweep is over
 // maxSweepCases.
 //
-// A trigger whose head is its base for every caller that exists at the base
-// (see noopPins) is decided by that proof, and its cases only confirm it:
-// each added toggle has the one state of its default, no literal is a
-// state, and when the sweep is over the cap the cases are one per state at
-// a time, the first non-typical state of each input.
+// A trigger whose head is its base for every caller that does not already
+// pass a toggle's name (see noopPins) is decided by that proof, and its
+// cases only confirm it: each added toggle has the one state of its
+// default, no literal is a state, and when the sweep is over the cap the
+// cases are each input turned on alone and every input off (firstStates).
 func (c *classifier) cases(t Trigger, dir string, base, head *exprInfo) ([]Case, string, bool) {
 	// Instances and dynamic blocks follow the order and the duplicates of
 	// a collection, so those triggers need the order states and the full
@@ -143,8 +143,8 @@ func (c *classifier) cases(t Trigger, dir string, base, head *exprInfo) ([]Case,
 	return cs, why, pins != nil
 }
 
-// firstStates is one case with every input off and one case per input
-// turned on alone, order states left out, or no cases and a reason when
+// firstStates is one case per input turned on alone and one case with
+// every input off, second, order states left out, or no cases and a reason when
 // that is over maxSweepCases. An input is off in its false state, else its
 // null state, else its typical one, and on in its typical state, else its
 // first other one: so each argument of a coalesce is reached.
@@ -163,7 +163,8 @@ func firstStates(inputs []caseInput) ([]Case, string) {
 			on[in.name] = in.states[1]
 		}
 	}
-	out := []Case{{ID: "off", Inputs: off}}
+	var out []Case
+	offCase := Case{ID: "off", Inputs: off}
 	for _, in := range inputs {
 		st, ok := on[in.name]
 		if !ok {
@@ -173,6 +174,9 @@ func firstStates(inputs []caseInput) ([]Case, string) {
 		m[in.name] = st.in
 		out = append(out, Case{ID: caseID(in.name, st.label), Inputs: m})
 	}
+	// Every input off may fail at both revisions, so it is not the first
+	// case, which a sweep must observe.
+	out = slices.Insert(out, min(1, len(out)), offCase)
 	if len(out) > maxSweepCases {
 		return []Case{}, fmt.Sprintf("one input at a time needs %d cases, over the cap of %d", len(out), maxSweepCases)
 	}

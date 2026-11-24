@@ -30,6 +30,10 @@ type classifier struct {
 	schema     *schema.Set
 	lim        facts.Limits
 	views      map[string][2]*view // dir -> base and head view
+	// blind is set when the change touches a configuration file the walk
+	// does not read: a .tf.json, .tofu or .tofu.json file, or a .tf file of
+	// a directory that has no view or holds such a file.
+	blind bool
 }
 
 // change is one changed tree entry.
@@ -97,6 +101,18 @@ func (c *classifier) run() (*Report, error) {
 	}
 	for _, dir := range slices.Sorted(maps.Keys(tfDirs)) {
 		specs = append(specs, c.decompose(dir, changes)...)
+	}
+	for _, ch := range changes {
+		for _, p := range []string{ch.path, ch.prev} {
+			v, ok := c.views[path.Dir(p)]
+			switch base := path.Base(p); {
+			case p == "":
+			case strings.HasSuffix(base, ".tf.json") || strings.HasSuffix(base, ".tofu") || strings.HasSuffix(base, ".tofu.json"):
+				c.blind = true
+			case isConfigName(p) && (!ok || v[0].unwalked || v[1].unwalked):
+				c.blind = true
+			}
+		}
 	}
 	specs = append(specs, readTF(changes, specs, sc)...)
 	c.follow(specs)
@@ -389,7 +405,7 @@ func (c *classifier) trigger(s spec) Trigger {
 	if slices.Contains(t.Levels, LevelL1) {
 		cs, why, proven := c.cases(t, path.Dir(s.file), s.b, s.h)
 		t.Cases = cs
-		if proven {
+		if proven && len(cs) > 0 {
 			why = strings.TrimSuffix(reasonNoop+"; "+why, "; ")
 		}
 		if why != "" {

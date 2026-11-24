@@ -1,6 +1,8 @@
 package behaviour
 
 import (
+	"bytes"
+	"maps"
 	"path"
 	"regexp"
 	"slices"
@@ -14,7 +16,9 @@ import (
 // reasonNoop is the reason of a trigger the sweep confirms a proof for.
 const reasonNoop = "the head is the base for every caller that does not already pass the name of an added toggle: " +
 	"each keeps its default false, so coalesce skips the argument it guards, which reads nothing the base does not; " +
-	"values from the environment, var files outside the tree and Terragrunt inputs outside the tree cannot be seen; " +
+	"the directory is a module that a local module call of the tree uses, and no configuration, variable definitions, " +
+	"test, Terragrunt, YAML or JSON file of the tree names a toggle outside it; " +
+	"any other way a root receives the name, such as the environment or a file outside the tree, is not seen; " +
 	"the cases pin the toggles to false"
 
 // reasonSmoke is added when the cases of a proven trigger are past the cap.
@@ -24,10 +28,7 @@ const reasonSmoke = "past the cap the cases are every input off and each turned 
 // at the base can set: optional, as rule A asks, and defaulting to false.
 // A directory with a file the walk does not read (.tf.json, .tofu,
 // .tofu.json, which may declare or override a variable), or a variable
-// definitions file at or below it, at either revision, has none; nor has a
-// name an HCL file of either tree that Terraform does not load, such as a
-// test file or a Terragrunt configuration, mentions, since it may set it
-// for a root.
+// definitions file at or below it, at either revision, has none.
 func (c *classifier) addedToggles(dir string) map[string]bool {
 	v := c.views[dir]
 	if v[0] == nil || v[1] == nil || v[0].unwalked || v[1].unwalked || hasVarFiles(c.base, dir) || hasVarFiles(c.head, dir) {
@@ -41,7 +42,7 @@ func (c *classifier) addedToggles(dir string) map[string]bool {
 		name := it.block.Labels[0]
 		def, ok := v[1].defaults[name]
 		if _, declared := v[0].vars[name]; !declared && ok && string(def.Value) == "false" && optionalVar(it.block, it.src) {
-			out[name] = !mentioned(c.base, name) && !mentioned(c.head, name)
+			out[name] = true
 		}
 	}
 	return out
@@ -61,35 +62,186 @@ func hasVarFiles(t *facts.Tree, dir string) bool {
 	})
 }
 
-// mentioned reports a name as a word in an .hcl or .json file of the tree
-// other than the lock file, such as x.tftest.hcl, x.tftest.json or
-// terragrunt.hcl, which may set it for a root; such a file that is not a
-// regular file counts.
+// scannedNames are the files besides .tf files whose text may set a
+// variable of a root: variable definitions, test files, Terragrunt and other
+// HCL, JSON (.tf.json included), OpenTofu and YAML files.
+var scannedNames = []string{".hcl", ".json", ".tfvars", ".tofu", ".yaml", ".yml"}
+
+// wordRE matches a name as a whole identifier.
+func wordRE(name string) *regexp.Regexp {
+	return regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(name) + `($|[^A-Za-z0-9_-])`)
+}
+
+// mentioned reports a name as a word in a scanned file of the tree other
+// than the lock file, or TF_VAR_<name> in any file; an entry that is not a
+// regular file with its content counts.
 func mentioned(t *facts.Tree, name string) bool {
 	if t == nil {
 		return true
 	}
-	word := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(name) + `($|[^A-Za-z0-9_-])`)
+	word, env := wordRE(name), []byte("TF_VAR_"+name)
 	for _, p := range t.Paths {
+		e := t.Entries[p]
 		base := strings.ToLower(path.Base(p))
-		if !strings.HasSuffix(base, ".hcl") && !strings.HasSuffix(base, ".json") || base == ".terraform.lock.hcl" {
-			continue
-		}
-		if e := t.Entries[p]; e.Kind != facts.KindFile || word.Match(e.Data) {
+		scanned := base != ".terraform.lock.hcl" && slices.ContainsFunc(scannedNames, func(x string) bool { return strings.HasSuffix(base, x) })
+		switch {
+		case e.Kind == facts.KindFile && bytes.Contains(e.Data, env):
+			return true
+		case !scanned:
+		case e.Kind != facts.KindFile || word.Match(e.Data):
 			return true
 		}
 	}
 	return false
 }
 
+// silent reports that nothing in either tree outside dir names any of the
+// pinned toggles, so no existing caller can pass one: no scanned file
+// (see mentioned); no .tf file of the base outside dir, where the name
+// meant nothing; and no .tf file of a directory the change touches, other
+// than a module call the head adds, which is a new caller, and the
+// generated wrapper line of rule B, which passes on only what its caller
+// passes and whose callers the base scan covers. The change touched no
+// configuration file the walk could not read.
+func (c *classifier) silent(dir string, pins []string) bool {
+	if c.blind {
+		return false
+	}
+	for _, name := range pins {
+		word := wordRE(name)
+		if mentioned(c.base, name) || mentioned(c.head, name) {
+			return false
+		}
+		for _, p := range c.base.Paths {
+			if e := c.base.Entries[p]; isConfigName(p) && path.Dir(p) != dir && (e.Kind != facts.KindFile || word.Match(e.Data)) {
+				return false
+			}
+		}
+		for d, v := range c.views {
+			if d == dir {
+				continue
+			}
+			for _, f := range v[1].files {
+				e := c.head.Entries[f.path]
+				if e == nil || e.Kind != facts.KindFile {
+					return false
+				}
+				if word.Match(blank(e.Data, c.newCallerRanges(d, v, f.path, name))) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// newCallerRanges are the byte ranges of a head file of directory d that
+// cannot pass name to an existing caller: the module calls the head adds,
+// and the line rule B would accept for name.
+func (c *classifier) newCallerRanges(d string, v [2]*view, file, name string) []hcl.Range {
+	var out []hcl.Range
+	for key, it := range v[1].items {
+		if it.file != file || it.kind != itemModule {
+			continue
+		}
+		if v[0] == nil || v[0].items[key] == nil {
+			out = append(out, it.block.Range())
+			continue
+		}
+		if a := it.block.Body.Attributes[name]; a != nil && c.wrapperLine(d, v, it, a, name) {
+			out = append(out, a.SrcRange)
+		}
+	}
+	return out
+}
+
+// wrapperLine reports the generated wrapper line of rule B: module
+// "wrapper" in wrappers/main.tf or wrappers/<one>/main.tf, both revisions
+// walked, for_each = var.items, the defaults and items variables {} of type
+// any at both revisions, and the line try(each.value.N, var.defaults.N,
+// false).
+func (c *classifier) wrapperLine(d string, v [2]*view, it *item, a *hclsyntax.Attribute, name string) bool {
+	if it.key != "module.wrapper" || path.Base(it.file) != "main.tf" || d != "wrappers" && path.Dir(d) != "wrappers" ||
+		v[0] == nil || v[0].unwalked || v[1].unwalked {
+		return false
+	}
+	fe := it.block.Body.Attributes["for_each"]
+	if fe == nil || (&exprInfo{fe.Expr, it.src}).key() != normKey([]byte("var.items"), false) {
+		return false
+	}
+	for _, side := range v {
+		for _, n := range []string{"defaults", "items"} {
+			if !emptyObjectVar(side.items["variable."+n]) {
+				return false
+			}
+		}
+	}
+	return (&exprInfo{a.Expr, it.src}).key() == normKey([]byte("try(each.value."+name+", var.defaults."+name+", false)"), false)
+}
+
+// blank returns data with the bytes of each range replaced by spaces.
+func blank(data []byte, rs []hcl.Range) []byte {
+	if len(rs) == 0 {
+		return data
+	}
+	out := bytes.Clone(data)
+	for _, r := range rs {
+		for i := r.Start.Byte; i < r.End.Byte && i < len(out); i++ {
+			out[i] = ' '
+		}
+	}
+	return out
+}
+
+// calledLocally reports a module call of a head .tf file whose source is a
+// local path to dir, so the directory is used as a module.
+func (c *classifier) calledLocally(dir string) bool {
+	for _, d := range slices.Sorted(maps.Keys(c.head.Dirs)) {
+		v, ok := c.views[d]
+		hv := v[1]
+		if !ok {
+			if hv, _ = buildView(c.head, d, c.lim); hv == nil {
+				continue
+			}
+		}
+		for _, it := range hv.items {
+			if it.kind == itemModule && localSourceDir(d, it) == dir {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// localSourceDir is the directory a module call's literal local source
+// names, read as Terraform reads it, backslashes as slashes, or "".
+func localSourceDir(d string, it *item) string {
+	src := it.block.Body.Attributes["source"]
+	if src == nil {
+		return ""
+	}
+	parts, ok := templateParts(src.Expr)
+	if !ok {
+		return ""
+	}
+	s, static := literalPrefix(parts)
+	s = strings.ReplaceAll(s, `\`, "/")
+	if !static || !strings.HasPrefix(s, "./") && !strings.HasPrefix(s, "../") {
+		return ""
+	}
+	return path.Clean(path.Join(d, s))
+}
+
 // noopPins returns the added toggles of dir that the head expression reads
-// when it is the base expression for every caller that exists at the base,
-// or nil. That holds when the head with every added toggle at its default
-// false is the base: each read of a toggle is the condition of a
-// coalesce argument `var.<toggle> ? <string template> : null`, which is
-// then a null coalesce skips, beside another argument of string type, so
-// the arguments unify to the same type; and the head without those
-// arguments is the base, token for token.
+// when it is the base expression for every caller that does not already
+// pass a toggle's name, or nil. That holds when the head with every added
+// toggle at its default false is the base: each read of a toggle is the
+// condition of a coalesce argument `var.<toggle> ? <string template> :
+// null`, which is then a null coalesce skips, beside another argument of
+// string type, so the arguments unify to the same type; those arguments
+// read nothing that may not resolve or that the base does not read; the
+// head without them is the base, token for token; and dir is a module a
+// local call uses, which nothing outside it can pass a toggle (see silent).
 func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 	if base == nil || head == nil {
 		return nil
@@ -148,7 +300,7 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 		}
 		return nil
 	})
-	if len(drop) == 0 || len(drop) != reads || !readsKnown(head, drop, base, c.views[dir][1].vars) || c.callSets(dir, pins) {
+	if len(drop) == 0 || len(drop) != reads || !readsKnown(head, drop, base, c.views[dir][1].vars) || !c.calledLocally(dir) || !c.silent(dir, pins) {
 		return nil
 	}
 	if normKey(base.expr.Range().SliceBytes(base.src), false) != tokensWithout(head, drop) {
@@ -205,10 +357,10 @@ func readsKnown(head *exprInfo, drop []hcl.Range, base *exprInfo, vars map[strin
 }
 
 // refKey is the object a traversal reads: type.name, data.type.name,
-// module.name or local.name.
+// ephemeral.type.name, module.name or local.name.
 func refKey(tr hcl.Traversal) (string, bool) {
 	n := 2
-	if tr.RootName() == "data" {
+	if tr.RootName() == "data" || tr.RootName() == "ephemeral" {
 		n = 3
 	}
 	if len(tr) < n {
@@ -223,45 +375,6 @@ func refKey(tr hcl.Traversal) (string, bool) {
 		parts = append(parts, a.Name)
 	}
 	return strings.Join(parts, "."), true
-}
-
-// callSets reports a module call of the head whose source is a local path
-// to dir and that sets one of names: an existing call the change makes
-// pass the toggle.
-func (c *classifier) callSets(dir string, names []string) bool {
-	for d, v := range c.views {
-		if v[1] == nil {
-			continue
-		}
-		for _, it := range v[1].items {
-			if it.kind != itemModule {
-				continue
-			}
-			// A generated wrapper line passes on only what its caller passes.
-			sets := func(n string) bool {
-				a := it.block.Body.Attributes[n]
-				return a != nil && (&exprInfo{a.Expr, it.src}).key() != normKey([]byte("try(each.value."+n+", var.defaults."+n+", false)"), false)
-			}
-			src := it.block.Body.Attributes["source"]
-			if src == nil || !slices.ContainsFunc(names, sets) {
-				continue
-			}
-			parts, ok := templateParts(src.Expr)
-			if !ok {
-				return true
-			}
-			s, static := literalPrefix(parts)
-			if !static {
-				return true
-			}
-			// Terraform reads a backslash in a local source as a slash.
-			s = strings.ReplaceAll(s, `\`, "/")
-			if (strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../")) && path.Clean(path.Join(d, s)) == dir {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // toggleRead is the variable a bare var.<name> traversal reads.
