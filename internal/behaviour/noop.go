@@ -2,6 +2,7 @@ package behaviour
 
 import (
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -11,17 +12,22 @@ import (
 )
 
 // reasonNoop is the reason of a trigger the sweep confirms a proof for.
-const reasonNoop = "the head is the base for every caller that exists at the base: each added toggle keeps its default false, " +
-	"so coalesce skips the argument it guards; the cases confirm it with the toggles pinned"
+const reasonNoop = "the head is the base for every caller that does not already pass the name of an added toggle: " +
+	"each keeps its default false, so coalesce skips the argument it guards, which reads nothing the base does not; " +
+	"values from the environment, var files outside the tree and Terragrunt inputs outside the tree cannot be seen; " +
+	"the cases pin the toggles to false"
 
 // reasonSmoke is added when the cases of a proven trigger are past the cap.
-const reasonSmoke = "past the cap the cases are one state at a time, a smoke check of the proof, not coverage"
+const reasonSmoke = "past the cap the cases are every input off and each turned on alone, a smoke check of the proof, not coverage"
 
-// addedToggles are the variables of dir the head adds that no caller at
-// the base can set: optional, as rule A asks, and defaulting to false. A
-// directory with a file the walk does not read (.tf.json, .tofu,
-// .tofu.json, which may declare or override a variable) or a variable
-// definitions file at either revision has none.
+// addedToggles are the variables of dir the head adds that no module call
+// at the base can set: optional, as rule A asks, and defaulting to false.
+// A directory with a file the walk does not read (.tf.json, .tofu,
+// .tofu.json, which may declare or override a variable), or a variable
+// definitions file at or below it, at either revision, has none; nor has a
+// name an HCL file of either tree that Terraform does not load, such as a
+// test file or a Terragrunt configuration, mentions, since it may set it
+// for a root.
 func (c *classifier) addedToggles(dir string) map[string]bool {
 	v := c.views[dir]
 	if v[0] == nil || v[1] == nil || v[0].unwalked || v[1].unwalked || hasVarFiles(c.base, dir) || hasVarFiles(c.head, dir) {
@@ -35,23 +41,44 @@ func (c *classifier) addedToggles(dir string) map[string]bool {
 		name := it.block.Labels[0]
 		def, ok := v[1].defaults[name]
 		if _, declared := v[0].vars[name]; !declared && ok && string(def.Value) == "false" && optionalVar(it.block, it.src) {
-			out[name] = true
+			out[name] = !mentioned(c.base, name) && !mentioned(c.head, name)
 		}
 	}
 	return out
 }
 
-// hasVarFiles reports a variable definitions file in dir, such as
-// terraform.tfvars or x.auto.tfvars.json, which sets variables of a root
+// hasVarFiles reports a variable definitions file at or below dir, such as
+// terraform.tfvars or env/prod.tfvars, which sets variables of a root
 // module with no caller.
 func hasVarFiles(t *facts.Tree, dir string) bool {
 	if t == nil {
 		return true
 	}
-	return slices.ContainsFunc(t.DirEntries(dir), func(e *facts.Entry) bool {
-		name := strings.ToLower(path.Base(e.Path))
-		return strings.HasSuffix(name, ".tfvars") || strings.HasSuffix(name, ".tfvars.json")
+	return slices.ContainsFunc(t.Paths, func(p string) bool {
+		name := strings.ToLower(path.Base(p))
+		return (dir == "." || strings.HasPrefix(p, dir+"/")) &&
+			(strings.HasSuffix(name, ".tfvars") || strings.HasSuffix(name, ".tfvars.json"))
 	})
+}
+
+// mentioned reports a name as a word in an HCL file of the tree that is no
+// Terraform configuration and no lock file, such as x.tftest.hcl or
+// terragrunt.hcl; such a file that is not a regular file counts.
+func mentioned(t *facts.Tree, name string) bool {
+	if t == nil {
+		return true
+	}
+	word := regexp.MustCompile(`(^|[^A-Za-z0-9_-])` + regexp.QuoteMeta(name) + `($|[^A-Za-z0-9_-])`)
+	for _, p := range t.Paths {
+		base := strings.ToLower(path.Base(p))
+		if !strings.HasSuffix(base, ".hcl") && !strings.HasSuffix(base, ".hcl.json") || base == ".terraform.lock.hcl" {
+			continue
+		}
+		if e := t.Entries[p]; e.Kind != facts.KindFile || word.Match(e.Data) {
+			return true
+		}
+	}
+	return false
 }
 
 // noopPins returns the added toggles of dir that the head expression reads
@@ -120,7 +147,7 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 		}
 		return nil
 	})
-	if len(drop) == 0 || len(drop) != reads {
+	if len(drop) == 0 || len(drop) != reads || !readsKnown(head, drop, base) || c.callSets(dir, pins) {
 		return nil
 	}
 	if normKey(base.expr.Range().SliceBytes(base.src), false) != tokensWithout(head, drop) {
@@ -128,6 +155,91 @@ func (c *classifier) noopPins(dir string, base, head *exprInfo) []string {
 	}
 	slices.Sort(pins)
 	return pins
+}
+
+// readsKnown reports that the dropped arguments read only variables,
+// path, terraform, count and each, and the resources, data sources, module
+// calls and locals the base expression reads: a new reference would give
+// the block a new dependency whatever the toggle.
+func readsKnown(head *exprInfo, drop []hcl.Range, base *exprInfo) bool {
+	baseRefs := map[string]bool{}
+	for _, tr := range base.expr.Variables() {
+		if k, ok := refKey(tr); ok {
+			baseRefs[k] = true
+		}
+	}
+	for _, tr := range head.expr.Variables() {
+		r := tr.SourceRange()
+		if !slices.ContainsFunc(drop, func(d hcl.Range) bool { return d.Start.Byte <= r.Start.Byte && r.End.Byte <= d.End.Byte }) {
+			continue
+		}
+		switch tr.RootName() {
+		case "var", "path", "terraform", "count", "each":
+			continue
+		}
+		if k, ok := refKey(tr); !ok || !baseRefs[k] {
+			return false
+		}
+	}
+	return true
+}
+
+// refKey is the object a traversal reads: type.name, data.type.name,
+// module.name or local.name.
+func refKey(tr hcl.Traversal) (string, bool) {
+	n := 2
+	if tr.RootName() == "data" {
+		n = 3
+	}
+	if len(tr) < n {
+		return "", false
+	}
+	parts := []string{tr.RootName()}
+	for _, step := range tr[1:n] {
+		a, ok := step.(hcl.TraverseAttr)
+		if !ok {
+			return "", false
+		}
+		parts = append(parts, a.Name)
+	}
+	return strings.Join(parts, "."), true
+}
+
+// callSets reports a module call of the head whose source is a local path
+// to dir and that sets one of names: an existing call the change makes
+// pass the toggle.
+func (c *classifier) callSets(dir string, names []string) bool {
+	for d, v := range c.views {
+		if v[1] == nil {
+			continue
+		}
+		for _, it := range v[1].items {
+			if it.kind != itemModule {
+				continue
+			}
+			// A generated wrapper line passes on only what its caller passes.
+			sets := func(n string) bool {
+				a := it.block.Body.Attributes[n]
+				return a != nil && (&exprInfo{a.Expr, it.src}).key() != normKey([]byte("try(each.value."+n+", var.defaults."+n+", false)"), false)
+			}
+			src := it.block.Body.Attributes["source"]
+			if src == nil || !slices.ContainsFunc(names, sets) {
+				continue
+			}
+			parts, ok := templateParts(src.Expr)
+			if !ok {
+				return true
+			}
+			s, static := literalPrefix(parts)
+			if !static {
+				return true
+			}
+			if (strings.HasPrefix(s, "./") || strings.HasPrefix(s, "../")) && path.Clean(path.Join(d, s)) == dir {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // toggleRead is the variable a bare var.<name> traversal reads.
@@ -145,11 +257,12 @@ func isNullLit(e hclsyntax.Expression) bool {
 }
 
 // tokensWithout is the normKey of the head expression with each dropped
-// argument and the comma after it left out.
+// argument and the comma after it left out, or the comma before it for the
+// last argument of a call written without a trailing comma.
 func tokensWithout(head *exprInfo, drop []hcl.Range) string {
 	rng := head.expr.Range()
 	toks, _ := hclsyntax.LexExpression(rng.SliceBytes(head.src), "", rng.Start)
-	var out []byte
+	var out []hclsyntax.Token
 	skipComma := false
 	for _, t := range toks {
 		inside := slices.ContainsFunc(drop, func(d hcl.Range) bool {
@@ -164,12 +277,18 @@ func tokensWithout(head *exprInfo, drop []hcl.Range) string {
 		case skipComma && t.Type == hclsyntax.TokenComma:
 			skipComma = false
 			continue
+		case skipComma && t.Type == hclsyntax.TokenCParen && len(out) > 0 && out[len(out)-1].Type == hclsyntax.TokenComma:
+			out = out[:len(out)-1]
 		}
 		skipComma = false
-		out = append(out, t.Type.String()...)
-		out = append(out, 0)
-		out = append(out, t.Bytes...)
-		out = append(out, 0)
+		out = append(out, t)
 	}
-	return string(out)
+	var b strings.Builder
+	for _, t := range out {
+		b.WriteString(t.Type.String())
+		b.WriteByte(0)
+		b.Write(t.Bytes)
+		b.WriteByte(0)
+	}
+	return b.String()
 }

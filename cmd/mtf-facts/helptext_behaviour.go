@@ -37,9 +37,11 @@ level and lists those triggers in follows; a generated wrapper line that
 passes it through as try(each.value.N, var.defaults.N, <default>) follows it.
 When such a variable defaults to false and only guards coalesce arguments
 var.N ? "<string>" : null that the head adds beside another string argument,
-and the head without them is the base, the use site is the base for every
-existing caller: its L1 cases pin N to false and only confirm that. A
-directory with a .tf.json, .tofu, .tofu.json or .tfvars file gets no proof.
+reading nothing the base expression does not, and the head without them is
+the base, the use site is the base for every caller that does not already
+pass N: its L1 cases pin N to false and only confirm that. No proof with a
+.tf.json, .tofu or .tofu.json file in the directory, a .tfvars file at or
+below it, an .hcl file in the tree that names N, or a call that sets N.
 
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the

@@ -143,25 +143,38 @@ func (c *classifier) cases(t Trigger, dir string, base, head *exprInfo) ([]Case,
 	return cs, why, pins != nil
 }
 
-// firstStates is one typical case and one case per input with the input in
-// its first non-typical state, order states left out, or no cases and a
-// reason when that is over maxSweepCases.
+// firstStates is one case with every input off and one case per input
+// turned on alone, order states left out, or no cases and a reason when
+// that is over maxSweepCases. An input is off in its false state, else its
+// null state, else its typical one, and on in its typical state, else its
+// first other one: so each argument of a coalesce is reached.
 func firstStates(inputs []caseInput) ([]Case, string) {
-	typical := map[string]CaseInput{}
+	off, on := map[string]CaseInput{}, map[string]caseState{}
 	for _, in := range inputs {
-		typical[in.name] = in.states[0].in
+		i := slices.IndexFunc(in.states, func(st caseState) bool { return string(st.in.Value) == "false" })
+		if i < 0 {
+			i = max(0, slices.IndexFunc(in.states, func(st caseState) bool { return st.in.Null }))
+		}
+		off[in.name] = in.states[i].in
+		switch {
+		case i != 0:
+			on[in.name] = in.states[0]
+		case len(in.states) > 1:
+			on[in.name] = in.states[1]
+		}
 	}
-	out := []Case{{ID: "typical", Inputs: typical}}
+	out := []Case{{ID: "off", Inputs: off}}
 	for _, in := range inputs {
-		if len(in.states) < 2 {
+		st, ok := on[in.name]
+		if !ok {
 			continue
 		}
-		m := maps.Clone(typical)
-		m[in.name] = in.states[1].in
-		out = append(out, Case{ID: caseID(in.name, in.states[1].label), Inputs: m})
+		m := maps.Clone(off)
+		m[in.name] = st.in
+		out = append(out, Case{ID: caseID(in.name, st.label), Inputs: m})
 	}
 	if len(out) > maxSweepCases {
-		return []Case{}, fmt.Sprintf("one state at a time needs %d cases, over the cap of %d", len(out), maxSweepCases)
+		return []Case{}, fmt.Sprintf("one input at a time needs %d cases, over the cap of %d", len(out), maxSweepCases)
 	}
 	return out, reasonSmoke
 }
