@@ -29,7 +29,13 @@ no data source. An argument added to or removed from a resource or data
 source reads as null at the other revision, marked base_absent or
 head_absent, only when the given schema, at each revision's provider source,
 marks it a plain attribute that is not write-only, the provider requirement
-is the same at both revisions, and neither writes it as blocks.
+is the same at both revisions, and neither writes it as blocks. With
+--schema, a resource or data source argument or block trigger also carries
+schema_required: required, not_required or unknown at that path.
+
+Each referenced input, and a trigger at var.<name>, carries the variable's
+declaration at the head: added, default (null, literal, other or none) and
+nullable (unset, true, false or other).
 
 An added optional variable with a scope-invariant default, read only inside
 the source of other triggers of its fully walked module directory, selects no

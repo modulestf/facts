@@ -149,6 +149,14 @@ type Trigger struct {
 	// follows that variable's trigger. Such a trigger selects no level. An
 	// empty list is a variable nothing reads. An optional field.
 	Follows []string `json:"follows,omitzero"`
+	// Declaration describes the variable block of a trigger at var.<name>,
+	// at the head, in the trigger's module directory. An optional field.
+	Declaration *Declaration `json:"declaration,omitempty"`
+	// SchemaRequired says, for an argument or nested block of a resource or
+	// data source, whether the schema given with --schema requires it at
+	// that path: SchemaRequiredYes, SchemaRequiredNo or SchemaUnknown. Set
+	// only with a schema. An optional field.
+	SchemaRequired string `json:"schema_required,omitempty"`
 
 	// sids are the specs this trigger stands for, and followSIDs the specs
 	// it follows, until the report numbers the triggers.
@@ -159,4 +167,49 @@ type Trigger struct {
 type Input struct {
 	Name string `json:"name"`
 	Type string `json:"type"`
+	// Declaration describes the variable's block at the head in the
+	// trigger's module directory, omitted when the directory does not
+	// decompose at the head or holds no such variable. An optional field.
+	Declaration *Declaration `json:"declaration,omitempty"`
 }
+
+// Declaration is what a variable block says, read with the HCL parser at
+// the head.
+type Declaration struct {
+	// Added is set when the module directory has no variable of that name
+	// at the base.
+	Added bool `json:"added"`
+	// Default is DefaultNull, DefaultLiteral, DefaultOther or DefaultNone.
+	Default string `json:"default"`
+	// Nullable is NullableUnset, NullableTrue, NullableFalse or
+	// NullableOther.
+	Nullable string `json:"nullable"`
+}
+
+// Values of Declaration.Default: a default that evaluates to null with no
+// reference or function call; any other such constant; any other
+// expression; no default argument.
+const (
+	DefaultNull    = "null"
+	DefaultLiteral = "literal"
+	DefaultOther   = "other"
+	DefaultNone    = "none"
+)
+
+// Values of Declaration.Nullable: no nullable argument; the constant true
+// or false; any other expression.
+const (
+	NullableUnset = "unset"
+	NullableTrue  = "true"
+	NullableFalse = "false"
+	NullableOther = "other"
+)
+
+// Values of Trigger.SchemaRequired: a required attribute or a block type
+// with min_items above 0; an attribute or block type that is neither; a
+// provider, type or path the schema lacks.
+const (
+	SchemaRequiredYes = "required"
+	SchemaRequiredNo  = "not_required"
+	SchemaUnknown     = "unknown"
+)

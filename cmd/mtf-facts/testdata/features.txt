@@ -1,6 +1,8 @@
 # Every feature name version --json has shipped, one per line. Add, never remove.
+behaviour.declarations
 behaviour.l2-count-for-each
 behaviour.null-sides
+behaviour.schema-required
 cmd:affected
 cmd:behaviour
 cmd:bundle

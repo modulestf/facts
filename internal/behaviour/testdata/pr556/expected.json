@@ -28,7 +28,12 @@
       "referenced_inputs": [
         {
           "name": "vpc_security_group_ids",
-          "type": "list(string)"
+          "type": "list(string)",
+          "declaration": {
+            "added": false,
+            "default": "literal",
+            "nullable": "unset"
+          }
         }
       ],
       "contextual_refs": [

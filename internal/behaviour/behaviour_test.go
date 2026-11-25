@@ -97,7 +97,8 @@ func TestPR556(t *testing.T) {
 			str(tr.HeadExpr) != "concat(aws_security_group.this[*].id, var.vpc_security_group_ids)" {
 			t.Errorf("%s: base %s head %s", tr.ID, str(tr.BaseExpr), str(tr.HeadExpr))
 		}
-		if len(tr.ReferencedInputs) != 1 || tr.ReferencedInputs[0] != (Input{Name: "vpc_security_group_ids", Type: "list(string)"}) {
+		if len(tr.ReferencedInputs) != 1 || tr.ReferencedInputs[0].Name != "vpc_security_group_ids" || tr.ReferencedInputs[0].Type != "list(string)" ||
+			tr.ReferencedInputs[0].Declaration == nil || tr.ReferencedInputs[0].Declaration.Added {
 			t.Errorf("%s: inputs %v", tr.ID, tr.ReferencedInputs)
 		}
 		if !slices.Equal(tr.ContextualRefs, []string{"aws_security_group.this"}) {

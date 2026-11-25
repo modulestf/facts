@@ -62,6 +62,14 @@ var behaviourFeatures = []string{
 	// selects L2 next to L1
 	// (internal/behaviour TestL2Selection).
 	"behaviour.l2-count-for-each",
+	// A referenced input, and a trigger at var.<name>, carry the variable's
+	// declaration: added, default and nullable
+	// (internal/behaviour TestDeclarationOracle).
+	"behaviour.declarations",
+	// With --schema, a resource or data source argument or block trigger
+	// carries schema_required
+	// (internal/behaviour TestSchemaRequired).
+	"behaviour.schema-required",
 	// The lint report carries in_repo_downgrade, the module areas whose
 	// listed candidates the in-repo profile downgrades to MEDIUM
 	// (internal/facts TestModuleCallersMonorepo, TestInRepoDowngradeConditions).

@@ -41,7 +41,12 @@
       "referenced_inputs": [
         {
           "name": "alarm_specification",
-          "type": "object({ alarms = optional(list(string)) })"
+          "type": "object({ alarms = optional(list(string)) })",
+          "declaration": {
+            "added": true,
+            "default": "null",
+            "nullable": "unset"
+          }
         }
       ],
       "contextual_refs": [],
@@ -70,7 +75,12 @@
       "reason": "an added optional variable: its state follows the triggers whose source holds a read of it",
       "follows": [
         "T-001"
-      ]
+      ],
+      "declaration": {
+        "added": true,
+        "default": "null",
+        "nullable": "unset"
+      }
     },
     {
       "id": "T-003",
@@ -85,7 +95,12 @@
       "referenced_inputs": [
         {
           "name": "defaults",
-          "type": "any"
+          "type": "any",
+          "declaration": {
+            "added": false,
+            "default": "literal",
+            "nullable": "unset"
+          }
         }
       ],
       "contextual_refs": [
