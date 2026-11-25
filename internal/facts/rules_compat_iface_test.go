@@ -158,28 +158,134 @@ func TestCompatRemovedSubmodule(t *testing.T) {
 	}
 }
 
-// A new input with a non-null default is a default-changed candidate in a
-// module that exists at the base, and clean in a new module or with a null
-// default. A base directory with no block is a new module.
-func TestCompatNewVariableDefault(t *testing.T) {
+// A new input with a non-null default is a default-changed candidate only
+// where configuration that exists at the base reads it at the head: count,
+// for_each or an argument of a block present at the base, or the value of
+// an output present at the base, directly or through locals. A new
+// argument, a new block or no read at all is no candidate, nor is a null
+// default or a new module. A base directory with no block is a new module.
+// A read of a new variable that narrowing could hide must keep the
+// candidate: it goes through a whole-object or indexed reference, a for
+// expression, a dynamic block, a local in another file, a block moved or
+// inserted, a provider, a module call or an existing validation. A read
+// that no configuration of the base reaches, such as one only an example has
+// or one in a block of a new type, stays none.
+func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 	t.Parallel()
-	head := "variable \"a\" {\n  default = \"x\"\n}\nvariable \"b\" {\n  default = null\n}\n"
+	const r = "resource \"aws_r\" \"x\" {\n"
+	vars := "variable \"a\" {\n  default = \"x\"\n}\n"
+	const want = "compat.default-changed modules/m:var.a"
 	tests := []struct {
-		name string
-		base map[string]string
-		want []string
+		name       string
+		base, head map[string]string // files of modules/m; head variables.tf defaults to a new variable a
+		extra      map[string]string // other head files, by repository path
+		found      bool
 	}{
-		{name: "existing module", base: map[string]string{"main.tf": "\n", "modules/m/main.tf": "locals {}\n"}, want: []string{"compat.default-changed modules/m:var.a"}},
-		{name: "base without blocks", base: map[string]string{"main.tf": "\n", "modules/m/README.md": "x\n"}},
-		{name: "new module", base: map[string]string{"main.tf": "\n"}},
+		{name: "whole object", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = length(var)\n}\n"}, found: true},
+		{name: "whole object in a for expression", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = join(\",\", [for k, v in var : k])\n}\n"}, found: true},
+		{name: "string index", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = var[\"a\"]\n}\n"}, found: true},
+		{name: "unresolved index", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = var[local.k]\n}\n", "locals.tf": "locals {\n  k = \"a\"\n}\n"}, found: true},
+		{name: "for expression over the variable", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = join(\",\", [for s in var.a : s])\n}\n"}, found: true},
+		{name: "local by string index", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = local[\"m\"]\n}\n", "locals.tf": "locals {\n  m = var.a\n}\n"}, found: true},
+		{name: "whole locals object", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = length(local)\n}\n", "locals.tf": "locals {\n  m = var.a\n}\n"}, found: true},
+		{name: "local in another file", base: map[string]string{"main.tf": r + "  name = local.n\n}\n", "locals.tf": "locals {\n  n = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = local.n\n}\n", "locals.tf": "locals {\n  n = var.a\n}\n"}, found: true},
+		{name: "dynamic block for_each", base: map[string]string{"main.tf": r + "  dynamic \"t\" {\n    for_each = []\n    content {\n      v = \"f\"\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  dynamic \"t\" {\n    for_each = var.a\n    content {\n      v = \"f\"\n    }\n  }\n}\n"}, found: true},
+		{name: "dynamic block content", base: map[string]string{"main.tf": r + "  dynamic \"t\" {\n    for_each = []\n    content {\n      v = \"f\"\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  dynamic \"t\" {\n    for_each = []\n    content {\n      v = var.a\n    }\n  }\n}\n"}, found: true},
+		{name: "static block made dynamic", base: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  dynamic \"t\" {\n    for_each = var.a\n    content {\n      v = \"f\"\n    }\n  }\n}\n"}, found: true},
+		{name: "block inserted before the existing one", base: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    w = \"n\"\n  }\n  t {\n    v = var.a\n  }\n}\n"}, found: true},
+		{name: "block of a new type", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n  u {\n    v = var.a\n  }\n}\n"}},
+		{name: "resource renamed with a moved block", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"y\" {\n  name = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.y\n}\n"}, found: true},
+		{name: "resource renamed without a moved block", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"y\" {\n  name = var.a\n}\n"}},
+		{name: "provider argument", base: map[string]string{"main.tf": "provider \"aws\" {\n  region = \"eu\"\n}\n"},
+			head: map[string]string{"main.tf": "provider \"aws\" {\n  region = var.a\n}\n"}, found: true},
+		{name: "module call argument", base: map[string]string{"main.tf": "module \"c\" {\n  source = \"./c\"\n  name   = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"c\" {\n  source = \"./c\"\n  name   = var.a\n}\n"}, found: true},
+		{name: "module call count", base: map[string]string{"main.tf": "module \"c\" {\n  source = \"./c\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"c\" {\n  source = \"./c\"\n  count  = var.a ? 1 : 0\n}\n"}, found: true},
+		{name: "output precondition", base: map[string]string{"main.tf": "output \"o\" {\n  value = 1\n  precondition {\n    condition     = true\n    error_message = \"e\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": "output \"o\" {\n  value = 1\n  precondition {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\n"}, found: true},
+		{name: "existing validation", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {\n  validation {\n    condition     = true\n    error_message = \"e\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {\n  validation {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\n"}, found: true},
+		{name: "unrelated resource and example only", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head:  map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			extra: map[string]string{"examples/basic/main.tf": "resource \"aws_r\" \"e\" {\n  name = var.a\n}\n", "examples/basic/variables.tf": vars}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := runCompat(t, tt.base, map[string]string{"main.tf": "\n", "modules/m/main.tf": head})
+			base := map[string]string{"main.tf": "\n"}
+			for k, v := range tt.base {
+				base["modules/m/"+k] = v
+			}
+			head := map[string]string{"main.tf": "\n", "modules/m/variables.tf": vars}
+			for k, v := range tt.head {
+				head["modules/m/"+k] = v
+			}
+			for k, v := range tt.extra {
+				head[k] = v
+			}
+			var got []string
+			for _, c := range runCompat(t, base, head).Candidates {
+				if c.RuleID == "compat.default-changed" {
+					got = append(got, c.RuleID+" "+c.Subject)
+				}
+			}
+			if (len(got) == 1 && got[0] == want) != tt.found || len(got) > 1 {
+				t.Errorf("got %q, found want %v", got, tt.found)
+			}
+		})
+	}
+}
+
+func TestCompatNewVariableDefault(t *testing.T) {
+	t.Parallel()
+	vars := "variable \"a\" {\n  default = \"x\"\n}\nvariable \"b\" {\n  default = null\n}\n"
+	res := func(body string) string { return "resource \"aws_r\" \"x\" {\n  name = " + body + "\n}\n" }
+	base := map[string]string{"main.tf": "\n", "modules/m/main.tf": res(`"fixed"`) + "output \"o\" {\n  value = \"v\"\n}\nlocals {\n  n = \"fixed\"\n}\n"}
+	want := []string{"compat.default-changed modules/m:var.a"}
+	tests := []struct {
+		name string
+		base map[string]string
+		head string
+		want []string
+	}{
+		{name: "unread", base: base, head: res(`"fixed"`)},
+		{name: "new argument", base: base, head: "resource \"aws_r\" \"x\" {\n  name = \"fixed\"\n  mode = var.a\n}\n"},
+		{name: "new block", base: base, head: res(`"fixed"`) + "resource \"aws_r\" \"y\" {\n  count = var.a ? 1 : 0\n  name  = var.b\n}\n"},
+		{name: "argument rewritten", base: base, head: res("var.a"), want: want},
+		{name: "argument through a new local", base: base, head: res("local.m") + "locals {\n  m = var.a\n}\n", want: want},
+		{name: "local rewritten", base: map[string]string{"main.tf": "\n", "modules/m/main.tf": res("local.n") + "locals {\n  n = \"fixed\"\n}\n"},
+			head: res("local.n") + "locals {\n  n = var.a\n}\n", want: want},
+		{name: "count added", base: base, head: "resource \"aws_r\" \"x\" {\n  count = var.a ? 1 : 0\n  name  = \"fixed\"\n}\n", want: want},
+		{name: "output", base: base, head: res(`"fixed"`) + "output \"o\" {\n  value = var.a\n}\n", want: want},
+		{name: "null default read", base: base, head: res("var.b")},
+		{name: "base without blocks", base: map[string]string{"main.tf": "\n", "modules/m/README.md": "x\n"}, head: res("var.a")},
+		{name: "new module", base: map[string]string{"main.tf": "\n"}, head: res("var.a")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := runCompat(t, tt.base, map[string]string{"main.tf": "\n", "modules/m/main.tf": tt.head, "modules/m/variables.tf": vars})
 			var got []string
 			for _, c := range r.Candidates {
-				got = append(got, c.RuleID+" "+c.Subject)
+				if c.RuleID == "compat.default-changed" {
+					got = append(got, c.RuleID+" "+c.Subject)
+				}
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("got %q, want %q", got, tt.want)

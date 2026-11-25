@@ -8,13 +8,13 @@
     {"rule_id": "compat.variable-now-required", "area": ".", "status": "candidate"},
     {"rule_id": "compat.variable-removed", "area": ".", "status": "candidate"},
     {"rule_id": "compat.version-constraint-raised", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.argument-above-min-version", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.attribute-not-output", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.block-attribute-mismatch", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.deprecated-argument", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.optional-argument-unexposed", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.required-argument-unreachable", "area": ".", "status": "clean"},
-    {"rule_id": "coverage.unknown-argument", "area": ".", "status": "clean"},
+    {"rule_id": "coverage.argument-above-min-version", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.attribute-not-output", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.block-attribute-mismatch", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.deprecated-argument", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.optional-argument-unexposed", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.required-argument-unreachable", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
+    {"rule_id": "coverage.unknown-argument", "area": ".", "status": "not_evaluated", "reason": "schema_unavailable", "reason_code": "schema_unavailable"},
     {"rule_id": "examples.disabled-call-missing", "area": ".", "status": "not_applicable"},
     {"rule_id": "examples.stale-reference", "area": ".", "status": "clean"},
     {"rule_id": "examples.submodule-missing", "area": ".", "status": "clean"},
@@ -212,6 +212,27 @@
         ],
         "base": null,
         "head": null,
+        "schema_facts": []
+      },
+      "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-008",
+      "rule_id": "compat.default-changed",
+      "file": "variables.tf",
+      "line": 75,
+      "subject": ".:var.default_tags",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "variables.tf",
+            "line": 75,
+            "text": "  default     = { ManagedBy = \"demo\" }"
+          }
+        ],
+        "base": null,
+        "head": "{ ManagedBy = \"demo\" }",
         "schema_facts": []
       },
       "evidence_complete": true

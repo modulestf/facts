@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // compatIfaceRules is the compat_iface rule family. Rule work for this family adds its rules and
@@ -100,10 +101,11 @@ func checkVariableNowRequired(a *Area) Result {
 // compat.default-changed: a variable default whose tokens differ, an
 // optional() attribute default that changed or was added, an optional()
 // default the head type no longer carries, a new variable with a non-null
-// default in a module that exists at the base, and a data block the head no
-// longer has, which the rule text sends here when it fed a value the caller
-// sees. A default the base did not have was required before, so adding one
-// changes nothing for an existing caller.
+// default in a module that exists at the base, when configuration the base
+// already had reads it at the head (see varsReadByBaseConfig), and a data
+// block the head no longer has, which the rule text sends here when it fed a
+// value the caller sees. A default the base did not have was required
+// before, so adding one changes nothing for an existing caller.
 func checkDefaultChanged(a *Area) Result {
 	const id = "compat.default-changed"
 	base := variablesByName(a.Base)
@@ -128,12 +130,18 @@ func checkDefaultChanged(a *Area) Result {
 			k.Evidence.SourceLines = append(k.Evidence.SourceLines, sl)
 		}
 	}
+	var readByBase *varReads
 	for _, v := range firstVariables(a.Head) {
 		b := base[v.Name]
 		if b == nil {
 			// A new input with a default changes what an existing caller, who
-			// sets nothing, gets wherever the module uses it.
-			if v.Default != nil && strings.TrimSpace(v.Default.Text) != "null" && moduleAtBase(a) {
+			// sets nothing, gets where configuration the caller already had
+			// reads it. A new argument or block behind it is a feature the
+			// caller had not, which the review judges from the diff.
+			if readByBase == nil && v.Default != nil && moduleAtBase(a) {
+				readByBase = varsReadByBaseConfig(a)
+			}
+			if v.Default != nil && strings.TrimSpace(v.Default.Text) != "null" && moduleAtBase(a) && readByBase.has(v.Name) {
 				e := newCompatEvidence(a)
 				line := argLine(v.Body, "default")
 				e.line(revHead, v.File, line)
@@ -175,6 +183,194 @@ func checkDefaultChanged(a *Area) Result {
 		}
 	}
 	return res
+}
+
+// varReads is what head expressions read of the variables and locals: the
+// names, or every one of a kind when an expression reads the whole object
+// (`var`, `{for k, v in var : ...}`) or indexes it with a key it cannot
+// resolve, or cannot be parsed. Unknown reads count as reads of everything.
+type varReads struct {
+	vars, locals       map[string]bool
+	allVars, allLocals bool
+}
+
+func (r *varReads) add(e *Expr) {
+	if e == nil {
+		return
+	}
+	x := parseExpr(e)
+	if x == nil {
+		r.allVars, r.allLocals = true, true
+		return
+	}
+	for _, t := range x.Variables() {
+		names, all := r.vars, &r.allVars
+		switch t.RootName() {
+		case "var":
+		case "local":
+			names, all = r.locals, &r.allLocals
+		default:
+			continue
+		}
+		if len(t) > 1 {
+			switch s := t[1].(type) {
+			case hcl.TraverseAttr:
+				names[s.Name] = true
+				continue
+			case hcl.TraverseIndex:
+				if s.Key.IsKnown() && !s.Key.IsNull() && s.Key.Type() == cty.String {
+					names[s.Key.AsString()] = true
+					continue
+				}
+			}
+		}
+		*all = true
+	}
+}
+
+// varsReadByBaseConfig finds what head configuration that exists at the
+// base reads, directly or through head locals: count and for_each of a
+// resource, data or module block the base has (found by its moved block
+// when renamed), the arguments of such a block, of a provider, of another
+// block type or of an output that the base block also has, and of its
+// nested blocks, and the validation of a variable the base has. Where the
+// pairing of nested blocks is ambiguous, every argument counts.
+func varsReadByBaseConfig(a *Area) *varReads {
+	r := &varReads{vars: map[string]bool{}, locals: map[string]bool{}}
+	bodies := map[string]Body{}
+	addr := func(mode, typ, name string) string {
+		if mode == "data" {
+			return "data." + typ + "." + name
+		}
+		return typ + "." + name
+	}
+	for _, x := range a.Base.Resources {
+		bodies[addr(x.Mode, x.Type, x.Name)] = x.Body
+	}
+	for _, m := range a.Base.ModuleCalls {
+		bodies["module."+m.Name] = m.Body
+	}
+	for _, p := range a.Base.Providers {
+		bodies["provider."+p.Name+"."+p.Alias] = p.Body
+	}
+	for _, o := range a.Base.Outputs {
+		bodies["output."+o.Name] = o.Body
+	}
+	baseOther := map[string][]Body{}
+	for _, o := range a.Base.Other {
+		k := o.Type + "." + strings.Join(o.Labels, ".")
+		baseOther[k] = append(baseOther[k], o.Body)
+	}
+	from := map[string]string{}
+	for _, m := range a.Head.Moved {
+		if m.FromAddr != "" && m.ToAddr != "" {
+			to, _, _ := strings.Cut(m.ToAddr, "[")
+			f, _, _ := strings.Cut(m.FromAddr, "[")
+			from[to] = f
+		}
+	}
+	shared := func(key string, h Body, top bool) {
+		b, ok := bodies[key]
+		if !ok {
+			b, ok = bodies[from[key]]
+		}
+		if ok {
+			for _, e := range sharedArgs(b, h, top, false) {
+				r.add(e)
+			}
+		}
+	}
+	for _, x := range a.Head.Resources {
+		shared(addr(x.Mode, x.Type, x.Name), x.Body, true)
+	}
+	for _, m := range a.Head.ModuleCalls {
+		shared("module."+m.Name, m.Body, true)
+	}
+	for _, p := range a.Head.Providers {
+		shared("provider."+p.Name+"."+p.Alias, p.Body, false)
+	}
+	for _, o := range a.Head.Outputs {
+		shared("output."+o.Name, o.Body, false)
+	}
+	headOther := map[string]int{}
+	for _, o := range a.Head.Other {
+		k := o.Type + "." + strings.Join(o.Labels, ".")
+		i := headOther[k]
+		headOther[k]++
+		if i < len(baseOther[k]) {
+			for _, e := range sharedArgs(baseOther[k][i], o.Body, false, false) {
+				r.add(e)
+			}
+		}
+	}
+	baseVars := variablesByName(a.Base)
+	for _, v := range firstVariables(a.Head) {
+		if b := baseVars[v.Name]; b != nil {
+			for i := 0; i < len(v.Validations) && i < len(b.Validations); i++ {
+				r.add(v.Validations[i].Condition)
+				r.add(v.Validations[i].ErrorMessage)
+			}
+		}
+	}
+	locals := map[string]*Expr{}
+	for i := range a.Head.Locals {
+		locals[a.Head.Locals[i].Name] = &a.Head.Locals[i].Value
+	}
+	done := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for name, e := range locals {
+			if !done[name] && (r.allLocals || r.locals[name]) {
+				done[name], changed = true, true
+				r.add(e)
+			}
+		}
+	}
+	return r
+}
+
+func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
+
+// sharedArgs are the head arguments of a block that the base block also
+// has, with count and for_each at the top level whether the base has them
+// or not, and those of nested blocks paired by type and position, static and
+// dynamic together. When a type has a different number of blocks at the two
+// revisions, or all is set, position says nothing about which block is the
+// old one, so every argument and for_each of those blocks counts.
+func sharedArgs(base, head Body, top, all bool) []*Expr {
+	var out []*Expr
+	for i := range head.Attributes {
+		h := &head.Attributes[i]
+		if all || (top && (h.Name == "count" || h.Name == "for_each")) || bodyAttr(base, h.Name) != nil {
+			out = append(out, &h.Value)
+		}
+	}
+	byType := func(b Body) map[string][]*NestedBlock {
+		m := map[string][]*NestedBlock{}
+		for i := range b.Blocks {
+			m[b.Blocks[i].Type] = append(m[b.Blocks[i].Type], &b.Blocks[i])
+		}
+		return m
+	}
+	bt, ht := byType(base), byType(head)
+	for t, hb := range ht {
+		known := len(bt[t]) > 0
+		ambiguous := all || (known && len(bt[t]) != len(hb))
+		if !known && !ambiguous {
+			continue
+		}
+		for i, h := range hb {
+			if h.ForEach != nil {
+				out = append(out, h.ForEach)
+			}
+			var bb Body
+			if !ambiguous {
+				bb = bt[t][i].Body
+			}
+			out = append(out, sharedArgs(bb, h.Body, false, ambiguous)...)
+		}
+	}
+	return out
 }
 
 // compat.type-narrowed: a type that compareTypes cannot show accepts every

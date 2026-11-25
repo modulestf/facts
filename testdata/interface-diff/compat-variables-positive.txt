@@ -1,4 +1,5 @@
 . variables allowed_ids changed
+. variables default_tags added
 . variables legacy_mode removed
 . variables options changed
 . variables owner_email added
