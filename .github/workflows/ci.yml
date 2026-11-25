@@ -36,6 +36,14 @@ jobs:
         env:
           GOFLAGS: ""
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      # A released feature name of version --json is never removed.
+      - name: Feature names kept
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "refs/heads/${BASE_REF}"
+          bash scripts/check-features-kept.sh FETCH_HEAD
       - name: Vet
         run: go vet ./...
       - name: Lint

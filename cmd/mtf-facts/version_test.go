@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // featuresGolden lists every feature name a release has shipped. A name
@@ -138,6 +140,7 @@ func TestFeaturesProbed(t *testing.T) {
 		"flag:affected:diff":               "affected --diff",
 		"flag:lint:schema-handoff":         "lint --schema-handoff, retried without on exit 2",
 		"flag:lint:ai":                     "lint --ai",
+		"lint.in-repo-downgrade":           "a relaxing profile is refused without in_repo_downgrade in the lint report",
 		"cmd:claims-eval":                  "claims-eval",
 		"cmd:depth":                        "depth",
 		"cmd:rules":                        "rules",
@@ -151,40 +154,114 @@ func TestFeaturesProbed(t *testing.T) {
 	}
 }
 
-// TestReportVersions checks each schema_version the report lists equals
-// the one its schema under schema/ accepts.
+// TestReportVersions runs each command the report lists on a fixture and
+// checks the schema_version it writes equals the report's entry, and that
+// the schema under schema/ accepts that value.
 func TestReportVersions(t *testing.T) {
-	files := map[string]string{
-		"affected":      "affected.schema.json",
-		"behaviour":     "behaviour.schema.json",
-		"bundle":        "facts-bundle.schema.json",
-		"claims-eval":   "claims-eval.schema.json",
-		"fixture-check": "fixture-check.schema.json",
-		"lint":          "envelope.schema.json",
-		"schema-diff":   "schema-diff.schema.json",
+	const ex = "../../schema/examples"
+	shas := []string{"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)}
+	ftd := "../../testdata/fixture-check"
+	sd := "../../testdata/schema-diff"
+	cases := map[string]struct {
+		args     []string
+		envelope bool // the version is .envelope.schema_version
+		schema   string
+	}{
+		"affected":      {[]string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, false, "affected.schema.json"},
+		"behaviour":     {[]string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, false, "behaviour.schema.json"},
+		"claims-eval":   {append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"}, shas...), false, "claims-eval.schema.json"},
+		"fixture-check": {[]string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, false, "fixture-check.schema.json"},
+		"lint":          {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, true, "envelope.schema.json"},
+		"schema-diff":   {[]string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, false, "schema-diff.schema.json"},
 	}
 	r := decodeVersionReport(t)
-	if len(r.Reports) != len(files) {
-		t.Errorf("reports %v, want one entry per name in %v", r.Reports, files)
+	for name := range r.Reports {
+		if _, ok := cases[name]; !ok {
+			t.Errorf("report %q has no case here: add one that runs it", name)
+		}
 	}
-	for name, file := range files {
-		var s struct {
-			Properties struct {
-				SchemaVersion struct {
-					Const *int  `json:"const"`
-					Enum  []int `json:"enum"`
-				} `json:"schema_version"`
-			} `json:"properties"`
-		}
-		readJSON(t, filepath.Join("../../schema", file), &s)
-		sv := s.Properties.SchemaVersion
-		want := sv.Enum
-		if sv.Const != nil {
-			want = []int{*sv.Const}
-		}
-		if got, ok := r.Reports[name]; !ok || len(want) != 1 || got != want[0] {
-			t.Errorf("%s: report says %d (present %v), %s accepts %v", name, got, ok, file, want)
-		}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, ok := r.Reports[name]
+			if !ok {
+				t.Fatalf("version --json lists no %s", name)
+			}
+			_, out, errOut := runCLI(c.args)
+			var doc struct {
+				SchemaVersion *int `json:"schema_version"`
+				Envelope      struct {
+					SchemaVersion *int `json:"schema_version"`
+				} `json:"envelope"`
+			}
+			if err := json.Unmarshal([]byte(out), &doc); err != nil {
+				t.Fatalf("%v: %v, stderr %q", c.args, err, errOut)
+			}
+			written := doc.SchemaVersion
+			if c.envelope {
+				written = doc.Envelope.SchemaVersion
+			}
+			if written == nil {
+				t.Errorf("%s writes no schema_version, version --json says %d", name, got)
+			} else if *written != got {
+				t.Errorf("%s writes schema_version %d, version --json says %d", name, *written, got)
+			}
+			var s struct {
+				Properties struct {
+					SchemaVersion struct {
+						Const *int  `json:"const"`
+						Enum  []int `json:"enum"`
+					} `json:"schema_version"`
+				} `json:"properties"`
+			}
+			readJSON(t, filepath.Join("../../schema", c.schema), &s)
+			sv := s.Properties.SchemaVersion
+			want := sv.Enum
+			if sv.Const != nil {
+				want = []int{*sv.Const}
+			}
+			if len(want) != 1 || got != want[0] {
+				t.Errorf("version --json says %d, %s accepts %v", got, c.schema, want)
+			}
+		})
+	}
+}
+
+// TestCommandFeatures walks a synthetic tree: a hidden command, a
+// deprecated command, a hidden and a deprecated flag, a persistent flag
+// inherited two levels down, the root's own flags and help are left out.
+func TestCommandFeatures(t *testing.T) {
+	noop := func(*cobra.Command, []string) error { return nil }
+	root := &cobra.Command{Use: "tool", RunE: noop}
+	root.Flags().Bool("version", false, "")
+	root.PersistentFlags().String("trace", "", "")
+	a := &cobra.Command{Use: "a", RunE: noop}
+	a.Flags().String("x", "", "")
+	a.Flags().String("old", "", "")
+	if err := a.Flags().MarkDeprecated("old", "gone"); err != nil {
+		t.Fatal(err)
+	}
+	a.Flags().String("secret", "", "")
+	if err := a.Flags().MarkHidden("secret"); err != nil {
+		t.Fatal(err)
+	}
+	a.PersistentFlags().Bool("p", false, "")
+	b := &cobra.Command{Use: "b", RunE: noop}
+	b.Flags().Int("n", 0, "")
+	a.AddCommand(b)
+	hidden := &cobra.Command{Use: "h", Hidden: true, RunE: noop}
+	hidden.Flags().Bool("z", false, "")
+	gone := &cobra.Command{Use: "d", Deprecated: "use a", RunE: noop}
+	root.AddCommand(a, hidden, gone)
+	root.InitDefaultHelpFlag()
+	root.InitDefaultHelpCmd()
+	a.InitDefaultHelpFlag()
+	b.InitDefaultHelpFlag()
+
+	got := commandFeatures(root)
+	slices.Sort(got)
+	want := []string{"cmd:a", "cmd:a.b", "flag:a.b:n", "flag:a.b:p", "flag:a.b:trace", "flag:a:p", "flag:a:trace", "flag:a:x"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %q\nwant %q", got, want)
 	}
 }
 

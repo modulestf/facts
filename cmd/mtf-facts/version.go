@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/modulestf/facts/internal/behaviour"
-	fb "github.com/modulestf/facts/internal/bundle"
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/fixture"
 	"github.com/modulestf/facts/internal/schemadiff"
@@ -36,12 +35,13 @@ type versionReport struct {
 }
 
 // reportVersions is the schema_version of each JSON report a command writes
-// that carries one, keyed by the command that writes it.
+// at its top level, keyed by the command that writes it; lint's is the
+// envelope's. bundle is not listed: its schema_version versions only the
+// optional ownership unit, not the bundle.
 func reportVersions() map[string]int {
 	return map[string]int{
 		"affected":      facts.AffectedSchemaVersion,
 		"behaviour":     behaviour.SchemaVersion,
-		"bundle":        fb.SchemaVersion,
 		"claims-eval":   behaviour.SchemaVersion,
 		"fixture-check": fixture.SchemaVersion,
 		"lint":          facts.SchemaVersion,
@@ -62,6 +62,10 @@ var behaviourFeatures = []string{
 	// selects L2 next to L1
 	// (internal/behaviour TestL2Selection).
 	"behaviour.l2-count-for-each",
+	// The lint report carries in_repo_downgrade, the module areas whose
+	// listed candidates the in-repo profile downgrades to MEDIUM
+	// (internal/facts TestModuleCallersMonorepo, TestInRepoDowngradeConditions).
+	"lint.in-repo-downgrade",
 }
 
 func newVersionCmd() *cobra.Command {
@@ -138,6 +142,18 @@ func newVersionReport(root *cobra.Command) versionReport {
 // Help, completion, the root's own flags and hidden or deprecated entries
 // are left out: they are no contract.
 func features(root *cobra.Command) []string {
+	out := commandFeatures(root)
+	for _, l := range fixture.Levels() {
+		out = append(out, "fixture-check.level."+l)
+	}
+	out = append(out, behaviourFeatures...)
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// commandFeatures lists the cmd: and flag: names of the tree under root,
+// in walk order.
+func commandFeatures(root *cobra.Command) []string {
 	var out []string
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
@@ -158,12 +174,7 @@ func features(root *cobra.Command) []string {
 		}
 	}
 	walk(root)
-	for _, l := range fixture.Levels() {
-		out = append(out, "fixture-check.level."+l)
-	}
-	out = append(out, behaviourFeatures...)
-	slices.Sort(out)
-	return slices.Compact(out)
+	return out
 }
 
 // commandPath is the dotted path of c below the root, such as merge.check.

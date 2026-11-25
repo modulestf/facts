@@ -85,3 +85,4 @@ flag:schema-diff:from
 flag:schema-diff:to
 flag:schema-diff:types-from
 flag:version:json
+lint.in-repo-downgrade

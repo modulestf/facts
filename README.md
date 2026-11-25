@@ -630,13 +630,13 @@ mtf-facts completion bash
 
 ```json
 {"schema_version": 1, "name": "mtf-facts", "version": "v0.9.0", "commit": "<40 hex>", "modified": false, "go": "go1.27.3",
- "reports": {"affected": 1, "behaviour": 1, "bundle": 1, "claims-eval": 1, "fixture-check": 1, "lint": 2, "schema-diff": 1},
+ "reports": {"affected": 1, "behaviour": 1, "claims-eval": 1, "fixture-check": 1, "lint": 2, "schema-diff": 1},
  "features": ["behaviour.l2-count-for-each", "behaviour.null-sides", "cmd:affected", "...", "flag:fixture-check:expect", "..."]}
 ```
 
 - `version` is the text `mtf-facts version` prints: a tag, or `(devel)` for a local build. `commit` and `modified` come from the build; both are `null` for `go install` of a tag, which records no commit.
-- `reports` gives the `schema_version` of each JSON report that carries one, keyed by the command that writes it.
-- `features` is sorted. `cmd:<path>` names each command and `flag:<path>:<name>` each long flag it accepts, where `<path>` is the command names joined by dots (`cmd:merge.check`); both are read from the command tree. `<path>.<name>` names a behaviour or an accepted value: `fixture-check.level.L1` to `L3`, `behaviour.null-sides` (with `--schema`, an attribute a change adds or removes gets a null side, `base_absent` or `head_absent`) and `behaviour.l2-count-for-each` (a `count` or `for_each` change selects L2). A feature name, once released, keeps its meaning and is not removed; the test holds every released name in `cmd/mtf-facts/testdata/features.txt`.
+- `reports` gives the `schema_version` each command writes at the top of its JSON report, keyed by the command. For `lint` it is the one at `.envelope.schema_version`. `bundle` is not listed: its `schema_version` versions only the optional ownership unit. A key with a hyphen needs the bracket form in jq: `.reports["claims-eval"]`, not `.reports.claims-eval`.
+- `features` is sorted. `cmd:<path>` names each command and `flag:<path>:<name>` each long flag it accepts, where `<path>` is the command names joined by dots (`cmd:merge.check`); both are read from the command tree. `<path>.<name>` names a behaviour or an accepted value: `fixture-check.level.L1` to `L3`, `behaviour.null-sides` (with `--schema`, an attribute a change adds or removes gets a null side, `base_absent` or `head_absent`) and `behaviour.l2-count-for-each` (a `count` or `for_each` change selects L2) and `lint.in-repo-downgrade` (the lint report carries `in_repo_downgrade`). A feature name, once released, keeps its meaning and is not removed; the test holds every released name in `cmd/mtf-facts/testdata/features.txt`.
 
 A binary older than this report exits 2 on `--json`. A script that needs a feature checks it with jq, for example `jq -e '.features | index("flag:fixture-check:expect")'`.
 
