@@ -213,7 +213,7 @@ func exists(p string) bool {
 }
 
 func isDir(p string) bool {
-	st, err := os.Stat(p)
+	st, err := os.Stat(p) //nolint:gosec // G703: a path under an oracle fixture of this repository
 	return err == nil && st.IsDir()
 }
 

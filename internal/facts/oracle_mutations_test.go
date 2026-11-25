@@ -35,7 +35,7 @@ func mutateOracle(t *testing.T, fixture, file string, mutate func(e map[string]a
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(p, out, 0o600); err != nil {
+	if err := os.WriteFile(p, out, 0o600); err != nil { //nolint:gosec // G703: the temp copy
 		t.Fatal(err)
 	}
 	return dst

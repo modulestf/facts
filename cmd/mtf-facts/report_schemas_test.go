@@ -39,6 +39,7 @@ func TestReportsMatchSchemas(t *testing.T) {
 		code         int
 	}{
 		{"depth", "depth.schema.json", []string{"depth", "--head", diffBase + "/head", "--base", diffBase + "/base", "--files", diffBase + "/files.json"}, exitClean},
+		{"depth odd example names", "depth.schema.json", []string{"depth", "--head", diffBase + "/head", "--base", diffBase + "/base", "--files", diffBase + "/files.json", "--examples", "examples/a b,examples/v1+x,examples/.hidden,examples/..."}, exitClean},
 		{"ledger inventory", "ledger-report.schema.json", []string{"ledger", ledgerModule, "--schema-files", ledgerSchema}, exitClean},
 		{"ledger check", "ledger-report.schema.json", []string{"ledger", ledgerModule, "--schema-files", ledgerSchema, "--check", "../../testdata/ledger/valid.json"}, exitClean},
 		{"ledger problems", "ledger-report.schema.json", []string{"ledger", ledgerModule, "--schema-files", ledgerSchema, "--check", "../../testdata/ledger/unmapped.json"}, exitFindings},
@@ -146,10 +147,11 @@ var reportSchemas = map[string]string{
 	"profile-snapshot": "profile-snapshot.schema.json",
 	"rules":            "rules.schema.json",
 	"schema-diff":      "schema-diff.schema.json",
+	"version":          "version.schema.json",
 }
 
 // noJSON are the commands with no JSON output.
-var noJSON = []string{"completion", "help", "merge", "version"}
+var noJSON = []string{"completion", "help", "merge"}
 
 // TestEveryJSONCommandHasSchema checks that each command of the CLI is
 // either mapped to a schema with a valid example, which tests/schemas-test.sh
@@ -177,6 +179,8 @@ func TestEveryJSONCommandHasSchema(t *testing.T) {
 		if !ok {
 			if !slices.Contains(noJSON, p) {
 				t.Errorf("command %q is neither mapped to a schema nor listed as writing no JSON", p)
+			} else if c, _, err := root.Find(strings.Fields(p)); err == nil && c.Flags().Lookup("json") != nil {
+				t.Errorf("command %q has a --json flag but is listed as writing no JSON", p)
 			}
 			continue
 		}

@@ -3,6 +3,7 @@ package depth
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"slices"
 	"testing"
 )
@@ -37,5 +38,33 @@ func TestSchemaTokens(t *testing.T) {
 	}
 	if got, want := s.Properties.Checks.Items.Enum, []string{CheckA, CheckB, CheckD, CheckGLadder}; !slices.Equal(got, want) {
 		t.Errorf("schema checks %v, want %v", got, want)
+	}
+}
+
+// TestSchemaDirMatchesSafePath checks that the dir pattern of
+// schema/depth.schema.json accepts exactly the paths safePath accepts.
+func TestSchemaDirMatchesSafePath(t *testing.T) {
+	data, err := os.ReadFile("../../schema/depth.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s struct {
+		Defs struct {
+			Dir struct {
+				Pattern string `json:"pattern"`
+			} `json:"dir"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(data, &s); err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(s.Defs.Dir.Pattern)
+	for _, p := range []string{
+		"examples/a", "examples/a b", "examples/v1+x", "examples/.hidden", "examples/...", "a.", ".a", "..a", "a..", "~", " ",
+		"", ".", "..", "a/.", "a/..", "./a", "a/./b", "a//b", "/a", "a/", "a\\b", "a\tb", "a\nb", "\u00e9", "a\x7f",
+	} {
+		if got, want := re.MatchString(p), safePath(p); got != want {
+			t.Errorf("%q: schema %v, safePath %v", p, got, want)
+		}
 	}
 }

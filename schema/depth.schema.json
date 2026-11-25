@@ -189,9 +189,9 @@
   },
   "$defs": {
     "dir": {
-      "description": "A relative directory path with no . or .. segment.",
+      "description": "A relative path as the binary's safePath allows it: printable ASCII but the backslash, segments joined by /, none empty, . or ..",
       "type": "string",
-      "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$"
+      "pattern": "^(?:[ -.0-\\[\\]-~]{3,}|[ -\\-0-\\[\\]-~][ -.0-\\[\\]-~]?|\\.[ -\\-0-\\[\\]-~])(/(?:[ -.0-\\[\\]-~]{3,}|[ -\\-0-\\[\\]-~][ -.0-\\[\\]-~]?|\\.[ -\\-0-\\[\\]-~]))*$"
     }
   }
 }
