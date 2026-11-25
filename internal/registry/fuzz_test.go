@@ -8,8 +8,8 @@ import (
 
 // FuzzParse feeds arbitrary text to the rule table parser. A refusal returns
 // no registry. An accepted registry has at most one rule per line, unique
-// rule ids that Rule finds, and overlaps that name rules of the table or a
-// family pattern.
+// rule ids that Rule finds, and overlaps whose Kept and Dropped each name a
+// rule of the table or a family pattern that matches one, and differ.
 func FuzzParse(f *testing.F) {
 	data, err := os.ReadFile("../../testdata/bundle/skills/references/rule-facts.md")
 	if err != nil {
@@ -40,6 +40,19 @@ func FuzzParse(f *testing.F) {
 			seen[rule.ID] = true
 			if got, ok := r.Rule(rule.ID); !ok || got.ID != rule.ID {
 				t.Fatalf("Rule(%q) = %q, %v", rule.ID, got.ID, ok)
+			}
+		}
+		names := func(p string) bool {
+			for _, rule := range r.Rules {
+				if Match(p, rule.ID) {
+					return true
+				}
+			}
+			return false
+		}
+		for _, o := range r.Overlaps {
+			if !names(o.Kept) || !names(o.Dropped) || o.Kept == o.Dropped {
+				t.Fatalf("overlap %d: kept %q, dropped %q", o.Pair, o.Kept, o.Dropped)
 			}
 		}
 	})

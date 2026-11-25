@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -34,9 +35,7 @@ func FuzzNew(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, doc []byte) {
 		in := map[string][]byte{File: doc}
-		for k, v := range files {
-			in[k] = v
-		}
+		maps.Copy(in, files)
 		p, err := New(in)
 		if err != nil {
 			if p != nil {

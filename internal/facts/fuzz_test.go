@@ -10,17 +10,24 @@ import (
 )
 
 // fuzzSeeds adds every file under dir whose name ends in one of suffixes as
-// a seed, up to max files.
-func fuzzSeeds(f *testing.F, dir string, max int, suffixes ...string) {
+// a seed, up to limit files. The walk reads through an os.Root, so no link
+// in testdata leads outside dir.
+func fuzzSeeds(f *testing.F, dir string, limit int, suffixes ...string) {
 	f.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		f.Fatal(err)
+	}
+	defer root.Close()
+	fsys := root.FS()
 	n := 0
-	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || n >= max {
+	err = fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || n >= limit {
 			return err
 		}
 		for _, s := range suffixes {
 			if strings.HasSuffix(p, s) {
-				data, err := os.ReadFile(p)
+				data, err := fs.ReadFile(fsys, p)
 				if err != nil {
 					return err
 				}
@@ -39,6 +46,20 @@ func fuzzSeeds(f *testing.F, dir string, max int, suffixes ...string) {
 	}
 }
 
+// limitSeeds are files at the nesting depth and unary operator limits of
+// DefaultLimits and one over each, so the fuzzer starts at the guards.
+func limitSeeds(f *testing.F) {
+	f.Helper()
+	for _, n := range []int{DefaultLimits.MaxDepth, DefaultLimits.MaxDepth + 1} {
+		f.Add([]byte("a = " + strings.Repeat("[", n) + strings.Repeat("]", n) + "\n"))
+		f.Add([]byte("a = " + strings.Repeat("(", n) + "1" + strings.Repeat(")", n) + "\n"))
+	}
+	for _, n := range []int{DefaultLimits.MaxPrefixOps, DefaultLimits.MaxPrefixOps + 1} {
+		f.Add([]byte("a = " + strings.Repeat("!", n) + "true\n"))
+		f.Add([]byte("a = " + strings.Repeat("-", n) + "1\n"))
+	}
+}
+
 // FuzzParseSyntax feeds arbitrary bytes to the HCL parse every reader of a
 // tree goes through. A parse error or a limit is fine. A panic is not, and
 // neither is the recovered one parseSyntax reports as an internal error: it
@@ -46,6 +67,7 @@ func fuzzSeeds(f *testing.F, dir string, max int, suffixes ...string) {
 // the token, depth and unary operator limits.
 func FuzzParseSyntax(f *testing.F) {
 	fuzzSeeds(f, "../../testdata", 200, ".tf", ".tftest.hcl")
+	limitSeeds(f)
 	lim := DefaultLimits
 	f.Fuzz(func(t *testing.T, src []byte) {
 		body, tokens, err := parseSyntax("main.tf", src, lim)
@@ -63,6 +85,20 @@ func FuzzParseSyntax(f *testing.F) {
 		}
 		if len(tokens) > lim.MaxTokens || nestingDepth(tokens) > lim.MaxDepth || prefixRun(tokens) > lim.MaxPrefixOps {
 			t.Fatalf("accepted a file over a limit: %d tokens", len(tokens))
+		}
+	})
+}
+
+// FuzzParseFile feeds arbitrary bytes to parseFile, which parses a file and
+// walks it into a module's facts. A parse error or a limit is fine; a panic,
+// or one parseFile recovers as an internal error, is not.
+func FuzzParseFile(f *testing.F) {
+	fuzzSeeds(f, "../../testdata", 200, ".tf")
+	limitSeeds(f)
+	f.Fuzz(func(t *testing.T, src []byte) {
+		m := &Module{Dir: ".", varNames: map[string]bool{}, outNames: map[string]bool{}}
+		if err := parseFile(m, "main.tf", src, DefaultLimits); err != nil && err.Error() == "internal error while parsing" {
+			t.Fatalf("parsing or collecting panicked on %q", src)
 		}
 	})
 }
