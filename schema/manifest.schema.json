@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "manifest.schema.json",
   "title": "mtf-facts manifest",
-  "description": "One entry per in-scope (rule, area). A not_evaluated entry carries its reason as text and as a code from a closed list. A not_applicable entry for a rule the module profile's options gate carries the reason code profile_option.",
+  "description": "One entry per in-scope (rule, area). A not_evaluated entry carries its reason as text and as a code from a closed list. A not_applicable entry for a rule the module profile's options gate carries the reason code profile_option, and one for a rule that needs the base, in a run given no change (no base tree and no diff), carries no_change_given: there is nothing to compare, which does not mean the rule never applies.",
   "type": "array",
   "items": {
     "oneOf": [
@@ -37,7 +37,7 @@
           "area": {"$ref": "#/$defs/area"},
           "status": {"enum": ["not_applicable"]},
           "reason": {"type": "string", "minLength": 1},
-          "reason_code": {"enum": ["profile_option"]}
+          "reason_code": {"enum": ["profile_option", "no_change_given"]}
         }
       }
     ]

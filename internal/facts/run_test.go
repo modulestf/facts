@@ -62,19 +62,19 @@ func TestRunDiffMatchesBase(t *testing.T) {
 }
 
 // TestRunDiffEvaluatesCompat checks that the base-dependent rules evaluate
-// with a diff, where without a change they are not_applicable.
+// with a diff, where without a change they are not_applicable(no_change_given).
 func TestRunDiffEvaluatesCompat(t *testing.T) {
 	noChange := runDiffFixture(t, Options{})
 	diff := runDiffFixture(t, Options{Diff: filepath.Join(diffFixture, "files.json")})
 	for _, tc := range []struct {
 		r    *Report
-		want bool // every compat entry is not_applicable
+		want bool // every compat entry is not_applicable(no_change_given)
 	}{{noChange, true}, {diff, false}} {
 		n := 0
 		for _, e := range tc.r.Manifest {
 			if strings.HasPrefix(e.RuleID, "compat.") && e.Area == "." {
 				n++
-				if (e.Status == StatusNotApplicable) != tc.want || e.ReasonCode == ReasonNoBase {
+				if (e.ReasonCode == ReasonNoChangeGiven) != tc.want || e.ReasonCode == ReasonNoBase {
 					t.Errorf("%s in %s: %s %s", e.RuleID, e.Area, e.Status, e.ReasonCode)
 				}
 			}

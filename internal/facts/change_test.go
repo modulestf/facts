@@ -230,7 +230,7 @@ func TestNeedsBase(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := []ManifestEntry{{RuleID: "test.scope", Area: ".", Status: StatusNotApplicable}}; !reflect.DeepEqual(rep.Manifest, want) {
+		if want := []ManifestEntry{{RuleID: "test.scope", Area: ".", Status: StatusNotApplicable, Reason: noChangeGivenReason, ReasonCode: ReasonNoChangeGiven}}; !reflect.DeepEqual(rep.Manifest, want) {
 			t.Errorf("cross %v, no change: %+v", cross, rep.Manifest)
 		}
 		rep, err = run(Options{Head: head, Base: writeTree(t, map[string]string{"main.tf": scopeBase}), Limits: DefaultLimits}, []Rule{r})
@@ -248,7 +248,9 @@ func TestNeedsBase(t *testing.T) {
 }
 
 // A rule the profile gates keeps its profile_option reason in a run with no
-// change, even when it needs the base. The mutation turns the gate off.
+// change, even when it needs the base; without the gate it is
+// not_applicable(no_change_given), and in an area outside its kinds plain
+// not_applicable.
 func TestNeedsBaseProfileGatedNoChange(t *testing.T) {
 	r := scopeRule(ScopeAnyFileInArea, false, 1)
 	r.ID, r.NeedsBase = "profile.template-drift", true
@@ -259,12 +261,16 @@ func TestNeedsBaseProfileGatedNoChange(t *testing.T) {
 		want ManifestEntry
 	}{
 		{opts, ManifestEntry{RuleID: r.ID, Area: ".", Status: StatusNotApplicable, Reason: profileOptionReason, ReasonCode: ReasonProfileOption}},
-		{profile.DefaultOptions, ManifestEntry{RuleID: r.ID, Area: ".", Status: StatusNotApplicable}},
+		{profile.DefaultOptions, ManifestEntry{RuleID: r.ID, Area: ".", Status: StatusNotApplicable, Reason: noChangeGivenReason, ReasonCode: ReasonNoChangeGiven}},
 	} {
 		a := &Area{Path: ".", Kind: AreaRoot, Profile: &profile.Profile{Options: tc.opts}}
 		if got := manifestEntry(r.ID, a.Path, evaluate(r, a, ch)); got != tc.want {
 			t.Errorf("%+v: got %+v, want %+v", tc.opts, got, tc.want)
 		}
+	}
+	a := &Area{Path: "examples/e", Kind: AreaExample, Profile: &profile.Profile{Options: profile.DefaultOptions}}
+	if got := manifestEntry(r.ID, a.Path, evaluate(r, a, ch)); got != (ManifestEntry{RuleID: r.ID, Area: a.Path, Status: StatusNotApplicable}) {
+		t.Errorf("outside its kinds: %+v", got)
 	}
 }
 

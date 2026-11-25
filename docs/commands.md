@@ -5,7 +5,7 @@ Each command's flags, report and exit codes. `mtf-facts <command> --help` prints
 ## lint
 
 ```sh
-mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]] [--timeout <duration>]
+mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]] [--candidates] [--not-evaluated] [--timeout <duration>]
   [--registry <rule-facts.md>] [--profile-dir <dir>]
   [--schema-files <file>]... [--schema-handoff <file>]
   [--head-sha <sha>] [--merge-base-sha <sha>]
@@ -18,6 +18,8 @@ mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]
 | `--full-tree` | Check every area, not only those the change touched. The change still decides which lines are judged. |
 | `--json` | Write the full report as JSON. |
 | `--ai` | With `--json`, write the AI report on one line. See [AI report](#ai-report). The text report is the same with or without it. |
+| `--candidates` | In the text report, list each candidate, not only the count per rule. |
+| `--not-evaluated` | In the text report, list each rule and area not evaluated, not only the count per reason. |
 | `--timeout <duration>` | Stop a run that takes longer. Default `60s`. |
 | `--registry <rule-facts.md>` | Record the registry hash. |
 | `--profile-dir <dir>` | The module profile directory. |
@@ -35,14 +37,15 @@ The `--json` report holds the envelope, one manifest entry per rule and area (se
 - `in_repo_downgrade`: always written, sorted, often `[]`. See [In-repo downgrade](rules.md#in-repo-downgrade).
 - On a candidate, `downgrade: "in-repo"` and `severities: ["MEDIUM"]` when the in-repo downgrade covers it; absent otherwise.
 - A manifest entry for a rule the profile's options gate is `not_applicable` with `reason_code` `profile_option` and a reason text. See [Profile options](rules.md#profile-options).
+- In a run with no change (no `--base`, no `--diff`), a rule that needs the base is `not_applicable` with `reason_code` `no_change_given` and a reason text in each area of its kinds: there is nothing to compare, which does not mean the rule never applies. A rule the profile's options gate keeps `profile_option`. With a change, a file whose base content is unknown still makes the rule `not_evaluated(no_base)`.
 
-The text report prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](../schema/).
+The text report prints the findings grouped by rule, each with its own summary and fix, one line that counts the candidates by rule and one that counts the rules not evaluated by reason (top five rules each, the rest counted), a line saying how to pass a profile when `--profile-dir` is not given (the default profile is `.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules` in [modulestf/modulestf](https://github.com/modulestf/modulestf)), and one saying how to pass a schema when schema rules are not evaluated for want of one. It prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](../schema/).
 
 ### AI report
 
 `--json --ai` writes the parts of the report a reviewer decides on, as one line of JSON. The exit code is the same as without `--ai`. Compared with the full report:
 
-- `manifest` keeps only its `finding`, `candidate` and `not_evaluated` entries, in the same order and shape.
+- `manifest` keeps only its `finding`, `candidate` and `not_evaluated` entries, and the `not_applicable` entries with `reason_code` `no_change_given`, in the same order and shape.
 - `manifest_summary` is added. `status` counts every manifest entry of the full report by status. `omitted_by_family` counts the `clean` and `not_applicable` entries left out, per rule family: the rule id up to its first dot, such as `structure`. `areas` lists every area with a manifest entry, sorted. A rule with no entry in a listed area was `clean` or `not_applicable` there, or has no entry there in the full report either.
 - `envelope.inputs.head` and `envelope.inputs.base` keep `tree_sha256` and give `file_count` in place of the `files` list. Every other envelope key is unchanged, `schema_inputs` with its handoff hash, commits and tree hashes included.
 - `index`, `interface_diff` and `schema_coverage` are left out.
@@ -435,6 +438,6 @@ mtf-facts completion bash
 
 - `version` is the text `mtf-facts version` prints: a tag, or `(devel)` for a local build. `commit` and `modified` come from the build; both are `null` for `go install` of a tag, which records no commit.
 - `reports` gives the `schema_version` each command writes at the top of its JSON report, keyed by the command. For `lint` it is the one at `.envelope.schema_version`. `bundle` is not listed: its `schema_version` versions only the optional ownership unit. A key with a hyphen needs the bracket form in jq: `.reports["claims-eval"]`, not `.reports.claims-eval`.
-- `features` is sorted. `cmd:<path>` names each command and `flag:<path>:<name>` each long flag it accepts, where `<path>` is the command names joined by dots (`cmd:merge.check`); both are read from the command tree. `<path>.<name>` names a behaviour or an accepted value: `fixture-check.level.L1` to `L3`, `behaviour.null-sides` (with `--schema`, an attribute a change adds or removes gets a null side, `base_absent` or `head_absent`) and `behaviour.l2-count-for-each` (a `count` or `for_each` change selects L2) and `lint.in-repo-downgrade` (the lint report carries `in_repo_downgrade`). A feature name, once released, keeps its meaning and is not removed; the test holds every released name in `cmd/mtf-facts/testdata/features.txt`.
+- `features` is sorted. `cmd:<path>` names each command and `flag:<path>:<name>` each long flag it accepts, where `<path>` is the command names joined by dots (`cmd:merge.check`); both are read from the command tree. `<path>.<name>` names a behaviour or an accepted value: `fixture-check.level.L1` to `L3`, `behaviour.null-sides` (with `--schema`, an attribute a change adds or removes gets a null side, `base_absent` or `head_absent`) and `behaviour.l2-count-for-each` (a `count` or `for_each` change selects L2) and `lint.in-repo-downgrade` (the lint report carries `in_repo_downgrade`) and `lint.no-change-not-applicable` (with no change, a rule that needs the base is `not_applicable` with `no_change_given`). A feature name, once released, keeps its meaning and is not removed; the test holds every released name in `cmd/mtf-facts/testdata/features.txt`.
 
 A binary older than this report exits 2 on `--json`. A script that needs a feature checks it with jq, for example `jq -e '.features | index("flag:fixture-check:expect")'`.

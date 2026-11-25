@@ -10,7 +10,8 @@ import (
 
 // AIReport is the report lint --json --ai writes: the parts a
 // reviewer decides on. The manifest keeps only its finding, candidate and
-// not_evaluated entries, ManifestSummary counts the rest, the envelope gives
+// not_evaluated entries and the not_applicable entries with reason code
+// no_change_given, ManifestSummary counts the rest, the envelope gives
 // each tree its hash and file count in place of its file list, and the index,
 // the interface diff and the schema coverage are left out.
 type AIReport struct {
@@ -113,8 +114,12 @@ func (r *Report) AIReport() *AIReport {
 	areas := map[string]bool{}
 	for _, m := range r.Manifest {
 		areas[m.Area] = true
-		switch m.Status {
-		case StatusClean, StatusNotApplicable:
+		switch {
+		case m.Status == StatusNotApplicable && m.ReasonCode == ReasonNoChangeGiven:
+			// Kept: the rule was not compared, which a reviewer must tell
+			// from a rule that does not apply.
+			s.Status.NotApplicable++
+		case m.Status == StatusClean, m.Status == StatusNotApplicable:
 			family, _, _ := strings.Cut(m.RuleID, ".")
 			o := s.Omitted[family]
 			if m.Status == StatusClean {
@@ -126,11 +131,11 @@ func (r *Report) AIReport() *AIReport {
 			}
 			s.Omitted[family] = o
 			continue
-		case StatusFinding:
+		case m.Status == StatusFinding:
 			s.Status.Finding++
-		case StatusCandidate:
+		case m.Status == StatusCandidate:
 			s.Status.Candidate++
-		case StatusNotEvaluated:
+		case m.Status == StatusNotEvaluated:
 			s.Status.NotEvaluated++
 		}
 		c.Manifest = append(c.Manifest, m)
