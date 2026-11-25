@@ -167,3 +167,48 @@ jobs:
         env:
           MTF_FACTS_REGISTRY: ${{ runner.temp }}/rule-facts.md
         run: go test -race -count=1 ./...
+
+  # Each fuzz target of the parsers of untrusted input runs for 30 s from its
+  # seed corpus. A failing input is uploaded so it can be added to testdata.
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { pkg: ./internal/facts, name: FuzzParseSyntax }
+          - { pkg: ./internal/facts, name: FuzzParseFile }
+          - { pkg: ./internal/facts, name: FuzzDiffBaseGitHubFiles }
+          - { pkg: ./internal/facts, name: FuzzDiffBaseUnified }
+          - { pkg: ./internal/facts, name: FuzzReadYAML }
+          - { pkg: ./internal/registry, name: FuzzParse }
+          - { pkg: ./internal/profile, name: FuzzNew }
+          - { pkg: ./internal/fixture, name: FuzzFile }
+          - { pkg: ./internal/schema, name: FuzzHandoff }
+          - { pkg: ./internal/merge, name: FuzzParseReply }
+    env:
+      GOFLAGS: -mod=readonly
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          # Off on purpose: setup-go keys its cache on the OS, Go version
+          # and go.sum alone, so these short jobs would save under the test
+          # job's key first and leave it a cache without the race build.
+          cache: false
+      - name: Fuzz
+        env:
+          PKG: ${{ matrix.target.pkg }}
+          NAME: ${{ matrix.target.name }}
+        run: go test -run '^$' -fuzz "^${NAME}\$" -fuzztime 30s "$PKG"
+      - name: Upload failing input
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-${{ matrix.target.name }}
+          path: ${{ matrix.target.pkg }}/testdata/fuzz
+          if-no-files-found: ignore
