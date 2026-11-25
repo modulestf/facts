@@ -67,7 +67,8 @@ type Rule struct {
 	// area, with one manifest entry under the root.
 	CrossArea bool
 	// NeedsBase is set for a rule that cannot be decided without the base
-	// tree: with none, every area is not_evaluated(no_base).
+	// tree. In a run with no change it is not_applicable; in a run with a
+	// change, an area the base lacks is not_evaluated(no_base).
 	NeedsBase bool
 	// ReadsUnreadConfig is set for a rule that also judges a test helper
 	// module under tests/ and a directory more than one level under
@@ -180,7 +181,7 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 			if a.Untouched {
 				continue
 			}
-			res := scoped(r, evaluate(r, a), ch)
+			res := scoped(r, evaluate(r, a, ch), ch)
 			manifest = append(manifest, manifestEntry(r.ID, a.Path, res))
 			if res.NotEvaluated == "" {
 				findings = append(findings, res.Findings...)
@@ -235,8 +236,13 @@ func itemArea(file string, peers map[string]*Area) string {
 	return peerOwner(file, peers)
 }
 
-// evaluate runs one rule in one area after the shared gate.
-func evaluate(r Rule, a *Area) Result {
+// evaluate runs one rule in one area after the shared gate. In a run with no
+// change there is nothing for a rule that needs the base to compare, so it is
+// not_applicable, unless the profile gates it, which keeps profile_option.
+func evaluate(r Rule, a *Area, ch *ChangeMap) Result {
+	if r.NeedsBase && ch.base == nil && !profileGated(r, a) {
+		return Result{NotEvaluated: StatusNotApplicable}
+	}
 	if reason, code := gate(r, a); reason != "" {
 		return Result{NotEvaluated: reason, Code: code}
 	}
@@ -255,14 +261,14 @@ func evaluate(r Rule, a *Area) Result {
 // its file must itself be in the change, never "." or a directory above a
 // changed file.
 func evaluateCrossArea(r Rule, areas []*Area, ch *ChangeMap) Result {
-	// Without a base tree no area has base facts. A rule that needs them is
-	// no_base even when no area is of its kinds.
+	// Without a base tree there is no change, so a rule that needs the base
+	// has nothing to compare, even when no area is of its kinds.
 	if r.NeedsBase && ch.base == nil {
-		return Result{NotEvaluated: ReasonNoBase, Code: ReasonNoBase}
+		return Result{NotEvaluated: StatusNotApplicable}
 	}
 	var out Result
 	for _, a := range areas {
-		res := scoped(r, evaluate(r, a), ch)
+		res := scoped(r, evaluate(r, a, ch), ch)
 		if a.Untouched && res.NotEvaluated == "" {
 			res.Findings = slices.DeleteFunc(res.Findings, func(f Finding) bool { return !ch.paths[f.File] })
 			res.Candidates = slices.DeleteFunc(res.Candidates, func(c Candidate) bool { f, _ := c.scopeAt(); return !ch.paths[f] })

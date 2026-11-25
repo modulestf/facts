@@ -28,6 +28,7 @@ const (
 func newLintCmd() *cobra.Command {
 	var (
 		o       = facts.Options{Limits: facts.DefaultLimits}
+		view    textView
 		asJSON  bool
 		ai      bool
 		timeout time.Duration
@@ -41,7 +42,7 @@ func newLintCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Head = args[0]
-			return status(lint(cmd, o, asJSON, ai, timeout))
+			return status(lint(cmd, o, view, asJSON, ai, timeout))
 		},
 	}
 	f := cmd.Flags()
@@ -51,6 +52,8 @@ func newLintCmd() *cobra.Command {
 	f.BoolVar(&o.FullTree, "full-tree", false, lintFullTreeUsage)
 	f.BoolVar(&asJSON, "json", false, lintJSONUsage)
 	f.BoolVar(&ai, "ai", false, lintAIUsage)
+	f.BoolVar(&view.candidates, "candidates", false, lintCandidatesUsage)
+	f.BoolVar(&view.notEvaluated, "not-evaluated", false, lintNotEvaluatedUsage)
 	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
 	f.StringVar(&o.RegistryFile, "registry", "", lintRegistryUsage)
 	f.StringVar(&o.ProfileDir, "profile-dir", "", lintProfileDirUsage)
@@ -64,7 +67,7 @@ func newLintCmd() *cobra.Command {
 
 // lint returns one of the exit codes above. Candidates are unconfirmed and
 // never change the exit code.
-func lint(cmd *cobra.Command, o facts.Options, asJSON, ai bool, timeout time.Duration) int {
+func lint(cmd *cobra.Command, o facts.Options, view textView, asJSON, ai bool, timeout time.Duration) int {
 	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
 	if timeout <= 0 {
 		return usageError(cmd, timeoutNotPositive)
@@ -74,7 +77,7 @@ func lint(cmd *cobra.Command, o facts.Options, asJSON, ai bool, timeout time.Dur
 	o.Limits.Deadline = time.Now().Add(timeout)
 
 	done := make(chan lintResult, 1) // buffered: a late worker never blocks
-	go func() { done <- lintWork(o, asJSON, ai) }()
+	go func() { done <- lintWork(o, view, asJSON, ai) }()
 	timer := time.NewTimer(timeout)
 	var res lintResult
 	select {
@@ -111,8 +114,9 @@ type lintResult struct {
 }
 
 // lintWork runs the engine and renders the report, the AI form of the
-// JSON report when ai is set. It writes nothing.
-func lintWork(o facts.Options, asJSON, ai bool) lintResult {
+// JSON report when ai is set, or the text report view shapes. It writes
+// nothing.
+func lintWork(o facts.Options, view textView, asJSON, ai bool) lintResult {
 	sum, err := binarySHA256()
 	if err != nil {
 		return lintResult{err: err}
@@ -136,7 +140,9 @@ func lintWork(o facts.Options, asJSON, ai bool) lintResult {
 		}
 		out = append(out, '\n')
 	default:
-		out = []byte(human(r))
+		view.profileGiven = o.ProfileDir != ""
+		view.schemaGiven = len(o.SchemaFiles) > 0 || o.SchemaHandoff != ""
+		out = []byte(human(r, view))
 	}
 	if len(out) > o.Limits.MaxOutputBytes {
 		return lintResult{err: fmt.Errorf("output over %d bytes", o.Limits.MaxOutputBytes)}
@@ -154,46 +160,6 @@ func exitCode(r *facts.Report) int {
 		}
 	}
 	return exitClean
-}
-
-func human(r *facts.Report) string {
-	var b strings.Builder
-	for _, f := range r.Findings {
-		loc := f.File
-		if f.Line != nil {
-			loc = fmt.Sprintf("%s:%d", f.File, *f.Line)
-		}
-		fmt.Fprintf(&b, "%s: %s %s: %s\n  fix: %s\n", clean(loc), f.Severity, f.RuleID, clean(f.Summary), clean(f.SuggestedFix))
-	}
-	for _, c := range r.Candidates {
-		loc := c.File
-		if c.Line != nil {
-			loc = fmt.Sprintf("%s:%d", c.File, *c.Line)
-		}
-		fmt.Fprintf(&b, "%s: unconfirmed %s: %s, confirm or reject\n", clean(loc), c.RuleID, clean(c.Subject))
-	}
-	if r.Callers != nil {
-		writeCallers(&b, *r.Callers)
-	}
-	counts := map[string]int{}
-	for _, e := range r.Manifest {
-		counts[e.Status]++
-		if e.Status == facts.StatusNotEvaluated {
-			fmt.Fprintf(&b, "not evaluated: %s in %s: %s\n", e.RuleID, clean(e.Area), clean(e.Reason))
-		}
-	}
-	if r.Scope != nil {
-		writeScope(&b, r.Scope)
-	}
-	fmt.Fprintf(&b, "%d findings, %d candidates; manifest: %d finding, %d candidate, %d clean, %d not_evaluated, %d not_applicable\n",
-		len(r.Findings), len(r.Candidates), counts[facts.StatusFinding], counts[facts.StatusCandidate],
-		counts[facts.StatusClean], counts[facts.StatusNotEvaluated], counts[facts.StatusNotApplicable])
-	reg := "none"
-	if r.Envelope.RegistrySHA256 != nil {
-		reg = *r.Envelope.RegistrySHA256
-	}
-	fmt.Fprintf(&b, "mtf-facts %s, binary sha256 %s, registry sha256 %s\n", r.Envelope.Tool.Version, r.Envelope.Tool.BinarySHA256, reg)
-	return b.String()
 }
 
 // writeScope writes the scope line: how the change was given, and how many

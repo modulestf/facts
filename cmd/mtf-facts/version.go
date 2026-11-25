@@ -66,6 +66,10 @@ var behaviourFeatures = []string{
 	// listed candidates the in-repo profile downgrades to MEDIUM
 	// (internal/facts TestModuleCallersMonorepo, TestInRepoDowngradeConditions).
 	"lint.in-repo-downgrade",
+	// In a lint run with no change, a rule that needs the base is
+	// not_applicable, not not_evaluated(no_base)
+	// (internal/facts TestNeedsBase).
+	"lint.no-change-not-applicable",
 }
 
 func newVersionCmd() *cobra.Command {

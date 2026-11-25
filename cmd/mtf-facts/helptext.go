@@ -48,7 +48,8 @@ change itself with --diff, a GitHub pull request files list or a unified diff
 that the base tree is rebuilt from. A file the diff gives no patch for, such
 as a binary or very large one, has no known base content: the rules that read
 it are not_evaluated with no_base. --full-tree checks every area, and the
-change still decides which lines are judged.
+change still decides which lines are judged. With no change, a rule that
+compares the change with its base is not_applicable.
 
 A cross-area rule has one manifest entry under . for its pass, and one under
 each other area that holds one of its findings or candidates. With a change,
@@ -56,8 +57,10 @@ the report lists each module whose versions or inputs it touches, with every
 area that calls it and the version floors each declares, and says which
 areas it checked, reached only as callers, or left out.
 
-It prints the findings, the candidates, the rules not evaluated and a summary,
-or with --json the full report: the envelope, the manifest, the findings and
+It prints the findings grouped by rule, one line that counts the candidates
+by rule and one that counts the rules not evaluated by reason (--candidates
+and --not-evaluated list each), a line saying how to pass a profile or a
+schema when none was given, and a summary, or with --json the full report: the envelope, the manifest, the findings and
 the candidates. --ai with --json keeps what a reviewer decides on: the
 manifest keeps its finding, candidate and not_evaluated entries and
 manifest_summary counts the rest, each tree keeps its hash and a file count
@@ -84,6 +87,8 @@ Exit codes:
 	lintFullTreeUsage      = "check every area, not only those the change touched"
 	lintJSONUsage          = "write the full report as JSON"
 	lintAIUsage            = "with --json, write the AI report a reviewer reads; bundle needs the full one"
+	lintCandidatesUsage    = "list each candidate in the text report, not only the count per rule"
+	lintNotEvaluatedUsage  = "list each rule and area not evaluated in the text report, not only the count per reason"
 	lintTimeoutUsage       = "stop with an error after this long; must be greater than zero"
 	lintRegistryUsage      = "rule registry `file` (rule-facts.md) whose hash the report records"
 	lintProfileDirUsage    = "module profile `dir`; must exist and not be a link (links in parent components resolve)"

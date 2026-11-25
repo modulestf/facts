@@ -60,9 +60,16 @@ func TestLint(t *testing.T) {
 	if code := run([]string{"lint", head, "--base", base, "--profile-dir", "../../testdata/profile"}, &out, &errb); code != 0 {
 		t.Fatalf("exit %d: %s", code, errb.String())
 	}
-	if !strings.Contains(out.String(), `variables.tf:5: unconfirmed structure.variable-untyped: .:var.added`) ||
+	if !strings.Contains(out.String(), "candidates: 2 to confirm or reject (--candidates lists each): compat.variable-now-required 1, structure.variable-untyped 1\n") ||
 		!strings.Contains(out.String(), "registry sha256 none") {
 		t.Errorf("human output:\n%s", out.String())
+	}
+	out.Reset()
+	if code := run([]string{"lint", head, "--base", base, "--profile-dir", "../../testdata/profile", "--candidates"}, &out, &errb); code != 0 {
+		t.Fatalf("exit %d: %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), `variables.tf:5: unconfirmed structure.variable-untyped: .:var.added`) {
+		t.Errorf("human output with --candidates:\n%s", out.String())
 	}
 
 	out.Reset()

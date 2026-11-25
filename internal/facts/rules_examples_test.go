@@ -113,10 +113,10 @@ func TestSubmoduleMissingCases(t *testing.T) {
 	}
 }
 
-// Without a base the rule is no_base, even with no submodule in the tree.
+// With no change the rule is not_applicable, even with no submodule in the tree.
 func TestSubmoduleMissingNoBase(t *testing.T) {
 	for _, files := range []map[string]string{{"main.tf": ""}, {"main.tf": "", "modules/a/main.tf": ""}} {
-		if s := statusOf(runHead(t, files).Manifest, submoduleRule, "."); s != "not_evaluated: no_base" {
+		if s := statusOf(runHead(t, files).Manifest, submoduleRule, "."); s != StatusNotApplicable {
 			t.Error(s)
 		}
 	}
@@ -219,7 +219,7 @@ func TestStaleReferenceRename(t *testing.T) {
 }
 
 func TestStaleReferenceNoBase(t *testing.T) {
-	if s := statusOf(runHead(t, map[string]string{"main.tf": "", "examples/e/main.tf": ""}).Manifest, staleRule, "."); s != "not_evaluated: no_base" {
+	if s := statusOf(runHead(t, map[string]string{"main.tf": "", "examples/e/main.tf": ""}).Manifest, staleRule, "."); s != StatusNotApplicable {
 		t.Error(s)
 	}
 }
