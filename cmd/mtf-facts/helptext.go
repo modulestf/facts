@@ -298,10 +298,11 @@ const (
 
 // Messages of usage errors a handler finds.
 const (
-	usageHint          = "Run '%s --help' for usage.\n"
-	timeoutNotPositive = "--timeout must be greater than zero"
-	schemaDiffRequired = "--from, --to and --types-from are required"
-	registryRequired   = "--registry is required"
+	usageHint           = "Run '%s --help' for usage.\n"
+	timeoutNotPositive  = "--timeout must be greater than zero"
+	schemaDiffRequired  = "--from, --to and --types-from are required"
+	registryRequired    = "--registry is required"
+	changesBaseRequired = "exactly one of --base and --diff is required"
 )
 
 const (

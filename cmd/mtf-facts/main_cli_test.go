@@ -48,7 +48,7 @@ func TestRootHelp(t *testing.T) {
 	last := -1
 	for _, line := range []string{
 		"Check a module:", "  lint ", "  ledger ", "  schema-diff ",
-		"Review pipeline (run by hosts):", "  affected ", "  bundle ", "  merge ", "  fixture-check ", "  behaviour ", "  claims-eval ",
+		"Review pipeline (run by hosts):", "  affected ", "  changes ", "  bundle ", "  merge ", "  fixture-check ", "  behaviour ", "  claims-eval ",
 		"Other commands:", "  rules ", "  version ", "  completion ", "  help ",
 	} {
 		i := strings.Index(want, "\n"+line)
@@ -429,6 +429,7 @@ Check a module:
 
 Review pipeline (run by hosts):
   affected          List the examples a change can affect, most likely first
+  changes           Report the changed attributes of a change and what reads them
   depth             Decide how deep a review of a change must go: light, focused or deep
   bundle            Build the facts bundle a model reviewer reads
   merge             Check a model reply and merge it into the final findings

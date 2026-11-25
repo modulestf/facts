@@ -1,0 +1,2 @@
+head/examples/linked ../shared/linked
+base/examples/linked ../shared/linked

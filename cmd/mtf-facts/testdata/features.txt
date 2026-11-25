@@ -6,6 +6,7 @@ behaviour.schema-required
 cmd:affected
 cmd:behaviour
 cmd:bundle
+cmd:changes
 cmd:claims-eval
 cmd:depth
 cmd:fixture-check
@@ -45,6 +46,10 @@ flag:bundle:schema-files
 flag:bundle:schema-handoff
 flag:bundle:skills
 flag:bundle:timeout
+flag:changes:base
+flag:changes:diff
+flag:changes:json
+flag:changes:timeout
 flag:claims-eval:base-sha
 flag:claims-eval:behaviour
 flag:claims-eval:claims

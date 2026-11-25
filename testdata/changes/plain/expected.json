@@ -1,0 +1,489 @@
+{
+  "files": [
+    {
+      "path": "main.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "aws_lb.this",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "security_groups",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.lookup",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.try",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.merge",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.conditional",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.for",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.file",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.templatefile",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.jsondecode",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.count_ref",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.each_ref",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.self_ref",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.operator",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.parens",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.directive",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.expand",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.heredoc",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.provider_func",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.negative",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.literals",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.object",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.object_key_expr",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": false,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.splat",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.index",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.interp",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_demo.funcs",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [],
+      "complete": true
+    }
+  ]
+}

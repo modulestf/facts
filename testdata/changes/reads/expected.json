@@ -1,0 +1,266 @@
+{
+  "files": [
+    {
+      "path": "main.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "aws_lb.this",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 3,
+                  "how": "name"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "subnets",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 4,
+                  "how": "name"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "tags",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 5,
+                  "how": "tags_all"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "idle",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            },
+            {
+              "name": "timeout",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            },
+            {
+              "name": "arn_x",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 7,
+                  "how": "name"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.whole",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 9,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.single",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "key",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 10,
+                  "how": "name"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "other",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            },
+            {
+              "name": "selfread",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "main.tf",
+                  "line": 20,
+                  "how": "self"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.dyn",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 11,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.numeric",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 12,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "data.aws_ami.this",
+          "kind": "data",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "owners",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "reads.tf",
+                  "line": 13,
+                  "how": "name"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [
+        "aws_ami"
+      ],
+      "complete": true
+    },
+    {
+      "dir": "modules/other",
+      "types": [],
+      "complete": false
+    }
+  ]
+}

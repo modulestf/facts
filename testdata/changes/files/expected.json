@@ -1,0 +1,90 @@
+{
+  "files": [
+    {
+      "path": "added.tf",
+      "dir": ".",
+      "status": "added",
+      "parsed": true,
+      "reason": null,
+      "outside": true,
+      "blocks": [
+        {
+          "address": "aws_sns_topic.new",
+          "kind": "resource",
+          "status": "added",
+          "structural": false,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "path": "broken.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "parse-error",
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "dup.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "duplicate-address",
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "extra.tf.json",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "json",
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "link.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "symlink",
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "main_override.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "override",
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "removed.tf",
+      "dir": ".",
+      "status": "removed",
+      "parsed": true,
+      "reason": null,
+      "outside": true,
+      "blocks": [
+        {
+          "address": "aws_sns_topic.gone",
+          "kind": "resource",
+          "status": "removed",
+          "structural": false,
+          "attributes": []
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [],
+      "complete": false
+    }
+  ]
+}
