@@ -32,11 +32,16 @@ gh attestation verify mtf-facts_v0.1.0_linux_amd64 -R modulestf/facts \
   --deny-self-hosted-runners
 ```
 
-Check its SHA-256 against the release:
+Check its SHA-256 against the release. On Linux:
 
 ```sh
-sha256sum --ignore-missing -c SHA256SUMS          # Linux
-shasum -a 256 --ignore-missing -c SHA256SUMS      # macOS
+sha256sum --ignore-missing -c SHA256SUMS
+```
+
+On macOS:
+
+```sh
+shasum -a 256 --ignore-missing -c SHA256SUMS
 ```
 
 Rebuild the release from source and compare every SHA-256 with the published one. This needs `git`, `curl` and Go; a different local Go downloads the release's toolchain.
