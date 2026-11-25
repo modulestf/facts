@@ -24,7 +24,10 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: .go-version
-          cache: false
+          # The module and build caches, keyed on go.sum. Pull request runs
+          # read the master cache and write only their own; release.yml keeps
+          # cache: false, so no cache reaches a release build.
+          cache: true
       - name: Check modules
         env:
           GOFLAGS: ""
@@ -32,6 +35,8 @@ jobs:
           go mod verify
           go mod tidy
           git diff --exit-code go.mod go.sum
+      # go run at a pinned version: the module and its build come from the
+      # setup-go cache after the first run, not a new download each time.
       - name: Vulnerabilities
         env:
           GOFLAGS: ""
@@ -67,7 +72,13 @@ jobs:
       - name: Test
         env:
           MTF_FACTS_REGISTRY: ${{ runner.temp }}/rule-facts.md
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -coverprofile="$RUNNER_TEMP/cover.out" ./...
+      # Reported in the job summary only; no threshold fails the job.
+      - name: Coverage
+        run: |
+          total=$(go tool cover -func="$RUNNER_TEMP/cover.out" | tail -1)
+          echo "$total"
+          printf 'Coverage %s\n' "$total" >>"$GITHUB_STEP_SUMMARY"
       - name: Build
         run: go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
       # ajv-cli and its dependencies come from tests/ajv/package-lock.json,
@@ -128,3 +139,22 @@ jobs:
               base="$RUNNER_TEMP/base.txt" head="$RUNNER_TEMP/head.txt" || echo "benchstat failed"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Releases ship darwin binaries, and the tree reader and the read caps are
+  # built only for unix, so the suite runs on macOS too. The registry checks
+  # need MTF_FACTS_REGISTRY and skip here; the Linux job runs them.
+  test-macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    env:
+      GOFLAGS: -mod=readonly
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: true
+      - name: Test
+        run: go test -race -count=1 ./...

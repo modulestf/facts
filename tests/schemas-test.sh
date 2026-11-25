@@ -10,33 +10,26 @@
 #
 # With a built binary it also checks the live output of version --json.
 #
-# Validator: ajv-cli 5.0.0, draft 2020-12 (--spec=draft2020), strict mode.
-# Needs Node.js and npm. tests/ajv/package-lock.json pins ajv-cli and every
-# package it pulls in, with integrity hashes. Each run installs that lock with
-# npm ci into its own temporary directory, with its own npm cache there, so
-# concurrent runs share no writable path; the install needs network access to
-# the npm registry, and every check then runs that local copy offline.
-# Override the command with AJV, for example AJV="ajv" for a local install, to
-# skip the install.
-#
-# Each ajv call writes to a file, and grep reads that file. The script used to
-# check `printf '%s' "$out" | grep -q`: grep -q exits at the first match, printf
-# can then die of SIGPIPE, and pipefail turned that into a miss, so under load a
-# fixture failing on its expected keyword was sometimes reported as failing on
-# another one. Writing to a file also avoids reading ajv-cli's output through a
-# pipe: it calls process.exit after printing, and Node.js writes pipes
-# asynchronously on macOS. Two loaded runs logged captures cut off mid-token,
-# but that truncation did not reproduce on demand.
+# Validator: ajv 8.20.0 as ajv-cli 5.0.0 installs it, draft 2020-12, strict
+# mode. tests/ajv/validate.js checks every schema and example in one Node.js
+# process, with the options ajv-cli uses for `ajv test --spec=draft2020
+# --strict=true -s <schema> -r <others>`; the script used to start ajv-cli
+# once per example, about 200 processes. Needs Node.js and npm.
+# tests/ajv/package-lock.json pins ajv-cli and every package it pulls in, with
+# integrity hashes. Each run installs that lock with npm ci into its own
+# temporary directory, with its own npm cache there, so concurrent runs share
+# no writable path; the install needs network access to the npm registry, and
+# the check then runs that local copy offline.
+# Set AJV_NODE_MODULES to a node_modules directory that holds ajv 8, for
+# example a local install, to skip the install.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 schemas="$root/schema"
-examples="$schemas/examples"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/schemas-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
-out="$tmp/out"
-if [ -n "${AJV:-}" ]; then
-  read -r -a ajv <<<"$AJV"
+if [ -n "${AJV_NODE_MODULES:-}" ]; then
+  modules=$AJV_NODE_MODULES
 else
   cp "$root/tests/ajv/package.json" "$root/tests/ajv/package-lock.json" "$tmp/"
   if ! (cd "$tmp" && npm ci --cache "$tmp/npm-cache" --ignore-scripts \
@@ -45,88 +38,28 @@ else
     sed 's/^/     /' "$tmp/install.log"
     exit 1
   fi
-  ajv=("$tmp/node_modules/.bin/ajv")
+  modules=$tmp/node_modules
 fi
-
-fail=0
-checked=0
-for schema in "$schemas"/*.schema.json; do
-  name=$(basename "$schema" .schema.json)
-  [ "$name" = finding ] && continue
-
-  refs=()
-  for other in "$schemas"/*.schema.json; do
-    [ "$other" = "$schema" ] || refs+=(-r "$other")
-  done
-  opts=(--spec=draft2020 --strict=true -s "$schema" "${refs[@]}")
-  run=("${ajv[@]}" test "${opts[@]}")
-
-  valid="$examples/$name.valid.json"
-  valids=("$valid")
-  for f in "$examples/$name".valid.*.json; do
-    [ -f "$f" ] && valids+=("$f")
-  done
-  invalid=("$examples/$name".invalid.*.json)
-  if [ ! -f "$valid" ] || [ ! -f "${invalid[0]}" ]; then
-    echo "FAIL $name: needs $name.valid.json and at least one $name.invalid.<keyword>.json"
-    fail=1
-    continue
-  fi
-
-  for f in "${valids[@]}"; do
-    if "${run[@]}" -d "$f" --valid >"$out" 2>&1; then
-      echo "ok   $(basename "$f") passes"
-    else
-      echo "FAIL $(basename "$f") does not pass:"
-      sed 's/^/     /' "$out"
-      fail=1
-    fi
-  done
-  # One call per file, so a failure names the file and its expected keyword.
-  for f in "${invalid[@]}"; do
-    base=$(basename "$f" .json)
-    keyword=$(printf '%s' "$base" | cut -d. -f3)
-    if "${ajv[@]}" validate "${opts[@]}" -d "$f" --all-errors --errors=json >"$out" 2>&1; then
-      echo "FAIL $base.json passes but must fail"
-      fail=1
-    elif grep -Eq "\"keyword\": ?\"$keyword\"" "$out"; then
-      echo "ok   $base.json fails on $keyword"
-    else
-      echo "FAIL $base.json fails, but not on $keyword:"
-      sed 's/^/     /' "$out"
-      fail=1
-    fi
-  done
-  checked=$((checked + 1))
-done
-
-[ "$checked" -gt 0 ] || { echo "FAIL no schemas found"; exit 1; }
 
 # The live output of version --json must pass its schema too, so the schema
 # cannot drift from the binary. It needs a built binary, MTF_FACTS or
 # bin/mtf-facts (CI builds it first); without one it is skipped, except in CI.
+# validate.js checks it after the examples; a failure to run the binary, or
+# no binary in CI, reaches it as a note.
 bin=${MTF_FACTS:-$root/bin/mtf-facts}
+live=()
 if [ -x "$bin" ]; then
-  refs=()
-  for other in "$schemas"/*.schema.json; do
-    [ "$(basename "$other")" = version.schema.json ] || refs+=(-r "$other")
-  done
-  if ! "$bin" version --json >"$tmp/version.json" 2>"$out"; then
-    echo "FAIL $bin version --json exited non-zero:"
-    sed 's/^/     /' "$out"
-    fail=1
-  elif "${ajv[@]}" validate --spec=draft2020 --strict=true -s "$schemas/version.schema.json" "${refs[@]}" \
-    -d "$tmp/version.json" >"$out" 2>&1; then
-    echo "ok   version --json of $bin passes"
+  if "$bin" version --json >"$tmp/version.json" 2>"$tmp/version.err"; then
+    live=(--live version "$tmp/version.json" "version --json of $bin")
   else
-    echo "FAIL version --json of $bin does not pass:"
-    sed 's/^/     /' "$out"
-    fail=1
+    { echo "FAIL $bin version --json exited non-zero:"; sed 's/^/     /' "$tmp/version.err"; } >"$tmp/note"
+    live=(--note fail "$tmp/note")
   fi
 elif [ -n "${CI:-}" ]; then
-  echo "FAIL no built binary at $bin to check version --json against its schema"
-  fail=1
+  echo "FAIL no built binary at $bin to check version --json against its schema" >"$tmp/note"
+  live=(--note fail "$tmp/note")
 else
-  echo "skip version --json: no built binary at $bin"
+  echo "skip version --json: no built binary at $bin" >"$tmp/note"
+  live=(--note skip "$tmp/note")
 fi
-[ "$fail" -eq 0 ] && echo "PASS $checked schemas" || { echo "FAILED"; exit 1; }
+node "$root/tests/ajv/validate.js" "$schemas" "$modules" "${live[@]}"
