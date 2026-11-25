@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "inert": false,
+  "entries": [
+    {
+      "path": "examples/complete/main.tf",
+      "change_kind": "modified",
+      "inert": false,
+      "trigger_ids": [
+        "T-001"
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "T-001",
+      "file": "examples/complete/main.tf",
+      "line": 3,
+      "category": "literal-argument-change",
+      "change_kind": "modified",
+      "address": "module.s3",
+      "attribute": "name",
+      "base_expr": "\"a\"",
+      "head_expr": "\"b\"",
+      "referenced_inputs": [],
+      "contextual_refs": [],
+      "contextual_ref_details": [],
+      "pure": true,
+      "levels": [
+        "L4"
+      ],
+      "reason": null,
+      "caller_code": true
+    }
+  ],
+  "capped": 0
+}

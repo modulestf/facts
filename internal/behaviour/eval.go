@@ -415,6 +415,10 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 			return ts
 		}
 	}
+	if callerInert(t) {
+		ts.State, ts.Reason = StateInert, callerReason
+		return ts
+	}
 	if len(t.Levels) == 0 {
 		ts.Reason = cmp.Or(deref(t.Reason), "the trigger selects no level")
 		return ts

@@ -149,6 +149,12 @@ type Trigger struct {
 	// follows that variable's trigger. Such a trigger selects no level. An
 	// empty list is a variable nothing reads. An optional field.
 	Follows []string `json:"follows,omitzero"`
+	// CallerCode marks a literal-argument-change in a .tf file below
+	// examples/ or tests/ of the module root, caller code no module user
+	// runs: no read site may read the file and no configuration outside
+	// those directories can load them as a module. claims-eval reads it as
+	// inert unless a claim of it is refuted. An optional field.
+	CallerCode bool `json:"caller_code,omitempty"`
 
 	// sids are the specs this trigger stands for, and followSIDs the specs
 	// it follows, until the report numbers the triggers.

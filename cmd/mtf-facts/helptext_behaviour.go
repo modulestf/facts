@@ -17,7 +17,10 @@ for every diff context size.
 Every changed tree entry is listed. A documentation or metadata path is inert
 when no read site in either revision's configuration can reach it and every
 .tf file parsed; a .tf file is inert when its change is only comments, layout
-or blocks moved between files of one directory. Every other change is
+or blocks moved between files of one directory. A literal argument changed
+in a .tf file below examples/ or tests/ is marked caller_code when nothing
+outside those directories can load them as a module and no read site can
+read the file. Every other change is
 decomposed into triggers, one per AST-level change with one category, and
 each trigger selects its levels: L1 offline expression evaluation, L3 curated
 provider fixtures, L4 the example plans, or compat for a version floor. A
@@ -69,7 +72,8 @@ unverifiable. A merged trigger that selects both needs both. A trigger
 with follows is verified or covered only when every trigger it follows is,
 covered when one of them is; a dangling id or a cycle leaves it
 unverifiable. An inert
-entry's triggers are inert; anything else is unverifiable. Refuted
+entry's triggers are inert, and so is a caller_code trigger unless a claim
+of it is refuted; anything else is unverifiable. Refuted
 outranks covered.
 
 A record with runs needs --head-sha and --base-sha, and must name those
