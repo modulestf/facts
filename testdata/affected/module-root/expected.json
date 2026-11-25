@@ -10,6 +10,7 @@
         {"dir": "examples/touched", "reason": "touched"},
         {"dir": "examples/calls", "reason": "caller"},
         {"dir": "modules/a/examples/own", "reason": "caller"},
+        {"dir": "examples/jsononly", "reason": "all", "unresolved": true},
         {"dir": "examples/tflink", "reason": "all", "unresolved": true}
       ],
       "changed": ["examples/touched/main.tf", "modules/a/main.tf"]
@@ -24,6 +25,7 @@
       "fallback": null,
       "examples": [
         {"dir": "examples/commented", "reason": "all"},
+        {"dir": "examples/jsononly", "reason": "all", "unresolved": true},
         {"dir": "examples/other", "reason": "all"},
         {"dir": "examples/tflink", "reason": "all", "unresolved": true}
       ],

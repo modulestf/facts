@@ -28,6 +28,9 @@ func newAffectedCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Head = args[0]
+			if cmd.Flags().Changed("module-root") && o.ModuleRoot == "" {
+				return status(usageError(cmd, "--module-root names no module root"))
+			}
 			return status(affected(cmd, o, asJSON, timeout))
 		},
 	}

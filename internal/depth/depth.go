@@ -496,6 +496,11 @@ func (r *run) affected() *facts.AffectedReport {
 		r.note("affected report: schema_version %d", rep.SchemaVersion)
 		return nil
 	}
+	if m := rep.ModuleRoot; m != "" && (!safePath(m) || inside(m, "examples")) {
+		r.add(ReasonAffectedInvalid)
+		r.note("affected report: module_root %q is not a safe path outside examples/", m)
+		return nil
+	}
 	if rep.Fallback != nil {
 		r.add(ReasonAffectedFallback)
 		r.note("affected report fell back: %s", *rep.Fallback)

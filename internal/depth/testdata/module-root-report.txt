@@ -1,5 +1,6 @@
 kind: must-not-be-light
 depth: focused
+examples: modules/a/examples/extra
 -- base/modules/a/main.tf --
 resource "aws_demo_widget" "this" {
   name = "a"
@@ -50,7 +51,8 @@ locals {}
   "checks_out_of_scope": [],
   "examples_selected": [
     "examples/calls",
-    "examples/odd"
+    "examples/odd",
+    "modules/a/examples/extra"
   ],
   "examples_out_of_scope": [
     "examples/other"
@@ -66,7 +68,7 @@ locals {}
     "tf_files": 1,
     "changed_lines": 2,
     "changed_blocks": 1,
-    "selected_examples": 2
+    "selected_examples": 3
   },
   "schema_providers": [],
   "schema_types": [

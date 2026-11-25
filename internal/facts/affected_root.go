@@ -2,6 +2,7 @@ package facts
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -143,6 +144,7 @@ func subtree(t *Tree, keep func(p string) bool) *Tree {
 type rootExample struct {
 	dir        string
 	unresolved bool
+	reach      map[string]bool // the directories its module calls reach, itself included
 }
 
 // affectedModuleRoot is Affected for a module root M under the repository
@@ -211,9 +213,24 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	}
 
 	// The read sites of the scope: M's whole tree, as a run on M alone reads
-	// it, and the directories in scope outside it. An unresolved example is
-	// left out, so a file in it that does not parse ends no run.
-	sub := subtree(head, func(p string) bool { return inDir(p, m) || scope[path.Dir(p)] })
+	// it, the directories in scope outside it, and for each resolved listed
+	// example every directory under it and every directory its module calls
+	// reach, so a helper module that reads a file of the example counts. An
+	// unresolved example is left out, so a file in it that does not parse
+	// ends no run; it makes the change not inert anyway.
+	siteDirs := maps.Clone(scope)
+	for _, ex := range listed {
+		if ex.unresolved {
+			continue
+		}
+		maps.Copy(siteDirs, ex.reach)
+		for d := range head.Dirs {
+			if inDir(d, ex.dir) {
+				siteDirs[d] = true
+			}
+		}
+	}
+	sub := subtree(head, func(p string) bool { return inDir(p, m) || siteDirs[path.Dir(p)] })
 	sites, complete, err := ReadSites(sub, o.Limits)
 	if err != nil {
 		return nil, err
@@ -228,7 +245,7 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	reachedBy := func(p string) []string {
 		var dirs []string
 		for _, s := range sites {
-			if scope[s.Dir] || inDir(s.Dir, m) {
+			if siteDirs[s.Dir] || inDir(s.Dir, m) {
 				if s.Reaches(p, siteRoots) {
 					dirs = append(dirs, s.Dir)
 				}
@@ -296,7 +313,8 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 
 // moduleRootExamples lists, in path order, M's own examples and the
 // repository-root examples: first-level directories under M/examples and
-// examples that hold a .tf file. A name a host could not use safely as a
+// examples that hold a .tf file, and under examples also those that hold
+// only .tf.json files. A name a host could not use safely as a
 // path is an error.
 func moduleRootExamples(t *Tree, m string) (own, roots []string, err error) {
 	for d := range t.Dirs {
@@ -306,6 +324,14 @@ func moduleRootExamples(t *Tree, m string) (own, roots []string, err error) {
 	}
 	slices.Sort(own)
 	roots = exampleRoots(t)[1:]
+	for d := range t.Dirs {
+		if path.Dir(d) == "examples" && !holdsTF(t, d) && slices.ContainsFunc(t.DirEntries(d), func(e *Entry) bool {
+			return strings.HasSuffix(e.Path, ".tf.json") && !ignoredName(path.Base(e.Path))
+		}) {
+			roots = append(roots, d)
+		}
+	}
+	slices.Sort(roots)
 	for _, d := range slices.Concat(own, roots) {
 		if !exampleName.MatchString(path.Base(d)) {
 			return nil, nil, fmt.Errorf("example directory %q has a name outside [A-Za-z0-9._-]", clean(d))
@@ -341,7 +367,7 @@ func listRootExamples(t *Tree, g *lazyGraph, m string, roots []string, scope map
 		}
 		switch {
 		case reachesRoot(t, dirs, m):
-			out = append(out, rootExample{dir: ex, unresolved: problem != ""})
+			out = append(out, rootExample{dir: ex, unresolved: problem != "", reach: dirs})
 			for d := range dirs {
 				if scope[d] {
 					continue

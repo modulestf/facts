@@ -305,3 +305,27 @@ func TestAffectedWithoutModuleRootHasNoField(t *testing.T) {
 		t.Errorf("report without --module-root names module_root or unresolved: %s", s)
 	}
 }
+
+// TestAffectedModuleRootReadSites runs testdata/affected/helper-read and
+// root-read, where the only change is a documentation file of a listed
+// repository-root example that a helper module of the example reads, by
+// path.module and by path.root. A plain run and a module root run both find
+// the change not inert and the example touched.
+func TestAffectedModuleRootReadSites(t *testing.T) {
+	for _, name := range []string{"helper-read", "root-read"} {
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join("..", "..", "testdata", "affected", name)
+			for _, root := range []string{"", "modules/a"} {
+				r, err := Affected(AffectedOptions{Head: filepath.Join(dir, "head"), Base: filepath.Join(dir, "base"),
+					ModuleRoot: root, Limits: DefaultLimits})
+				if err != nil {
+					t.Fatal(err)
+				}
+				checkAffectedSchema(t, r)
+				if r.Inert || len(r.Changed) != 1 || len(r.Examples) == 0 || r.Examples[0].Reason != ReasonTouched {
+					t.Errorf("module root %q: inert %v, changed %q, examples %q", root, r.Inert, r.Changed, rootPairs(r))
+				}
+			}
+		})
+	}
+}

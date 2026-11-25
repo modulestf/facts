@@ -106,7 +106,7 @@ func TestAffectedModuleRoot(t *testing.T) {
 	if code != exitClean || !strings.HasPrefix(human, "caller examples/calls\ncaller modules/a/examples/own\nall examples/odd unresolved\n") {
 		t.Errorf("exit %d, text report:\n%s", code, human)
 	}
-	for _, m := range []string{"modules/none", "../head/modules/a", "modules/a/"} {
+	for _, m := range []string{"", "modules/none", "../head/modules/a", "modules/a/"} {
 		if code, out, errOut := runCLI([]string{"affected", head, "--base", base, "--module-root", m, "--json"}); code != exitError || out != "" || !strings.Contains(errOut, "module root") {
 			t.Errorf("%q: exit %d, stdout %q, stderr %q", m, code, out, errOut)
 		}
