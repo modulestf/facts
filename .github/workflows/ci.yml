@@ -10,6 +10,9 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
+  # The rule registry pin, used by the Fetch rule registry step of each job.
+  SKILLS_COMMIT: 19d74e317b5721d14d384bc01699fa97379f21e3
+  REGISTRY_SHA256: e43644044fb373209cad6e208b5119224e06361b7b9b5c698e0cd35507c77f54
 
 jobs:
   test:
@@ -61,9 +64,6 @@ jobs:
       # there first and then picked up here by bumping the commit and the
       # file's SHA-256 together. The hash check refuses a cut-off download.
       - name: Fetch rule registry
-        env:
-          SKILLS_COMMIT: 19d74e317b5721d14d384bc01699fa97379f21e3
-          REGISTRY_SHA256: e43644044fb373209cad6e208b5119224e06361b7b9b5c698e0cd35507c77f54
         run: |
           curl -fsSL --proto '=https' --tlsv1.2 --retry 2 --max-time 30 \
             -o "$RUNNER_TEMP/rule-facts.md" \
@@ -141,8 +141,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Releases ship darwin binaries, and the tree reader and the read caps are
-  # built only for unix, so the suite runs on macOS too. The registry checks
-  # need MTF_FACTS_REGISTRY and skip here; the Linux job runs them.
+  # built only for unix, so the suite runs on macOS too.
   test-macos:
     runs-on: macos-latest
     timeout-minutes: 15
@@ -156,5 +155,15 @@ jobs:
         with:
           go-version-file: .go-version
           cache: true
+      # The same pinned registry as the test job; shasum, since macOS has no
+      # sha256sum.
+      - name: Fetch rule registry
+        run: |
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 2 --max-time 30 \
+            -o "$RUNNER_TEMP/rule-facts.md" \
+            "https://raw.githubusercontent.com/modulestf/modulestf/${SKILLS_COMMIT}/.agents/skills/terraform-module-reviewer/references/rule-facts.md"
+          echo "${REGISTRY_SHA256}  ${RUNNER_TEMP}/rule-facts.md" | shasum -a 256 -c -
       - name: Test
+        env:
+          MTF_FACTS_REGISTRY: ${{ runner.temp }}/rule-facts.md
         run: go test -race -count=1 ./...
