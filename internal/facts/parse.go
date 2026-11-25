@@ -346,9 +346,14 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 			err = fmt.Errorf("internal error while parsing")
 		}
 	}()
-	body, tokens, err := parseSyntax(name, src, lim)
+	body, tokens, err := parseBody(name, src, lim)
 	if err != nil {
 		return err
+	}
+	// Only a variable keeps comments, so a file without one is not lexed
+	// again for them.
+	if tokens == nil && hasVariable(body) {
+		tokens, _ = hclsyntax.LexConfig(src, name, hcl.InitialPos)
 	}
 	var comments []hclsyntax.Token
 	for _, tk := range tokens {
@@ -358,6 +363,30 @@ func parseFile(m *Module, name string, src []byte, lim Limits) (err error) {
 	}
 	collect(m, name, src, body, comments)
 	return nil
+}
+
+// hasVariable reports whether body has a variable block that collect reads.
+func hasVariable(body *hclsyntax.Body) bool {
+	for _, b := range body.Blocks {
+		if b.Type == "variable" && len(b.Labels) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
+// parseBody parses one file within the limits, as parseSyntax does, and
+// lexes it only when scanLimits cannot prove it is within them: the parser
+// lexes the file itself, so a file the scan clears is lexed once. tokens is
+// nil then. The errors are those of parseSyntax: the scan clears a file only
+// when the exact counts are within the limits too.
+func parseBody(name string, src []byte, lim Limits) (body *hclsyntax.Body, tokens hclsyntax.Tokens, err error) {
+	depth, prefix, ok := scanLimits(src)
+	if !ok || len(src)+1 > lim.MaxTokens || depth > lim.MaxDepth || prefix > lim.MaxPrefixOps {
+		return parseSyntax(name, src, lim)
+	}
+	body, err = parseConfig(name, src)
+	return body, nil, err
 }
 
 // parseSyntax parses one file within the limits and returns its body and
@@ -383,15 +412,30 @@ func parseSyntax(name string, src []byte, lim Limits) (body *hclsyntax.Body, tok
 	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
 		return nil, nil, limitError(fmt.Sprintf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps))
 	}
+	body, err = parseConfig(name, src)
+	if err != nil {
+		return nil, nil, err
+	}
+	return body, tokens, nil
+}
+
+// parseConfig runs the parser on a file already within the limits. A panic
+// in the parser is recovered and reported as an error.
+func parseConfig(name string, src []byte) (body *hclsyntax.Body, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			body, err = nil, fmt.Errorf("internal error while parsing")
+		}
+	}()
 	f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
 	if diags.HasErrors() {
-		return nil, nil, fmt.Errorf("parse error")
+		return nil, fmt.Errorf("parse error")
 	}
 	body, ok := f.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, nil, fmt.Errorf("parse error: unexpected body type %T", f.Body)
+		return nil, fmt.Errorf("parse error: unexpected body type %T", f.Body)
 	}
-	return body, tokens, nil
+	return body, nil
 }
 
 func nestingDepth(tokens hclsyntax.Tokens) int {

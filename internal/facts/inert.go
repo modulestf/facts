@@ -122,7 +122,7 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 		if e.Kind != KindFile || strings.HasSuffix(name, ".tf.json") {
 			return nil, false, nil
 		}
-		body, _, err := parseSyntax(name, e.Data, lim)
+		body, _, err := parseBody(name, e.Data, lim)
 		if err != nil {
 			return nil, false, nil
 		}
