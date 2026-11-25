@@ -120,7 +120,9 @@ func TestNestingDepthClamp(t *testing.T) {
 // The sizes are small, so the test stays fast. Linear work gives a ratio of
 // about 8 and the limit is 16; a pass quadratic in the variables of a module
 // fails once its cost at the small size reaches a sixth of the linear work,
-// as a duplicate check that scans the earlier variables does.
+// as a duplicate check that scans the earlier variables does. A ratio over
+// the limit is measured again with more runs, up to twice, so one run slowed
+// by load cannot fail the test.
 func TestManyVariablesAreLinear(t *testing.T) {
 	// files of 2000 variables each stay under the per-file token cap.
 	tree := func(files int) (head, base string) {
@@ -146,25 +148,38 @@ func TestManyVariablesAreLinear(t *testing.T) {
 	}
 	const (
 		tries      = 3
-		smallFiles = 1
+		attempts   = 3 // a ratio over the limit is measured again, up to twice
+		smallFiles = 2
 		largeFiles = 8 * smallFiles
 		maxRatio   = 16 // linear is 8, quadratic 64
 	)
 	smallHead, smallBase := tree(smallFiles)
 	largeHead, largeBase := tree(largeFiles)
+	// Each attempt adds tries runs of each size, and the ratio is that of the
+	// fastest run of each size so far: more runs only bring each minimum
+	// closer to the work itself. A ratio over the limit is measured again.
 	var r *Report
+	var ratios []string
 	small, large := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
-	for range tries {
-		_, d := run(smallHead, smallBase)
-		small = min(small, d)
-		var dl time.Duration
-		r, dl = run(largeHead, largeBase)
-		large = min(large, dl)
+	for range attempts {
+		for range tries {
+			_, d := run(smallHead, smallBase)
+			small = min(small, d)
+			var dl time.Duration
+			r, dl = run(largeHead, largeBase)
+			large = min(large, dl)
+		}
+		ratio := float64(large) / float64(small)
+		t.Logf("fastest so far: %d files %v, %d files %v, ratio %.1f", smallFiles, small, largeFiles, large, ratio)
+		if ratio <= maxRatio {
+			ratios = nil
+			break
+		}
+		ratios = append(ratios, fmt.Sprintf("%.1f", ratio))
 	}
-	t.Logf("fastest of %d: %d files %v, %d files %v", tries, smallFiles, small, largeFiles, large)
-	if ratio := float64(large) / float64(small); ratio > maxRatio {
-		t.Errorf("%d files took %v, %d files %v (fastest of %d): ratio %.1f, want at most %d",
-			largeFiles, large, smallFiles, small, tries, ratio, maxRatio)
+	if ratios != nil {
+		t.Errorf("%d files took %v, %d files %v (fastest of %d): ratios %s after each attempt, want at most %d",
+			largeFiles, large, smallFiles, small, tries*len(ratios), strings.Join(ratios, ", "), maxRatio)
 	}
 	// The one new variable, untyped and with no default, is the only candidate
 	// subject: once for each of the two rules that report it.

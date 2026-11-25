@@ -77,7 +77,8 @@ func TestFixtures(t *testing.T) {
 	// all of them are done; then every reason must have been seen.
 	var mu sync.Mutex
 	seen := map[string]bool{}
-	t.Run("fixture", func(t *testing.T) {
+	ran := 0
+	ok := t.Run("fixture", func(t *testing.T) {
 		for _, f := range files {
 			fx := loadFixture(t, f)
 			t.Run(fx.name, func(t *testing.T) {
@@ -89,6 +90,7 @@ func TestFixtures(t *testing.T) {
 				}
 				r := fx.run(t)
 				mu.Lock()
+				ran++
 				for _, reason := range r.Reasons {
 					seen[reason] = true
 				}
@@ -97,7 +99,13 @@ func TestFixtures(t *testing.T) {
 			})
 		}
 	})
-	// Every reason mtf-facts writes appears in at least one report.
+	// Every reason mtf-facts writes appears in at least one report. The
+	// check needs every fixture: it is skipped when a -run filter selects
+	// some of them or a fixture failed, which reports its own error.
+	if !ok || ran != len(files) {
+		t.Logf("reason check skipped: %d of %d fixtures ran, group ok %v", ran, len(files), ok)
+		return
+	}
 	for _, r := range Reasons {
 		if !seen[r] {
 			t.Errorf("no fixture yields %s", r)
