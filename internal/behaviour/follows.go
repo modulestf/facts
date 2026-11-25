@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/hclnorm"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 )
@@ -248,7 +249,7 @@ func (c *classifier) ruleB(s *spec, accepted map[string]int) (int, bool) {
 	fe := hm.block.Body.Attributes["for_each"]
 	if bs == nil || hs == nil || fe == nil ||
 		(&exprInfo{bs.Expr, bm.src}).key() != (&exprInfo{hs.Expr, hm.src}).key() ||
-		(&exprInfo{fe.Expr, hm.src}).key() != normKey([]byte("var.items"), false) {
+		(&exprInfo{fe.Expr, hm.src}).key() != hclnorm.Key([]byte("var.items"), false) {
 		return 0, false
 	}
 	// The value the line forwards for an item that does not set N comes
@@ -281,8 +282,8 @@ func (c *classifier) ruleB(s *spec, accepted map[string]int) (int, bool) {
 	mv := c.views[m][1]
 	def := mv.items["variable."+n].block.Body.Attributes["default"]
 	src := mv.items["variable."+n].src
-	want := normKey([]byte("try(each.value."+n+", var.defaults."+n+", "), false) +
-		normKey(def.Expr.Range().SliceBytes(src), false) + normKey([]byte(")"), false)
+	want := hclnorm.Key([]byte("try(each.value."+n+", var.defaults."+n+", "), false) +
+		hclnorm.Key(def.Expr.Range().SliceBytes(src), false) + hclnorm.Key([]byte(")"), false)
 	return sid, s.h.key() == want
 }
 
@@ -357,9 +358,9 @@ func emptyObjectVar(it *item) bool {
 			return false
 		}
 	}
-	if ty := it.block.Body.Attributes["type"]; ty != nil && (&exprInfo{ty.Expr, it.src}).key() != normKey([]byte("any"), false) {
+	if ty := it.block.Body.Attributes["type"]; ty != nil && (&exprInfo{ty.Expr, it.src}).key() != hclnorm.Key([]byte("any"), false) {
 		return false
 	}
 	a := it.block.Body.Attributes["default"]
-	return a != nil && (&exprInfo{a.Expr, it.src}).key() == normKey([]byte("{}"), false)
+	return a != nil && (&exprInfo{a.Expr, it.src}).key() == hclnorm.Key([]byte("{}"), false)
 }

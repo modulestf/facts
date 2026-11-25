@@ -7,6 +7,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/hclnorm"
+	"github.com/modulestf/facts/internal/tffunc"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -16,26 +18,24 @@ const maxExprBytes = 4096
 // pureFuncs is the pure-function allowlist: built-in functions whose result
 // depends on their arguments only. Functions that read files, the clock, a
 // random source or the environment, or that mark values sensitive, are not
-// on it, nor is any provider-defined function.
-var pureFuncs = map[string]bool{
-	"abs": true, "ceil": true, "floor": true, "log": true, "max": true, "min": true, "parseint": true,
-	"pow": true, "signum": true, "chomp": true, "endswith": true, "format": true, "formatlist": true,
-	"indent": true, "join": true, "lower": true, "regex": true, "regexall": true, "replace": true,
-	"split": true, "startswith": true, "strcontains": true, "strrev": true, "substr": true,
-	"title": true, "trim": true, "trimprefix": true, "trimsuffix": true, "trimspace": true, "upper": true,
-	"alltrue": true, "anytrue": true, "chunklist": true, "coalesce": true, "coalescelist": true,
-	"compact": true, "concat": true, "contains": true, "distinct": true, "element": true,
-	"flatten": true, "index": true, "keys": true, "length": true, "lookup": true, "matchkeys": true,
-	"merge": true, "one": true, "range": true, "reverse": true, "setintersection": true,
-	"setproduct": true, "setsubtract": true, "setunion": true, "slice": true, "sort": true,
-	"sum": true, "transpose": true, "values": true, "zipmap": true, "base64decode": true,
-	"base64encode": true, "csvdecode": true, "jsondecode": true, "jsonencode": true,
-	"urlencode": true, "yamldecode": true, "yamlencode": true, "cidrhost": true, "cidrnetmask": true,
-	"cidrsubnet": true, "cidrsubnets": true, "can": true, "tobool": true, "tolist": true,
-	"tomap": true, "tonumber": true, "toset": true, "tostring": true, "try": true, "type": true,
-	"base64sha256": true, "base64sha512": true, "md5": true, "sha1": true, "sha256": true,
-	"sha512": true, "uuidv5": true,
-}
+// on it, nor is any provider-defined function. The rest of what it leaves
+// out (base64gzip, convert, formatdate, list, map, textdecodebase64,
+// textencodebase64, timeadd, timecmp) was never on it and stays off. type,
+// which only the console has, is on it.
+var pureFuncs = func() map[string]bool {
+	m := tffunc.Set(
+		"file", "filebase64", "filebase64sha256", "filebase64sha512", "fileexists", "filemd5",
+		"filesha1", "filesha256", "filesha512", "fileset", "templatefile", "templatestring",
+		"abspath", "pathexpand", "dirname", "basename",
+		"timestamp", "plantimestamp", "timeadd", "timecmp", "formatdate",
+		"uuid", "bcrypt", "rsadecrypt", "ephemeralasnull",
+		"sensitive", "nonsensitive", "issensitive",
+		"base64gzip", "textdecodebase64", "textencodebase64",
+		"convert", "list", "map",
+	)
+	m["type"] = true
+	return m
+}()
 
 // exprInfo is one expression of one revision with its file's source.
 type exprInfo struct {
@@ -45,31 +45,7 @@ type exprInfo struct {
 
 func (x *exprInfo) text() string { return string(x.expr.Range().SliceBytes(x.src)) }
 
-func (x *exprInfo) key() string { return normKey(x.expr.Range().SliceBytes(x.src), false) }
-
-// normKey is the token sequence of src without comments and newlines, so
-// that layout and comments do not count as a change. config lexes src as a
-// whole file or block rather than one expression.
-func normKey(src []byte, config bool) string {
-	var toks hclsyntax.Tokens
-	if config {
-		toks, _ = hclsyntax.LexConfig(src, "", hcl.InitialPos)
-	} else {
-		toks, _ = hclsyntax.LexExpression(src, "", hcl.InitialPos)
-	}
-	var b strings.Builder
-	for _, t := range toks {
-		switch t.Type {
-		case hclsyntax.TokenComment, hclsyntax.TokenNewline, hclsyntax.TokenEOF:
-			continue
-		}
-		b.WriteString(t.Type.String())
-		b.WriteByte(0)
-		b.Write(t.Bytes)
-		b.WriteByte(0)
-	}
-	return b.String()
-}
+func (x *exprInfo) key() string { return hclnorm.Key(x.expr.Range().SliceBytes(x.src), false) }
 
 func unwrap(e hclsyntax.Expression) hclsyntax.Expression {
 	for {

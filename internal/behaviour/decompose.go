@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/hclnorm"
 )
 
 // Item kinds of a module view.
@@ -115,7 +116,7 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 		if e.Kind != facts.KindFile {
 			return nil, e.Path + " is not a regular file with known content"
 		}
-		body, _, err := facts.ParseHCL(e.Path, e.Data, lim)
+		body, _, err := facts.ParseBody(e.Path, e.Data, lim)
 		if err != nil {
 			return nil, e.Path + " does not parse"
 		}
@@ -136,14 +137,14 @@ func fileItems(file string, src []byte, body *hclsyntax.Body, v *view) []*item {
 	var out []*item
 	blk := func(b *hclsyntax.Block, key, kind, addr string) *item {
 		it := &item{key: key, kind: kind, addr: addr, file: file, src: src, block: b,
-			norm:     normKey(b.Range().SliceBytes(src), true),
-			bodyNorm: normKey(b.Body.Range().SliceBytes(src), true)}
+			norm:     hclnorm.Key(b.Range().SliceBytes(src), true),
+			bodyNorm: hclnorm.Key(b.Body.Range().SliceBytes(src), true)}
 		out = append(out, it)
 		return it
 	}
 	attrItem := func(a *hclsyntax.Attribute, key, kind, addr string) {
 		out = append(out, &item{key: key, kind: kind, addr: addr, file: file, src: src, attr: a,
-			norm: normKey(a.SrcRange.SliceBytes(src), true)})
+			norm: hclnorm.Key(a.SrcRange.SliceBytes(src), true)})
 	}
 	for _, b := range body.Blocks {
 		labels := strings.Join(b.Labels, ".")
@@ -184,10 +185,10 @@ func fileItems(file string, src []byte, body *hclsyntax.Body, v *view) []*item {
 			if a := b.Body.Attributes["to"]; a != nil {
 				to = string(a.Expr.Range().SliceBytes(src))
 			}
-			blk(b, "moved:"+normKey(b.Body.Range().SliceBytes(src), true), itemMoved, to)
+			blk(b, "moved:"+hclnorm.Key(b.Body.Range().SliceBytes(src), true), itemMoved, to)
 		default:
 			addr := strings.TrimSuffix(b.Type+"."+labels, ".")
-			blk(b, "other:"+normKey(b.Range().SliceBytes(src), true), itemOther, addr)
+			blk(b, "other:"+hclnorm.Key(b.Range().SliceBytes(src), true), itemOther, addr)
 		}
 	}
 	return out
@@ -209,9 +210,9 @@ func terraformItems(file string, src []byte, b *hclsyntax.Block, v *view) []*ite
 	add := func(a *hclsyntax.Attribute, blk *hclsyntax.Block, key, kind string) {
 		it := &item{key: key, kind: kind, addr: "terraform", file: file, src: src, attr: a, block: blk}
 		if a != nil {
-			it.norm = normKey(a.SrcRange.SliceBytes(src), true)
+			it.norm = hclnorm.Key(a.SrcRange.SliceBytes(src), true)
 		} else {
-			it.norm = normKey(blk.Range().SliceBytes(src), true)
+			it.norm = hclnorm.Key(blk.Range().SliceBytes(src), true)
 		}
 		out = append(out, it)
 	}
@@ -754,7 +755,7 @@ func onlyForEach(bsrc, hsrc []byte, bl, hl []*hclsyntax.Block) bool {
 	changed := 0
 	for i := range bl {
 		b, h := bl[i], hl[i]
-		if normKey(b.Range().SliceBytes(bsrc), true) == normKey(h.Range().SliceBytes(hsrc), true) {
+		if hclnorm.Key(b.Range().SliceBytes(bsrc), true) == hclnorm.Key(h.Range().SliceBytes(hsrc), true) {
 			continue
 		}
 		changed++
@@ -782,7 +783,7 @@ func soleDiff(bsrc, hsrc []byte, bl, hl []*hclsyntax.Block) (blockPair, string, 
 	}
 	n := 0
 	for i := range bl {
-		if normKey(bl[i].Range().SliceBytes(bsrc), true) != normKey(hl[i].Range().SliceBytes(hsrc), true) {
+		if hclnorm.Key(bl[i].Range().SliceBytes(bsrc), true) != hclnorm.Key(hl[i].Range().SliceBytes(hsrc), true) {
 			n++
 		}
 	}
@@ -841,12 +842,12 @@ func withoutAttr(b *hclsyntax.Body, skip string, src []byte, blocks bool) string
 	var parts []string
 	for _, name := range sortedAttrNames(b) {
 		if name != skip {
-			parts = append(parts, name+"="+normKey(b.Attributes[name].Expr.Range().SliceBytes(src), false))
+			parts = append(parts, name+"="+hclnorm.Key(b.Attributes[name].Expr.Range().SliceBytes(src), false))
 		}
 	}
 	for _, nb := range b.Blocks {
 		if blocks {
-			parts = append(parts, normKey(nb.Range().SliceBytes(src), true))
+			parts = append(parts, hclnorm.Key(nb.Range().SliceBytes(src), true))
 		}
 	}
 	return strings.Join(parts, "\x00")
@@ -874,7 +875,7 @@ func firstDiff(bsrc, hsrc []byte, bl, hl []*hclsyntax.Block) (blockPair, string,
 			return p, KindAdded, false
 		case p.head == nil:
 			return p, KindRemoved, false
-		case normKey(p.base.Range().SliceBytes(bsrc), true) != normKey(p.head.Range().SliceBytes(hsrc), true):
+		case hclnorm.Key(p.base.Range().SliceBytes(bsrc), true) != hclnorm.Key(p.head.Range().SliceBytes(hsrc), true):
 			return p, KindModified, false
 		}
 	}

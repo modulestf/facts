@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/modulestf/facts/data"
+	"github.com/modulestf/facts/internal/tffunc"
 )
 
 // The detector of structure.feature-above-version-floor: the core feature
@@ -70,26 +71,10 @@ func feature(id string) *coreFeature {
 // cannot tell, so every touched block is a candidate.
 var tableBaseline = version.Must(version.NewVersion("0.13.0"))
 
-// terraformFunctions are the built-in functions of Terraform v1.16.7, from
-// baseFunctions and Scope.Functions in
-// https://github.com/hashicorp/terraform/blob/v1.16.7/internal/lang/functions.go
-// (read 2026-10-22). type is left out: only the console has it. A call to any
-// other name, or in the core:: namespace, is a feature the table does not
-// list.
-var terraformFunctions = toSet("abs", "abspath", "alltrue", "anytrue", "basename", "base64decode", "base64encode",
-	"base64gzip", "base64sha256", "base64sha512", "bcrypt", "can", "ceil", "chomp", "cidrhost", "cidrnetmask",
-	"cidrsubnet", "cidrsubnets", "coalesce", "coalescelist", "compact", "concat", "contains", "convert", "csvdecode",
-	"dirname", "distinct", "element", "endswith", "ephemeralasnull", "chunklist", "file", "fileexists", "fileset",
-	"filebase64", "filebase64sha256", "filebase64sha512", "filemd5", "filesha1", "filesha256", "filesha512",
-	"flatten", "floor", "format", "formatdate", "formatlist", "indent", "index", "join", "jsondecode", "jsonencode",
-	"keys", "length", "list", "log", "lookup", "lower", "map", "matchkeys", "max", "md5", "merge", "min", "one",
-	"parseint", "pathexpand", "plantimestamp", "pow", "range", "regex", "regexall", "replace", "reverse",
-	"rsadecrypt", "sensitive", "nonsensitive", "issensitive", "setintersection", "setproduct", "setsubtract",
-	"setunion", "sha1", "sha256", "sha512", "signum", "slice", "sort", "split", "startswith", "strcontains",
-	"strrev", "substr", "sum", "templatefile", "templatestring", "textdecodebase64", "textencodebase64",
-	"timestamp", "timeadd", "timecmp", "title", "tostring", "tonumber", "tobool", "toset", "tolist", "tomap",
-	"transpose", "trim", "trimprefix", "trimspace", "trimsuffix", "try", "upper", "urlencode", "uuid", "uuidv5",
-	"values", "yamldecode", "yamlencode", "zipmap")
+// terraformFunctions are the built-in functions of the Terraform release
+// package tffunc reads. A call to any other name, or in the core::
+// namespace, is a feature the table does not list.
+var terraformFunctions = tffunc.Set()
 
 // functionRows maps a function name to the table row of the release that
 // introduced it.
