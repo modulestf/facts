@@ -1,3 +1,12 @@
+# [0.9.0](https://github.com/modulestf/facts/compare/v0.8.0...v0.9.0) (2026-11-25)
+
+
+### Features
+
+* Report the version, report schema versions and features as JSON ([#47](https://github.com/modulestf/facts/issues/47)) ([6ac9dd4](https://github.com/modulestf/facts/commit/6ac9dd4b9c8300cd35128ec01b73468d62f1f0d0))
+
+
+
 # [0.8.0](https://github.com/modulestf/facts/compare/v0.7.1...v0.8.0) (2026-11-15)
 
 
