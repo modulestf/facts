@@ -134,7 +134,7 @@ func ProfileSHA256(dir string) (*string, error) {
 	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("profile: %s is not a directory", dir)
 	}
-	t, err := facts.ReadTree(dir, facts.ProfileLimits)
+	t, err := facts.ReadTree(dir, facts.ProfileLimits())
 	if err != nil {
 		return nil, nil // lint records no profile for a directory it cannot read
 	}

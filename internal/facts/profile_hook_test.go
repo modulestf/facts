@@ -115,16 +115,16 @@ func TestProfileUnavailable(t *testing.T) {
 			moveAndLink(t, filepath.Join(dir, "templates"))
 		}, "templates is symlink"},
 		"PROFILE.md over the cap": {func(t *testing.T, dir string) {
-			editProfile(t, dir, "\n", "\n"+strings.Repeat("x", int(ProfileLimits.MaxFileBytes))+"\n")
+			editProfile(t, dir, "\n", "\n"+strings.Repeat("x", int(profileLimits.MaxFileBytes))+"\n")
 		}, "PROFILE.md is oversize"},
 		"template over the cap": {func(t *testing.T, dir string) {
 			f := filepath.Join(dir, "templates", ".editorconfig.template")
-			if err := os.WriteFile(f, bytes.Repeat([]byte("x"), int(ProfileLimits.MaxFileBytes)+1), 0o644); err != nil {
+			if err := os.WriteFile(f, bytes.Repeat([]byte("x"), int(profileLimits.MaxFileBytes)+1), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}, "templates/.editorconfig.template is oversize"},
 		"too many files": {func(t *testing.T, dir string) {
-			for i := range ProfileLimits.MaxFiles {
+			for i := range profileLimits.MaxFiles {
 				if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%04d", i)), nil, 0o644); err != nil {
 					t.Fatal(err)
 				}
