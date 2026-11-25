@@ -21,6 +21,15 @@ data "aws_iam_policy_document" "this" {
     actions   = ["demo:GetWidget", "demo:PutWidget"]
     resources = ["*"]
   }
+
+  dynamic "statement" {
+    for_each = var.describe ? [1] : []
+
+    content {
+      actions   = ["demo:DescribeWidget"]
+      resources = ["*"]
+    }
+  }
 }
 
 resource "aws_demo_widget_policy" "this" {

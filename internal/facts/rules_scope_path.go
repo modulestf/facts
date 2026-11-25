@@ -167,7 +167,10 @@ func templateDiff(t, x []byte, budget *int) (extra []lineRange, missing int, ok 
 // from its template, version pins left out. Drift the base already carries
 // is not the change's: a candidate needs a head line that differs from the
 // template and that the change wrote, or more template lines missing than
-// at the base, as when the change drops template text. A deleted file is
+// at the base, as when the change drops template text. A comment or blank
+// line is no such head line in a file that is not JSON, and outside the
+// workflow directory neither is a line that replaces, one for one, a base
+// line that already differed from the template. A deleted file is
 // scope.profile-file. Whether a stated reason allows the drift is prose,
 // which the model judges.
 func checkTemplateDrift(a *Area) Result {
@@ -177,7 +180,8 @@ func checkTemplateDrift(a *Area) Result {
 	}
 	var res Result
 	budget := maxDiffTotalCells
-	for _, f := range a.Profile.ProfileOwned.Verbatim {
+	po := a.Profile.ProfileOwned
+	for _, f := range po.Verbatim {
 		tpl := templateFor(a.Profile, f)
 		head, atHead, bad := fileAt(a.headTree, f)
 		base, _, _ := fileAt(a.baseTree, f) // a base that is no file has no lines
@@ -189,16 +193,29 @@ func checkTemplateDrift(a *Area) Result {
 		}
 		t, h, b := unpinned(tpl), unpinned(head), unpinned(base)
 		drift, missHead, ok1 := templateDiff(t, h, &budget)
-		_, missBase, ok2 := templateDiff(t, b, &budget)
+		baseDrift, missBase, ok2 := templateDiff(t, b, &budget)
 		changed, ok3 := changedLines(base, head, &budget)
-		if !ok1 || !ok2 || !ok3 {
+		pairs, ok4 := replacedLines(base, head, &budget)
+		if !ok1 || !ok2 || !ok3 || !ok4 {
 			return Result{NotEvaluated: f + " is past the line diff limit", Code: ReasonLimitExceeded}
+		}
+		lineOriented := !strings.HasSuffix(f, ".json")
+		workflow := po.WorkflowDir != "" && strings.HasPrefix(f, po.WorkflowDir+"/")
+		// skip is drift the change wrote that is not its own: a comment or
+		// blank line, or outside the workflows a line that replaces a base
+		// line which already differed from the template.
+		skip := func(n int) bool {
+			if lineOriented && commentOrBlank(lineOf(head, n)) {
+				return true
+			}
+			bn, ok := pairs[n]
+			return ok && !workflow && inRanges(baseDrift, bn) && (!lineOriented || !commentOrBlank(lineOf(base, bn)))
 		}
 		ev := newPathEvidence()
 		var line *int
 		for _, r := range drift {
 			for n := r.Start; n <= r.End; n++ {
-				if !inRanges(changed, n) {
+				if !inRanges(changed, n) || skip(n) {
 					continue
 				}
 				if line == nil {
@@ -229,6 +246,13 @@ func checkTemplateDrift(a *Area) Result {
 		res.Candidates = append(res.Candidates, ev.candidate(id, f, line))
 	}
 	return res
+}
+
+// commentOrBlank reports a line that is blank or a # comment once its
+// leading space is trimmed.
+func commentOrBlank(l []byte) bool {
+	t := bytes.TrimSpace(l)
+	return len(t) == 0 || t[0] == '#'
 }
 
 // regionPattern matches an AWS region name, such as eu-west-1, eusc-de-east-1 or

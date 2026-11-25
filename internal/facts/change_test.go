@@ -3,6 +3,7 @@ package facts
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -462,5 +463,29 @@ func TestTouchedExpressionVariableArguments(t *testing.T) {
 	}
 	if s, e := ch.entryAt("main.tf", 3); s != 2 || e != 4 {
 		t.Errorf("innermost entry of line 3: %d-%d, want the default, 2-4", s, e)
+	}
+}
+
+// replacedLines pairs head and base lines only inside a block of changed
+// lines with as many of each.
+func TestReplacedLines(t *testing.T) {
+	for name, c := range map[string]struct {
+		base, head string
+		want       map[int]int
+	}{
+		"one for one":     {"a\nb\nc\n", "a\nB\nc\n", map[int]int{2: 2}},
+		"two for two":     {"a\nb\nc\nd\n", "a\nB\nC\nd\n", map[int]int{2: 2, 3: 3}},
+		"one for two":     {"a\nb\nc\n", "a\nB\nX\nc\n", map[int]int{}},
+		"insertion":       {"a\nc\n", "a\nb\nc\n", map[int]int{}},
+		"two blocks":      {"a\nb\nc\nd\ne\n", "a\nB\nc\nX\nY\ne\n", map[int]int{2: 2}},
+		"shifted by one":  {"x\na\nb\n", "a\nB\n", map[int]int{2: 3}},
+		"last line":       {"a\nb\n", "a\nB\n", map[int]int{2: 2}},
+		"no common lines": {"a\n", "b\n", map[int]int{1: 1}},
+	} {
+		budget := maxDiffTotalCells
+		got, ok := replacedLines([]byte(c.base), []byte(c.head), &budget)
+		if !ok || !maps.Equal(got, c.want) {
+			t.Errorf("%s: %v %v, want %v", name, got, ok, c.want)
+		}
 	}
 }

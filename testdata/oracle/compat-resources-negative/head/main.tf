@@ -28,8 +28,22 @@ moved {
 
 data "aws_iam_policy_document" "this" {
   statement {
+    actions   = ["demo:TagWidget"]
+    resources = ["*"]
+  }
+
+  statement {
     actions   = ["demo:GetWidget", "demo:PutWidget", "demo:ListWidgets"]
     resources = ["*"]
+  }
+
+  dynamic "statement" {
+    for_each = var.describe ? [1] : []
+
+    content {
+      actions   = ["demo:DescribeWidget", "demo:DescribeGadget"]
+      resources = ["*"]
+    }
   }
 }
 

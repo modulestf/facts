@@ -53,10 +53,10 @@ type policyChange struct {
 }
 
 // checkPolicyNarrowed: a policy document the module produces that may
-// permit less at the head. An aws_iam_policy_document is compared argument
-// by argument: an allow statement that only gains literal entries where
-// widensIn allows it, or a new allow statement, is a widening; any other
-// edit is a candidate. Any other policy argument,
+// permit less at the head. An aws_iam_policy_document is compared by the
+// content of its statements, see docCompare: a change that only adds
+// statements, actions or other literal entries where widensIn allows it is
+// a widening; any other edit is a candidate. Any other policy argument,
 // such as a jsonencode() document, is a candidate when its text changes. A
 // local the policy text reads, directly or through other locals, is a
 // candidate when the change edits it. A removed document data block is a
@@ -95,7 +95,7 @@ func checkPolicyNarrowed(a *Area) Result {
 		}
 		var changes []policyChange
 		if h.Mode == "data" && h.Type == policyDocType {
-			docDiff(b.Body, h.Body, "", "", h.Line, true, &changes)
+			docCompare(b.Body, h.Body, h.Line, &changes)
 		} else {
 			policyArgDiff(b.Body, h.Body, "", h.Line, &changes)
 		}

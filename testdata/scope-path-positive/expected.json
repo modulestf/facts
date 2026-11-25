@@ -103,12 +103,6 @@
             "file": ".github/workflows/pre-commit.yml",
             "line": 70,
             "text": "        uses: example-org/scanner-action@v1"
-          },
-          {
-            "revision": "head",
-            "file": ".github/workflows/pre-commit.yml",
-            "line": 71,
-            "text": ""
           }
         ],
         "base": null,

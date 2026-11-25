@@ -209,7 +209,7 @@ func changedLines(base, head []byte, budget *int) (r []lineRange, ok bool) {
 			return nil, false
 		}
 		*budget -= (n + 1) * (m + 1)
-		lcsChanged(o, h, changed)
+		lcsChanged(o, h, changed, nil)
 	}
 	for j, c := range changed {
 		line := p + j + 1
@@ -225,8 +225,9 @@ func changedLines(base, head []byte, budget *int) (r []lineRange, ok bool) {
 }
 
 // lcsChanged marks in changed the lines of h that are not in a longest
-// common subsequence of o and h. Both are non-empty.
-func lcsChanged(o, h [][]byte, changed []bool) {
+// common subsequence of o and h, and in removed, when it is not nil, the
+// lines of o that are not in it. Both are non-empty.
+func lcsChanged(o, h [][]byte, changed, removed []bool) {
 	n, m := len(o), len(h)
 	ids := map[string]int32{}
 	id := func(l []byte) int32 {
@@ -262,6 +263,9 @@ func lcsChanged(o, h [][]byte, changed []bool) {
 		case oi[i] == hi[j]:
 			i, j = i+1, j+1
 		case lcs[(i+1)*w+j] >= lcs[i*w+j+1]:
+			if removed != nil {
+				removed[i] = true
+			}
 			i++
 		default:
 			changed[j] = true
@@ -271,6 +275,49 @@ func lcsChanged(o, h [][]byte, changed []bool) {
 	for ; j < m; j++ {
 		changed[j] = true
 	}
+	for ; removed != nil && i < n; i++ {
+		removed[i] = true
+	}
+}
+
+// replacedLines maps each head line that replaces a base line one for one
+// to that base line: inside a block of changed lines between two common
+// ones, the head lines pair in order with the base lines when the block
+// has as many of each. Lines of any other block are not in the map. ok is
+// false past the diff bounds, which lower budget as changedLines does.
+func replacedLines(base, head []byte, budget *int) (pairs map[int]int, ok bool) {
+	o, h := splitLines(base), splitLines(head)
+	n, m := len(o), len(h)
+	if n == 0 || m == 0 {
+		return nil, true
+	}
+	if n+1 > maxDiffCells/(m+1) || (n+1)*(m+1) > *budget {
+		return nil, false
+	}
+	*budget -= (n + 1) * (m + 1)
+	changed, removed := make([]bool, m), make([]bool, n)
+	lcsChanged(o, h, changed, removed)
+	pairs = map[int]int{}
+	i, j := 0, 0
+	for i < n || j < m {
+		if i < n && j < m && !removed[i] && !changed[j] {
+			i, j = i+1, j+1
+			continue
+		}
+		bi, hj := i, j
+		for i < n && removed[i] {
+			i++
+		}
+		for j < m && changed[j] {
+			j++
+		}
+		if i-bi == j-hj {
+			for k := range i - bi {
+				pairs[hj+k+1] = bi + k + 1
+			}
+		}
+	}
+	return pairs, true
 }
 
 // splitLines splits text into lines without their newline. A final newline

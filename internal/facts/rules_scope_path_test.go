@@ -382,3 +382,48 @@ func TestScopePathEmptyValues(t *testing.T) {
 		})
 	}
 }
+
+// Drift the change writes is a candidate unless it is a comment or blank
+// line in a line-oriented file, or, outside the workflow directory, a line
+// that replaces one-for-one a base line that already differed from the
+// template. Removing template text, as by commenting a line out, is still
+// one.
+func TestTemplateDriftSkips(t *testing.T) {
+	gi := readTemplate(t, ".gitignore.template")
+	rel := readTemplate(t, "github-workflows-release.yml.template")
+	rc := readTemplate(t, ".releaserc.json.template")
+	giLines := strings.SplitAfter(gi, "\n")
+	firstGi := strings.TrimSuffix(giLines[0], "\n")
+	relStep := "    steps:\n"
+	if !strings.Contains(rel, relStep) {
+		t.Fatalf("release template has no %q", relStep)
+	}
+	for name, c := range map[string]struct {
+		file, base, head string
+		want             int
+	}{
+		"comment added to a workflow": {".github/workflows/release.yml", rel,
+			strings.Replace(rel, relStep, relStep+"      # held back on purpose\n", 1), 0},
+		"blank line added to a workflow": {".github/workflows/release.yml", rel, strings.Replace(rel, relStep, relStep+"\n", 1), 0},
+		"step added to a workflow": {".github/workflows/release.yml", rel,
+			strings.Replace(rel, relStep, relStep+"      - run: echo\n", 1), 1},
+		"template line commented out": {".gitignore", gi, "# " + gi, 1},
+		"comment added to .gitignore": {".gitignore", gi, gi + "# local files\n", 0},
+		"base drift rewritten": {".gitignore", strings.Replace(gi, firstGi, firstGi+"x", 1),
+			strings.Replace(gi, firstGi, firstGi+"y", 1), 0},
+		"base drift rewritten, a line inserted": {".gitignore", strings.Replace(gi, firstGi, firstGi+"x", 1),
+			strings.Replace(gi, firstGi, firstGi+"y\nextra", 1), 1},
+		"template line rewritten": {".gitignore", gi, strings.Replace(gi, firstGi, firstGi+"y", 1), 1},
+		"base drift rewritten in a workflow": {".github/workflows/release.yml", strings.Replace(rel, relStep, relStep+"      - run: a\n", 1),
+			strings.Replace(rel, relStep, relStep+"      - run: b\n", 1), 1},
+		"hash line in .releaserc.json": {".releaserc.json", rc, strings.Replace(rc, "{\n", "{\n# x\n", 1), 1},
+	} {
+		if c.base == c.head {
+			t.Fatalf("%s: the case changes nothing", name)
+		}
+		r := runScopePath(t, map[string]string{c.file: c.base}, map[string]string{c.file: c.head}, testProfile)
+		if got := len(candidatesOf(r, "profile.template-drift")); got != c.want {
+			t.Errorf("%s: %d candidates, want %d: %+v", name, got, c.want, candidatesOf(r, "profile.template-drift"))
+		}
+	}
+}

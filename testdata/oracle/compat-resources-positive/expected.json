@@ -125,6 +125,27 @@
         "schema_facts": []
       },
       "evidence_complete": true
+    },
+    {
+      "candidate_id": "C-004",
+      "rule_id": "compat.generated-policy-narrowed",
+      "file": "main.tf",
+      "line": 29,
+      "subject": ".:data.aws_iam_policy_document.this.dynamic.statement[0]",
+      "evidence": {
+        "source_lines": [
+          {
+            "revision": "head",
+            "file": "main.tf",
+            "line": 29,
+            "text": "      actions   = [\"demo:PutLog\"]"
+          }
+        ],
+        "base": "statement (dynamic, for_each = var.log ? [1] : []) {\nactions = [\"demo:PutLog\", \"demo:DescribeLog\"]\nresources = [var.log_arn]\n}",
+        "head": "statement (dynamic, for_each = var.log ? [1] : []) {\nactions = [\"demo:PutLog\"]\nresources = [\"${trimsuffix(var.log_arn, \":*\")}:*\"]\n}",
+        "schema_facts": []
+      },
+      "evidence_complete": true
     }
   ]
 }
