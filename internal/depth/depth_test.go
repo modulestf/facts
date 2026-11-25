@@ -108,10 +108,7 @@ func TestReasonsDocumented(t *testing.T) {
 	}
 }
 
-func TestBuiltinFunctionsSorted(t *testing.T) {
-	if !slices.IsSorted(builtinFunctions) {
-		t.Error("builtinFunctions is not sorted")
-	}
+func TestFuncClassBuiltin(t *testing.T) {
 	for name := range funcClass {
 		if !builtinSet[name] {
 			t.Errorf("funcClass names %s, which is not a built-in", name)

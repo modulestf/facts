@@ -758,18 +758,15 @@ func TestReadPins(t *testing.T) {
 	}
 }
 
-// The function allowlist is sorted and holds none of the functions that read
-// files, the clock, randomness or the environment.
+// The function allowlist holds none of the functions that read files, the
+// clock, randomness or the environment.
 func TestPureFunctions(t *testing.T) {
 	t.Parallel()
-	if !slices.IsSorted(pureFunctions) || len(slices.Compact(slices.Clone(pureFunctions))) != len(pureFunctions) {
-		t.Error("pureFunctions is not sorted and unique")
-	}
 	for _, f := range []string{"file", "filebase64", "filebase64sha256", "filebase64sha512", "fileexists", "filemd5",
 		"filesha1", "filesha256", "filesha512", "fileset", "templatefile", "templatestring", "abspath", "pathexpand",
 		"dirname", "basename", "timestamp", "plantimestamp", "uuid", "uuidv5", "bcrypt", "rsadecrypt", "ephemeralasnull",
 		"yamldecode"} {
-		if slices.Contains(pureFunctions, f) {
+		if pureFunctionSet[f] {
 			t.Errorf("%s is on the allowlist", f)
 		}
 	}

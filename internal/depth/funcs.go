@@ -1,37 +1,16 @@
 package depth
 
-import "strings"
+import (
+	"strings"
 
-// builtinFunctions are Terraform's built-in functions. A call to any other
-// name, or to a provider-defined function, blocks light. Kept sorted; a
-// test checks.
-var builtinFunctions = []string{
-	"abs", "abspath", "alltrue", "anytrue",
-	"base64decode", "base64encode", "base64gzip", "base64sha256", "base64sha512", "basename", "bcrypt",
-	"can", "ceil", "chomp", "chunklist", "cidrhost", "cidrnetmask", "cidrsubnet", "cidrsubnets",
-	"coalesce", "coalescelist", "compact", "concat", "contains", "csvdecode",
-	"dirname", "distinct", "element", "endswith", "ephemeralasnull",
-	"file", "filebase64", "filebase64sha256", "filebase64sha512", "fileexists", "filemd5", "fileset",
-	"filesha1", "filesha256", "filesha512", "flatten", "floor", "format", "formatdate", "formatlist",
-	"indent", "index", "issensitive", "join", "jsondecode", "jsonencode", "keys",
-	"length", "log", "lookup", "lower", "matchkeys", "max", "md5", "merge", "min",
-	"nonsensitive", "one", "parseint", "pathexpand", "plantimestamp", "pow",
-	"range", "regex", "regexall", "replace", "reverse", "rsadecrypt",
-	"sensitive", "setintersection", "setproduct", "setsubtract", "setunion", "sha1", "sha256", "sha512",
-	"signum", "slice", "sort", "split", "startswith", "strcontains", "strrev", "substr", "sum",
-	"templatefile", "templatestring", "textdecodebase64", "textencodebase64", "timeadd", "timecmp", "timestamp", "title",
-	"tobool", "tolist", "tomap", "tonumber", "toset", "tostring", "transpose",
-	"trim", "trimprefix", "trimspace", "trimsuffix", "try", "upper", "urlencode", "uuid", "uuidv5",
-	"values", "yamldecode", "yamlencode", "zipmap",
-}
+	"github.com/modulestf/facts/internal/tffunc"
+)
 
-var builtinSet = func() map[string]bool {
-	m := map[string]bool{}
-	for _, f := range builtinFunctions {
-		m[f] = true
-	}
-	return m
-}()
+// builtinSet are Terraform's built-in functions. A call to any other name,
+// or to a provider-defined function, blocks light. convert, list and map
+// were never on this list and stay off it, so a call to them blocks light
+// too.
+var builtinSet = tffunc.Set("convert", "list", "map")
 
 // funcName returns the built-in name of a call, with the core:: namespace
 // removed, and whether it is a built-in.

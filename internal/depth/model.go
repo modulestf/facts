@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/hclnorm"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -182,7 +183,7 @@ func (m *model) configDirs() []string {
 
 // hclConfig adds the items of one .tf file.
 func hclConfig(mod *module, file string, src []byte, lim facts.Limits) string {
-	body, _, err := facts.ParseHCL(file, src, lim)
+	body, _, err := facts.ParseBody(file, src, lim)
 	if err != nil {
 		return "does not parse"
 	}
@@ -191,7 +192,7 @@ func hclConfig(mod *module, file string, src []byte, lim facts.Limits) string {
 	}
 	add := func(kind, addr, typ string, b *hclsyntax.Block) *item {
 		it := &item{kind: kind, labels: b.Labels, addr: addr, typ: typ, file: file, dir: mod.dir,
-			line: b.DefRange().Start.Line, args: blockArgs(b.Body, src), canon: normKey(b.Range().SliceBytes(src), true)}
+			line: b.DefRange().Start.Line, args: blockArgs(b.Body, src), canon: hclnorm.Key(b.Range().SliceBytes(src), true)}
 		mod.items = append(mod.items, it)
 		return it
 	}
@@ -214,7 +215,7 @@ func hclConfig(mod *module, file string, src []byte, lim facts.Limits) string {
 			}
 			for _, a := range sortedAttrs(b.Body) {
 				mod.items = append(mod.items, &item{kind: kLocal, addr: "local." + a.Name, file: file, dir: mod.dir,
-					line: a.SrcRange.Start.Line, args: []*arg{attrArg(a, src)}, canon: normKey(a.SrcRange.SliceBytes(src), true)})
+					line: a.SrcRange.Start.Line, args: []*arg{attrArg(a, src)}, canon: hclnorm.Key(a.SrcRange.SliceBytes(src), true)})
 			}
 		case b.Type == "provider" && len(l) == 1:
 			it := add(kProvider, "", "", b)
@@ -277,7 +278,7 @@ func (mod *module) requiredHCL(body *hclsyntax.Body) {
 
 // hclFile reads a Terraform-read HCL file that is not configuration.
 func hclFile(fm *fileModel, src []byte, lim facts.Limits) string {
-	body, _, err := facts.ParseHCL(fm.path, src, lim)
+	body, _, err := facts.ParseBody(fm.path, src, lim)
 	if err != nil {
 		return "does not parse"
 	}
@@ -288,21 +289,21 @@ func hclFile(fm *fileModel, src []byte, lim facts.Limits) string {
 			kind, addr = kTFVar, "var."+a.Name
 		}
 		fm.items = append(fm.items, &item{kind: kind, addr: addr, file: fm.path, dir: dir, line: a.SrcRange.Start.Line,
-			args: []*arg{attrArg(a, src)}, canon: normKey(a.SrcRange.SliceBytes(src), true)})
+			args: []*arg{attrArg(a, src)}, canon: hclnorm.Key(a.SrcRange.SliceBytes(src), true)})
 	}
 	if fm.form == formVars && len(body.Blocks) > 0 {
 		return "a block in a variables file"
 	}
 	for _, b := range body.Blocks {
 		fm.items = append(fm.items, &item{kind: kFileBlock, labels: b.Labels, addr: b.Type, file: fm.path, dir: dir,
-			line: b.DefRange().Start.Line, args: blockArgs(b.Body, src), canon: normKey(b.Range().SliceBytes(src), true)})
+			line: b.DefRange().Start.Line, args: blockArgs(b.Body, src), canon: hclnorm.Key(b.Range().SliceBytes(src), true)})
 	}
 	return ""
 }
 
 // attrArg returns the arg of one attribute.
 func attrArg(a *hclsyntax.Attribute, src []byte) *arg {
-	out := &arg{name: a.Name, canon: normKey(a.Expr.Range().SliceBytes(src), false),
+	out := &arg{name: a.Name, canon: hclnorm.Key(a.Expr.Range().SliceBytes(src), false),
 		exprs: []hclsyntax.Expression{a.Expr}, attrs: []string{a.Name}, scopes: [][]dynScope{nil}, names: append([]string{a.Name}, objectKeys(a.Expr)...),
 		policyKnown: true, line: a.SrcRange.Start.Line}
 	out.policy = policyPart(nil, "", a, src)
@@ -320,7 +321,7 @@ func policyName(n string) bool {
 // one of its object keys is a policy name.
 func policyPart(out []string, prefix string, a *hclsyntax.Attribute, src []byte) []string {
 	if policyName(a.Name) || slices.ContainsFunc(objectKeys(a.Expr), policyName) {
-		out = append(out, prefix+a.Name+"="+normKey(a.Expr.Range().SliceBytes(src), false))
+		out = append(out, prefix+a.Name+"="+hclnorm.Key(a.Expr.Range().SliceBytes(src), false))
 	}
 	return out
 }
@@ -341,7 +342,7 @@ func blockArgs(body *hclsyntax.Body, src []byte) []*arg {
 			a = &arg{name: key, policyKnown: true, line: nb.DefRange().Start.Line}
 			by[key] = a
 		}
-		a.canon += normKey(nb.Range().SliceBytes(src), true) + "\x01"
+		a.canon += hclnorm.Key(nb.Range().SliceBytes(src), true) + "\x01"
 		collectBlock(nb, a, nil, src, "", false)
 	}
 	out := make([]*arg, 0, len(by))
@@ -361,7 +362,7 @@ func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope, src []byte, pre
 	a.names = append(a.names, nb.Labels...)
 	prefix += strings.Join(append([]string{nb.Type}, nb.Labels...), ".") + "/"
 	if !inPolicy && (policyName(nb.Type) || slices.ContainsFunc(nb.Labels, policyName)) {
-		a.policy = append(a.policy, prefix+normKey(nb.Range().SliceBytes(src), true))
+		a.policy = append(a.policy, prefix+hclnorm.Key(nb.Range().SliceBytes(src), true))
 		inPolicy = true
 	}
 	start := len(a.policy)
@@ -401,7 +402,7 @@ func collectBlock(nb *hclsyntax.Block, a *arg, scope []dynScope, src []byte, pre
 		meta := []string{prefix}
 		for _, name := range []string{"for_each", "iterator"} {
 			if at := nb.Body.Attributes[name]; at != nil {
-				meta = append(meta, name+"="+normKey(at.Expr.Range().SliceBytes(src), false))
+				meta = append(meta, name+"="+hclnorm.Key(at.Expr.Range().SliceBytes(src), false))
 			}
 		}
 		a.policy = slices.Insert(a.policy, start, strings.Join(meta, "\x00"))
@@ -467,28 +468,4 @@ func sortedAttrs(b *hclsyntax.Body) []*hclsyntax.Attribute {
 		return cmp.Or(cmp.Compare(x.SrcRange.Start.Byte, y.SrcRange.Start.Byte), cmp.Compare(x.Name, y.Name))
 	})
 	return out
-}
-
-// normKey is the token sequence of src without comments and newlines, so
-// that layout and comments are not a change. config lexes src as a file or
-// block rather than one expression.
-func normKey(src []byte, config bool) string {
-	var toks hclsyntax.Tokens
-	if config {
-		toks, _ = hclsyntax.LexConfig(src, "", hcl.InitialPos)
-	} else {
-		toks, _ = hclsyntax.LexExpression(src, "", hcl.InitialPos)
-	}
-	var b strings.Builder
-	for _, t := range toks {
-		switch t.Type {
-		case hclsyntax.TokenComment, hclsyntax.TokenNewline, hclsyntax.TokenEOF:
-			continue
-		}
-		b.WriteString(t.Type.String())
-		b.WriteByte(0)
-		b.Write(t.Bytes)
-		b.WriteByte(0)
-	}
-	return b.String()
 }

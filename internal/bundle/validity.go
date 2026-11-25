@@ -127,9 +127,6 @@ func SchemaPins(handoff string, files []string) (*facts.SchemaInputs, error) {
 	return in, nil
 }
 
-// profileLimits are the limits lint reads a profile directory with.
-var profileLimits = facts.Limits{MaxFiles: 1000, MaxFileBytes: 256 << 10, MaxTotalBytes: 4 << 20}
-
 // ProfileSHA256 returns the profile_sha256 a lint run given dir records: the
 // profile's SHA-256, or nil when the directory holds no profile that reads
 // and parses. A dir that is not a directory is an error, as it is to lint.
@@ -137,7 +134,7 @@ func ProfileSHA256(dir string) (*string, error) {
 	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
 		return nil, fmt.Errorf("profile: %s is not a directory", dir)
 	}
-	t, err := facts.ReadTree(dir, profileLimits)
+	t, err := facts.ReadTree(dir, facts.ProfileLimits)
 	if err != nil {
 		return nil, nil // lint records no profile for a directory it cannot read
 	}
