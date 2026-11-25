@@ -23,20 +23,29 @@ func callerPath(p string) bool {
 	return ok && rest != "" && safeRelPath(p) && slices.Contains(callerDirs, first) && isConfigName(p)
 }
 
-// underCaller reports a path in or below a caller directory.
+// underCaller reports a path in or below a caller directory, by its exact
+// name: the seal skips the code there.
 func underCaller(p string) bool {
 	first, _, _ := strings.Cut(p, "/")
 	return slices.Contains(callerDirs, first)
 }
 
+// isCallerName reports a caller directory name in any letter case: a case
+// insensitive file system loads Examples/ as examples/.
+func isCallerName(seg string) bool {
+	return slices.ContainsFunc(callerDirs, func(d string) bool { return strings.EqualFold(seg, d) })
+}
+
 // callerSealed reports whether no configuration outside the caller
-// directories can load caller code as a module, at either revision: every
-// directory outside them with a .tf file parses, every module source there
-// is a literal, a local source stays in the tree and names no caller
-// directory, and no other source names one as a path segment. A JSON or
-// OpenTofu configuration file outside them, which the engine does not
-// parse, breaks the seal.
-func (c *classifier) callerSealed() (bool, error) {
+// directories of the given tree can load caller code as a module, at either
+// revision. Every entry outside them is a regular file, so no link leads
+// into them; no OpenTofu file is there, which nothing reads; every directory
+// there with a .tf file parses, a JSON one included (ParseDir refuses it);
+// and every module source there is sealed (see sealedSource). A parse past
+// the deadline breaks the seal. Configuration outside the tree, such as
+// elsewhere in a repository the tree is a directory of, or a consumer that
+// names a caller directory as a module, is not read.
+func (c *classifier) callerSealed() bool {
 	for _, t := range []*facts.Tree{c.base, c.head} {
 		dirs := map[string]bool{}
 		for _, p := range t.Paths {
@@ -44,8 +53,8 @@ func (c *classifier) callerSealed() (bool, error) {
 				continue
 			}
 			name := path.Base(p)
-			if strings.HasSuffix(name, ".tf.json") || strings.HasSuffix(name, ".tofu") || strings.HasSuffix(name, ".tofu.json") {
-				return false, nil
+			if t.Entries[p].Kind != facts.KindFile || strings.HasSuffix(name, ".tofu") || strings.HasSuffix(name, ".tofu.json") {
+				return false
 			}
 			if isConfigName(p) {
 				dirs[path.Dir(p)] = true
@@ -53,33 +62,36 @@ func (c *classifier) callerSealed() (bool, error) {
 		}
 		for _, dir := range slices.Sorted(maps.Keys(dirs)) {
 			m, err := facts.ParseDir(t, dir, c.lim)
-			if err != nil {
-				return false, err
-			}
-			if len(m.Unsupported) > 0 {
-				return false, nil
+			if err != nil || len(m.Unsupported) > 0 {
+				return false
 			}
 			for _, mc := range m.ModuleCalls {
-				if !sealedSource(dir, mc.Source) {
-					return false, nil
+				if !sealedSource(t, dir, mc.Source) {
+					return false
 				}
 			}
 		}
 	}
-	return true, nil
+	return true
 }
 
-// sealedSource reports a module source in dir that cannot name caller code.
-func sealedSource(dir, src string) bool {
-	if src == "" {
+// sealedSource reports a module source in dir of t that cannot name caller
+// code. A source with a backslash, an absolute path or no literal value
+// fails. A local source (./ or ../) must resolve to a directory of t outside
+// the caller directories, in any letter case, so a link, a case variant or a
+// missing directory fails. Any other source fails when a path segment names
+// a caller directory in any letter case.
+func sealedSource(t *facts.Tree, dir, src string) bool {
+	if src == "" || strings.Contains(src, "\\") || strings.HasPrefix(src, "/") {
 		return false
 	}
 	if strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") {
 		target := path.Join(dir, src)
-		return target != ".." && !strings.HasPrefix(target, "../") && !underCaller(target)
+		first, _, _ := strings.Cut(target, "/")
+		return (target == "." || t.Dirs[target]) && !isCallerName(first)
 	}
-	return !slices.ContainsFunc(strings.FieldsFunc(src, func(r rune) bool { return r == '/' || r == '?' || r == ':' }),
-		func(seg string) bool { return slices.Contains(callerDirs, seg) })
+	return !slices.ContainsFunc(strings.FieldsFunc(src, func(r rune) bool { return r == '/' || r == '?' || r == ':' || r == '=' }),
+		isCallerName)
 }
 
 // markCallerCode sets caller_code on each literal argument trigger of a
@@ -87,10 +99,10 @@ func sealedSource(dir, src string) bool {
 // when the file is a regular file modified in place at both revisions, no
 // read site may read it, the read-site scan is complete and the caller
 // directories are sealed (see callerSealed).
-func (c *classifier) markCallerCode(ts []Trigger, changes []change, sc *scan) error {
+func (c *classifier) markCallerCode(ts []Trigger, changes []change, sc *scan) {
 	modified := map[string]bool{}
 	for _, ch := range changes {
-		if ch.kind == KindModified && ch.prev == "" && ch.h.Kind == facts.KindFile && ch.b.Kind == facts.KindFile {
+		if ch.kind == KindModified && ch.h.Kind == facts.KindFile && ch.b.Kind == facts.KindFile {
 			modified[ch.path] = true
 		}
 	}
@@ -103,17 +115,12 @@ func (c *classifier) markCallerCode(ts []Trigger, changes []change, sc *scan) er
 			}
 		}
 	}
-	if len(want) == 0 || !sc.complete {
-		return nil
-	}
-	sealed, err := c.callerSealed()
-	if err != nil || !sealed {
-		return err
+	if len(want) == 0 || !sc.complete || !c.callerSealed() {
+		return
 	}
 	for _, i := range want {
 		ts[i].CallerCode = true
 	}
-	return nil
 }
 
 // callerInert reports a trigger claims-eval reads as inert caller code: the

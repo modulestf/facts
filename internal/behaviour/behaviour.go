@@ -100,7 +100,7 @@ func (c *classifier) run() (*Report, error) {
 	}
 	specs = append(specs, readTF(changes, specs, sc)...)
 	c.follow(specs)
-	return c.report(changes, specs, inert, sc)
+	return c.report(changes, specs, inert, sc), nil
 }
 
 // fileChange returns the trigger of a changed file that is not a .tf file,
@@ -281,7 +281,7 @@ func diffEntries(head, base *facts.Tree) []change {
 
 // report builds the report: triggers sorted and numbered, at most
 // MaxTriggers, and each entry with the triggers in it.
-func (c *classifier) report(changes []change, specs []spec, inertFiles map[string]bool, sc *scan) (*Report, error) {
+func (c *classifier) report(changes []change, specs []spec, inertFiles map[string]bool, sc *scan) *Report {
 	triggers := make([]Trigger, 0, len(specs))
 	for _, s := range specs {
 		triggers = append(triggers, c.trigger(s))
@@ -289,9 +289,7 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 	slices.SortStableFunc(triggers, compareTriggers)
 	triggers = compactTriggers(triggers)
 	triggers = mergeSameExpr(triggers)
-	if err := c.markCallerCode(triggers, changes, sc); err != nil {
-		return nil, err
-	}
+	c.markCallerCode(triggers, changes, sc)
 	r := &Report{SchemaVersion: SchemaVersion, Inert: true, Entries: []Entry{}, Triggers: []Trigger{}}
 	hasTrigger := map[string]bool{}
 	for _, t := range triggers {
@@ -323,7 +321,7 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 		r.Inert = r.Inert && e.Inert
 		r.Entries = append(r.Entries, e)
 	}
-	return r, nil
+	return r
 }
 
 // decomposed reports whether the directories of a .tf change were

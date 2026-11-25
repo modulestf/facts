@@ -79,10 +79,11 @@ func TestCallerLiteralInert(t *testing.T) {
 	}
 }
 
-// TestCallerLiteralFailsClosed: caller code reused as a module, a read site
-// that may read the file, an incomplete read-site scan, another category in
-// the example and a file renamed from outside the caller directories stay
-// unverifiable or keep their category.
+// TestCallerLiteralFailsClosed: caller code a configuration outside the
+// caller directories may load, a source the seal cannot place, a read site
+// that may read the file, an incomplete read-site scan, an unparsed
+// configuration file, another category in the example and a literal moved
+// to another file of the example are never marked.
 func TestCallerLiteralFailsClosed(t *testing.T) {
 	ex := "examples/complete/main.tf"
 	cases := []struct {
@@ -102,6 +103,19 @@ func TestCallerLiteralFailsClosed(t *testing.T) {
 		{"override file calls the example", with(callerTree("a"), "override.tf", "module \"ex\" {\n  source = \"./examples/complete\"\n}\n"),
 			with(callerTree("b"), "override.tf", "module \"ex\" {\n  source = \"./examples/complete\"\n}\n")},
 		{"read-site scan incomplete", with(callerTree("a"), "extra.tf.json", "{}\n"), with(callerTree("b"), "extra.tf.json", "{}\n")},
+		{"root call at the head only", callerTree("a"), with(callerTree("b"), "reuse.tf", reuse("./examples/complete"))},
+		{"backslash local source", with(callerTree("a"), "reuse.tf", reuse(`.\\examples\\complete`)), with(callerTree("b"), "reuse.tf", reuse(`.\\examples\\complete`))},
+		{"case variant local source", with(callerTree("a"), "reuse.tf", reuse("./Examples/complete")), with(callerTree("b"), "reuse.tf", reuse("./Examples/complete"))},
+		{"case variant remote segment", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//Tests/basic")),
+			with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//Tests/basic"))},
+		{"local source to a missing directory", with(callerTree("a"), "reuse.tf", reuse("./modules/gone")), with(callerTree("b"), "reuse.tf", reuse("./modules/gone"))},
+		{"local source leaves the tree", with(callerTree("a"), "reuse.tf", reuse("../sibling")), with(callerTree("b"), "reuse.tf", reuse("../sibling"))},
+		{"absolute source", with(callerTree("a"), "reuse.tf", reuse("/srv/m")), with(callerTree("b"), "reuse.tf", reuse("/srv/m"))},
+		{"source not a literal", with(callerTree("a"), "reuse.tf", "module \"ex\" {\n  source = local.s\n}\n"),
+			with(callerTree("b"), "reuse.tf", "module \"ex\" {\n  source = local.s\n}\n")},
+		{"no source", with(callerTree("a"), "reuse.tf", "module \"ex\" {}\n"), with(callerTree("b"), "reuse.tf", "module \"ex\" {}\n")},
+		{"OpenTofu file outside", with(callerTree("a"), "main.tofu", "\n"), with(callerTree("b"), "main.tofu", "\n")},
+		{"OpenTofu JSON file outside", with(callerTree("a"), "main.tofu.json", "{}\n"), with(callerTree("b"), "main.tofu.json", "{}\n")},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -122,15 +136,103 @@ func TestCallerLiteralFailsClosed(t *testing.T) {
 		}
 	}
 
-	// A module file renamed into an example keeps its triggers.
-	base := with(callerTree("a"), "other.tf", "module \"s3\" {\n  source = \"./\"\n  name   = \"a\"\n}\n")
-	head = callerTree("a")
-	head["examples/complete/main.tf"] = "module \"s3\" {\n  source = \"./\"\n  name   = \"b\"\n}\n"
-	delete(base, "examples/complete/main.tf")
-	r = runPair(t, base, head, "")
+	// A literal changed while its block moves to another file of the
+	// example: the file is added, not modified in place.
+	head = with(callerTree("a"), ex, "", "examples/complete/call.tf", "module \"s3\" {\n  source = \"../../\"\n  name   = \"b\"\n}\n")
+	r = runPair(t, callerTree("a"), head, "")
+	lit := false
 	for _, tg := range r.Triggers {
+		lit = lit || tg.File == "examples/complete/call.tf" && tg.Category == CatLiteral
 		if tg.CallerCode {
-			t.Errorf("renamed: %s %s marked\n%s", tg.ID, tg.File, mustJSON(t, r))
+			t.Errorf("moved: %s %s marked\n%s", tg.ID, tg.File, mustJSON(t, r))
+		}
+	}
+	if !lit {
+		t.Errorf("moved: no literal trigger in call.tf\n%s", mustJSON(t, r))
+	}
+}
+
+// reuse is a root module call of src.
+func reuse(src string) string {
+	return "module \"ex\" {\n  source = \"" + src + "\"\n}\n"
+}
+
+// TestCallerSealLinks: a link outside the caller directories withholds the
+// mark, whether a module source walks through it or not.
+func TestCallerSealLinks(t *testing.T) {
+	cases := map[string]struct{ link, target, call string }{
+		"module source through a directory link": {"modules/alias", "../examples/complete", "./modules/alias"},
+		"directory link with no module call":     {"modules/alias", "../examples/complete", ""},
+		"source through a linked parent":         {"ex", "examples", "./ex/complete"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			files := func(v string) map[string]string {
+				if c.call == "" {
+					return callerTree(v)
+				}
+				return with(callerTree(v), "reuse.tf", reuse(c.call))
+			}
+			base, head := writeTree(t, files("a")), writeTree(t, files("b"))
+			for _, root := range []string{base, head} {
+				p := filepath.Join(root, filepath.FromSlash(c.link))
+				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(c.target, p); err != nil {
+					t.Skip("no symlinks:", err)
+				}
+			}
+			r, err := Run(Options{Head: head, Base: base, Limits: facts.DefaultLimits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			state, marked := byFile(t, r)
+			if ex := "examples/complete/main.tf"; state[ex] != StateUnverifiable || marked[ex] {
+				t.Errorf("%s: %s caller_code %v\n%s", ex, state[ex], marked[ex], mustJSON(t, r))
+			}
+		})
+	}
+}
+
+// TestMarkCallerCodeGuards: the trigger and entry guards of the mark, on a
+// sealed tree with a complete scan.
+func TestMarkCallerCodeGuards(t *testing.T) {
+	tree := func(v string) *facts.Tree {
+		tr, err := facts.ReadTree(writeTree(t, callerTree(v)), facts.DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tr
+	}
+	c := &classifier{base: tree("a"), head: tree("b"), lim: facts.DefaultLimits}
+	ex := "examples/complete/main.tf"
+	file, link := &facts.Entry{Kind: facts.KindFile}, &facts.Entry{Kind: facts.KindSymlink}
+	lit := func(mod func(*Trigger)) Trigger {
+		tg := Trigger{File: ex, Category: CatLiteral, Levels: []string{LevelL4}}
+		mod(&tg)
+		return tg
+	}
+	cases := []struct {
+		name string
+		tg   Trigger
+		ch   change
+		want bool
+	}{
+		{"marked", lit(func(*Trigger) {}), change{path: ex, kind: KindModified, h: file, b: file}, true},
+		{"merged other category", lit(func(tg *Trigger) { tg.AlsoCategories = []string{CatUnknownPropagation} }), change{path: ex, kind: KindModified, h: file, b: file}, false},
+		{"follower", lit(func(tg *Trigger) { tg.Follows = []string{} }), change{path: ex, kind: KindModified, h: file, b: file}, false},
+		{"other category", lit(func(tg *Trigger) { tg.Category = CatResourceAddRemove }), change{path: ex, kind: KindModified, h: file, b: file}, false},
+		{"head a link", lit(func(*Trigger) {}), change{path: ex, kind: KindModified, h: link, b: file}, false},
+		{"base a link", lit(func(*Trigger) {}), change{path: ex, kind: KindModified, h: file, b: link}, false},
+		{"renamed", lit(func(*Trigger) {}), change{path: ex, prev: "examples/old/main.tf", kind: KindRenamed, h: file, b: file}, false},
+		{"added", lit(func(*Trigger) {}), change{path: ex, kind: KindAdded, h: file}, false},
+	}
+	for _, tc := range cases {
+		ts := []Trigger{tc.tg}
+		c.markCallerCode(ts, []change{tc.ch}, &scan{complete: true, roots: []string{"."}})
+		if ts[0].CallerCode != tc.want {
+			t.Errorf("%s: caller_code %v, want %v", tc.name, ts[0].CallerCode, tc.want)
 		}
 	}
 }
@@ -178,7 +280,9 @@ func TestCallerLiteralEval(t *testing.T) {
 		mk("T-008", "examples/complete/main.tf"),
 		mk("T-009", "docs/examples/main.tf"),
 		mk("T-010", "examples"),
+		mk("T-011", "examples/complete/main.tf"),
 	}}
+	b.Triggers[10].Category, b.Triggers[10].AlsoCategories = CatWrapper, []string{CatLiteral}
 	b.Triggers[7].Follows = []string{"T-004"}
 	b.Triggers[7].Levels = []string{}
 	b.Triggers[7].Reason = new("follows")
@@ -187,7 +291,7 @@ func TestCallerLiteralEval(t *testing.T) {
 	tr, _ := states(r)
 	want := map[string]string{"T-001": StateInert, "T-002": StateInert, "T-003": StateUnverifiable, "T-004": StateUnverifiable,
 		"T-005": StateUnverifiable, "T-006": StateUnverifiable, "T-007": StateInert, "T-008": StateUnverifiable,
-		"T-009": StateUnverifiable, "T-010": StateUnverifiable}
+		"T-009": StateUnverifiable, "T-010": StateUnverifiable, "T-011": StateUnverifiable}
 	for id, s := range want {
 		if tr[id] != s {
 			t.Errorf("%s: %s, want %s\n%s", id, tr[id], s, mustJSON(t, r))

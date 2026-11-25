@@ -559,10 +559,7 @@ func TestFollowsDeduplicated(t *testing.T) {
 	a.sid, b.sid = 0, 1
 	f := spec{file: "variables.tf", line: 1, cat: CatUnclassified, kind: KindAdded, addr: "var.x",
 		levels: []string{}, reason: reasonFollowsReads, sid: 2, follows: []int{1}}
-	r, err := c.report(nil, []spec{a, b, f}, nil, &scan{complete: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	r := c.report(nil, []spec{a, b, f}, nil, &scan{complete: true})
 	if len(r.Triggers) != 2 {
 		t.Fatalf("not deduplicated:\n%s", mustJSON(t, r))
 	}
