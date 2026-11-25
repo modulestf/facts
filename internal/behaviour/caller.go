@@ -39,24 +39,29 @@ func isCallerName(seg string) bool {
 
 // callerSealed reports whether no configuration outside the caller
 // directories of the given tree can load caller code as a module, at either
-// revision. Every entry outside them is a regular file the tree read, so no
-// link leads into them; an oversize, unreadable or patch-less file breaks
-// the seal too. No unread configuration file is there (see unreadConfig).
-// Every directory there with a .tf file parses, a JSON one included
-// (ParseDir refuses it), and every module source there is sealed (see
-// sealedSource). A parse past the deadline breaks the seal. Configuration
-// outside the tree, such as elsewhere in a repository the tree is a
-// directory of, a consumer that names a caller directory as a module, or a
-// test file, is not read.
+// revision. The tree reader skipped no path outside them (a .terraform
+// directory, or a .git directory or file below the root), and no
+// .gitmodules file is there. Every entry outside them is a regular file the
+// tree read, so no link leads into them; an oversize, unreadable or
+// patch-less file breaks the seal too. No unread configuration file is
+// there (see unreadConfig). Every directory there with a .tf file parses, a
+// JSON one included (ParseDir refuses it), and every module source there is
+// sealed (see sealedSource). A parse past the deadline breaks the seal.
+// Configuration outside the tree, such as elsewhere in a repository the tree
+// is a directory of, a consumer that names a caller directory as a module,
+// or a test file, is not read.
 func (c *classifier) callerSealed() bool {
 	for _, t := range []*facts.Tree{c.base, c.head} {
+		if slices.ContainsFunc(t.Skipped, func(p string) bool { return !underCaller(p) }) {
+			return false
+		}
 		dirs := map[string]bool{}
 		for _, p := range t.Paths {
 			if underCaller(p) {
 				continue
 			}
 			name := path.Base(p)
-			if t.Entries[p].Kind != facts.KindFile || unreadConfig(name) {
+			if t.Entries[p].Kind != facts.KindFile || name == ".gitmodules" || unreadConfig(name) {
 				return false
 			}
 			if isConfigName(p) {
@@ -79,38 +84,48 @@ func (c *classifier) callerSealed() bool {
 }
 
 // unreadConfig reports a configuration file the seal does not read that
-// may load a directory as a module: OpenTofu, Terraform Stacks and
-// Terragrunt files.
+// may load a directory as a module: any HCL file in any letter case, as
+// .hcl or .hcl.json (Terragrunt, Terraform Stacks), but a test file, the
+// dependency lock file and the TFLint configuration, and an OpenTofu file
+// or the JSON form of a Stacks file.
 func unreadConfig(name string) bool {
-	return name == "terragrunt.hcl" || slices.ContainsFunc([]string{".tofu", ".tofu.json",
-		".tfcomponent.hcl", ".tfcomponent.json", ".tfstack.hcl", ".tfstack.json", ".tfdeploy.hcl", ".tfdeploy.json"},
-		func(ext string) bool { return strings.HasSuffix(name, ext) })
+	n := strings.ToLower(name)
+	switch {
+	case n == ".terraform.lock.hcl", n == ".tflint.hcl", strings.HasSuffix(n, ".tftest.hcl"):
+		return false
+	case strings.HasSuffix(n, ".hcl"), strings.HasSuffix(n, ".hcl.json"):
+		return true
+	}
+	return slices.ContainsFunc([]string{".tofu", ".tofu.json", ".tfcomponent.json", ".tfstack.json", ".tfdeploy.json"},
+		func(ext string) bool { return strings.HasSuffix(n, ext) })
 }
 
-// plainSource matches a module source of plain characters only: no
-// backslash, no glob (* [ { ~), no space. A query keeps ? = & and %.
-var plainSource = regexp.MustCompile(`^[A-Za-z0-9_./@:+?=&%-]+$`)
+// registrySource matches a public registry address, <namespace>/<name>/<provider>,
+// with an optional subdirectory of plain path segments: none starts or ends
+// with a dot.
+var registrySource = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_-]*/[a-z0-9]+` +
+	`(//[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*(/[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*)*)?$`)
 
 // sealedSource reports a module source in dir of t that cannot name caller
-// code. A source with a character outside plainSource, an absolute path or
-// no literal value fails. A local source (./ or ../) must resolve to a
-// directory of t outside the caller directories, in any letter case, so a
-// link, a case variant, a glob or a missing directory fails. Any other
-// source fails when a path segment, split at / ? : = and &, names a caller
-// directory in any letter case or ends in a dot.
+// code, from an allowlist. A registry address keeps the seal when no
+// subdirectory segment names a caller directory in any letter case. A local
+// source (./ or ../) with no // keeps it when it resolves to a directory of
+// t that holds a .tf file and whose first segment is no caller directory in
+// any letter case, so a link, a case variant, a skipped or a missing
+// directory fails. Any other source fails: git, a host, a URL, a file path,
+// a bucket, a backslash, a glob, no literal value.
 func sealedSource(t *facts.Tree, dir, src string) bool {
-	if !plainSource.MatchString(src) || strings.HasPrefix(src, "/") {
+	if registrySource.MatchString(src) {
+		_, sub, _ := strings.Cut(src, "//")
+		return !slices.ContainsFunc(strings.Split(sub, "/"), isCallerName)
+	}
+	if !strings.HasPrefix(src, "./") && !strings.HasPrefix(src, "../") || strings.Contains(src, "//") {
 		return false
 	}
-	if strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") {
-		target := path.Join(dir, src)
-		first, _, _ := strings.Cut(target, "/")
-		return (target == "." || t.Dirs[target]) && !isCallerName(first)
-	}
-	return !slices.ContainsFunc(strings.FieldsFunc(src, func(r rune) bool { return strings.ContainsRune("/?:=&", r) }),
-		func(seg string) bool {
-			return isCallerName(seg) || seg != "." && seg != ".." && strings.HasSuffix(seg, ".")
-		})
+	target := path.Join(dir, src)
+	first, _, _ := strings.Cut(target, "/")
+	return !isCallerName(first) &&
+		slices.ContainsFunc(t.DirEntries(target), func(e *facts.Entry) bool { return isConfigName(e.Path) })
 }
 
 // markCallerCode sets caller_code on each literal argument trigger of a

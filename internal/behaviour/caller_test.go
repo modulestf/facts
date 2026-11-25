@@ -2,6 +2,7 @@ package behaviour
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -215,8 +216,6 @@ func TestCallerSealLinks(t *testing.T) {
 	}
 }
 
-// TestMarkCallerCodeGuards: the trigger and entry guards of the mark, on a
-// sealed tree with a complete scan.
 // TestCallerSealDeadline: a parse past the deadline withholds the mark.
 func TestCallerSealDeadline(t *testing.T) {
 	tree := func(v string) *facts.Tree {
@@ -236,6 +235,8 @@ func TestCallerSealDeadline(t *testing.T) {
 	}
 }
 
+// TestMarkCallerCodeGuards: the trigger and entry guards of the mark, on a
+// sealed tree with a complete scan.
 func TestMarkCallerCodeGuards(t *testing.T) {
 	tree := func(v string) *facts.Tree {
 		tr, err := facts.ReadTree(writeTree(t, callerTree(v)), facts.DefaultLimits)
@@ -374,5 +375,80 @@ func TestCallerCodeExample(t *testing.T) {
 	}
 	if tr := evalNoLadder(t, b); tr["T-001"] != StateInert {
 		t.Errorf("T-001: %s, want inert", tr["T-001"])
+	}
+}
+
+// outside are files outside the caller directories, the same at both
+// revisions, each of which withholds the mark: a module source that is not
+// a registry address or a local directory of the tree, a path the tree
+// reader skips, a submodule, and an HCL file the seal does not read.
+var outside = map[string][2]string{
+	"git source":                       {"reuse.tf", reuse("git::https://example.com/org/m.git//modules/x?ref=v1.0.0")},
+	"trailing space in a remote path":  {"reuse.tf", reuse("git::https://example.com/m.git//examples /complete")},
+	"github shorthand":                 {"reuse.tf", reuse("github.com/org/m//modules/x")},
+	"http archive":                     {"reuse.tf", reuse("https://example.com/m.zip")},
+	"file URL":                         {"reuse.tf", reuse("file:///srv/m")},
+	"forced file getter":               {"reuse.tf", reuse("file::/srv/m")},
+	"drive letter":                     {"reuse.tf", reuse("C:/srv/m")},
+	"s3 source":                        {"reuse.tf", reuse("s3::https://s3.amazonaws.com/b/m.zip")},
+	"registry with a host":             {"reuse.tf", reuse("app.terraform.io/org/m/aws")},
+	"registry subdirectory of tests":   {"reuse.tf", reuse("org/self/aws//tests/basic")},
+	"registry hidden subdirectory":     {"reuse.tf", reuse("org/self/aws//modules/.terraform")},
+	"registry dot subdirectory":        {"reuse.tf", reuse("org/self/aws//modules/..")},
+	"local double slash":               {"reuse.tf", reuse("./modules//x")},
+	"local directory with no .tf file": {"reuse.tf", reuse("./docs")},
+	"tracked .terraform directory":     {"modules/.terraform/main.tf", reuse("../../examples/complete")},
+	"nested .git file":                 {"modules/sub/.git", "gitdir: ../../.git/modules/sub\n"},
+	".gitmodules":                      {".gitmodules", "[submodule \"sub\"]\n\tpath = modules/sub\n"},
+	"root.hcl":                         {"root.hcl", "x = 1\n"},
+	"nested unit.hcl":                  {"live/unit.hcl", "x = 1\n"},
+	"Terragrunt.hcl":                   {"Terragrunt.hcl", "x = 1\n"},
+	"upper-case suffix":                {"ROOT.HCL", "x = 1\n"},
+	"terragrunt.hcl.json":              {"terragrunt.hcl.json", "{}\n"},
+	"terragrunt.stack.hcl":             {"terragrunt.stack.hcl", "x = 1\n"},
+}
+
+// sealed are files outside the caller directories that keep the mark.
+var sealed = map[string][2]string{
+	"registry address":              {"reuse.tf", reuse("terraform-aws-modules/s3-bucket/aws")},
+	"registry submodule":            {"reuse.tf", reuse("org/m/aws//modules/x")},
+	"local submodule":               {"reuse.tf", reuse("./modules/x")},
+	"test file at the root":         {"main.tftest.hcl", "run \"plan\" {\n  command = plan\n}\n"},
+	"tflint configuration":          {".tflint.hcl", "plugin \"aws\" {\n  enabled = true\n}\n"},
+	"dependency lock file":          {".terraform.lock.hcl", "# lock\n"},
+	".terraform under the examples": {"examples/complete/.terraform/modules/modules.json", "{}\n"},
+	"top-level .git directory":      {".git/config", "[core]\n"},
+	"top-level .git file":           {".git", "gitdir: /srv/repo/.git/worktrees/x\n"},
+}
+
+// TestCallerSealAllowlist: only a registry address or a local directory of
+// the tree keeps the seal, and a skipped path, a submodule or an unread HCL
+// file breaks it.
+func TestCallerSealAllowlist(t *testing.T) {
+	ex := "examples/complete/main.tf"
+	sub := map[string]string{"modules/x/main.tf": "variable \"n\" {\n  type = string\n}\n", "docs/README.md": "x\n"}
+	run := func(t *testing.T, f [2]string) (string, bool) {
+		t.Helper()
+		tree := func(v string) map[string]string {
+			m := with(callerTree(v), f[0], f[1])
+			maps.Copy(m, sub)
+			return m
+		}
+		state, marked := byFile(t, runPair(t, tree("a"), tree("b"), ""))
+		return state[ex], marked[ex]
+	}
+	for name, f := range outside {
+		t.Run("withheld/"+name, func(t *testing.T) {
+			if s, m := run(t, f); s != StateUnverifiable || m {
+				t.Errorf("%s: %s caller_code %v, want unverifiable and unmarked", ex, s, m)
+			}
+		})
+	}
+	for name, f := range sealed {
+		t.Run("sealed/"+name, func(t *testing.T) {
+			if s, m := run(t, f); s != StateInert || !m {
+				t.Errorf("%s: %s caller_code %v, want inert and marked", ex, s, m)
+			}
+		})
 	}
 }

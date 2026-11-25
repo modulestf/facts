@@ -20,8 +20,9 @@ when no read site in either revision's configuration can reach it and every
 or blocks moved between files of one directory. A literal argument changed
 in a .tf file below examples/ or tests/ is marked caller_code when nothing
 else in the given tree, test files aside, can load those directories as a
-module and no read site can read the file; configuration outside the tree
-is not read. Every other change is
+module and no read site can read the file: every module source outside them
+is a registry address or a local directory of the tree. Configuration
+outside the tree is not read. Every other change is
 decomposed into triggers, one per AST-level change with one category, and
 each trigger selects its levels: L1 offline expression evaluation, L3 curated
 provider fixtures, L4 the example plans, or compat for a version floor. A

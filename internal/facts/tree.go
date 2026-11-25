@@ -97,6 +97,9 @@ type Tree struct {
 	Entries map[string]*Entry
 	Paths   []string        // sorted entry paths
 	Dirs    map[string]bool // directories, "." included
+	// Skipped are the paths the reader passed over, but the top-level .git:
+	// a .git or .terraform directory and a .git file below the root.
+	Skipped []string
 	byDir   map[string][]*Entry
 }
 
@@ -180,6 +183,9 @@ func (w *treeReader) walk(dir string) error {
 		p := path.Join(dir, d.Name())
 		if d.IsDir() {
 			if skipDir(d.Name()) {
+				if p != ".git" {
+					w.t.Skipped = append(w.t.Skipped, p)
+				}
 				continue
 			}
 			w.t.Dirs[p] = true
@@ -189,6 +195,9 @@ func (w *treeReader) walk(dir string) error {
 			continue
 		}
 		if d.Name() == ".git" {
+			if p != ".git" {
+				w.t.Skipped = append(w.t.Skipped, p)
+			}
 			continue // a linked worktree's or submodule's .git file: git never tracks a .git path
 		}
 		if err := w.addEntry(p, d.Type()); err != nil {
