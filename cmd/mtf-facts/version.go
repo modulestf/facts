@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/modulestf/facts/internal/behaviour"
+	"github.com/modulestf/facts/internal/depth"
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/fixture"
 	"github.com/modulestf/facts/internal/schemadiff"
@@ -46,9 +47,11 @@ func reportVersions() map[string]int {
 		"behaviour":     behaviour.SchemaVersion,
 		"changes":       facts.ChangesSchemaVersion,
 		"claims-eval":   behaviour.SchemaVersion,
+		"depth":         depth.SchemaVersion,
 		"fixture-build": fixture.BuildSchemaVersion,
 		"fixture-check": fixture.SchemaVersion,
 		"lint":          facts.SchemaVersion,
+		"rules":         rulesSchemaVersion,
 		"schema-diff":   schemadiff.SchemaVersion,
 		"stats":         stats.SchemaVersion,
 	}
@@ -77,7 +80,8 @@ var behaviourFeatures = []string{
 	"behaviour.schema-required",
 	// The lint report carries in_repo_downgrade, the module areas whose
 	// listed candidates the in-repo profile downgrades to MEDIUM
-	// (internal/facts TestModuleCallersMonorepo, TestInRepoDowngradeConditions).
+	// (internal/facts TestModuleCallersMonorepo, TestInRepoDowngradeConditions,
+	// TestInRepoDowngradeJSONKey).
 	"lint.in-repo-downgrade",
 	// In a lint run with no change, a rule that needs the base is
 	// not_applicable, not not_evaluated(no_base)

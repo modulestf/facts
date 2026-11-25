@@ -128,6 +128,7 @@ flag:profile-check:gates
 flag:profile-check:profile-dir
 flag:profile-check:timeout
 flag:profile-snapshot:profile-dir
+flag:rules:json
 flag:schema-diff:from
 flag:schema-diff:stats-file
 flag:schema-diff:timeout

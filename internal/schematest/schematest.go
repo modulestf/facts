@@ -146,7 +146,7 @@ func Load(t testing.TB, dir string) Set {
 	}
 	set := Set{}
 	for _, f := range files {
-		data, err := os.ReadFile(f) //nolint:gosec // G304: a schema of this repository
+		data, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
