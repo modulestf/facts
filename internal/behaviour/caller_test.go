@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 )
@@ -116,6 +117,25 @@ func TestCallerLiteralFailsClosed(t *testing.T) {
 		{"no source", with(callerTree("a"), "reuse.tf", "module \"ex\" {}\n"), with(callerTree("b"), "reuse.tf", "module \"ex\" {}\n")},
 		{"OpenTofu file outside", with(callerTree("a"), "main.tofu", "\n"), with(callerTree("b"), "main.tofu", "\n")},
 		{"OpenTofu JSON file outside", with(callerTree("a"), "main.tofu.json", "{}\n"), with(callerTree("b"), "main.tofu.json", "{}\n")},
+		{"glob star in a remote subdirectory", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//ex*/complete")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//ex*/complete"))},
+		{"glob class in a remote subdirectory", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//[e]xamples/complete")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//[e]xamples/complete"))},
+		{"glob braces in a remote subdirectory", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//{examples,x}/complete")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//{examples,x}/complete"))},
+		{"registry glob subdirectory", with(callerTree("a"), "reuse.tf", reuse("org/self/aws//*/complete")), with(callerTree("b"), "reuse.tf", reuse("org/self/aws//*/complete"))},
+		{"short name in a remote subdirectory", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//EXAMPL~1/complete")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//EXAMPL~1/complete"))},
+		{"trailing dot in a remote subdirectory", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//examples./complete")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//examples./complete"))},
+		{"query after a caller subdirectory", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git//tests?ref=v1")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git//tests?ref=v1"))},
+		{"caller name after a colon", with(callerTree("a"), "reuse.tf", reuse("git::ssh://git@example.com:examples/m.git")), with(callerTree("b"), "reuse.tf", reuse("git::ssh://git@example.com:examples/m.git"))},
+		{"caller name after an equals sign", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git?ref=examples")), with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git?ref=examples"))},
+		{"caller name after an ampersand", with(callerTree("a"), "reuse.tf", reuse("git::https://example.com/m.git?depth=1&examples")),
+			with(callerTree("b"), "reuse.tf", reuse("git::https://example.com/m.git?depth=1&examples"))},
+		{"glob in a local path", with(callerTree("a"), "reuse.tf", reuse("./modules/*")), with(callerTree("b"), "reuse.tf", reuse("./modules/*"))},
+		{"Stacks or Terragrunt file outside: main.tfcomponent.hcl", with(callerTree("a"), "main.tfcomponent.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n"), with(callerTree("b"), "main.tfcomponent.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n")},
+		{"Stacks or Terragrunt file outside: main.tfstack.hcl", with(callerTree("a"), "main.tfstack.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n"), with(callerTree("b"), "main.tfstack.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n")},
+		{"Stacks or Terragrunt file outside: main.tfdeploy.hcl", with(callerTree("a"), "main.tfdeploy.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n"), with(callerTree("b"), "main.tfdeploy.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n")},
+		{"Stacks or Terragrunt file outside: main.tfcomponent.json", with(callerTree("a"), "main.tfcomponent.json", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n"), with(callerTree("b"), "main.tfcomponent.json", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n")},
+		{"Stacks or Terragrunt file outside: main.tfstack.json", with(callerTree("a"), "main.tfstack.json", "{}\n"), with(callerTree("b"), "main.tfstack.json", "{}\n")},
+		{"Stacks or Terragrunt file outside: main.tfdeploy.json", with(callerTree("a"), "main.tfdeploy.json", "{}\n"), with(callerTree("b"), "main.tfdeploy.json", "{}\n")},
+		{"Stacks or Terragrunt file outside: terragrunt.hcl", with(callerTree("a"), "terragrunt.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n"), with(callerTree("b"), "terragrunt.hcl", "component \"ex\" {\n  source = \"./examples/complete\"\n}\n")},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -197,6 +217,25 @@ func TestCallerSealLinks(t *testing.T) {
 
 // TestMarkCallerCodeGuards: the trigger and entry guards of the mark, on a
 // sealed tree with a complete scan.
+// TestCallerSealDeadline: a parse past the deadline withholds the mark.
+func TestCallerSealDeadline(t *testing.T) {
+	tree := func(v string) *facts.Tree {
+		tr, err := facts.ReadTree(writeTree(t, callerTree(v)), facts.DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tr
+	}
+	c := &classifier{base: tree("a"), head: tree("b"), lim: facts.DefaultLimits}
+	if !c.callerSealed() {
+		t.Fatal("not sealed before the deadline")
+	}
+	c.lim.Deadline = time.Now().Add(-time.Second)
+	if c.callerSealed() {
+		t.Error("sealed past the deadline")
+	}
+}
+
 func TestMarkCallerCodeGuards(t *testing.T) {
 	tree := func(v string) *facts.Tree {
 		tr, err := facts.ReadTree(writeTree(t, callerTree(v)), facts.DefaultLimits)
