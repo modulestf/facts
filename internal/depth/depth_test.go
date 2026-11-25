@@ -84,10 +84,10 @@ func TestFixtures(t *testing.T) {
 	}
 }
 
-// TestReasonsDocumented checks that README.md lists the reason tokens in
+// TestReasonsDocumented checks that docs/commands.md lists the reason tokens in
 // their canonical order, the host tokens after them.
 func TestReasonsDocumented(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "commands.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestReasonsDocumented(t *testing.T) {
 	start := strings.Index(s, "<!-- depth-reasons -->")
 	end := strings.Index(s, "<!-- /depth-reasons -->")
 	if start < 0 || end < start {
-		t.Fatal("README.md has no depth-reasons block")
+		t.Fatal("docs/commands.md has no depth-reasons block")
 	}
 	got := regexp.MustCompile("`((?:light|focused|deep)-[a-z-]+)`").FindAllStringSubmatch(s[start:end], -1)
 	var tokens []string
@@ -104,7 +104,7 @@ func TestReasonsDocumented(t *testing.T) {
 	}
 	want := append(slices.Clone(Reasons), HostReasons...)
 	if !slices.Equal(tokens, want) {
-		t.Errorf("README tokens\n%v\nwant\n%v", tokens, want)
+		t.Errorf("docs tokens\n%v\nwant\n%v", tokens, want)
 	}
 }
 
