@@ -17,14 +17,14 @@ Install `mtf-facts`, then lint what a branch of your Terraform module changed. O
 brew install modulestf/tap/mtf-facts
 ```
 
-Or download a binary from the [releases](https://github.com/modulestf/facts/releases) and verify it against that release's `SHA256SUMS`. Set `P` to `darwin_arm64`, `darwin_amd64`, `linux_amd64` or `linux_arm64`. The install step runs only if the check passes:
+Or download a binary from the [releases](https://github.com/modulestf/facts/releases) and verify it against that release's `SHA256SUMS`. Set `P` to `darwin_arm64`, `darwin_amd64`, `linux_amd64` or `linux_arm64`. The install step runs only if the check passes. On Linux use `sha256sum --ignore-missing -c SHA256SUMS`. Any directory on your `PATH` works in place of `~/bin`:
 
 ```sh
 V=v0.9.0 P=darwin_arm64
 curl -fsSLO "https://github.com/modulestf/facts/releases/download/$V/mtf-facts_${V}_${P}"
 curl -fsSLO "https://github.com/modulestf/facts/releases/download/$V/SHA256SUMS"
-mkdir -p ~/bin    # any directory on your PATH
-shasum -a 256 --ignore-missing -c SHA256SUMS &&    # sha256sum --ignore-missing -c SHA256SUMS on Linux
+mkdir -p ~/bin
+shasum -a 256 --ignore-missing -c SHA256SUMS &&
   chmod +x "mtf-facts_${V}_${P}" && mv "mtf-facts_${V}_${P}" ~/bin/mtf-facts
 ```
 
