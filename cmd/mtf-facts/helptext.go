@@ -279,12 +279,14 @@ Exit codes:
 )
 
 const (
-	rulesShort      = "List the implemented rules and their tier"
-	rulesLong       = "List the implemented rules, one per line with its tier (tool or candidate),\nsorted by id."
-	versionShort    = "Print the binary version"
-	helpShort       = "Help about any command"
-	helpLong        = "Print the help of the root command or of the named command."
-	completionShort = "Generate a shell completion script"
+	rulesShort       = "List the implemented rules and their tier"
+	rulesLong        = "List the implemented rules, one per line with its tier (tool or candidate),\nsorted by id."
+	versionShort     = "Print the binary version"
+	versionLong      = "Print the binary version. With --json, print one line of JSON instead: the\nversion, the commit, the schema_version of each report and the feature names,\nso a script can check what this binary supports (schema/version.schema.json)."
+	versionJSONUsage = "print the version, the commit, the report schema versions and the features as JSON"
+	helpShort        = "Help about any command"
+	helpLong         = "Print the help of the root command or of the named command."
+	completionShort  = "Generate a shell completion script"
 )
 
 // Messages of usage errors a handler finds.

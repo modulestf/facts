@@ -8,6 +8,8 @@
 # of which must fail with an error whose keyword is <keyword> (for example
 # additionalProperties, oneOf, required) in ajv's --all-errors JSON output.
 #
+# With a built binary it also checks the live output of version --json.
+#
 # Validator: ajv-cli 5.0.0, draft 2020-12 (--spec=draft2020), strict mode.
 # Needs Node.js and npm. tests/ajv/package-lock.json pins ajv-cli and every
 # package it pulls in, with integrity hashes. Each run installs that lock with
@@ -99,4 +101,32 @@ for schema in "$schemas"/*.schema.json; do
 done
 
 [ "$checked" -gt 0 ] || { echo "FAIL no schemas found"; exit 1; }
+
+# The live output of version --json must pass its schema too, so the schema
+# cannot drift from the binary. It needs a built binary, MTF_FACTS or
+# bin/mtf-facts (CI builds it first); without one it is skipped, except in CI.
+bin=${MTF_FACTS:-$root/bin/mtf-facts}
+if [ -x "$bin" ]; then
+  refs=()
+  for other in "$schemas"/*.schema.json; do
+    [ "$(basename "$other")" = version.schema.json ] || refs+=(-r "$other")
+  done
+  if ! "$bin" version --json >"$tmp/version.json" 2>"$out"; then
+    echo "FAIL $bin version --json exited non-zero:"
+    sed 's/^/     /' "$out"
+    fail=1
+  elif "${ajv[@]}" validate --spec=draft2020 --strict=true -s "$schemas/version.schema.json" "${refs[@]}" \
+    -d "$tmp/version.json" >"$out" 2>&1; then
+    echo "ok   version --json of $bin passes"
+  else
+    echo "FAIL version --json of $bin does not pass:"
+    sed 's/^/     /' "$out"
+    fail=1
+  fi
+elif [ -n "${CI:-}" ]; then
+  echo "FAIL no built binary at $bin to check version --json against its schema"
+  fail=1
+else
+  echo "skip version --json: no built binary at $bin"
+fi
 [ "$fail" -eq 0 ] && echo "PASS $checked schemas" || { echo "FAILED"; exit 1; }

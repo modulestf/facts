@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "version.schema.json",
+  "title": "mtf-facts version --json",
+  "description": "What this binary is and what it supports, so a script checks a minimum version and the features it needs once, with no --help parsing. A feature name, once shipped, keeps its meaning and is never removed; a script tests for membership. A binary older than this report rejects --json with exit 2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "name", "version", "commit", "modified", "go", "reports", "features"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "mtf-facts"},
+    "version": {
+      "type": "string",
+      "description": "The module version, a tag such as v0.9.0 for a release or go install of a tag, or (devel) for a local build. The same text as mtf-facts version prints.",
+      "pattern": "^(v[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?|\\(devel\\))$"
+    },
+    "commit": {
+      "description": "The commit the binary was built from, or null when the build recorded none (go install of a tag).",
+      "oneOf": [{"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"}, {"type": "null"}]
+    },
+    "modified": {
+      "description": "Whether the work tree had changes at build time; null when commit is null.",
+      "type": ["boolean", "null"]
+    },
+    "go": {"type": "string", "pattern": "^go[0-9]", "description": "The Go toolchain that built the binary."},
+    "reports": {
+      "type": "object",
+      "description": "The schema_version of each JSON report that carries one, keyed by the command that writes it. A report with no schema_version is not listed.",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"},
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "features": {
+      "type": "array",
+      "description": "Sorted, unique. cmd:<path> per command, flag:<path>:<name> per long flag the command accepts, and <path>.<name> per behaviour or accepted value, where <path> is the command names joined by dots, such as merge.check.",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(cmd:[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*|flag:[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*:[a-z][a-z0-9-]*|[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*\\.[A-Za-z0-9][A-Za-z0-9-]*)$"
+      }
+    }
+  },
+  "if": {"type": "object", "properties": {"commit": {"type": "null"}}, "required": ["commit"]},
+  "then": {"type": "object", "properties": {"modified": {"type": "null"}}}
+}
