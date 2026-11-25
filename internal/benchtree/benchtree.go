@@ -33,15 +33,7 @@ var Changed = []string{"main.tf", "modules/sub0/main.tf", "variables.tf"}
 // argument less in a resource of the root module and of modules/sub0, and
 // another default of one root variable.
 func Write(dir string, base bool) error {
-	files := map[string]string{}
-	addModule(files, ".", base)
-	for i := range submodules {
-		addModule(files, fmt.Sprintf("modules/sub%d", i), base && i == 0)
-	}
-	for i := range examples {
-		addExample(files, fmt.Sprintf("examples/ex%d", i), i)
-	}
-	for name, body := range files {
+	for name, body := range tree(base) {
 		p := filepath.Join(dir, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 			return err
@@ -51,6 +43,20 @@ func Write(dir string, base bool) error {
 		}
 	}
 	return nil
+}
+
+// tree returns the files of the head tree, or of the base tree when base
+// is true, by slash path.
+func tree(base bool) map[string]string {
+	files := map[string]string{}
+	addModule(files, ".", base)
+	for i := range submodules {
+		addModule(files, fmt.Sprintf("modules/sub%d", i), base && i == 0)
+	}
+	for i := range examples {
+		addExample(files, fmt.Sprintf("examples/ex%d", i), i)
+	}
+	return files
 }
 
 // addModule adds main.tf, variables.tf, outputs.tf, versions.tf and

@@ -70,8 +70,9 @@ jobs:
 
   # Benchmarks of the pull request head and of its base, compared by
   # benchstat in the job summary. Shared runners are noisy, so the job only
-  # reports and never fails the build. A base without a bench target gives
-  # an empty base column.
+  # reports and never fails the build. A base with no bench target, or one
+  # that cannot be checked out, gives an empty base column; a failed run is
+  # named in the summary.
   bench:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -90,19 +91,29 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA"
           : > "$RUNNER_TEMP/base.txt"
-          if grep -q '^bench:' "$RUNNER_TEMP/base/Makefile"; then
-            make -C "$RUNNER_TEMP/base" bench BENCH_OUT="$RUNNER_TEMP/base.txt" > /dev/null || true
+          if ! git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA"; then
+            echo "Base benchmarks skipped: the base commit could not be checked out." >> "$RUNNER_TEMP/notes.md"
+          elif ! grep -q '^bench:' "$RUNNER_TEMP/base/Makefile"; then
+            echo "Base benchmarks skipped: the base has no bench target." >> "$RUNNER_TEMP/notes.md"
+          elif ! make -C "$RUNNER_TEMP/base" bench BENCH_OUT="$RUNNER_TEMP/base.txt" > /dev/null; then
+            echo "**Base benchmarks failed**; the base column may be partial." >> "$RUNNER_TEMP/notes.md"
           fi
       - name: Benchmarks on the head
-        run: make bench BENCH_OUT="$RUNNER_TEMP/head.txt" > /dev/null || true
+        run: |
+          if ! make bench BENCH_OUT="$RUNNER_TEMP/head.txt" > /dev/null; then
+            echo "**Head benchmarks failed**; see the log of this step. The head column may be partial." >> "$RUNNER_TEMP/notes.md"
+          fi
       - name: Compare
+        if: always()
         env:
           GOFLAGS: ""
         run: |
+          touch "$RUNNER_TEMP/base.txt" "$RUNNER_TEMP/head.txt" "$RUNNER_TEMP/notes.md"
           {
             echo '## Benchmarks, base against head'
+            echo
+            cat "$RUNNER_TEMP/notes.md"
             echo
             echo '```'
             go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261117185222-4febdb082b2c \
