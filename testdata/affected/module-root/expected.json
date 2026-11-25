@@ -1,0 +1,33 @@
+[
+  {
+    "module_root": "modules/a",
+    "report": {
+      "schema_version": 1,
+      "module_root": "modules/a",
+      "inert": false,
+      "fallback": null,
+      "examples": [
+        {"dir": "examples/touched", "reason": "touched"},
+        {"dir": "examples/calls", "reason": "caller"},
+        {"dir": "modules/a/examples/own", "reason": "caller"},
+        {"dir": "examples/tflink", "reason": "all", "unresolved": true}
+      ],
+      "changed": ["examples/touched/main.tf", "modules/a/main.tf"]
+    }
+  },
+  {
+    "module_root": "modules/b",
+    "report": {
+      "schema_version": 1,
+      "module_root": "modules/b",
+      "inert": false,
+      "fallback": null,
+      "examples": [
+        {"dir": "examples/commented", "reason": "all"},
+        {"dir": "examples/other", "reason": "all"},
+        {"dir": "examples/tflink", "reason": "all", "unresolved": true}
+      ],
+      "changed": []
+    }
+  }
+]

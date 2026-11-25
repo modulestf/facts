@@ -35,6 +35,7 @@ func newAffectedCmd() *cobra.Command {
 	f.SortFlags = false
 	f.StringVar(&o.Base, "base", "", affectedBaseUsage)
 	f.StringVar(&o.Diff, "diff", "", affectedDiffUsage)
+	f.StringVar(&o.ModuleRoot, "module-root", "", affectedModuleRootUsage)
 	f.BoolVar(&asJSON, "json", false, affectedJSONUsage)
 	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
 	cmd.MarkFlagsMutuallyExclusive("base", "diff")
@@ -87,7 +88,11 @@ func affectedWork(o facts.AffectedOptions, asJSON bool) lintResult {
 	} else {
 		var b strings.Builder
 		for _, e := range r.Examples {
-			fmt.Fprintf(&b, "%s %s\n", e.Reason, e.Dir)
+			if e.Unresolved {
+				fmt.Fprintf(&b, "%s %s unresolved\n", e.Reason, e.Dir)
+			} else {
+				fmt.Fprintf(&b, "%s %s\n", e.Reason, e.Dir)
+			}
 		}
 		fb := "none"
 		if r.Fallback != nil {

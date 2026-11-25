@@ -1,0 +1,77 @@
+kind: must-not-be-light
+depth: focused
+-- base/modules/a/main.tf --
+resource "aws_demo_widget" "this" {
+  name = "a"
+}
+-- base/modules/b/main.tf --
+resource "aws_demo_gadget" "this" {
+  name = "x"
+}
+-- base/examples/calls/main.tf --
+module "a" {
+  source = "../../modules/a"
+}
+-- base/examples/other/main.tf --
+module "b" {
+  source = "../../modules/b"
+}
+-- base/examples/odd/main.tf --
+locals {}
+-- head/modules/a/main.tf --
+resource "aws_demo_widget" "this" {
+  name = "b"
+}
+-- head/modules/b/main.tf --
+resource "aws_demo_gadget" "this" {
+  name = "x"
+}
+-- head/examples/calls/main.tf --
+module "a" {
+  source = "../../modules/a"
+}
+-- head/examples/other/main.tf --
+module "b" {
+  source = "../../modules/b"
+}
+-- head/examples/odd/main.tf --
+locals {}
+-- affected.json --
+{"schema_version": 1, "module_root": "modules/a", "inert": false, "fallback": null,
+ "examples": [{"dir": "examples/calls", "reason": "caller"}, {"dir": "examples/odd", "reason": "all", "unresolved": true}],
+ "changed": ["modules/a/main.tf"]}
+-- want.json --
+{
+  "format": 1,
+  "depth": "focused",
+  "reasons": [
+    "focused-within-limits"
+  ],
+  "checks_out_of_scope": [],
+  "examples_selected": [
+    "examples/calls",
+    "examples/odd"
+  ],
+  "examples_out_of_scope": [
+    "examples/other"
+  ],
+  "touched_types": [
+    "aws_demo_widget"
+  ],
+  "walk": {
+    "complete": true,
+    "unwalked": 0
+  },
+  "limits": {
+    "tf_files": 1,
+    "changed_lines": 2,
+    "changed_blocks": 1,
+    "selected_examples": 2
+  },
+  "schema_providers": [],
+  "schema_types": [
+    "modules/a:resource:aws_demo_widget:hashicorp/aws",
+    "modules/b:resource:aws_demo_gadget:hashicorp/aws"
+  ],
+  "schema_locks": []
+}
