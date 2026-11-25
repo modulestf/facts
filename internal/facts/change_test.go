@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/modulestf/facts/internal/profile"
 )
 
 func TestChangedLines(t *testing.T) {
@@ -217,29 +219,58 @@ func TestScopeOverLimit(t *testing.T) {
 	}
 }
 
-// A rule that needs the base is not_evaluated(no_base) with no base tree,
-// and runs with one. The mutation clears NeedsBase and the rule runs.
+// A rule that needs the base is not_applicable in a run with no change, and
+// runs with a base tree. The mutation clears NeedsBase and the rule runs.
 func TestNeedsBase(t *testing.T) {
+	for _, cross := range []bool{false, true} {
+		r := scopeRule(ScopeAnyFileInArea, cross, 1)
+		r.NeedsBase = true
+		head := writeTree(t, map[string]string{"main.tf": scopeHead})
+		rep, err := run(Options{Head: head, Limits: DefaultLimits}, []Rule{r})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := []ManifestEntry{{RuleID: "test.scope", Area: ".", Status: StatusNotApplicable, Reason: noChangeGivenReason, ReasonCode: ReasonNoChangeGiven}}; !reflect.DeepEqual(rep.Manifest, want) {
+			t.Errorf("cross %v, no change: %+v", cross, rep.Manifest)
+		}
+		rep, err = run(Options{Head: head, Base: writeTree(t, map[string]string{"main.tf": scopeBase}), Limits: DefaultLimits}, []Rule{r})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rep.Manifest) != 1 || rep.Manifest[0].Status != StatusFinding && rep.Manifest[0].Status != StatusCandidate {
+			t.Errorf("cross %v, with base: %+v", cross, rep.Manifest)
+		}
+		r.NeedsBase = false
+		if rep, err = run(Options{Head: head, Limits: DefaultLimits}, []Rule{r}); err != nil || rep.Manifest[0].Status != StatusFinding {
+			t.Errorf("cross %v, mutation: %v %+v", cross, err, rep)
+		}
+	}
+}
+
+// A rule the profile gates keeps its profile_option reason in a run with no
+// change, even when it needs the base; without the gate it is
+// not_applicable(no_change_given), and in an area outside its kinds plain
+// not_applicable.
+func TestNeedsBaseProfileGatedNoChange(t *testing.T) {
 	r := scopeRule(ScopeAnyFileInArea, false, 1)
-	r.NeedsBase = true
-	head := writeTree(t, map[string]string{"main.tf": scopeHead})
-	rep, err := run(Options{Head: head, Limits: DefaultLimits}, []Rule{r})
-	if err != nil {
-		t.Fatal(err)
+	r.ID, r.NeedsBase = "profile.template-drift", true
+	opts := profile.Options{Format: 1, Consumers: profile.ConsumersInRepo, Partitions: "fixed", Examples: "none", Release: "none"}
+	ch := &ChangeMap{}
+	for _, tc := range []struct {
+		opts profile.Options
+		want ManifestEntry
+	}{
+		{opts, ManifestEntry{RuleID: r.ID, Area: ".", Status: StatusNotApplicable, Reason: profileOptionReason, ReasonCode: ReasonProfileOption}},
+		{profile.DefaultOptions, ManifestEntry{RuleID: r.ID, Area: ".", Status: StatusNotApplicable, Reason: noChangeGivenReason, ReasonCode: ReasonNoChangeGiven}},
+	} {
+		a := &Area{Path: ".", Kind: AreaRoot, Profile: &profile.Profile{Options: tc.opts}}
+		if got := manifestEntry(r.ID, a.Path, evaluate(r, a, ch)); got != tc.want {
+			t.Errorf("%+v: got %+v, want %+v", tc.opts, got, tc.want)
+		}
 	}
-	if want := []ManifestEntry{{RuleID: "test.scope", Area: ".", Status: StatusNotEvaluated, Reason: "no base revision to compare with", ReasonCode: ReasonNoBase}}; !reflect.DeepEqual(rep.Manifest, want) {
-		t.Errorf("no base: %+v", rep.Manifest)
-	}
-	rep, err = run(Options{Head: head, Base: writeTree(t, map[string]string{"main.tf": scopeBase}), Limits: DefaultLimits}, []Rule{r})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rep.Manifest) != 1 || rep.Manifest[0].Status != StatusFinding {
-		t.Errorf("with base: %+v", rep.Manifest)
-	}
-	r.NeedsBase = false
-	if rep, err = run(Options{Head: head, Limits: DefaultLimits}, []Rule{r}); err != nil || rep.Manifest[0].Status != StatusFinding {
-		t.Errorf("mutation: %v %+v", err, rep)
+	a := &Area{Path: "examples/e", Kind: AreaExample, Profile: &profile.Profile{Options: profile.DefaultOptions}}
+	if got := manifestEntry(r.ID, a.Path, evaluate(r, a, ch)); got != (ManifestEntry{RuleID: r.ID, Area: a.Path, Status: StatusNotApplicable}) {
+		t.Errorf("outside its kinds: %+v", got)
 	}
 }
 

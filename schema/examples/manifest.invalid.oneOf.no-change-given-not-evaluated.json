@@ -1,0 +1,9 @@
+[
+  {
+    "rule_id": "compat.variable-removed",
+    "area": ".",
+    "status": "not_evaluated",
+    "reason": "no change was given, so there is no base to compare with",
+    "reason_code": "no_change_given"
+  }
+]

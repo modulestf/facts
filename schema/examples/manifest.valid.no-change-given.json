@@ -1,0 +1,21 @@
+[
+  {
+    "rule_id": "compat.variable-removed",
+    "area": ".",
+    "status": "not_applicable",
+    "reason": "no change was given, so there is no base to compare with",
+    "reason_code": "no_change_given"
+  },
+  {
+    "rule_id": "compat.variable-removed",
+    "area": "examples/complete",
+    "status": "not_applicable"
+  },
+  {
+    "rule_id": "examples.submodule-missing",
+    "area": ".",
+    "status": "not_applicable",
+    "reason": "the profile's options make the rule not applicable",
+    "reason_code": "profile_option"
+  }
+]

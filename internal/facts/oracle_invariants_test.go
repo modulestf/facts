@@ -139,6 +139,17 @@ func oracleRuleSet(reg *registry.Registry) (map[string]oracleRule, []string) {
 	return rules, order
 }
 
+// oracleNeedsBase reports whether convention 5 of the oracle README names
+// rule id as one that needs the base.
+func oracleNeedsBase(id string) bool {
+	switch id {
+	case "examples.stale-reference", "examples.submodule-missing",
+		"profile.template-drift", "profile.required-file-missing", "profile.putin-khuylo-missing":
+		return true
+	}
+	return strings.HasPrefix(id, "compat.") || strings.HasPrefix(id, "scope.")
+}
+
 // oracleReasons is the closed list of reason codes.
 var oracleReasons = []string{"schema_unavailable", "no_base", "parse_error", "unsupported_file", "symlink", "limit_exceeded", "profile_unavailable"}
 
@@ -194,6 +205,11 @@ func readOracleFixture(dir string) (*oracleFixture, error) {
 		f.links = append(f.links, [2]string{fields[0], fields[1]})
 	}
 	return f, nil
+}
+
+func exists(p string) bool {
+	_, err := os.Lstat(p)
+	return err == nil
 }
 
 func isDir(p string) bool {
@@ -475,6 +491,7 @@ type oracleCheck struct {
 	order    []string
 	exp      oracleExpected
 	areas    []string             // the areas in scope
+	noChange bool                 // no base/ and no empty-base marker: the run has no change
 	seen     map[oracleKey]string // status by manifest entry
 	problems []string
 }
@@ -486,7 +503,7 @@ func (c *oracleCheck) fail(f string, a ...any) { c.problems = append(c.problems,
 func (c *oracleCheck) home(_, file string) string { return c.f.pathArea(file) }
 
 func checkOracleFixture(dir string, rules map[string]oracleRule, order []string, positive map[string]bool) []string {
-	c := &oracleCheck{dir: dir, rules: rules, order: order, seen: map[oracleKey]string{}}
+	c := &oracleCheck{dir: dir, rules: rules, order: order, seen: map[oracleKey]string{}, noChange: !isDir(filepath.Join(dir, "base")) && !exists(filepath.Join(dir, "empty-base"))}
 	if !isDir(filepath.Join(dir, "head")) {
 		c.fail("no head/")
 	}
@@ -554,14 +571,21 @@ func (c *oracleCheck) checkManifest(positive map[string]bool) {
 		if r.cross && m.Area != "." && m.Status != "finding" && m.Status != "candidate" {
 			c.fail("%v: a cross-area rule has an entry outside . only where its items are", k)
 		}
-		na := !r.cross && !slices.Contains(r.kinds, oracleAreaKind(m.Area))
-		if na != (m.Status == "not_applicable") {
-			c.fail("%v: status %s but the area kind is outside area_kinds: %v", k, m.Status, na)
+		outside := !r.cross && !slices.Contains(r.kinds, oracleAreaKind(m.Area))
+		// Convention 5: with no change, a rule that needs the base is
+		// not_applicable(no_change_given) in every area of its kinds.
+		noChange := !outside && c.noChange && oracleNeedsBase(m.RuleID)
+		if na := outside || noChange; na != (m.Status == "not_applicable") {
+			c.fail("%v: status %s but the area kind is outside area_kinds or the rule needs a base the run lacks: %v", k, m.Status, na)
 		}
-		if (m.Status == "not_evaluated") != (m.ReasonCode != nil) {
+		switch {
+		case noChange:
+			if m.ReasonCode == nil || *m.ReasonCode != ReasonNoChangeGiven {
+				c.fail("%v: a rule that needs the base, with no change, must carry reason_code %s", k, ReasonNoChangeGiven)
+			}
+		case (m.Status == "not_evaluated") != (m.ReasonCode != nil):
 			c.fail("%v: reason_code must be present exactly on not_evaluated", k)
-		}
-		if m.ReasonCode != nil && !slices.Contains(oracleReasons, *m.ReasonCode) {
+		case m.ReasonCode != nil && !slices.Contains(oracleReasons, *m.ReasonCode):
 			c.fail("%v: reason_code %s not in the closed list", k, *m.ReasonCode)
 		}
 	}
@@ -691,5 +715,15 @@ func TestOracleSchemas(t *testing.T) {
 func TestOracleInvariants(t *testing.T) {
 	if bad := checkOracleInvariants(pinnedOracleRegistry(t), oracleRoot); len(bad) > 0 {
 		t.Errorf("oracle invariants:\n%s", strings.Join(bad, "\n"))
+	}
+}
+
+// TestOracleNeedsBaseMatchesRules holds convention 5 of the oracle README to
+// the engine: a rule needs the base exactly when the convention names it.
+func TestOracleNeedsBaseMatchesRules(t *testing.T) {
+	for _, r := range Rules {
+		if r.NeedsBase != oracleNeedsBase(r.ID) {
+			t.Errorf("%s: NeedsBase %v, convention 5 says %v", r.ID, r.NeedsBase, oracleNeedsBase(r.ID))
+		}
 	}
 }

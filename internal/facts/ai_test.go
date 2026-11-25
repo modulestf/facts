@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-// TestAI keeps the entries a reviewer decides on, in manifest order,
+// TestAI keeps the entries a reviewer decides on, in manifest order, a
+// not_applicable(no_change_given) entry among them,
 // counts the rest by status and rule family, and keeps the tree hashes and
 // counts in place of the file lists.
 func TestAI(t *testing.T) {
@@ -26,6 +27,7 @@ func TestAI(t *testing.T) {
 			{RuleID: "compat.a", Area: "modules/m", Status: StatusNotEvaluated, Reason: "r", ReasonCode: ReasonParseError},
 			{RuleID: "structure.b", Area: ".", Status: StatusClean},
 			{RuleID: "scope.d", Area: ".", Status: StatusFinding},
+			{RuleID: "scope.e", Area: ".", Status: StatusNotApplicable, Reason: noChangeGivenReason, ReasonCode: ReasonNoChangeGiven},
 		},
 		Findings:      []Finding{},
 		Candidates:    []Candidate{},
@@ -34,11 +36,11 @@ func TestAI(t *testing.T) {
 		Scope:         &Scope{Change: ChangeDiff, AreasChecked: []string{"."}},
 	}
 	c := r.AIReport()
-	if got := c.Manifest; !slices.Equal(got, []ManifestEntry{r.Manifest[1], r.Manifest[3], r.Manifest[5]}) {
+	if got := c.Manifest; !slices.Equal(got, []ManifestEntry{r.Manifest[1], r.Manifest[3], r.Manifest[5], r.Manifest[6]}) {
 		t.Errorf("manifest %+v", got)
 	}
 	want := ManifestSummary{
-		Status:  StatusCounts{Clean: 2, NotApplicable: 1, Finding: 1, Candidate: 1, NotEvaluated: 1},
+		Status:  StatusCounts{Clean: 2, NotApplicable: 2, Finding: 1, Candidate: 1, NotEvaluated: 1},
 		Omitted: map[string]OmittedCounts{"compat": {Clean: 1}, "structure": {Clean: 1, NotApplicable: 1}},
 		Areas:   []string{".", "examples/e", "modules/m"},
 	}

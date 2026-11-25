@@ -88,6 +88,17 @@ func TestOracleChecksCatchMutations(t *testing.T) {
 		{"applicable rule marked not_applicable", sp, x, false, "outside area_kinds", func(t *testing.T, e map[string]any) {
 			entryOf(t, e, "structure.variable-untyped")["status"] = "not_applicable"
 		}},
+		{"no_change_given dropped", "no-base", x, false, "must carry reason_code no_change_given", func(t *testing.T, e map[string]any) {
+			en := entryOf(t, e, "compat.variable-removed")
+			delete(en, "reason")
+			delete(en, "reason_code")
+		}},
+		{"rule needing the base evaluated with no change", "no-base", x, false, "outside area_kinds or the rule needs a base", func(t *testing.T, e map[string]any) {
+			en := entryOf(t, e, "compat.variable-removed")
+			en["status"] = "clean"
+			delete(en, "reason")
+			delete(en, "reason_code")
+		}},
 		{"candidate status with no candidate", sp, x, false, "is candidate with no candidate there", func(_ *testing.T, e map[string]any) {
 			var kept []any
 			for _, c := range itemsOf(e, "candidates") {

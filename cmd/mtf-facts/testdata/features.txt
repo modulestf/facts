@@ -64,11 +64,13 @@ flag:ledger:registry
 flag:ledger:schema-files
 flag:lint:ai
 flag:lint:base
+flag:lint:candidates
 flag:lint:diff
 flag:lint:full-tree
 flag:lint:head-sha
 flag:lint:json
 flag:lint:merge-base-sha
+flag:lint:not-evaluated
 flag:lint:profile-dir
 flag:lint:registry
 flag:lint:schema-files
@@ -86,3 +88,4 @@ flag:schema-diff:to
 flag:schema-diff:types-from
 flag:version:json
 lint.in-repo-downgrade
+lint.no-change-not-applicable

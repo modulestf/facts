@@ -141,7 +141,7 @@ mtf-facts lint path/to/module --base path/to/base-tree --json \
   --schema-files schema.json > report.json
 ```
 
-Without `--profile-dir`, the rules that need the profile are `not_evaluated` with `profile_unavailable`. Without a schema, a `coverage.*` rule is `not_evaluated(schema_unavailable)` in an area where the change adds or edits a resource or data block. See [lint](commands.md#lint) for each flag.
+Without `--profile-dir`, the rules that need the profile are `not_evaluated` with `profile_unavailable`, and the text report says how to pass one. The default profile is [`profiles/terraform-aws-modules`](https://github.com/modulestf/modulestf/tree/master/.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules) of the maintainer skill in the skills repository: `--profile-dir path/to/modulestf/.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules`. With no `--base` and no `--diff`, the rules that compare a change with its base are `not_applicable` with `no_change_given`. Without a schema, a `coverage.*` rule is `not_evaluated(schema_unavailable)` in an area where the change adds or edits a resource or data block. See [lint](commands.md#lint) for each flag.
 
 ### Match a hosted review report
 

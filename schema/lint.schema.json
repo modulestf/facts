@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "lint.schema.json",
   "title": "mtf-facts lint output",
-  "description": "The JSON document that lint --json writes. module_callers and in_repo_downgrade are always written, empty without a change; older releases of schema version 2 leave them out. index, interface_diff, schema_coverage, scope and callers are optional; schema_coverage is written only when a schema handoff binds to the run, and callers only when the run has a change, --base or --diff. With --ai the report has manifest_summary, its manifest holds only the finding, candidate and not_evaluated entries, each envelope tree has file_count in place of files, and index, interface_diff and schema_coverage are left out.",
+  "description": "The JSON document that lint --json writes. module_callers and in_repo_downgrade are always written, empty without a change; older releases of schema version 2 leave them out. index, interface_diff, schema_coverage, scope and callers are optional; schema_coverage is written only when a schema handoff binds to the run, and callers only when the run has a change, --base or --diff. With --ai the report has manifest_summary, its manifest holds only the finding, candidate and not_evaluated entries and the not_applicable entries with reason_code no_change_given, each envelope tree has file_count in place of files, and index, interface_diff and schema_coverage are left out.",
   "type": "object",
   "additionalProperties": false,
   "required": ["envelope", "manifest", "findings", "candidates"],
@@ -15,7 +15,10 @@
             "head": {"$ref": "envelope.schema.json#/$defs/ai_tree"},
             "base": {"oneOf": [{"type": "null"}, {"$ref": "envelope.schema.json#/$defs/ai_tree"}]}
           }}}},
-          "manifest": {"type": "array", "items": {"type": "object", "properties": {"status": {"enum": ["finding", "candidate", "not_evaluated"]}}}},
+          "manifest": {"type": "array", "items": {"type": "object", "oneOf": [
+            {"properties": {"status": {"enum": ["finding", "candidate", "not_evaluated"]}}},
+            {"properties": {"status": {"const": "not_applicable"}, "reason_code": {"const": "no_change_given"}}, "required": ["reason_code"]}
+          ]}},
           "index": false,
           "interface_diff": false,
           "schema_coverage": false
