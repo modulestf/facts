@@ -67,3 +67,45 @@ jobs:
       # image's Node.js is used on purpose: ajv-cli 5 runs on any current Node.
       - name: Schemas
         run: bash tests/schemas-test.sh
+
+  # Benchmarks of the pull request head and of its base, compared by
+  # benchstat in the job summary. Shared runners are noisy, so the job only
+  # reports and never fails the build. A base without a bench target gives
+  # an empty base column.
+  bench:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: Benchmarks on the base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/base" "$BASE_SHA"
+          : > "$RUNNER_TEMP/base.txt"
+          if grep -q '^bench:' "$RUNNER_TEMP/base/Makefile"; then
+            make -C "$RUNNER_TEMP/base" bench BENCH_OUT="$RUNNER_TEMP/base.txt" > /dev/null || true
+          fi
+      - name: Benchmarks on the head
+        run: make bench BENCH_OUT="$RUNNER_TEMP/head.txt" > /dev/null || true
+      - name: Compare
+        env:
+          GOFLAGS: ""
+        run: |
+          {
+            echo '## Benchmarks, base against head'
+            echo
+            echo '```'
+            go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261117185222-4febdb082b2c \
+              base="$RUNNER_TEMP/base.txt" head="$RUNNER_TEMP/head.txt" || echo "benchstat failed"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
