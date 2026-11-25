@@ -53,7 +53,7 @@ type loc struct {
 }
 
 // sinkRe matches the name of an argument whose string a provider or
-// Terraform may read as a path: a file sink. README.md lists the same
+// Terraform may read as a path: a file sink. docs/commands.md lists the same
 // names.
 var sinkRe = regexp.MustCompile(`^(path|paths|file|files|filename|dir|directory|source|source_dir|source_file|chart|config|config_path|config_paths|template|template_dir|program|script|scripts|content_dir|output_path)$|^[a-z0-9_]+_(path|paths|file|files|filename|dir|dirs|directory|template|script|scripts)$`)
 

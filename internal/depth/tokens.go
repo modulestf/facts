@@ -18,7 +18,7 @@ const (
 )
 
 // Reason tokens. Reasons lists them in their canonical order: a report lists
-// its reasons in this order. README.md lists the same tokens; a test checks.
+// its reasons in this order. docs/commands.md lists the same tokens; a test checks.
 const (
 	ReasonLightDocsOnly               = "light-docs-only"
 	ReasonFocusedWithinLimits         = "focused-within-limits"
