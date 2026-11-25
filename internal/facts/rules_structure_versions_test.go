@@ -225,6 +225,7 @@ const (
 )
 
 func TestFeatureAboveFloorHardCases(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		name       string
 		base, head map[string]string
@@ -319,6 +320,7 @@ func providers(rv, aws string) string {
 }
 
 func TestVersionFloorUnderstatedHardCases(t *testing.T) {
+	t.Parallel()
 	call := func(source string) string { return "module \"this\" {\n  source = \"" + source + "\"\n}\n" }
 	for _, tt := range []struct {
 		name       string
@@ -401,6 +403,7 @@ func TestVersionFloorUnderstatedHardCases(t *testing.T) {
 }
 
 func TestPassthroughHardCases(t *testing.T) {
+	t.Parallel()
 	const sub = "variable \"size\" {\n  type    = number\n  default = 20\n}\n"
 	for _, tt := range []struct {
 		name       string

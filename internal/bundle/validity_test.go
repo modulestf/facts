@@ -109,6 +109,7 @@ func TestSchemaPinsMatchLint(t *testing.T) {
 }
 
 func TestProfileSHA256MatchesLint(t *testing.T) {
+	t.Parallel()
 	dir := "../../testdata/profile"
 	got, err := ProfileSHA256(dir)
 	if err != nil {

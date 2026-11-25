@@ -36,6 +36,7 @@ func candidatesOf(r *Report, rule string) []Candidate {
 // The readers take every template of the test profile, so a template the
 // profile ships never makes a rule not_evaluated.
 func TestScopePathReadsEveryTemplate(t *testing.T) {
+	t.Parallel()
 	entries, err := os.ReadDir(filepath.Join(testProfile, "templates"))
 	if err != nil {
 		t.Fatal(err)
@@ -170,6 +171,7 @@ func TestReleasercItems(t *testing.T) {
 // is a candidate and a template hook is not. Deleting the file removes every
 // pair, a candidate with no line.
 func TestPreCommitHookAgainstTemplate(t *testing.T) {
+	t.Parallel()
 	tpl := readTemplate(t, ".pre-commit-config.yaml.template")
 	r := runScopePath(t, map[string]string{"main.tf": ""},
 		map[string]string{"main.tf": "", ".pre-commit-config.yaml": tpl + "  - repo: local\n    hooks:\n      - id: checkov\n"}, testProfile)
@@ -310,6 +312,7 @@ func TestReleasercEmptyPluginTuple(t *testing.T) {
 // Four-letter partitions and escaped literals are regions too; an escaped
 // allowed region is not a candidate.
 func TestRegionForms(t *testing.T) {
+	t.Parallel()
 	head := "provider \"aws\" {\n  region = \"eusc-de-east-1\"\n}\n\nlocals {\n  a = \"\\u0075s-west-2\"\n  b = \"\\u0065u-west-1\"\n  c = \"us-isob-east-1\"\n}\n"
 	r := runScopePath(t, map[string]string{"examples/x/main.tf": ""}, map[string]string{"examples/x/main.tf": head}, testProfile)
 	var lines []int
@@ -351,6 +354,7 @@ func emptyValuesProfile(t *testing.T) string {
 // workflow directory, no verbatim file, no banner and no tooling list,
 // while the test profile's values find each case.
 func TestScopePathEmptyValues(t *testing.T) {
+	t.Parallel()
 	empty := emptyValuesProfile(t)
 	for name, c := range map[string]struct {
 		rule       string

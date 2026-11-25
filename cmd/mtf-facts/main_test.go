@@ -98,6 +98,7 @@ func TestLint(t *testing.T) {
 }
 
 func TestLintErrors(t *testing.T) {
+	t.Parallel()
 	for _, args := range [][]string{
 		{"lint"},
 		{"lint", "a", "b"},
@@ -181,6 +182,7 @@ func TestLintModulesLinkExitsNotEvaluated(t *testing.T) {
 }
 
 func TestLintTimeoutStopsStuckEngine(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -239,6 +241,7 @@ func TestLintEngineDeadlineIsTimeout(t *testing.T) {
 // implemented rule reads, and checks lint writes the same human output and
 // exit code as without it. Both runs pass the test profile, which rules read.
 func TestLintHookFlagsChangeNoOutput(t *testing.T) {
+	t.Parallel()
 	hooks := []string{"--schema-handoff", "../../schema/examples/schema-handoff.valid.json"}
 	profile := []string{"--profile-dir", "../../testdata/profile"}
 	for _, args := range [][]string{
@@ -259,6 +262,7 @@ func TestLintHookFlagsChangeNoOutput(t *testing.T) {
 // TestLintSchemaFlagsFailClosed checks a missing or wrong schema input exits
 // 2 with nothing on stdout, and a good one is read.
 func TestLintSchemaFlagsFailClosed(t *testing.T) {
+	t.Parallel()
 	head := "../../testdata/versions-missing-positive/head"
 	good := "../../schema/examples/schema-handoff.valid.json"
 	raw := []byte(`{"format_version": "1.0", "provider_schemas": {}}`)
@@ -296,6 +300,7 @@ func TestLintSchemaFlagsFailClosed(t *testing.T) {
 // with nothing on stdout, and the test profile is read: its hash is in the
 // JSON envelope and the exit code is the one without it.
 func TestLintProfileDir(t *testing.T) {
+	t.Parallel()
 	head := "../../testdata/versions-missing-positive/head"
 	tmp := t.TempDir()
 	file := filepath.Join(tmp, "file")

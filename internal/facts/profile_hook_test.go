@@ -97,6 +97,7 @@ func TestProfileSHA256InEnvelope(t *testing.T) {
 // leaves the hash null and makes a rule that needs the profile
 // not_evaluated(profile_unavailable), with the reason named.
 func TestProfileUnavailable(t *testing.T) {
+	t.Parallel()
 	for name, c := range map[string]struct {
 		mut  func(t *testing.T, dir string)
 		want string
@@ -211,6 +212,7 @@ func moveAndLink(t *testing.T, p string) {
 // not_evaluated(profile_unavailable). No such rule exists yet; profileRule
 // stands in as a control, and the loop guards every rule that lands.
 func TestProfileRulesNeedTheProfile(t *testing.T) {
+	t.Parallel()
 	var rules []Rule
 	for _, r := range append(slices.Clone(Rules), profileRule) {
 		if strings.HasPrefix(r.ID, "profile.") && (r.Tier == "tool" || r.Tier == "candidate") {
@@ -260,6 +262,7 @@ func TestProfileReasonHasNoHostPath(t *testing.T) {
 // every regular file of the profile directory, and is null with no profile
 // or with an entry it cannot hash.
 func TestProfileTreeSHA256(t *testing.T) {
+	t.Parallel()
 	dir := copyProfile(t)
 	if err := os.WriteFile(filepath.Join(dir, "review-guide.md"), []byte("guide\n"), 0o644); err != nil {
 		t.Fatal(err)

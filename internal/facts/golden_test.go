@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -109,6 +110,7 @@ func readExpected(t *testing.T, dir string) []byte {
 // commits, a rules file naming the rules it compares, and expected.json with
 // the manifest, findings and candidates a person checked for those rules.
 func TestGolden(t *testing.T) {
+	t.Parallel()
 	for _, dir := range goldenCases(t) {
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			got := goldenOutput(t, dir, caseRules(t, dir, Rules))
@@ -193,6 +195,7 @@ func mustJSON(t *testing.T, v any) []byte {
 // comparison ignores the ids; the golden files pin them only for the rules a
 // case lists.
 func TestAddedRuleChangesNoOtherCase(t *testing.T) {
+	t.Parallel()
 	cases := goldenCases(t)
 	for _, v := range []struct {
 		id    string
@@ -206,21 +209,24 @@ func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 		added := addedRule(v.id, v.cross)
 		rules := joinRules(Rules, []Rule{added})
 		for _, dir := range cases {
-			listed := caseRules(t, dir, Rules)
-			var want goldenView
-			if err := json.Unmarshal(readExpected(t, dir), &want); err != nil {
-				t.Fatal(err)
-			}
-			var full goldenView
-			if err := json.Unmarshal(goldenOutput(t, dir, rules), &full); err != nil {
-				t.Fatal(err)
-			}
-			if !slices.ContainsFunc(full.Manifest, func(e ManifestEntry) bool { return e.RuleID == added.ID }) {
-				t.Fatalf("%s: the added rule did not run", filepath.Base(dir))
-			}
-			if !bytes.Equal(mustJSON(t, listedOnly(full, listed)), mustJSON(t, listedOnly(want, listed))) {
-				t.Errorf("%s cross-area %v: %s changed after a rule it does not list was added", v.id, v.cross, filepath.Base(dir))
-			}
+			t.Run(fmt.Sprintf("%s/cross=%v/%s", v.id, v.cross, filepath.Base(dir)), func(t *testing.T) {
+				t.Parallel()
+				listed := caseRules(t, dir, Rules)
+				var want goldenView
+				if err := json.Unmarshal(readExpected(t, dir), &want); err != nil {
+					t.Fatal(err)
+				}
+				var full goldenView
+				if err := json.Unmarshal(goldenOutput(t, dir, rules), &full); err != nil {
+					t.Fatal(err)
+				}
+				if !slices.ContainsFunc(full.Manifest, func(e ManifestEntry) bool { return e.RuleID == added.ID }) {
+					t.Fatalf("%s: the added rule did not run", filepath.Base(dir))
+				}
+				if !bytes.Equal(mustJSON(t, listedOnly(full, listed)), mustJSON(t, listedOnly(want, listed))) {
+					t.Errorf("%s cross-area %v: %s changed after a rule it does not list was added", v.id, v.cross, filepath.Base(dir))
+				}
+			})
 		}
 	}
 	// Control: a comparison that keeps the added rule does see it.
@@ -236,29 +242,40 @@ func TestAddedRuleChangesNoOtherCase(t *testing.T) {
 // it. Rules read the profile, so it is not varied here; see
 // TestProfileRulesNeedTheProfile.
 func TestHookInputsChangeOnlyTheEnvelope(t *testing.T) {
+	t.Parallel()
 	for _, dir := range goldenCases(t) {
-		o := Options{Head: filepath.Join(dir, "head"), Limits: DefaultLimits,
-			SchemaHandoff: "../../schema/examples/schema-handoff.valid.json", ProfileDir: testProfile}
-		if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
-			o.Base = filepath.Join(dir, "base")
-		}
-		without, err := run(Options{Head: o.Head, Base: o.Base, ProfileDir: testProfile, Limits: DefaultLimits}, Rules)
-		if err != nil {
-			t.Fatal(err)
-		}
-		with, err := run(o, Rules)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if with.Envelope.SchemaInputs == nil {
-			t.Errorf("%s: no schema_inputs", filepath.Base(dir))
-		}
-		if with.Envelope.ProfileSHA256 == nil {
-			t.Errorf("%s: no profile_sha256", filepath.Base(dir))
-		}
-		with.Envelope.SchemaInputs = nil
-		if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
-			t.Errorf("%s: the schema input changed more than the envelope", filepath.Base(dir))
-		}
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			t.Parallel()
+			hookInputsChangeOnlyTheEnvelope(t, dir)
+		})
+	}
+}
+
+// hookInputsChangeOnlyTheEnvelope runs the golden case dir with and without
+// the schema handoff and the profile, which may change only the envelope.
+func hookInputsChangeOnlyTheEnvelope(t *testing.T, dir string) {
+	t.Helper()
+	o := Options{Head: filepath.Join(dir, "head"), Limits: DefaultLimits,
+		SchemaHandoff: "../../schema/examples/schema-handoff.valid.json", ProfileDir: testProfile}
+	if _, err := os.Stat(filepath.Join(dir, "base")); err == nil {
+		o.Base = filepath.Join(dir, "base")
+	}
+	without, err := run(Options{Head: o.Head, Base: o.Base, ProfileDir: testProfile, Limits: DefaultLimits}, Rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	with, err := run(o, Rules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if with.Envelope.SchemaInputs == nil {
+		t.Errorf("%s: no schema_inputs", filepath.Base(dir))
+	}
+	if with.Envelope.ProfileSHA256 == nil {
+		t.Errorf("%s: no profile_sha256", filepath.Base(dir))
+	}
+	with.Envelope.SchemaInputs = nil
+	if !bytes.Equal(mustJSON(t, without), mustJSON(t, with)) {
+		t.Errorf("%s: the schema input changed more than the envelope", filepath.Base(dir))
 	}
 }

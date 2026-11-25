@@ -90,48 +90,59 @@ func TestTreeHashStable(t *testing.T) {
 	}
 }
 
-// recordReadDir installs readDirHook for one test and returns the entries
-// each directory's ReadDir batches returned.
-func recordReadDir(t *testing.T) map[string]int {
-	t.Helper()
+// recordReadDir sets lim's ReadDir hook and returns the entries each
+// directory's ReadDir batches returned.
+func recordReadDir(lim *Limits) map[string]int {
 	seen := map[string]int{}
-	readDirHook = func(dir string, n int) { seen[dir] += n }
-	t.Cleanup(func() { readDirHook = nil })
+	lim.readDirHook = func(dir string, n int) { seen[dir] += n }
 	return seen
 }
 
+// wantRootListed fails t unless the hook saw the root listed, so a hook that
+// is never called cannot pass the checks on what it saw.
+func wantRootListed(t *testing.T, seen map[string]int) {
+	t.Helper()
+	if seen["."] == 0 {
+		t.Error("the ReadDir hook saw no entries of the root")
+	}
+}
+
 func TestReadTreeStopsListingAtMaxFiles(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	for i := range 366 {
 		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("f%03d.tf", i)), nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	seen := recordReadDir(t)
 	lim := DefaultLimits
 	lim.MaxFiles = 10
+	seen := recordReadDir(&lim)
 	_, err := ReadTree(root, lim)
 	if err == nil || err.Error() != "more than 10 entries" {
 		t.Fatalf("err %v", err)
 	}
+	wantRootListed(t, seen)
 	if seen["."] > lim.MaxFiles+readDirBatch {
 		t.Errorf("listed %d entries, want at most %d", seen["."], lim.MaxFiles+readDirBatch)
 	}
 }
 
 func TestReadTreeSkipDirCountsOnceAndIsNotRead(t *testing.T) {
+	t.Parallel()
 	files := map[string]string{"a.tf": "", "b.tf": ""}
 	for i := range 300 {
 		files[fmt.Sprintf(".git/objects/o%03d", i)] = ""
 	}
 	root := writeTree(t, files)
-	seen := recordReadDir(t)
 	lim := DefaultLimits
 	lim.MaxFiles = 3 // a.tf, b.tf and .git
+	seen := recordReadDir(&lim)
 	tr, err := ReadTree(root, lim)
 	if err != nil {
 		t.Fatal(err)
 	}
+	wantRootListed(t, seen)
 	for dir := range seen {
 		if dir == ".git" || strings.HasPrefix(dir, ".git/") {
 			t.Errorf("read %s", dir)

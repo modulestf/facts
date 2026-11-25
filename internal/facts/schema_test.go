@@ -438,6 +438,7 @@ func TestSchemaValidatorRejects(t *testing.T) {
 }
 
 func TestReportMatchesSchemas(t *testing.T) {
+	t.Parallel()
 	set := loadSchemas(t)
 	base := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": ""})
 	head := writeTree(t, map[string]string{"main.tf": "", "modules/a/main.tf": "# Free-form.\nvariable \"x\" { type = any }\n", "modules/b/main.tf": "variable {", "examples/e/x.tf": "->../../main.tf"})

@@ -39,6 +39,7 @@ func localKeys(t *testing.T, base, head map[string]string, profile bool) []strin
 }
 
 func TestStructureLocalHardCases(t *testing.T) {
+	t.Parallel()
 	const widget = "resource \"aws_demo_widget\" \"this\" {\n  count = 1\n\n  name = var.name\n\n  tags = var.tags\n}\n"
 	for _, tt := range []struct {
 		name       string
@@ -301,6 +302,7 @@ func TestReparseFailureIsACandidate(t *testing.T) {
 // TestArgumentOrderPredatesChange: an argument-order candidate predates the
 // change when the rule fires on the base block of the same subject too.
 func TestArgumentOrderPredatesChange(t *testing.T) {
+	t.Parallel()
 	const bad = "resource \"aws_demo_widget\" \"a\" {\n  name  = var.name\n  count = 1\n}\n"
 	const badEdited = "resource \"aws_demo_widget\" \"a\" {\n  name  = var.name\n  count = 1\n  size  = 2\n}\n"
 	const good = "resource \"aws_demo_widget\" \"a\" {\n  count = 1\n  name  = var.name\n}\n"

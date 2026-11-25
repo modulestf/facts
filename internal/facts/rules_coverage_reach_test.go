@@ -179,6 +179,7 @@ func TestCoverageReachModeOutputs(t *testing.T) {
 // A Required argument set from a local is reachable only when the local can
 // be followed to a value that is not the literal null.
 func TestCoverageReachRequiredLocal(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		locals, name string
 		want         bool
@@ -230,6 +231,7 @@ func TestCoverageReachModeThroughLocalsAndModules(t *testing.T) {
 // added resource is a candidate at its nested address unless an output reads
 // it, a level above it or a level below it; a deprecated one is not.
 func TestCoverageReachNestedComputed(t *testing.T) {
+	t.Parallel()
 	nested := func(h map[string]any) {
 		for _, p := range h["provider_schemas"].([]any) {
 			b := p.(map[string]any)["resource_schemas"].(map[string]any)["aws_demo_widget"].(map[string]any)["block"].(map[string]any)
@@ -325,6 +327,7 @@ func TestCoverageReachAttributesPerBlock(t *testing.T) {
 // An output that yields a value or null in every mode is no candidate; a
 // near miss that can fail when the counted block has no instance stays one.
 func TestCoverageReachModeSafeOutputs(t *testing.T) {
+	t.Parallel()
 	main := "resource \"aws_demo_widget\" \"this\" {\n  count = var.create ? 1 : 0\n}\n\n" +
 		"resource \"aws_demo_widget\" \"many\" {\n  count = var.n\n}\n\n" +
 		"resource \"aws_demo_widget\" \"each\" {\n  for_each = var.m\n}\n\n" +

@@ -707,6 +707,7 @@ func (c *oracleCheck) checkHandoff() error {
 }
 
 func TestOracleSchemas(t *testing.T) {
+	t.Parallel()
 	if bad := checkOracleSchemas(t, oracleSchemas(t), oracleRoot); len(bad) > 0 {
 		t.Errorf("oracle files do not validate:\n%s", strings.Join(bad, "\n"))
 	}

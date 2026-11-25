@@ -44,6 +44,7 @@ func stateByID(r *EvalReport, id string) TriggerState {
 var digestPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 func TestCompleteAndOutstanding(t *testing.T) {
+	t.Parallel()
 	b := completeReport()
 	l3 := sweepRun("T-001", "L3", l3Same, l3Same)
 	same := sweepRun("T-001", "L1", obs("a", "1")+","+obs("b", "1"), obs("a", "1")+","+obs("b", "1"))
@@ -246,6 +247,7 @@ func TestCompleteFalseMore(t *testing.T) {
 // listed with a digest; one more leaves the trigger incomplete with no
 // outstanding ids and no digest.
 func TestOutstandingCap(t *testing.T) {
+	t.Parallel()
 	// Each case differs in value, length, action and unchanged_vs_prior at
 	// L1 and L2: 32 * 2 * 4 = 256. extra adds an unknown_inputs difference
 	// to the first L1 case.

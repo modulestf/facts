@@ -197,6 +197,7 @@ func TestScopeFilters(t *testing.T) {
 // A result that turns on the lines of a file past the diff limit is
 // not_evaluated(limit_exceeded); a scope that needs no lines still runs.
 func TestScopeOverLimit(t *testing.T) {
+	t.Parallel()
 	areas, ch := scopeAreas(t, map[string]string{"main.tf": distinctLines("a", 2048)}, map[string]string{"main.tf": distinctLines("b", 2048)})
 	for name, tc := range map[string]struct {
 		rule Rule
@@ -411,6 +412,7 @@ func TestNoLineResults(t *testing.T) {
 // The total cell budget across files: four files at the per-file cap use it
 // all, so a fifth is past it although it is under the per-file cap.
 func TestChangeMapTotalBudget(t *testing.T) {
+	t.Parallel()
 	base, head := map[string]string{}, map[string]string{}
 	for _, f := range []string{"a", "b", "c", "d", "e"} {
 		base[f+".txt"] = distinctLines("o"+f, 2047)

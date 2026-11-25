@@ -16,6 +16,7 @@ const (
 )
 
 func TestLedger(t *testing.T) {
+	t.Parallel()
 	// The schema and ledger are copied to a temp dir, so the test can check
 	// that no directory of a path given reaches the output.
 	dir := t.TempDir()
@@ -94,6 +95,7 @@ func TestLedger(t *testing.T) {
 }
 
 func TestLedgerErrors(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bad := filepath.Join(dir, "bad.json")
 	if err := os.WriteFile(bad, []byte(`{"ledger_version": 1, "types": [], "extra": true}`), 0o600); err != nil {

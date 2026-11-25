@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -56,6 +57,7 @@ var gate = map[string][]string{
 }
 
 func TestFixtures(t *testing.T) {
+	t.Parallel()
 	files, err := filepath.Glob(filepath.Join("testdata", "*.txt"))
 	if err != nil {
 		t.Fatal(err)
@@ -71,16 +73,35 @@ func TestFixtures(t *testing.T) {
 			}
 		}
 	}
-	for _, f := range files {
-		fx := loadFixture(t, f)
-		t.Run(fx.name, func(t *testing.T) {
-			for kind, list := range gate {
-				if slices.Contains(list, fx.name) && fx.one("kind") != kind {
-					t.Fatalf("kind %q, the gate lists it as %s", fx.one("kind"), kind)
+	// The fixtures run in parallel inside one group, which returns when
+	// all of them are done; then every reason must have been seen.
+	var mu sync.Mutex
+	seen := map[string]bool{}
+	t.Run("fixture", func(t *testing.T) {
+		for _, f := range files {
+			fx := loadFixture(t, f)
+			t.Run(fx.name, func(t *testing.T) {
+				t.Parallel()
+				for kind, list := range gate {
+					if slices.Contains(list, fx.name) && fx.one("kind") != kind {
+						t.Fatalf("kind %q, the gate lists it as %s", fx.one("kind"), kind)
+					}
 				}
-			}
-			fx.check(t, fx.run(t))
-		})
+				r := fx.run(t)
+				mu.Lock()
+				for _, reason := range r.Reasons {
+					seen[reason] = true
+				}
+				mu.Unlock()
+				fx.check(t, r)
+			})
+		}
+	})
+	// Every reason mtf-facts writes appears in at least one report.
+	for _, r := range Reasons {
+		if !seen[r] {
+			t.Errorf("no fixture yields %s", r)
+		}
 	}
 }
 
@@ -137,27 +158,6 @@ func TestSafePath(t *testing.T) {
 	} {
 		if got := safePath(p); got != want {
 			t.Errorf("safePath(%q) = %v, want %v", p, got, want)
-		}
-	}
-}
-
-// TestEveryReasonExercised runs every fixture and checks that each reason
-// mtf-facts writes appears in at least one report.
-func TestEveryReasonExercised(t *testing.T) {
-	files, err := filepath.Glob(filepath.Join("testdata", "*.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	seen := map[string]bool{}
-	for _, f := range files {
-		fx := loadFixture(t, f)
-		for _, r := range fx.run(t).Reasons {
-			seen[r] = true
-		}
-	}
-	for _, r := range Reasons {
-		if !seen[r] {
-			t.Errorf("no fixture yields %s", r)
 		}
 	}
 }

@@ -221,8 +221,10 @@ func oracleDiff(want, got goldenView) []string {
 // with its expected.json. A rule that is not implemented yet is skipped, so
 // the oracle files stay as curated while rules land.
 func TestOracle(t *testing.T) {
+	t.Parallel()
 	for _, src := range oracleFixtures(t) {
 		t.Run(filepath.Base(src), func(t *testing.T) {
+			t.Parallel()
 			dir := setupOracle(t, src)
 			if d := oracleDiff(readOracle(t, src), runOracle(t, dir)); len(d) > 0 {
 				t.Errorf("run differs from %s/expected.json:\n%s", src, strings.Join(d, "\n"))

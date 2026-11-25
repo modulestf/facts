@@ -120,6 +120,7 @@ func TestVersionFlag(t *testing.T) {
 // TestLintParsing runs lint on one tree with the flag forms hosts and users
 // write, and the forms it refuses.
 func TestLintParsing(t *testing.T) {
+	t.Parallel()
 	head := "../../testdata/versions-missing-positive/head"
 	_, human, _ := runCLI([]string{"lint", head})
 	dir := t.TempDir()
@@ -182,6 +183,7 @@ func TestLintParsing(t *testing.T) {
 // the diff and the scope, the text report prints the scope and the callers,
 // and --full-tree checks every area.
 func TestLintDiff(t *testing.T) {
+	t.Parallel()
 	const dir = "../../testdata/diff-base"
 	args := []string{"lint", dir + "/head", "--diff", dir + "/files.json"}
 	code, out, errOut := runCLI(append(args, "--json"))
@@ -223,6 +225,7 @@ func TestLintDiff(t *testing.T) {
 // that are not clean or not_applicable, in order, the summary counts every
 // entry, and the file lists, the index and the interface diff are left out.
 func TestLintAI(t *testing.T) {
+	t.Parallel()
 	const dir = "../../testdata/diff-base"
 	args := []string{"lint", dir + "/head", "--diff", dir + "/files.json"}
 	code, out, _ := runCLI(append(args, "--json"))
@@ -288,6 +291,7 @@ func TestLintAI(t *testing.T) {
 // TestBundleFullModeWritesNoFile builds the bundle of a report whose tool
 // findings alone are over the cap: it prints full and creates no file.
 func TestBundleFullModeWritesNoFile(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	p := writeReport(t, tmp)
 	data, err := os.ReadFile(p) //nolint:gosec // G703: a file in the test temp directory

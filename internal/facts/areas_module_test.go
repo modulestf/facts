@@ -135,6 +135,7 @@ func TestFindAreasMonorepoChange(t *testing.T) {
 }
 
 func TestFindAreasDeletedModule(t *testing.T) {
+	t.Parallel()
 	base := mustTree(t, writeTree(t, monorepo()))
 	files := monorepo()
 	delete(files, "infra/modules/network/sub/main.tf")
@@ -150,6 +151,7 @@ func TestFindAreasDeletedModule(t *testing.T) {
 // changed link anywhere else leaves the root in scope exactly as before. A
 // link named like configuration belongs to its directory.
 func TestFindAreasOpaqueEntries(t *testing.T) {
+	t.Parallel()
 	base := mustTree(t, writeTree(t, map[string]string{
 		"main.tf": "", "README.md": "", "infra/a/main.tf": "", "infra/a/variables.tf": "", "infra/old/main.tf": "",
 	}))
@@ -193,6 +195,7 @@ func TestFindAreasOpaqueEntries(t *testing.T) {
 // Many changed links never trip the area limit: only directories holding
 // configuration are counted.
 func TestChangedLinksDoNotCountAgainstLimit(t *testing.T) {
+	t.Parallel()
 	baseFiles, headFiles := map[string]string{"main.tf": ""}, map[string]string{"main.tf": ""}
 	for i := range 600 {
 		headFiles["l"+strings.Repeat("x", i%7)+string(rune('a'+i%26))+string(rune('a'+i/26))] = "->/tmp"
@@ -341,6 +344,7 @@ func ruleByID(id string) (Rule, bool) {
 // A module source that leaves the tree, is absolute or has no area is no
 // caller, and nothing outside the tree is read.
 func TestCallersIgnoreUnresolvedSources(t *testing.T) {
+	t.Parallel()
 	for _, src := range []string{"../../../../elsewhere", "/abs/path", "../../modules/missing", "git::https://example.com/x.git"} {
 		files := monorepo()
 		files["infra/live/prod/main.tf"] = "module \"net\" {\n  source = \"" + src + "\"\n}\n"

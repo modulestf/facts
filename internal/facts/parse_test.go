@@ -137,6 +137,7 @@ func TestParseDir(t *testing.T) {
 // TestParseConstructs checks the source text and ranges the parser keeps,
 // one construct per case.
 func TestParseConstructs(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		src   string
 		check func(t *testing.T, m *Module)

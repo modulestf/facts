@@ -29,6 +29,7 @@ func TestScopeConfigRuleShape(t *testing.T) {
 }
 
 func TestScopeConfigNoBase(t *testing.T) {
+	t.Parallel()
 	r := runScopeConfig(t, nil, map[string]string{"main.tf": "resource \"random_id\" \"x\" {}\n", "modules/m/main.tf": ""})
 	for _, e := range r.Manifest {
 		if e.Status != StatusNotApplicable && e.ReasonCode != ReasonNoBase {

@@ -213,6 +213,7 @@ func TestSchemaExamples(t *testing.T) {
 // TestMalformedHandoffs mutates the valid example one way at a time; each
 // mutation must be refused.
 func TestMalformedHandoffs(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile("../../schema/examples/schema-handoff.valid.json")
 	if err != nil {
 		t.Fatal(err)

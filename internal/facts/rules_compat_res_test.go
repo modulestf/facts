@@ -89,6 +89,7 @@ func cands(r *Report, rule string) []string {
 const addrRule = "compat.resource-address-changed"
 
 func TestResourceAddressCases(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		base, head string
 		want       []string
@@ -226,6 +227,7 @@ func versionsTF(core, aws string) string {
 }
 
 func TestVersionCases(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		base, head        string
 		version, floorSts string
@@ -298,6 +300,7 @@ func floorHandoff(t *testing.T, edit func(head map[string]string), versions func
 }
 
 func TestProviderFloorWithSchema(t *testing.T) {
+	t.Parallel()
 	same := func(map[string]string) {}
 	// The handoff resolves the floors: the same old floor and minimum is no raise.
 	r := floorHandoff(t, same, func(p map[string]any) { p["versions"].(map[string]any)["old_floor"] = "6.2.0" })
@@ -389,6 +392,7 @@ func cdn(inner string) string {
 }
 
 func TestPolicyCases(t *testing.T) {
+	t.Parallel()
 	allow := "  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n  }\n"
 	for name, tc := range map[string]struct {
 		base, head string

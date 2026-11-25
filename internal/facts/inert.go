@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"cmp"
 	"errors"
 	"path"
 	"slices"
@@ -98,12 +99,14 @@ var readAttrs = map[string]map[string]int{
 	"file":                 {"source": readsPath},
 }
 
-// maxReadSites bounds the read sites of one tree; a tree with more is
-// treated as one that does not parse. Tests lower it.
-var maxReadSites = 100000
+// defaultMaxReadSites bounds the read sites of one tree; a tree with more is
+// treated as one that does not parse. Tests lower it through Limits.
+const defaultMaxReadSites = 100000
+
+func (l Limits) readSitesCap() int { return cmp.Or(l.maxReadSites, defaultMaxReadSites) }
 
 // ReadSites lists the read sites of every *.tf file of t. complete is false
-// when a file cannot be parsed or the tree has more than maxReadSites sites,
+// when a file cannot be parsed or the tree has more than its cap of sites,
 // so a path no site reaches may still be read. It stops with ErrDeadline
 // when lim's deadline passes.
 func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error) {
@@ -125,7 +128,7 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 		}
 		s := siteScan{dir: path.Dir(p), file: p}
 		s.body(body, "", "")
-		if sites = append(sites, s.sites...); len(sites) > maxReadSites {
+		if sites = append(sites, s.sites...); len(sites) > lim.readSitesCap() {
 			return nil, false, nil
 		}
 	}
@@ -133,7 +136,7 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 	if err != nil {
 		return nil, false, err
 	}
-	return sites, len(sites) <= maxReadSites, nil
+	return sites, len(sites) <= lim.readSitesCap(), nil
 }
 
 // templateSites adds the read sites inside the templates templatefile reads:
@@ -165,7 +168,7 @@ func templateSites(t *Tree, sites []ReadSite, lim Limits) ([]ReadSite, error) {
 			} else {
 				s.funcs(expr)
 			}
-			if sites = append(sites, s.sites...); len(sites) > maxReadSites {
+			if sites = append(sites, s.sites...); len(sites) > lim.readSitesCap() {
 				return sites, nil
 			}
 		}

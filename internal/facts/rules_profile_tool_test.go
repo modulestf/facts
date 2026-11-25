@@ -33,6 +33,7 @@ func findingSpots(r *Report, rule string) []string {
 }
 
 func TestTofuOnlyLines(t *testing.T) {
+	t.Parallel()
 	for name, c := range map[string]struct {
 		src  string
 		want []int
@@ -101,6 +102,7 @@ func TestNonstandardLinks(t *testing.T) {
 // TestNewModule runs an empty base: a new module is held to the whole file
 // set, and a new root is judged whole for the creation gate.
 func TestNewModule(t *testing.T) {
+	t.Parallel()
 	vars := "variable \"create\" {\n  type = bool\n}\n"
 	gate := "variable \"putin_khuylo\" {\n  type = bool\n}\n"
 	head := map[string]string{
@@ -186,6 +188,7 @@ func TestPutinCreationInputs(t *testing.T) {
 // of the && chain, as a gated condition or true branch beside a branch that
 // creates nothing, or as a gated for filter.
 func TestPutinGateFromSyntax(t *testing.T) {
+	t.Parallel()
 	locals := "locals {\n  create = var.create && var.putin_khuylo\n  gate   = var.putin_khuylo\n  c2     = var.create || var.putin_khuylo\n}\n"
 	for name, c := range map[string]struct {
 		meta string

@@ -8,6 +8,7 @@ import (
 // TestOversizeSameContent: two oversize files with the same bytes are the
 // same entry; different bytes, or files over the hash cap, are not.
 func TestOversizeSameContent(t *testing.T) {
+	t.Parallel()
 	big := strings.Repeat("z", int(DefaultLimits.MaxFileBytes)+1)
 	a := mustTree(t, writeTree(t, map[string]string{"x.zip": big, "y.zip": big + "1"}))
 	b := mustTree(t, writeTree(t, map[string]string{"x.zip": big, "y.zip": big + "2"}))
@@ -24,10 +25,17 @@ func TestOversizeSameContent(t *testing.T) {
 		t.Error("the tree hash must not depend on oversize content")
 	}
 
-	defer func(n int64) { oversizeHashCap = n }(oversizeHashCap)
-	oversizeHashCap = DefaultLimits.MaxFileBytes + 1
-	a = mustTree(t, writeTree(t, map[string]string{"y.zip": big + "1"}))
-	b = mustTree(t, writeTree(t, map[string]string{"y.zip": big + "1"}))
+	lim := DefaultLimits
+	lim.oversizeHashCap = DefaultLimits.MaxFileBytes + 1
+	readTree := func(files map[string]string) *Tree {
+		tr, err := ReadTree(writeTree(t, files), lim)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tr
+	}
+	a = readTree(map[string]string{"y.zip": big + "1"})
+	b = readTree(map[string]string{"y.zip": big + "1"})
 	if a.Entries["y.zip"].Same(b.Entries["y.zip"]) {
 		t.Error("files over the hash cap must stay changed")
 	}

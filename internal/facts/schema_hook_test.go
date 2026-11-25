@@ -67,6 +67,7 @@ func TestOracleHandoffsBindToTheirTrees(t *testing.T) {
 // TestHandoffForOtherInputsIsUnavailable runs an oracle handoff against a
 // run it does not cover, one difference at a time.
 func TestHandoffForOtherInputsIsUnavailable(t *testing.T) {
+	t.Parallel()
 	dir := filepath.Join("..", "..", "testdata", "oracle", "coverage-positive")
 	edited := copyTree(t, filepath.Join(dir, "head"))
 	if err := os.WriteFile(filepath.Join(edited, "main.tf"), []byte("# edited\n"), 0o600); err != nil {
@@ -133,6 +134,7 @@ func TestSymlinksAreLeftOutOfTheTreeHash(t *testing.T) {
 // TestSchemaInputsInTheEnvelope runs the engine with a handoff and a raw
 // schema file and validates the envelope against its schema.
 func TestSchemaInputsInTheEnvelope(t *testing.T) {
+	t.Parallel()
 	dir := filepath.Join("..", "..", "testdata", "oracle", "coverage-positive")
 	raw := filepath.Join(t.TempDir(), "aws.json")
 	if err := os.WriteFile(raw, []byte(`{"format_version": "1.0", "provider_schemas": {}}`), 0o600); err != nil {

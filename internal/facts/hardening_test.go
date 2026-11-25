@@ -24,6 +24,7 @@ import (
 // Regression tests for the review of the first engine version.
 
 func TestUnreadableDirectory(t *testing.T) {
+	t.Parallel()
 	if os.Getuid() == 0 {
 		t.Skip("root reads every directory")
 	}
@@ -71,6 +72,7 @@ func TestUnreadableDirectory(t *testing.T) {
 }
 
 func TestParserStackCaps(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct{ src, want string }{
 		"bang chain":     {"variable \"x\" {\n  default = " + strings.Repeat("!", 400000) + "true\n}\n", "tokens over the limit"},
 		"minus chain":    {"variable \"x\" {\n  default = " + strings.Repeat("-", 400000) + "1\n}\n", "tokens over the limit"},
@@ -81,6 +83,7 @@ func TestParserStackCaps(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			r := runHead(t, map[string]string{"main.tf": tc.src})
 			if s := statusOf(r.Manifest, "structure.missing-description", "."); !strings.Contains(s, tc.want) {
 				t.Errorf("got %s", s)
@@ -91,6 +94,7 @@ func TestParserStackCaps(t *testing.T) {
 
 // A long binary chain under the token cap is read, never evaluated.
 func TestBinaryChainUnderCap(t *testing.T) {
+	t.Parallel()
 	src := "variable \"x\" {\n  type = string\n  description = " + strings.Repeat("1+", 45000) + "1\n}\n"
 	r := runHead(t, map[string]string{"main.tf": src})
 	if s := statusOf(r.Manifest, "structure.missing-description", "."); s != "clean" {
@@ -106,12 +110,17 @@ func TestNestingDepthClamp(t *testing.T) {
 	}
 }
 
-// The run time grows linearly with the number of variables: four times the
-// files take well under the sixteen times a quadratic pass would. A ratio,
+// The run time grows linearly with the number of variables: eight times the
+// files take well under the sixty-four times a quadratic pass would. A ratio,
 // not a wall-clock limit, so a slow or race-instrumented build still passes.
 // Each size is timed several times, interleaved, and the fastest run of each
 // counts: load from other processes only ever adds time, so the minimum is
 // the closest to the work itself, and one slow run cannot fail the test.
+//
+// The sizes are small, so the test stays fast. Linear work gives a ratio of
+// about 8 and the limit is 16; a pass quadratic in the variables of a module
+// fails once its cost at the small size reaches a sixth of the linear work,
+// as a duplicate check that scans the earlier variables does.
 func TestManyVariablesAreLinear(t *testing.T) {
 	// files of 2000 variables each stay under the per-file token cap.
 	tree := func(files int) (head, base string) {
@@ -135,9 +144,14 @@ func TestManyVariablesAreLinear(t *testing.T) {
 		}
 		return r, time.Since(start)
 	}
-	const tries = 3
-	smallHead, smallBase := tree(10)
-	largeHead, largeBase := tree(40)
+	const (
+		tries      = 3
+		smallFiles = 1
+		largeFiles = 8 * smallFiles
+		maxRatio   = 16 // linear is 8, quadratic 64
+	)
+	smallHead, smallBase := tree(smallFiles)
+	largeHead, largeBase := tree(largeFiles)
 	var r *Report
 	small, large := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
 	for range tries {
@@ -147,9 +161,10 @@ func TestManyVariablesAreLinear(t *testing.T) {
 		r, dl = run(largeHead, largeBase)
 		large = min(large, dl)
 	}
-	t.Logf("fastest of %d: 10 files %v, 40 files %v", tries, small, large)
-	if ratio := float64(large) / float64(small); ratio > 8 {
-		t.Errorf("40 files took %v, 10 files %v (fastest of %d): ratio %.1f, want at most 8", large, small, tries, ratio)
+	t.Logf("fastest of %d: %d files %v, %d files %v", tries, smallFiles, small, largeFiles, large)
+	if ratio := float64(large) / float64(small); ratio > maxRatio {
+		t.Errorf("%d files took %v, %d files %v (fastest of %d): ratio %.1f, want at most %d",
+			largeFiles, large, smallFiles, small, tries, ratio, maxRatio)
 	}
 	// The one new variable, untyped and with no default, is the only candidate
 	// subject: once for each of the two rules that report it.
@@ -335,6 +350,7 @@ func TestDescriptionForms(t *testing.T) {
 // examples/ or modules/ itself as a link, a special file or an unreadable
 // directory is an area whose applicable rules are not_evaluated.
 func TestTopLevelAreaDirectories(t *testing.T) {
+	t.Parallel()
 	type form struct {
 		files map[string]string
 		setup func(t *testing.T, root string)

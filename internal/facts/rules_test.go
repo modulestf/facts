@@ -185,6 +185,7 @@ func TestEveryRuleHasGoldenCases(t *testing.T) {
 }
 
 func TestVariableEvidenceCap(t *testing.T) {
+	t.Parallel()
 	long := "object({" + strings.Repeat(" a = any,", 200) + " })"
 	r := runHead(t, map[string]string{"variables.tf": "variable \"big\" {\n  type = " + long + "\n}\n"})
 	if len(r.Candidates) != 1 {
