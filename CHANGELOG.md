@@ -1,3 +1,12 @@
+# [0.10.0](https://github.com/modulestf/facts/compare/v0.9.0...v0.10.0) (2026-11-25)
+
+
+### Features
+
+* Make the lint text report readable and skip base-only rules without a change ([#56](https://github.com/modulestf/facts/issues/56)) ([3382d8d](https://github.com/modulestf/facts/commit/3382d8d0112ba67a7ef7304dbdaa5b04f4f965d2))
+
+
+
 # [0.9.0](https://github.com/modulestf/facts/compare/v0.8.0...v0.9.0) (2026-11-25)
 
 
