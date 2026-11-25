@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "lint.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/lint.schema.json",
   "title": "mtf-facts lint output",
   "description": "The JSON document that lint --json writes. module_callers and in_repo_downgrade are always written, empty without a change; older releases of schema version 2 leave them out. index, interface_diff, schema_coverage, scope and callers are optional; schema_coverage is written only when a schema handoff binds to the run, and callers only when the run has a change, --base or --diff. With --ai the report has manifest_summary, its manifest holds only the finding, candidate and not_evaluated entries and the not_applicable entries with reason_code no_change_given, each envelope tree has file_count in place of files, and index, interface_diff and schema_coverage are left out.",
   "type": "object",

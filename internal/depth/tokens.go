@@ -7,8 +7,12 @@ package depth
 
 import "slices"
 
-// Format is the format of the depth report.
-const Format = 1
+// Format is the format of the depth report. SchemaVersion, written next to
+// it, is the field the other reports use; both are 1 and move together.
+const (
+	Format        = 1
+	SchemaVersion = 1
+)
 
 // Depths.
 const (

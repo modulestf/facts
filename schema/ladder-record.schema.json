@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "ladder-record.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/ladder-record.schema.json",
   "title": "Verification ladder record",
   "description": "What the ladder ran for each behaviour trigger, and the example plan coverage. mtf-facts claims-eval reads it; a run counts only with state ran and control valid.",
   "type": "object",

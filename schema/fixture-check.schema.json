@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "fixture-check.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/fixture-check.schema.json",
   "title": "mtf-facts fixture-check result",
   "description": "The result of checking one ladder scratch tree against the default-deny allowlist of its level (L1, L2 or L3). ok is true exactly when violations is empty. tree_sha256 hashes one 'name NUL type NUL content-sha256 LF' line per directory entry, sorted by name.",
   "type": "object",

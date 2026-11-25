@@ -92,7 +92,7 @@ func checkMergeFixtures(t *testing.T, set schemaSet, root string) []string {
 		if err != nil {
 			return []string{err.Error()}
 		}
-		return set.validate(schemaIDPrefix+schema, decodeJSON(t, data))
+		return set.Validate(schemaIDPrefix+schema, decodeJSON(t, data))
 	}
 	for _, name := range names {
 		dir := filepath.Join(root, name)

@@ -8,10 +8,12 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/modulestf/facts/internal/behaviour"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/schematest"
 )
 
 // A fixture is one text file: header lines "key: value", then sections
@@ -241,6 +243,16 @@ func (fx *fixture) one(key string) string {
 	return ""
 }
 
+// depthSchemas loads the schemas under schema/ once for every fixture.
+var depthSchemas = func() func(testing.TB) schematest.Set {
+	var once sync.Once
+	var set schematest.Set
+	return func(t testing.TB) schematest.Set {
+		once.Do(func() { set = schematest.Load(t, "../../schema") })
+		return set
+	}
+}()
+
 // check compares a report with the fixture's expectations. With
 // DEPTH_UPDATE=1 a want.json section is rewritten from the report.
 func (fx *fixture) check(t *testing.T, rep *Report) {
@@ -248,6 +260,9 @@ func (fx *fixture) check(t *testing.T, rep *Report) {
 	got, err := json.MarshalIndent(rep, "", "  ")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if errs := depthSchemas(t).Validate("depth.schema.json", schematest.DecodeJSON(t, got)); len(errs) > 0 {
+		t.Errorf("depth.schema.json: %v", errs)
 	}
 	switch kind := fx.one("kind"); kind {
 	case "must-be-deep":

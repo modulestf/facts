@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "schema-diff.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/schema-diff.schema.json",
   "title": "mtf-facts schema-diff report",
   "description": "Changes between two terraform providers schema -json files, for the resource and data source types a module tree uses. Each schema file is recorded by base name and SHA-256 only, so no host path is recorded. A provider the tree uses that either file lacks stops the run, so it has no report.",
   "type": "object",

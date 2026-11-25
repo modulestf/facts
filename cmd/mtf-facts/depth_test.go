@@ -27,7 +27,7 @@ func TestDepth(t *testing.T) {
 	}
 	slices.Sort(keys)
 	want := []string{"checks_out_of_scope", "depth", "examples_out_of_scope", "examples_selected", "format", "limits",
-		"reasons", "schema_locks", "schema_providers", "schema_types", "touched_types", "walk"}
+		"reasons", "schema_locks", "schema_providers", "schema_types", "schema_version", "touched_types", "walk"}
 	if !slices.Equal(keys, want) {
 		t.Errorf("keys %v", keys)
 	}

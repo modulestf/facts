@@ -155,7 +155,7 @@ func TestSchemaInputsInTheEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if errs := loadSchemas(t).validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
+	if errs := loadSchemas(t).Validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
 		t.Errorf("envelope schema: %v\n%s", errs, data)
 	}
 }
@@ -204,7 +204,7 @@ func TestRawSchemaFilesInTheEnvelope(t *testing.T) {
 		t.Errorf("envelope holds the host path %s:\n%s", dir, data)
 	}
 	set := loadSchemas(t)
-	if errs := set.validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
+	if errs := set.Validate("envelope.schema.json", decodeJSON(t, data)); len(errs) > 0 {
 		t.Errorf("envelope schema: %v\n%s", errs, data)
 	}
 
@@ -224,7 +224,7 @@ func TestRawSchemaFilesInTheEnvelope(t *testing.T) {
 		si := *in
 		mutate(&si)
 		env.SchemaInputs = &si
-		if errs := set.validate("envelope.schema.json", decodeJSON(t, mustJSON(t, env))); len(errs) == 0 {
+		if errs := set.Validate("envelope.schema.json", decodeJSON(t, mustJSON(t, env))); len(errs) == 0 {
 			t.Errorf("%s: accepted", name)
 		}
 	}

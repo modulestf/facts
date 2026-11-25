@@ -57,7 +57,7 @@ func runAffected(t *testing.T, head, base map[string]string) *AffectedReport {
 
 func checkAffectedSchema(t *testing.T, r *AffectedReport) {
 	t.Helper()
-	if errs := loadSchemas(t).validate("affected.schema.json", decodeJSON(t, mustJSON(t, r))); len(errs) > 0 {
+	if errs := loadSchemas(t).Validate("affected.schema.json", decodeJSON(t, mustJSON(t, r))); len(errs) > 0 {
 		t.Errorf("report does not match affected.schema.json: %v", errs)
 	}
 }

@@ -30,7 +30,7 @@ func TestMergedFindingsSchema(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if errs := set.validate(id, decodeJSON(t, data)); len(errs) > 0 {
+		if errs := set.Validate(id, decodeJSON(t, data)); len(errs) > 0 {
 			t.Errorf("%s: %v", f, errs)
 		}
 	}

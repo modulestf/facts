@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/ledger-report.schema.json",
+  "title": "mtf-facts ledger report",
+  "description": "The JSON document that mtf-facts ledger writes: the field inventory of each resource and data source type the module declares, and with --check the problems of the coverage ledger (ledger.schema.json). problems is null without --check and an array with it, empty for a ledger with no problem. Files are named by their base name only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "envelope",
+    "types",
+    "problems"
+  ],
+  "properties": {
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "registry_sha256",
+        "schema_files",
+        "ledger"
+      ],
+      "properties": {
+        "tool": {
+          "$ref": "https://github.com/modulestf/facts/schema/envelope.schema.json#/properties/tool"
+        },
+        "registry_sha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "https://github.com/modulestf/facts/schema/envelope.schema.json#/$defs/sha256"
+            }
+          ]
+        },
+        "schema_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^[^/]+$"
+              },
+              "sha256": {
+                "$ref": "https://github.com/modulestf/facts/schema/envelope.schema.json#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "ledger": {
+          "description": "The ledger --check read, null without --check.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "pattern": "^[^/]+$"
+                },
+                "sha256": {
+                  "$ref": "https://github.com/modulestf/facts/schema/envelope.schema.json#/$defs/sha256"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "type",
+          "provider",
+          "fields"
+        ],
+        "properties": {
+          "mode": {
+            "enum": [
+              "resource",
+              "data"
+            ]
+          },
+          "type": {
+            "$ref": "https://github.com/modulestf/facts/schema/ledger.schema.json#/$defs/name"
+          },
+          "provider": {
+            "description": "The provider source address in the schema file.",
+            "type": "string",
+            "minLength": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "kind",
+                "type",
+                "required",
+                "optional",
+                "computed",
+                "deprecated",
+                "sensitive",
+                "write_only",
+                "nesting"
+              ],
+              "properties": {
+                "name": {
+                  "$ref": "https://github.com/modulestf/facts/schema/ledger.schema.json#/$defs/path"
+                },
+                "kind": {
+                  "enum": [
+                    "attribute",
+                    "block"
+                  ]
+                },
+                "type": {
+                  "description": "The attribute type as Terraform writes it, such as list of string; nested for a nested attribute type and block for a nested block.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "optional": {
+                  "type": "boolean"
+                },
+                "computed": {
+                  "type": "boolean"
+                },
+                "deprecated": {
+                  "type": "boolean"
+                },
+                "sensitive": {
+                  "type": "boolean"
+                },
+                "write_only": {
+                  "type": "boolean"
+                },
+                "nesting": {
+                  "description": "The nesting mode of a block or nested attribute, empty for any other field.",
+                  "enum": [
+                    "",
+                    "single",
+                    "group",
+                    "list",
+                    "set",
+                    "map"
+                  ]
+                },
+                "min_items": {
+                  "description": "The schema's bound of a block or nested attribute, 0 when it states none; left out for any other field.",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max_items": {
+                  "description": "As min_items.",
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "problems": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "type",
+              "field",
+              "problem"
+            ],
+            "properties": {
+              "mode": {
+                "enum": [
+                  "resource",
+                  "data"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "field": {
+                "description": "The field path, empty for a problem with the whole type.",
+                "type": "string"
+              },
+              "problem": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

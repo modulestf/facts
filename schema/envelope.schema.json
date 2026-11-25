@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "envelope.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/envelope.schema.json",
   "title": "mtf-facts envelope",
   "description": "Binds a report to the binary, the rule registry, the input trees, the schema handoff and the module profile.",
   "type": "object",

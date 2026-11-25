@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/depth.schema.json",
+  "title": "mtf-facts depth report",
+  "description": "The JSON document that mtf-facts depth writes: how deep a review of a change must go. format and schema_version are the same version, written twice: schema_version is the field every other report uses, format the one older hosts read; both stay until a release that says otherwise. A reason starts with its depth followed by a dash. A host may raise the report to deep and add its own deep- reasons; this schema is the binary's output, before a host adds anything.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "depth",
+    "reasons",
+    "checks_out_of_scope",
+    "examples_selected",
+    "examples_out_of_scope",
+    "touched_types",
+    "walk",
+    "limits",
+    "schema_providers",
+    "schema_types",
+    "schema_locks"
+  ],
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "depth": {
+      "enum": [
+        "light",
+        "focused",
+        "deep"
+      ]
+    },
+    "reasons": {
+      "description": "The reasons for the depth, in the canonical order of README.md.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "light-docs-only",
+          "focused-within-limits",
+          "focused-no-example",
+          "deep-terraform-block",
+          "deep-lock-file",
+          "deep-cli-config",
+          "deep-ci-config",
+          "deep-provider-config",
+          "deep-depends-on",
+          "deep-new-type",
+          "deep-block-removed-or-renamed",
+          "deep-variable-contract",
+          "deep-output-sensitive",
+          "deep-lifecycle-moved-removed-import",
+          "deep-count-for-each",
+          "deep-provisioner",
+          "deep-policy",
+          "deep-module-source-version",
+          "deep-dynamic-structure",
+          "deep-wrappers",
+          "deep-limits",
+          "deep-classifier-category",
+          "deep-classifier-unavailable",
+          "deep-classifier-invalid",
+          "deep-classifier-mismatch",
+          "deep-affected-fallback",
+          "deep-affected-invalid",
+          "deep-parse-failure",
+          "deep-unwalked",
+          "deep-unresolved-consumer",
+          "deep-unresolved-file-dependency",
+          "deep-path-unsafe",
+          "deep-too-many-examples",
+          "deep-too-many-files",
+          "deep-test-or-mock",
+          "deep-files-list-mismatch",
+          "deep-non-terraform-change"
+        ]
+      }
+    },
+    "checks_out_of_scope": {
+      "description": "The checks the depth leaves out; G-ladder is Check G without the claim reading.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "A",
+          "B",
+          "D",
+          "G-ladder"
+        ]
+      }
+    },
+    "examples_selected": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/dir"
+      }
+    },
+    "examples_out_of_scope": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/dir"
+      }
+    },
+    "touched_types": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,127}$"
+      }
+    },
+    "walk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "complete",
+        "unwalked"
+      ],
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "unwalked": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "limits": {
+      "description": "The counts the focused limits (D-4) are checked against.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tf_files",
+        "changed_lines",
+        "changed_blocks",
+        "selected_examples"
+      ],
+      "properties": {
+        "tf_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_blocks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selected_examples": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "schema_providers": {
+      "description": "Provider requirements of each side and directory, as side:dir:name=source:constraint.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "schema_types": {
+      "description": "The types a provider schema is needed for, as dir:mode:type:source.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "schema_locks": {
+      "description": "The provider versions the lock files pin.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "dir": {
+      "description": "A relative directory path with no . or .. segment.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$"
+    }
+  }
+}

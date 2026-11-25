@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["manifest", "findings", "candidates"],
   "properties": {
-    "manifest": {"$ref": "manifest.schema.json"},
+    "manifest": {"$ref": "https://github.com/modulestf/facts/schema/manifest.schema.json"},
     "findings": {
       "type": "array",
       "items": {"$ref": "https://github.com/modulestf/facts/schema/facts-bundle.schema.json#/$defs/tool_finding"}

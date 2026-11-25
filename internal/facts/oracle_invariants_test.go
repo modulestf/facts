@@ -109,7 +109,7 @@ func checkOracleSchemas(t *testing.T, set schemaSet, root string) []string {
 			if set[schema] == nil {
 				t.Fatalf("schema %s not loaded", schema)
 			}
-			for _, e := range set.validate(schema, decodeJSON(t, data)) {
+			for _, e := range set.Validate(schema, decodeJSON(t, data)) {
 				bad = append(bad, fmt.Sprintf("%s/%s: %s", name, file, e))
 			}
 		}

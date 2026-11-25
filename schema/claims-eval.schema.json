@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "claims-eval.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/claims-eval.schema.json",
   "title": "mtf-facts claims-eval",
   "description": "The state of every behaviour trigger and every valid claim, from a ladder record, and the claims discarded with a reason. Refuted outranks covered.",
   "type": "object",

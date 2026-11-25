@@ -27,7 +27,7 @@ func TestSchemaDiffExampleValidates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if errs := set.validate(schemaDiffID, decodeJSON(t, data)); len(errs) > 0 {
+		if errs := set.Validate(schemaDiffID, decodeJSON(t, data)); len(errs) > 0 {
 			t.Errorf("%s: %v", filepath.Base(f), errs)
 		}
 	}
@@ -61,7 +61,7 @@ func TestSchemaDiffSchemaRejects(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			errs := set.validate(schemaDiffID, decodeJSON(t, bad))
+			errs := set.Validate(schemaDiffID, decodeJSON(t, bad))
 			if !strings.Contains(strings.Join(errs, "\n"), tc.want) {
 				t.Errorf("errors %v, want one with %q", errs, tc.want)
 			}
@@ -71,7 +71,7 @@ func TestSchemaDiffSchemaRejects(t *testing.T) {
 
 func TestValidateUnknownSchema(t *testing.T) {
 	t.Parallel()
-	errs := loadSchemas(t).validate("no-such.schema.json", map[string]any{})
+	errs := loadSchemas(t).Validate("no-such.schema.json", map[string]any{})
 	if len(errs) != 1 || !strings.Contains(errs[0], "no schema with $id") {
 		t.Errorf("errors %v", errs)
 	}

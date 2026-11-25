@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "ledger.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/ledger.schema.json",
   "title": "mtf-facts coverage ledger",
   "description": "The module author's coverage ledger that `mtf-facts ledger --check` reads: one disposition per field of each resource and data source type the module declares, named by its path: the names from the type down, joined by dots, such as `logging.target_bucket`. Each leaf field takes exactly one disposition: its own, or an intentional_omission or not_applicable on a nested block or nested attribute above it, which covers every field inside. Any other disposition on a field with fields of its own is refused: input, output and sensitive_omission are decisions about one value. That each leaf is covered exactly once, that each type is one the module declares, and that each named variable and output exists in the module are checked by the command, not by this schema.",
   "type": "object",
