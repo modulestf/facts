@@ -682,6 +682,19 @@ The `modules/<name>` cases exempt a regular `.tf` file in a nested directory tha
 
 The build supports Unix only: the tree reader opens files with `O_NOFOLLOW`.
 
+## Benchmarks
+
+`make bench` runs every benchmark six times and writes the results to `bench.txt`, or to the file `BENCH_OUT` names. Each benchmark reads one small fixture of `testdata` and one generated tree of the size of a large module, about 90 `.tf` files and 500 KB. `lint` is also timed with the test profile of `testdata/profile`, and on the generated tree with a generated schema handoff of about 22 MB of JSON, the size of a large provider at two versions. Compare two runs with benchstat:
+
+```sh
+make bench BENCH_OUT=/tmp/old.txt
+# change the code
+make bench BENCH_OUT=/tmp/new.txt
+go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261117185222-4febdb082b2c /tmp/old.txt /tmp/new.txt
+```
+
+On a pull request the `bench` job of the `ci` workflow runs the benchmarks on the head and on the base and prints the comparison in the job summary, with a line for a run that failed or a base it could not run. Shared runners are noisy: read the comparison as a hint, and confirm a change on one machine. The job never fails the build.
+
 ## Releases
 
 Each release publishes one binary per platform, `mtf-facts_<tag>_darwin_amd64`, `mtf-facts_<tag>_darwin_arm64`, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
