@@ -10,9 +10,13 @@ import (
 	"github.com/modulestf/facts/internal/profile"
 )
 
-// ProfileLimits bound the read of a profile directory. A profile is a few
+// profileLimits bound the read of a profile directory. A profile is a few
 // markdown files and templates, far below these.
-var ProfileLimits = Limits{MaxFiles: 1000, MaxFileBytes: 256 << 10, MaxTotalBytes: 4 << 20}
+var profileLimits = Limits{MaxFiles: 1000, MaxFileBytes: 256 << 10, MaxTotalBytes: 4 << 20}
+
+// ProfileLimits returns the limits a profile directory is read with. It is a
+// copy: no other package can change them.
+func ProfileLimits() Limits { return profileLimits }
 
 // noProfile is the reason a rule that needs the profile gives when the run
 // was given none.
@@ -37,7 +41,7 @@ func applyProfile(o Options, areas []*Area) (sum, tree *string, err error) {
 		if err != nil || !st.IsDir() {
 			return nil, nil, fmt.Errorf("profile: %s is not a directory", o.ProfileDir)
 		}
-		lim := ProfileLimits
+		lim := profileLimits
 		lim.Deadline = o.Limits.Deadline
 		if p, treeSum, err = readProfile(o.ProfileDir, lim); errors.Is(err, ErrDeadline) {
 			return nil, nil, err
@@ -69,7 +73,7 @@ func ReadProfile(dir string) (p *profile.Profile, unreadable, invalid error) {
 	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
 		return nil, ErrProfileUnreadable, nil
 	}
-	t, err := readProfileTree(dir, ProfileLimits)
+	t, err := readProfileTree(dir, profileLimits)
 	if err != nil {
 		return nil, err, nil
 	}

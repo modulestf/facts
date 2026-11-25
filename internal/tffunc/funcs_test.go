@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,19 +47,45 @@ func TestSetPanicsOnUnknownName(t *testing.T) {
 	Set("nosuchfunction")
 }
 
-// minList is the size from which a literal list of built-in names counts as
-// a second table. A filter over the table may be longer: it is the argument
-// list of a Set call, which the check leaves out.
-const minList = 20
+// minList is the number of distinct built-in names from which a Go file
+// holds a second table, a quarter of the table. Code that dispatches on
+// names stays below it: the most a file names today is 22, in the depth
+// package's resolver. A filter over the table may name more: it is the
+// argument list of a Set call, which the check leaves out.
+const minList = 30
 
-// builtinName returns the built-in function a string literal names.
-func builtinName(e ast.Expr) (string, bool) {
-	lit, ok := e.(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING {
-		return "", false
-	}
+// fieldSep splits a string literal into the words of a list such as
+// strings.Fields would read.
+var fieldSep = regexp.MustCompile(`[\s,]+`)
+
+var ident = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// literalNames adds the built-in names a string literal holds: the whole
+// value when it is one name, or each word when the value is only words, as
+// a list split at run time would be.
+func literalNames(lit *ast.BasicLit, seen map[string]bool) {
 	s, err := strconv.Unquote(lit.Value)
-	return s, err == nil && all[s]
+	if err != nil {
+		return
+	}
+	if all[s] {
+		seen[s] = true
+		return
+	}
+	words := fieldSep.Split(strings.TrimSpace(s), -1)
+	if len(words) < 2 {
+		return
+	}
+	for _, w := range words {
+		if !ident.MatchString(w) {
+			return
+		}
+	}
+	for _, w := range words {
+		if all[w] {
+			seen[w] = true
+		}
+	}
 }
 
 // isSetCall reports a call of tffunc.Set, or of Set inside this package.
@@ -73,66 +100,60 @@ func isSetCall(c *ast.CallExpr) bool {
 	return false
 }
 
-// isNameSet reports a composite literal type that holds a list or set of
-// strings: a slice or array of string, or a map from string to bool or to
-// struct{}. A map to any other value, such as a class or a row, is a table
-// about the functions, not a list of them.
-func isNameSet(t ast.Expr) bool {
-	switch t := t.(type) {
-	case *ast.ArrayType:
-		id, ok := t.Elt.(*ast.Ident)
-		return ok && id.Name == "string"
-	case *ast.MapType:
-		if k, ok := t.Key.(*ast.Ident); !ok || k.Name != "string" {
-			return false
-		}
-		switch v := t.Value.(type) {
-		case *ast.Ident:
-			return v.Name == "bool"
-		case *ast.StructType:
-			return len(v.Fields.List) == 0
-		}
+// isAboutTable reports a map literal type whose values are not a set
+// marker: a map from a function to its class or its row is a table about
+// the functions, so its keys are not a list of them. A named type is not
+// resolved and counts as a list.
+func isAboutTable(t ast.Expr) bool {
+	m, ok := t.(*ast.MapType)
+	if !ok {
+		return false
 	}
-	return false
+	switch v := m.Value.(type) {
+	case *ast.Ident:
+		return v.Name != "bool"
+	case *ast.StructType:
+		return len(v.Fields.List) != 0
+	}
+	return true
 }
 
-// secondLists returns the line and size of each literal list of minList or
-// more built-in names in a Go file: a string slice or array, a set map, or
-// the arguments of a call other than Set.
-func secondLists(fset *token.FileSet, path string, src any) (map[int]int, error) {
+// fileNames returns the distinct built-in names the string literals of a Go
+// file hold, wherever they are: one list, a list split in parts, a string
+// split at run time, switch cases or a named set type. The arguments of a
+// Set call and the keys of a table about the functions are left out.
+func fileNames(fset *token.FileSet, path string, src any) (map[string]bool, error) {
 	f, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, err
 	}
-	out := map[int]int{}
-	count := func(n ast.Node, elts []ast.Expr) {
-		seen := map[string]bool{}
-		for _, e := range elts {
-			if kv, ok := e.(*ast.KeyValueExpr); ok {
-				e = kv.Key
-			}
-			if s, ok := builtinName(e); ok {
-				seen[s] = true
-			}
-		}
-		if len(seen) >= minList {
-			out[fset.Position(n.Pos()).Line] = len(seen)
-		}
-	}
-	ast.Inspect(f, func(n ast.Node) bool {
+	seen := map[string]bool{}
+	var visit func(n ast.Node) bool
+	visit = func(n ast.Node) bool {
 		switch n := n.(type) {
-		case *ast.CompositeLit:
-			if isNameSet(n.Type) {
-				count(n, n.Elts)
-			}
 		case *ast.CallExpr:
-			if !isSetCall(n) {
-				count(n, n.Args)
+			if isSetCall(n) {
+				return false
+			}
+		case *ast.CompositeLit:
+			if isAboutTable(n.Type) {
+				for _, e := range n.Elts {
+					if kv, ok := e.(*ast.KeyValueExpr); ok {
+						e = kv.Value
+					}
+					ast.Inspect(e, visit)
+				}
+				return false
+			}
+		case *ast.BasicLit:
+			if n.Kind == token.STRING {
+				literalNames(n, seen)
 			}
 		}
 		return true
-	})
-	return out, nil
+	}
+	ast.Inspect(f, visit)
+	return seen, nil
 }
 
 // No Go file but this package's table holds a literal list of the
@@ -157,12 +178,12 @@ func TestNoSecondList(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || filepath.Clean(path) == own {
 			return nil
 		}
-		lists, err := secondLists(fset, path, nil)
+		seen, err := fileNames(fset, path, nil)
 		if err != nil {
 			return err
 		}
-		for line, n := range lists {
-			t.Errorf("%s:%d lists %d built-in functions: take the table or a filter over it from package tffunc", path, line, n)
+		if len(seen) >= minList {
+			t.Errorf("%s names %d built-in functions: take the table or a filter over it from package tffunc", path, len(seen))
 		}
 		return nil
 	})
@@ -179,6 +200,7 @@ func TestSecondListForms(t *testing.T) {
 	for i, n := range names[:minList] {
 		quoted[i] = strconv.Quote(n)
 	}
+	half := minList / 2
 	list := strings.Join(quoted, ", ")
 	pairs := func(v string) string {
 		var b strings.Builder
@@ -196,16 +218,22 @@ func TestSecondListForms(t *testing.T) {
 		{"bool map", "var x = map[string]bool{" + pairs("true") + "}", true},
 		{"struct map", "var x = map[string]struct{}{" + pairs("{}") + "}", true},
 		{"call", "var x = toSet(" + list + ")", true},
+		{"split list", "var x = []string{" + strings.Join(quoted[:half], ", ") + "}\nvar y = []string{" + strings.Join(quoted[half:], ", ") + "}", true},
+		{"fields string", "var x = strings.Fields(" + strconv.Quote(strings.Join(names[:minList], " ")) + ")", true},
+		{"comma string", "var x = strings.Split(" + strconv.Quote(strings.Join(names[:minList], ",")) + `, ",")`, true},
+		{"switch", "func f(s string) bool {\n\tswitch s {\n\tcase " + list + ":\n\t\treturn true\n\t}\n\treturn false\n}", true},
+		{"named set", "type nameSet map[string]bool\nvar x = nameSet{" + pairs("true") + "}", true},
 		{"short list", "var x = []string{" + strings.Join(quoted[1:], ", ") + "}", false},
+		{"prose", `var x = "the file is not one of the files a fixture may read: " + "split it"`, false},
 		{"filter", "var x = tffunc.Set(" + list + ")", false},
 		{"class table", "var x = map[string]int{" + pairs("1") + "}", false},
 	} {
-		got, err := secondLists(token.NewFileSet(), "p.go", "package p\n"+c.src+"\n")
+		got, err := fileNames(token.NewFileSet(), "p.go", "package p\n"+c.src+"\n")
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
-		if (len(got) > 0) != c.want {
-			t.Errorf("%s: found %v, want a list found %v", c.name, got, c.want)
+		if (len(got) >= minList) != c.want {
+			t.Errorf("%s: %d names, want a list found %v", c.name, len(got), c.want)
 		}
 	}
 }
