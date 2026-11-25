@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime/debug"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -148,24 +147,4 @@ func newHelpCmd(root *cobra.Command) *cobra.Command {
 			return c.Help()
 		},
 	}
-}
-
-func newVersionCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:     "version",
-		Short:   versionShort,
-		GroupID: groupOther,
-		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			fmt.Fprintln(cmd.OutOrStdout(), version())
-			return nil
-		},
-	}
-}
-
-func version() string {
-	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" {
-		return bi.Main.Version
-	}
-	return "(devel)"
 }

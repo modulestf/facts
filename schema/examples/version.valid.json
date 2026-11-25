@@ -1,0 +1,3 @@
+{"schema_version": 1, "name": "mtf-facts", "version": "v0.9.0", "commit": "c08f4ba1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7", "modified": false, "go": "go1.27.3",
+ "reports": {"affected": 1, "behaviour": 1, "bundle": 1, "claims-eval": 1, "fixture-check": 1, "lint": 2, "schema-diff": 1},
+ "features": ["behaviour.l2-count-for-each", "behaviour.null-sides", "cmd:fixture-check", "cmd:merge.check", "cmd:profile-check", "fixture-check.level.L2", "flag:fixture-check:expect", "flag:profile-check:gates", "flag:version:json"]}

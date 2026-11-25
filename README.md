@@ -626,6 +626,20 @@ mtf-facts completion bash
 
 `rules` lists the implemented rules, one per line with its tier (`tool` or `candidate`), sorted by id. `version` prints the binary version, as does `mtf-facts --version`. `completion` prints a shell completion script for `bash`, `zsh`, `fish` or `powershell` to stdout.
 
+`version --json` prints one line of JSON, [version.schema.json](schema/version.schema.json), for a script that needs to know what the binary supports. Read it once instead of parsing `--help` or reading exit 2 as "flag not supported":
+
+```json
+{"schema_version": 1, "name": "mtf-facts", "version": "v0.9.0", "commit": "<40 hex>", "modified": false, "go": "go1.27.3",
+ "reports": {"affected": 1, "behaviour": 1, "bundle": 1, "claims-eval": 1, "fixture-check": 1, "lint": 2, "schema-diff": 1},
+ "features": ["behaviour.l2-count-for-each", "behaviour.null-sides", "cmd:affected", "...", "flag:fixture-check:expect", "..."]}
+```
+
+- `version` is the text `mtf-facts version` prints: a tag, or `(devel)` for a local build. `commit` and `modified` come from the build; both are `null` for `go install` of a tag, which records no commit.
+- `reports` gives the `schema_version` of each JSON report that carries one, keyed by the command that writes it.
+- `features` is sorted. `cmd:<path>` names each command and `flag:<path>:<name>` each long flag it accepts, where `<path>` is the command names joined by dots (`cmd:merge.check`); both are read from the command tree. `<path>.<name>` names a behaviour or an accepted value: `fixture-check.level.L1` to `L3`, `behaviour.null-sides` (with `--schema`, an attribute a change adds or removes gets a null side, `base_absent` or `head_absent`) and `behaviour.l2-count-for-each` (a `count` or `for_each` change selects L2). A feature name, once released, keeps its meaning and is not removed; the test holds every released name in `cmd/mtf-facts/testdata/features.txt`.
+
+A binary older than this report exits 2 on `--json`. A script that needs a feature checks it with jq, for example `jq -e '.features | index("flag:fixture-check:expect")'`.
+
 ## How rules are evaluated
 
 All 42 tool and candidate rules of the reviewer's rule registry are implemented. CI checks that the `mtf-facts rules` listing equals the registry's tool and candidate rules, tier for tier, against a registry pinned by commit and SHA-256.

@@ -1,0 +1,1 @@
+{"schema_version": 1, "name": "mtf-facts", "version": "(devel)", "commit": null, "modified": null, "go": "go1.27.4", "reports": {}, "features": ["cmd:version", "flag:version:json"]}
