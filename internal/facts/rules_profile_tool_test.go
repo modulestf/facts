@@ -189,7 +189,8 @@ func TestPutinCreationInputs(t *testing.T) {
 // creates nothing, or as a gated for filter.
 func TestPutinGateFromSyntax(t *testing.T) {
 	t.Parallel()
-	locals := "locals {\n  create = var.create && var.putin_khuylo\n  gate   = var.putin_khuylo\n  c2     = var.create || var.putin_khuylo\n}\n"
+	locals := "locals {\n  create = var.create && var.putin_khuylo\n  gate   = var.putin_khuylo\n  c2     = var.create || var.putin_khuylo\n}\n" +
+		"locals {\n  gated = local.create ? var.m : {}\n  names = { for t in toset([for d in local.gated : d.t]) : t => t }\n}\n"
 	for name, c := range map[string]struct {
 		meta string
 		want bool
@@ -207,10 +208,17 @@ func TestPutinGateFromSyntax(t *testing.T) {
 		"parentheses":       {"count = (var.create && (local.gate)) ? 1 : 0", false},
 		"empty for_each":    {"for_each = local.create ? var.m : toset([])", false},
 		"for filter":        {"for_each = { for k, v in var.m : k => v if local.create }", false},
+		// A for expression over a collection the gate empties is gated: it
+		// has nothing to iterate when the gate is off.
+		"for over a gated local":       {"for_each = { for k, v in local.gated : k => v if v.on }", false},
+		"for over a for over a gated":  {"for_each = local.names", false},
+		"for over keys of a gated":     {"for_each = { for k in keys(local.gated) : k => k }", false},
+		"for over an ungated input":    {"for_each = { for k, v in var.m : k => var.create }", true},
+		"for over a concat with gated": {"for_each = { for k in concat(keys(local.gated), [\"x\"]) : k => k }", true},
 	} {
 		head := map[string]string{"main.tf": locals + "\nresource \"a\" \"b\" {\n  " + c.meta + "\n}\n" + putinVar}
 		got := findingSpots(runProfileTool(t, map[string]string{"main.tf": locals + putinVar}, head), "profile.putin-khuylo-missing")
-		if want := map[bool][]string{true: {"main.tf:8"}}[c.want]; !slices.Equal(got, want) {
+		if want := map[bool][]string{true: {"main.tf:12"}}[c.want]; !slices.Equal(got, want) {
 			t.Errorf("%s: %q, want %q", name, got, want)
 		}
 	}
@@ -241,5 +249,32 @@ func TestPutinBaseRootWithoutInput(t *testing.T) {
 	gated := "locals {\n  create = var.create && var.putin_khuylo\n}\n" + block + putinVar
 	if got := findingSpots(runProfileTool(t, map[string]string{"main.tf": gated}, map[string]string{"main.tf": locals + block}), id); !slices.Equal(got, []string{"main.tf:2"}) {
 		t.Errorf("input removed at head: %q", got)
+	}
+}
+
+// TestPutinSubmodulesExempt checks the profile holds only the root to the
+// gate: a submodule that bypasses its own putin_khuylo, or a repository
+// whose root has no Terraform at all and whose submodule changes, has no
+// finding.
+func TestPutinSubmodulesExempt(t *testing.T) {
+	const id = "profile.putin-khuylo-missing"
+	sub := "locals {\n  create = var.create && var.putin_khuylo\n}\n\nresource \"a\" \"b\" {\n  count = local.create ? 1 : 0\n}\n" + putinVar
+	bypass := "locals {\n  create = var.create\n}\n\nresource \"a\" \"b\" {\n  count = var.create ? 2 : 0\n}\n" + putinVar
+	root := "locals {\n  create = var.create && var.putin_khuylo\n}\n" + putinVar
+	for name, c := range map[string]struct{ base, head map[string]string }{
+		"submodule bypasses its gate": {
+			map[string]string{"main.tf": root, "modules/m/main.tf": sub},
+			map[string]string{"main.tf": root, "modules/m/main.tf": bypass}},
+		"root with no Terraform": {
+			map[string]string{"README.md": "x\n", "modules/m/main.tf": sub},
+			map[string]string{"README.md": "x\n", "modules/m/main.tf": bypass}},
+	} {
+		r := runProfileTool(t, c.base, c.head)
+		if got := findingSpots(r, id); len(got) != 0 {
+			t.Errorf("%s: %q", name, got)
+		}
+		if s := statusOf(r.Manifest, id, "modules/m"); s != "not_applicable" {
+			t.Errorf("%s: modules/m is %q", name, s)
+		}
 	}
 }

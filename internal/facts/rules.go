@@ -2,6 +2,7 @@ package facts
 
 import (
 	"fmt"
+	"path"
 	"slices"
 	"strings"
 )
@@ -177,13 +178,17 @@ func checkMissingDescription(a *Area) Result {
 // under another name is the same finding, since versions.tf is the name the
 // profile and its sibling examples use. A path rule reads only whether its
 // path exists, so a symbolic link at versions.tf counts as present and is
-// never followed.
+// never followed. A directory with no .tf or .tf.json file directly in it,
+// such as one holding fixtures for other examples, is no configuration and
+// has no versions.tf to miss.
 func checkVersionsMissing(a *Area) Result {
 	if !a.HeadExists {
 		return Result{NotEvaluated: StatusNotApplicable}
 	}
 	e := a.headEntry("versions.tf")
 	switch {
+	case e == nil && !holdsTerraform(a.headTree, a.Path):
+		return Result{}
 	case e == nil:
 		return Result{Findings: []Finding{{
 			RuleID: "examples.versions-missing", Severity: "MEDIUM", File: a.Path,
@@ -194,4 +199,13 @@ func checkVersionsMissing(a *Area) Result {
 		return Result{NotEvaluated: "versions.tf is " + kindText(e.Kind), Code: kindCode(e.Kind)}
 	}
 	return Result{}
+}
+
+// holdsTerraform reports a directory with a .tf or .tf.json file directly
+// in it, by name, as the parser reads it: a link counts, a dot file does not.
+func holdsTerraform(t *Tree, dir string) bool {
+	return slices.ContainsFunc(t.DirEntries(dir), func(e *Entry) bool {
+		name := path.Base(e.Path)
+		return !ignoredName(name) && (strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json"))
+	})
 }

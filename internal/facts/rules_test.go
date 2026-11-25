@@ -239,3 +239,33 @@ func TestVariableEvidenceCapsCommentLines(t *testing.T) {
 		t.Errorf("complete=%v lines=%d", c.EvidenceComplete, len(c.Evidence.SourceLines))
 	}
 }
+
+// An example directory holds a Terraform configuration only when a .tf or
+// .tf.json file sits directly in it. A directory of fixtures for other
+// examples, such as source code to package, has no versions.tf to miss.
+func TestVersionsMissingNoTerraform(t *testing.T) {
+	r := runHead(t, map[string]string{
+		"examples/fixtures/build.sh":           "#!/bin/sh\n",
+		"examples/fixtures/app/index.py":       "x = 1\n",
+		"examples/fixtures/module/main.tf":     "",
+		"examples/hidden/.draft.tf":            "",
+		"examples/plain/main.tf":               "",
+		"examples/json/main.tf.json":           "{}\n",
+		"examples/linked/main.tf":              "->../plain/main.tf",
+		"examples/complete/main.tf":            "",
+		"examples/complete/versions.tf":        "terraform {}\n",
+		"examples/complete/fixtures/README.md": "x\n",
+	})
+	for area, want := range map[string]string{
+		"examples/fixtures": "clean",
+		"examples/hidden":   "clean",
+		"examples/complete": "clean",
+		"examples/plain":    "finding",
+		"examples/json":     "finding",
+		"examples/linked":   "finding",
+	} {
+		if s := statusOf(r.Manifest, "examples.versions-missing", area); s != want {
+			t.Errorf("%s: %s, want %s", area, s, want)
+		}
+	}
+}
