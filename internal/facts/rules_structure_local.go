@@ -441,7 +441,8 @@ var (
 // the argument as subject; an ARN in a variable, an output, a local, a
 // removed block or a nested terraform block is subject to that block, and a
 // terraform argument to its name. An expression that does not parse again is
-// a candidate, so the rule fails closed.
+// a candidate, so the rule fails closed, unless its text holds neither arn:
+// nor a backslash: no string in it can then hold an ARN.
 //
 // shortcut: an ARN assembled by join(":", [...]) from list elements is not
 // read; read the join's literal list when such a case turns up.
@@ -453,6 +454,11 @@ func checkARNHardcoded(a *Area) Result {
 			ev.line(file, line)
 			ev.head(head)
 			res.Candidates = append(res.Candidates, ev.candidate("structure.arn-partition-hardcoded", file, line, addr))
+		}
+		// An ARN starts with arn: in a string literal, or in one an escape
+		// writes, so a text with neither is not parsed again.
+		if !strings.Contains(x.Text, "arn:") && !strings.Contains(x.Text, `\`) {
+			return
 		}
 		e := reparse(file, x)
 		if e == nil {
