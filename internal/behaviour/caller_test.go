@@ -2,6 +2,7 @@ package behaviour
 
 import (
 	"bytes"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -448,6 +449,165 @@ func TestCallerSealAllowlist(t *testing.T) {
 		t.Run("sealed/"+name, func(t *testing.T) {
 			if s, m := run(t, f); s != StateInert || !m {
 				t.Errorf("%s: %s caller_code %v, want inert and marked", ex, s, m)
+			}
+		})
+	}
+}
+
+// seal4Withheld and seal4Sealed are trees, as extra files beside
+// callerTree, that withhold or keep the mark: a local source or a registry
+// subdirectory with a segment that is not plain ASCII letters, digits, _
+// and -, each local one into a real directory of that name, and a read site
+// that names a caller file in another letter case or spelling.
+var seal4Withheld = map[string]map[string]string{
+	"local ligature":                {"tes\ufb06/basic/x.tf": "variable \"x\" {}\n", "wrappers/main.tf": reuse("../tes\ufb06/basic")},
+	"local trailing dot":            {"tests./basic/x.tf": "variable \"x\" {}\n", "wrappers/main.tf": reuse("../tests./basic")},
+	"local trailing space":          {"tests /basic/x.tf": "variable \"x\" {}\n", "wrappers/main.tf": reuse("../tests /basic")},
+	"local short name":              {"exampl~1/complete/x.tf": "variable \"x\" {}\n", "wrappers/main.tf": reuse("../exampl~1/complete")},
+	"local inner dot":               {"modules/x.y/x.tf": "variable \"x\" {}\n", "reuse.tf": reuse("./modules/x.y")},
+	"local dot after a segment":     {"modules/x/x.tf": "variable \"x\" {}\n", "reuse.tf": reuse("./modules/x/../x")},
+	"registry case variant":         {"reuse.tf": reuse("o/n/aws//Examples/complete")},
+	"registry trailing dot":         {"reuse.tf": reuse("o/n/aws//modules/x.")},
+	"registry inner trailing dot":   {"reuse.tf": reuse("o/n/aws//x./y")},
+	"registry short name":           {"reuse.tf": reuse("o/n/aws//exampl~1")},
+	"registry space":                {"reuse.tf": reuse("o/n/aws//examples /complete")},
+	"registry hidden segment":       {"reuse.tf": reuse("org/self/aws//.terraform")},
+	"registry inner dot":            {"reuse.tf": reuse("o/n/aws//modules/x.y")},
+	"read site case variant":        {"locals.tf": "locals {\n  x = file(\"${path.module}/Examples/complete/main.tf\")\n}\n"},
+	"read site upper-case file":     {"locals.tf": "locals {\n  x = file(\"${path.module}/examples/Complete/MAIN.TF\")\n}\n"},
+	"read site templatefile":        {"locals.tf": "locals {\n  x = templatefile(\"${path.module}/Tests/basic/main.tf\", {})\n}\n"},
+	"read site with no anchor":      {"locals.tf": "locals {\n  x = file(\"Examples/complete/main.tf\")\n}\n"},
+	"read site trailing dot":        {"locals.tf": "locals {\n  x = file(\"${path.module}/examples./complete/main.tf\")\n}\n"},
+	"read site short name":          {"locals.tf": "locals {\n  x = file(\"${path.module}/exampl~1/complete/main.tf\")\n}\n"},
+	"read site backslash":           {"locals.tf": "locals {\n  x = file(\"${path.module}\\\\examples\\\\complete\\\\main.tf\")\n}\n"},
+	"read site from a submodule":    {"modules/x/main.tf": "locals {\n  x = file(\"${path.module}/../../Examples/complete/main.tf\")\n}\n"},
+	"local source with no ./":       {"modules/x/x.tf": "variable \"x\" {}\n", "reuse.tf": reuse("modules/x")},
+	"read site dynamic part":        {"locals.tf": "variable \"p\" {\n  type = string\n}\n\nlocals {\n  x = file(\"${path.module}/Ex${var.p}\")\n}\n"},
+	"read site of a shell command":  {"cmd.tf": "resource \"terraform_data\" \"c\" {\n  provisioner \"local-exec\" {\n    command = \"cat notes.txt\"\n  }\n}\n"},
+	"read site trailing space":      {"locals.tf": "locals {\n  x = file(\"${path.module}/examples /complete/main.tf\")\n}\n"},
+	"read site of the directory":    {"locals.tf": "locals {\n  x = templatefile(\"${path.module}/Examples/complete\", {})\n}\n"},
+	"read site leaves the tree":     {"locals.tf": "locals {\n  x = file(\"${path.module}/../notes.txt\")\n}\n"},
+	"read site of a non-ASCII name": {"locals.tf": "locals {\n  x = file(\"${path.module}/tes\ufb06/basic/main.tf\")\n}\n"},
+}
+
+var seal4Sealed = map[string]map[string]string{
+	"wrapper calls the module root": {"wrappers/main.tf": reuse("../")},
+	"wrapper calls a submodule":     {"modules/x/main.tf": "variable \"n\" {}\n", "wrappers/main.tf": reuse("../modules/x")},
+	"example reads its own file":    {"examples/complete/data.tf": "locals {\n  x = file(\"${path.module}/user_data.sh\")\n}\n", "examples/complete/user_data.sh": "#!/bin/sh\n"},
+	"module reads its own file":     {"locals.tf": "locals {\n  x = file(\"${path.module}/policy.json\")\n}\n", "policy.json": "{}\n"},
+}
+
+// TestCallerSealSegments: see seal4Withheld and seal4Sealed.
+func TestCallerSealSegments(t *testing.T) {
+	ex := "examples/complete/main.tf"
+	run := func(t *testing.T, extra map[string]string) (string, bool) {
+		t.Helper()
+		tree := func(v string) map[string]string {
+			m := callerTree(v)
+			maps.Copy(m, extra)
+			return m
+		}
+		state, marked := byFile(t, runPair(t, tree("a"), tree("b"), ""))
+		return state[ex], marked[ex]
+	}
+	for name, extra := range seal4Withheld {
+		t.Run("withheld/"+name, func(t *testing.T) {
+			if s, m := run(t, extra); s != StateUnverifiable || m {
+				t.Errorf("%s: %s caller_code %v, want unverifiable and unmarked", ex, s, m)
+			}
+		})
+	}
+	for name, extra := range seal4Sealed {
+		t.Run("sealed/"+name, func(t *testing.T) {
+			if s, m := run(t, extra); s != StateInert || !m {
+				t.Errorf("%s: %s caller_code %v, want inert and marked", ex, s, m)
+			}
+		})
+	}
+}
+
+// TestCallerSealLocalCaseVariant: on a file system that keeps Examples/
+// and examples/ apart, a local source into Examples/ withholds the mark.
+func TestCallerSealLocalCaseVariant(t *testing.T) {
+	files := with(callerTree("a"), "Examples/complete/x.tf", "variable \"x\" {}\n", "reuse.tf", reuse("./Examples/complete"))
+	base := writeTree(t, files)
+	if _, err := os.Stat(filepath.Join(base, "examples", "complete", "x.tf")); err == nil {
+		t.Skip("the file system folds case")
+	}
+	files["examples/complete/main.tf"] = "module \"s3\" {\n  source = \"../../\"\n  name   = \"b\"\n}\n"
+	r, err := Run(Options{Head: writeTree(t, files), Base: base, Limits: facts.DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state, marked := byFile(t, r); marked["examples/complete/main.tf"] {
+		t.Errorf("marked: %s\n%s", state["examples/complete/main.tf"], mustJSON(t, r))
+	}
+}
+
+// TestCallerSealDiffMode: with --diff, a diff path under a skipped
+// directory or a removed .gitmodules withholds the mark; the same change
+// with no such path keeps it.
+func TestCallerSealDiffMode(t *testing.T) {
+	head := with(callerTree("a"), "examples/complete/main.tf", "module \"s3\" {\n  source = \"../../\"\n  name   = \"b\"\n}\n")
+	lit := "diff --git a/examples/complete/main.tf b/examples/complete/main.tf\n" +
+		"--- a/examples/complete/main.tf\n+++ b/examples/complete/main.tf\n" +
+		"@@ -3 +3 @@\n-  name   = \"a\"\n+  name   = \"b\"\n"
+	removed := func(p string, lines ...string) string {
+		d := "diff --git a/" + p + " b/" + p + "\ndeleted file mode 100644\n--- a/" + p + "\n+++ /dev/null\n" +
+			fmt.Sprintf("@@ -1,%d +0,0 @@\n", len(lines))
+		for _, l := range lines {
+			d += "-" + l + "\n"
+		}
+		return d
+	}
+	loader := []string{"module \"e\" {", "  source = \"../../examples/complete\"", "}"}
+	cases := []struct {
+		name   string
+		diff   string
+		marked bool
+	}{
+		{"literal only", lit, true},
+		{"removed .terraform loader", lit + removed("modules/.terraform/main.tf", loader...), false},
+		{"removed nested .git file", lit + removed("modules/sub/.git", "gitdir: ../../.git/modules/sub"), false},
+		{"removed .gitmodules", lit + removed(".gitmodules", "[submodule \"sub\"]"), false},
+	}
+	root := writeTree(t, head)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r, err := Run(Options{Head: root, Diff: writeJSON(t, "change.diff", c.diff), Limits: facts.DefaultLimits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, marked := byFile(t, r); marked["examples/complete/main.tf"] != c.marked {
+				t.Errorf("caller_code %v, want %v\n%s", marked["examples/complete/main.tf"], c.marked, mustJSON(t, r))
+			}
+		})
+	}
+}
+
+// TestCallerSiteFolds: a read site is compared with the caller file in any
+// letter case on both sides, and a module-anchored site from its own
+// directory.
+func TestCallerSiteFolds(t *testing.T) {
+	call := func(v string) string { return "module \"s3\" {\n  source = \"../../\"\n  name   = \"" + v + "\"\n}\n" }
+	cases := []struct {
+		name       string
+		file       string
+		base, head map[string]string
+	}{
+		{"upper-case caller directory read in lower case", "examples/Complete/main.tf",
+			map[string]string{"main.tf": "locals {\n  x = file(\"${path.module}/examples/complete/main.tf\")\n}\n", "examples/Complete/main.tf": call("a")},
+			map[string]string{"main.tf": "locals {\n  x = file(\"${path.module}/examples/complete/main.tf\")\n}\n", "examples/Complete/main.tf": call("b")}},
+		{"test configuration reads its own file", "tests/basic/main.tf",
+			map[string]string{"main.tf": "\n", "tests/basic/data.tf": "locals {\n  x = file(\"${path.module}/main.tf\")\n}\n", "tests/basic/main.tf": call("a")},
+			map[string]string{"main.tf": "\n", "tests/basic/data.tf": "locals {\n  x = file(\"${path.module}/main.tf\")\n}\n", "tests/basic/main.tf": call("b")}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := runPair(t, c.base, c.head, "")
+			state, marked := byFile(t, r)
+			if state[c.file] != StateUnverifiable || marked[c.file] {
+				t.Errorf("%s: %s caller_code %v\n%s", c.file, state[c.file], marked[c.file], mustJSON(t, r))
 			}
 		})
 	}

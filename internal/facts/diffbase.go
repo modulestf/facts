@@ -351,6 +351,7 @@ func parseHunkHeader(l string) (hunk, error) {
 func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	entries := maps.Clone(head.Entries)
 	seenHead, seenBase := map[string]bool{}, map[string]bool{}
+	skipped := slices.Clone(head.Skipped)
 	type rebuild struct {
 		at string
 		c  fileChange
@@ -363,6 +364,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			}
 		}
 		if skippedPath(c.path) || c.prev != "" && skippedPath(c.prev) {
+			skipped = append(skipped, c.path)
 			continue
 		}
 		if seenHead[c.path] {
@@ -424,7 +426,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	if total > lim.MaxTotalBytes {
 		return nil, fmt.Errorf("more than %d bytes", lim.MaxTotalBytes)
 	}
-	return indexTree(entries, head), nil
+	t := indexTree(entries, head)
+	t.Skipped = skipped
+	return t, nil
 }
 
 // diffMayBeHidden reports whether a .gitattributes file of either tree may

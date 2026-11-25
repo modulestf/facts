@@ -146,6 +146,20 @@ func TestReadTreeSkipDirCountsOnceAndIsNotRead(t *testing.T) {
 	}
 }
 
+// TestReadTreeSkipped: Skipped holds every path the reader skips but the
+// top-level .git: a nested .git directory or file and any .terraform.
+func TestReadTreeSkipped(t *testing.T) {
+	tr, err := ReadTree(writeTree(t, map[string]string{"a.tf": "", ".git/config": "", ".terraform/x": "",
+		"m/.terraform/y": "", "m/sub/.git/HEAD": "", "n/.git": "gitdir: x\n"}), DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(tr.Skipped)
+	if want := []string{".terraform", "m/.terraform", "m/sub/.git", "n/.git"}; !slices.Equal(tr.Skipped, want) {
+		t.Errorf("skipped %v, want %v", tr.Skipped, want)
+	}
+}
+
 func TestReadTreeUnreadableSubdirectory(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("root reads every directory")

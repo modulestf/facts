@@ -97,8 +97,10 @@ type Tree struct {
 	Entries map[string]*Entry
 	Paths   []string        // sorted entry paths
 	Dirs    map[string]bool // directories, "." included
-	// Skipped are the paths the reader passed over, but the top-level .git:
-	// a .git or .terraform directory and a .git file below the root.
+	// Skipped are the paths the reader skipped, except the top-level .git:
+	// any .terraform directory, and a .git directory or file below the
+	// root. A base rebuilt from a diff holds the head's and every diff path
+	// under such a directory.
 	Skipped []string
 	byDir   map[string][]*Entry
 }
