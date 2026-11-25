@@ -17,15 +17,18 @@ Install `mtf-facts`, then lint what a branch of your Terraform module changed. O
 brew install modulestf/tap/mtf-facts
 ```
 
-Or download a binary from the [releases](https://github.com/modulestf/facts/releases) and verify it against that release's `SHA256SUMS`. The example uses `v0.8.0`; set `V` to the latest tag on the [releases page](https://github.com/modulestf/facts/releases) and `P` to `darwin_arm64`, `darwin_amd64`, `linux_amd64` or `linux_arm64`. Put the binary in a directory on your `PATH`:
+Or download a binary from the [releases](https://github.com/modulestf/facts/releases) and verify it against that release's `SHA256SUMS`. Set `P` to `darwin_arm64`, `darwin_amd64`, `linux_amd64` or `linux_arm64`. The install step runs only if the check passes:
 
 ```sh
-V=v0.8.0 P=darwin_arm64
+V=v0.9.0 P=darwin_arm64
 curl -fsSLO "https://github.com/modulestf/facts/releases/download/$V/mtf-facts_${V}_${P}"
 curl -fsSLO "https://github.com/modulestf/facts/releases/download/$V/SHA256SUMS"
-shasum -a 256 --ignore-missing -c SHA256SUMS    # sha256sum on Linux
-chmod +x "mtf-facts_${V}_${P}" && mv "mtf-facts_${V}_${P}" ~/bin/mtf-facts
+mkdir -p ~/bin    # any directory on your PATH
+shasum -a 256 --ignore-missing -c SHA256SUMS &&    # sha256sum --ignore-missing -c SHA256SUMS on Linux
+  chmod +x "mtf-facts_${V}_${P}" && mv "mtf-facts_${V}_${P}" ~/bin/mtf-facts
 ```
+
+`v0.9.0` may be out of date: set `V` to the latest tag on the [releases page](https://github.com/modulestf/facts/releases).
 
 A module profile is the rule configuration for a module family. The default profile, `terraform-aws-modules`, is in the [modulestf skills repository](https://github.com/modulestf/modulestf/tree/master/.agents/skills/terraform-module-maintainer/profiles):
 
@@ -34,7 +37,7 @@ git clone --depth 1 https://github.com/modulestf/modulestf.git skills
 PROFILE=$PWD/skills/.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules
 ```
 
-To lint only what your branch changed, check out its merge base in a worktree next to the module, and pass the worktree path as `--base`:
+To lint only what your branch changed, check out its merge base in a worktree next to the module, and pass the worktree path as `--base`. Replace `origin/master` with your module's default branch:
 
 ```sh
 cd my-module
@@ -45,8 +48,9 @@ git worktree remove ../my-module-base
 
 Without `--base`, `lint` checks the whole tree. Exit 0 means no findings. Exit 1 means at least one finding. Exit 3 means no findings, but a rule it could not decide (`not_evaluated`). Exit 2 means an error, and stdout is then not a report.
 
-The [usage guide](docs/usage.md) has more examples and a worked review of a real pull request. The [command reference](docs/commands.md) has every flag.
+Without `--schema-files`, the `coverage.*` rules are not evaluated where the change adds or edits a resource or data block, so a run with no findings exits 3. The [usage guide](docs/usage.md#example-review-a-pull-request) shows how to write the schema file with Terraform.
 
+The [usage guide](docs/usage.md) has more examples and a worked review of a real pull request. The [command reference](docs/commands.md) has every flag.
 
 ## Contents
 

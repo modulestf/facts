@@ -2,7 +2,7 @@
 
 Each release publishes one binary per platform, `mtf-facts_<tag>_darwin_amd64`, `mtf-facts_<tag>_darwin_arm64`, `mtf-facts_<tag>_linux_amd64` and `mtf-facts_<tag>_linux_arm64`, a `SHA256SUMS` file, and a build provenance attestation for each binary. The build is reproducible: the same tag and the Go version in `.go-version` give the same bytes on any host. [scripts/build-release.sh](../scripts/build-release.sh) fixes the build settings known to change the output: `-trimpath`, an empty build ID, the toolchain, `CGO_ENABLED=0`, `GOFLAGS=-mod=readonly`, `GOWORK=off`, an empty `GOEXPERIMENT`, `GOFIPS140=off` and the architecture levels. Go embeds no build time; the module version comes from the tag.
 
-### Cut a release
+## Cut a release
 
 Releases follow the [Conventional Commits](https://www.conventionalcommits.org/) in the titles of merged pull requests, which become the commit subjects on `master`. `pr-title-lint` checks each title.
 
@@ -21,7 +21,7 @@ git push origin v0.5.0
 
 A pushed tag publishes a public release. Do not reuse or move a tag: delete a bad release and cut the next version.
 
-### Verify a release
+## Verify a release
 
 Check the attestation of a downloaded binary. `-R` alone accepts an attestation from any workflow on any ref of the repository, so also name the release workflow, the tag and GitHub-hosted runners:
 
@@ -45,7 +45,7 @@ Rebuild the release from source and compare every SHA-256 with the published one
 make release-verify TAG=v0.1.0
 ```
 
-### Update a consumer pin
+## Update a consumer pin
 
 A consumer, such as the verify job of a hosted review workflow, pins one version and one SHA-256 per platform next to the step that downloads `mtf-facts`. To move the pin:
 

@@ -2,7 +2,7 @@
 
 Each command's flags, report and exit codes. `mtf-facts <command> --help` prints the same flags and exit codes.
 
-### lint
+## lint
 
 ```sh
 mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]] [--timeout <duration>]
@@ -38,7 +38,7 @@ The `--json` report holds the envelope, one manifest entry per rule and area (se
 
 The text report prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](../schema/).
 
-#### AI report
+### AI report
 
 `--json --ai` writes the parts of the report a reviewer decides on, as one line of JSON. The exit code is the same as without `--ai`. Compared with the full report:
 
@@ -50,7 +50,7 @@ The text report prints a `scope:` line, and with a change one line per changed m
 
 The report keeps `schema_version` 2 and the keys `envelope`, `manifest`, `findings` and `candidates` with their types, and `manifest_summary` is present only in the AI form. `bundle` and `merge final --report` need the index and the file lists, so they refuse a AI report and exit 2.
 
-#### Change as a diff
+### Change as a diff
 
 `--diff` reads a GitHub pull request files list, the JSON array `gh api repos/<owner>/<repo>/pulls/<number>/files --paginate --slurp | jq add` writes, or a unified diff as `git diff` writes it, with or without `diff --git` lines. The format is detected from the first byte. Paths must be relative to `<dir>`. The base tree is the head tree with each changed file rebuilt by reversing its hunks: a removed file comes back from its removed lines, an added file is left out, and a renamed file moves back to its old path. Every context and added line must match the head file, line ending included, or the run exits 2, and so does a path that is not clean and relative, a path listed twice, or a status the tool does not know.
 
@@ -68,7 +68,7 @@ The `coverage.*` rules read the bound handoff when one is given, and never fall 
 
 The exit codes are in [Lint examples](usage.md#lint-examples).
 
-### affected
+## affected
 
 `mtf-facts affected` lists the examples a change can affect, most likely first, so a host can plan them in that order within its time budget.
 
@@ -92,7 +92,7 @@ mtf-facts affected <dir> [--base <dir> | --diff <file>] [--json] [--timeout <dur
 
 It exits 0 with the list, or 2 on bad input, a limit, an example directory whose name is outside `[A-Za-z0-9._-]`, or the timeout, with nothing on stdout. Without `--json` it prints one `<reason> <dir>` line per example and a summary line.
 
-### depth
+## depth
 
 `mtf-facts depth` decides how deep a review of a change must go: `light`, `focused` or `deep`. It reads the head tree and the merge base tree, the pull request files list, and the `behaviour --json` and `affected --json` reports of the same change, and never runs Terraform. Every rule fails closed: anything it cannot prove makes the change deep.
 
@@ -171,7 +171,7 @@ Paths of the files list, the classifier report and the affected report are relat
 
 It exits 0 with the report, a tree over a read limit and the timeout included (deep, `deep-unwalked`), or 2 on a missing tree, a files list that does not read or has a line count over 10,000,000, or an unsafe `--examples` entry, with nothing on stdout.
 
-### behaviour
+## behaviour
 
 `mtf-facts behaviour` lists every changed tree entry and decomposes the change into triggers: one per AST-level change, each with one category and the verification levels it needs. It never runs Terraform.
 
@@ -210,7 +210,7 @@ The change is read as `lint` reads it, and the report is the same for a base tre
 
 It exits 0 with the report, or 2 on bad input, a limit or the timeout, with nothing on stdout.
 
-### claims-eval
+## claims-eval
 
 `mtf-facts claims-eval` validates the claims a reviewing model wrote, and computes the state of every trigger and every claim from a ladder record.
 
@@ -231,7 +231,7 @@ mtf-facts claims-eval --behaviour <file> --ladder <file> [--claims <file>] [--he
 
 The output has the shape of [claims-eval.schema.json](../schema/claims-eval.schema.json). It exits 0 with the report, or 2 on bad input.
 
-### bundle
+## bundle
 
 `mtf-facts bundle` turns a `lint --json` report into the facts bundle a model reviewer reads, and the injected rule text for the rules the report left `not_evaluated`.
 
@@ -264,7 +264,7 @@ FACTS-BUNDLE END
 
 The bundle carries `schema_version: 1`, `module_areas` (the report's `scope.module_areas`) and `in_repo_downgrade` together with `area_rules`, as one ownership unit: they are shed together, last, as `area-rules`. A report without `scope.module_areas`, from an older release, or with a module or downgrade area longer than 1024 bytes sheds the unit from the start. A bundle without `schema_version` is a legacy bundle.
 
-### merge
+## merge
 
 `mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
 
@@ -287,7 +287,7 @@ A model severity off its rule's list is clamped to the nearest permitted one, as
 
 `merge counts` takes the replies as `merge final` does, picks the same reply, and prints its counts as `{"counts":{...}}`, or `{"counts":null}` when that reply has none, and exits 0. A reply without counts has none: no count is ever read as 0 for its absence. A repair reply that is still invalid keeps its counts when they are well formed. `merge counts` does not load the registry, the report or the templates, so it can succeed where `merge final` fails: a host reads the counts only after `merge final` succeeds.
 
-### profile-check
+## profile-check
 
 ```sh
 mtf-facts profile-check --profile-dir <dir> [--gates] [--downgrade-ids]
@@ -295,7 +295,7 @@ mtf-facts profile-check --profile-dir <dir> [--gates] [--downgrade-ids]
 
 First reads the directory with the walker `profile-snapshot` uses and exits 2 on anything it refuses (a link, a special file, a bad name, another device or a bound), so a profile cannot pass the check and then fail the snapshot. Hosts run it on the snapshot directory. It then reads the profile as `lint --profile-dir` does and checks it, options included. It prints one JSON object: `valid`, `problems`, and for a valid profile `options` and `relaxing`. `--gates` adds `gates`, the gate table, and `gated_rules`, the rules this profile gates; `--downgrade-ids` adds `downgrade_ids`. Exit 0 for a valid profile, 1 for an invalid one, 2 when the directory is missing, a link or cannot be read.
 
-### profile-snapshot
+## profile-snapshot
 
 ```sh
 mtf-facts profile-snapshot --profile-dir <dir>
@@ -303,7 +303,7 @@ mtf-facts profile-snapshot --profile-dir <dir>
 
 Copies the profile directory into a new 0700 temporary directory and prints `{"dir", "tree_sha256", "profile_sha256"}` for the host. Each directory is opened relative to its parent and each file with `O_NOFOLLOW|O_NONBLOCK`, checked with `fstat` as the regular file the listing saw and on the source's `st_dev`, and copied from that descriptor. A link, a special file, another device, a name that is not UTF-8 or holds a control character or DEL, more than 256 entries, more than 8 MiB or a path more than 8 levels deep exits 2, and so does a copy that does not read back the same. The host reads options and gates only from the copy and removes it when done. `profile_sha256` is `null` when the copy is not a valid profile.
 
-### ledger
+## ledger
 
 `mtf-facts ledger` lists the provider fields of each resource and data source type the module in the given directory declares, nested fields included, from one or more `terraform providers schema -json` files:
 
@@ -339,7 +339,7 @@ Without `--check`, `problems` is `null`.
 | 1 | With `--check`: at least one problem, listed in `problems`. |
 | 2 | An error: bad input or a limit. |
 
-### schema-diff
+## schema-diff
 
 `mtf-facts schema-diff` compares two `terraform providers schema -json` files, the current and the target provider version, for the resource and data source types a module tree uses:
 
@@ -349,7 +349,7 @@ mtf-facts schema-diff --from current.json --to target.json --types-from path/to/
 
 All three flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](../schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
 
-### fixture-check
+## fixture-check
 
 `mtf-facts fixture-check` checks the scratch tree a verification ladder level will run against a default-deny allowlist, before any Terraform command runs on it, and hashes the tree:
 
@@ -415,7 +415,7 @@ The check reads syntax only and evaluates nothing. It does not bound what a pass
 | 1 | At least one violation. |
 | 2 | An error: bad flags, a bad pins file or a directory that cannot be read. |
 
-### rules, version and completion
+## rules, version and completion
 
 ```sh
 mtf-facts rules
