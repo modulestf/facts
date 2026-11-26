@@ -1,0 +1,1 @@
+{"level":"L3","attribute":"vpc_security_group_ids","resource":"aws_rds_cluster","template":"l1.tf.tmpl","resource_template":"aws_rds_cluster.tf.tmpl"}

@@ -1,0 +1,395 @@
+package fixture
+
+import (
+	"bytes"
+	"encoding/json"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
+
+// buildTD holds the builder's oracle cases. Each case directory has
+// trigger.json, args.json (level, attribute, resource and the template
+// files: a bare name is under templates/, a ./ name is in the case
+// directory), want.json with the exit the first builder gave (0 built, 1
+// refused, 2 failed), stdout.json with its output and, when built, tree/
+// with every file it wrote. The ladder-pass-NN cases were captured from the
+// skills repository's ladder pass test; the others from crafted triggers.
+const buildTD = "../../testdata/fixture-build"
+
+type buildArgs struct {
+	Level            string `json:"level"`
+	Attribute        string `json:"attribute"`
+	Resource         string `json:"resource"`
+	Template         string `json:"template"`
+	ResourceTemplate string `json:"resource_template"`
+}
+
+func readTD(t *testing.T, p string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func templatePath(dir, name string) string {
+	if strings.HasPrefix(name, "./") {
+		return filepath.Join(dir, name)
+	}
+	return filepath.Join(buildTD, "templates", name)
+}
+
+// caseOptions reads the build options of one oracle case.
+func caseOptions(t *testing.T, dir string) BuildOptions {
+	t.Helper()
+	var a buildArgs
+	if err := json.Unmarshal(readTD(t, filepath.Join(dir, "args.json")), &a); err != nil {
+		t.Fatal(err)
+	}
+	o := BuildOptions{Level: a.Level, Attribute: a.Attribute, Resource: a.Resource,
+		Trigger: readTD(t, filepath.Join(dir, "trigger.json")), Template: readTD(t, templatePath(dir, a.Template))}
+	if a.ResourceTemplate != "" {
+		o.ResourceTemplate = readTD(t, templatePath(dir, a.ResourceTemplate))
+	}
+	return o
+}
+
+// readTree reads every file under dir by its slash path.
+func readTree(t *testing.T, dir string) map[string][]byte {
+	t.Helper()
+	r, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	out := map[string][]byte{}
+	err = fs.WalkDir(r.FS(), ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		out[p], err = r.ReadFile(p)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func oracleCases(t *testing.T) []string {
+	t.Helper()
+	ents, err := os.ReadDir(buildTD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dirs []string
+	for _, e := range ents {
+		if e.IsDir() && e.Name() != "templates" {
+			dirs = append(dirs, filepath.Join(buildTD, e.Name()))
+		}
+	}
+	if len(dirs) < 43 {
+		t.Fatalf("%d oracle cases, want the 43 of the ladder pass test and more", len(dirs))
+	}
+	return dirs
+}
+
+// TestBuildOracle builds every oracle case and compares the result and each
+// file byte for byte with what the first builder printed and wrote.
+func TestBuildOracle(t *testing.T) {
+	for _, dir := range oracleCases(t) {
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			var want struct{ Exit int }
+			if err := json.Unmarshal(readTD(t, filepath.Join(dir, "want.json")), &want); err != nil {
+				t.Fatal(err)
+			}
+			b, err := Build(caseOptions(t, dir))
+			if want.Exit == 2 {
+				if err == nil {
+					t.Fatalf("built %v, want an error", b.Result)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, err := EncodeResult(b.Result)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if wantOut := readTD(t, filepath.Join(dir, "stdout.json")); !bytes.Equal(append(out, '\n'), wantOut) {
+				t.Errorf("stdout\n got %s\nwant %s", out, wantOut)
+			}
+			if b.OK != (want.Exit == 0) {
+				t.Fatalf("ok %v, want exit %d", b.OK, want.Exit)
+			}
+			if !b.OK {
+				if len(b.Files) != 0 {
+					t.Errorf("a refusal has %d files", len(b.Files))
+				}
+				return
+			}
+			wantTree := readTree(t, filepath.Join(dir, "tree"))
+			got := map[string][]byte{}
+			for _, f := range b.Files {
+				if _, dup := got[f.Path]; dup {
+					t.Errorf("%s twice", f.Path)
+				}
+				got[f.Path] = f.Data
+			}
+			for _, p := range slices.Sorted(func(yield func(string) bool) {
+				for k := range wantTree {
+					if !yield(k) {
+						return
+					}
+				}
+			}) {
+				if g, ok := got[p]; !ok {
+					t.Errorf("%s not built", p)
+				} else if !bytes.Equal(g, wantTree[p]) {
+					t.Errorf("%s\n got %q\nwant %q", p, g, wantTree[p])
+				}
+			}
+			for p := range got {
+				if _, ok := wantTree[p]; !ok {
+					t.Errorf("%s built, not in the oracle", p)
+				}
+			}
+		})
+	}
+}
+
+// TestWriteFiles writes a build and reads it back, and refuses an --out
+// that is not an empty directory or is a link.
+func TestWriteFiles(t *testing.T) {
+	dir := filepath.Join(buildTD, "ladder-pass-01")
+	b, err := Build(caseOptions(t, dir))
+	if err != nil || !b.OK {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	if err := WriteFiles(out, b.Files); err != nil {
+		t.Fatal(err)
+	}
+	got, want := readTree(t, out), readTree(t, filepath.Join(dir, "tree"))
+	if len(got) != len(want) {
+		t.Fatalf("%d files written, want %d", len(got), len(want))
+	}
+	for p, w := range want {
+		if !bytes.Equal(got[p], w) {
+			t.Errorf("%s differs", p)
+		}
+	}
+	if err := WriteFiles(out, b.Files); err == nil || !strings.Contains(err.Error(), "not empty") {
+		t.Errorf("a full directory: %v", err)
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(t.TempDir(), link); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFiles(link, b.Files); err == nil {
+		t.Error("a link was written through")
+	}
+	if err := WriteFiles(filepath.Join(t.TempDir(), "none"), b.Files); err == nil {
+		t.Error("a missing directory was made")
+	}
+	// A path that climbs out is refused by the root, whatever the builder.
+	if err := WriteFiles(t.TempDir(), []File{{Path: "../x/escape", Data: nil}}); err == nil {
+		t.Error("a path out of the root was written")
+	}
+}
+
+// TestRenameRefs pins how the expression's references become locals: only
+// a run of the expression's own tokens, so the text of a quoted string, a
+// heredoc or a comment stays as it is while an interpolation is renamed.
+// The first builder replaced text, inside strings too, which changed the
+// value a literal holds; that is the one place the two differ.
+func TestRenameRefs(t *testing.T) {
+	rs := []rename{
+		{from: "var.ab", to: "local.ladder_in_1"},
+		{from: "var.a", to: "local.ladder_in_0"},
+		{from: "data.aws_x.y[*].arn", to: "local.ladder_in_2"},
+	}
+	for i := range rs {
+		rs[i].toks = refTokens(rs[i].from)
+	}
+	slices.SortStableFunc(rs, func(x, y rename) int { return len(y.from) - len(x.from) })
+	for _, c := range []struct{ in, want string }{
+		{"var.a", "local.ladder_in_0"},
+		{"var.ab", "local.ladder_in_1"},
+		{"[var.a, var.ab, xvar.a, a.var.a, var.ax, var.a-b]", "[local.ladder_in_0, local.ladder_in_1, xvar.a, a.var.a, var.ax, var.a-b]"},
+		{"var.a[0].b", "local.ladder_in_0[0].b"},
+		{"var . a", "var . a"},
+		{`"var.a ${var.a}"`, `"var.a ${local.ladder_in_0}"`},
+		{"<<EOT\nvar.a ${var.a}\nEOT\n", "<<EOT\nvar.a ${local.ladder_in_0}\nEOT\n"},
+		{"var.a # var.a", "local.ladder_in_0 # var.a"},
+		{"concat(data.aws_x.y[*].arn, data.aws_x.y[0].arn)", "concat(local.ladder_in_2, data.aws_x.y[0].arn)"},
+		{"var.a +", "local.ladder_in_0 +"}, // a tail that does not parse is renamed all the same
+		{"", ""},
+	} {
+		if got := renameRefs(c.in, rs); got != c.want {
+			t.Errorf("%q: got %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// hostileTrigger is the first oracle trigger with one key replaced.
+func hostileTrigger(t *testing.T, key string, v any) []byte {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(readTD(t, filepath.Join(buildTD, "ladder-pass-01", "trigger.json")), &m); err != nil {
+		t.Fatal(err)
+	}
+	m[key] = v
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// TestBuildHostile feeds inputs a hostile tree or report could produce: each
+// is refused with its fixed reason or is an error, and none builds a file
+// outside the fixture's own paths.
+func TestBuildHostile(t *testing.T) {
+	tmpl := readTD(t, filepath.Join(buildTD, "templates", "l1.tf.tmpl"))
+	deep := strings.Repeat("list(", 21) + "string" + strings.Repeat(")", 21)
+	wide := "tuple([" + strings.Repeat("string, ", 200) + "])"
+	refused := []struct {
+		name, key string
+		v         any
+		reason    string
+	}{
+		{"type nested over 20 deep", "referenced_inputs", []any{map[string]any{"name": "vpc_security_group_ids", "type": deep}}, "an input type is outside the L1 type grammar"},
+		{"type over 400 tokens", "referenced_inputs", []any{map[string]any{"name": "vpc_security_group_ids", "type": wide}}, "an input type is outside the L1 type grammar"},
+		{"type with a quote", "referenced_inputs", []any{map[string]any{"name": "vpc_security_group_ids", "type": `list("string")`}}, "an input type is outside the L1 type grammar"},
+		{"type with a comment", "referenced_inputs", []any{map[string]any{"name": "vpc_security_group_ids", "type": "list(#x\nstring)"}}, "an input type is outside the L1 type grammar"},
+		{"type with an expression", "referenced_inputs", []any{map[string]any{"name": "vpc_security_group_ids", "type": "list(file(x))"}}, "an input type is outside the L1 type grammar"},
+		{"input name with a path", "referenced_inputs", []any{map[string]any{"name": "../x", "type": "string"}}, "a referenced input has no name"},
+		{"case id with a path", "cases", []any{map[string]any{"id": "../../etc/x", "inputs": map[string]any{"vpc_security_group_ids": map[string]any{"value": []any{}}}}}, "a case has no id or inputs"},
+		{"case id with a slash", "cases", []any{map[string]any{"id": "a/b", "inputs": map[string]any{"vpc_security_group_ids": map[string]any{"value": []any{}}}}}, "a case has no id or inputs"},
+		{"case id over 64", "cases", []any{map[string]any{"id": strings.Repeat("a", 65), "inputs": map[string]any{"vpc_security_group_ids": map[string]any{"value": []any{}}}}}, "a case has no id or inputs"},
+		{"reference text over 256", "contextual_ref_details", []any{map[string]any{"kind": "resource", "text": "aws_x.y." + strings.Repeat("a", 250)}}, "a contextual reference has no text and kind"},
+		{"cases not a list", "cases", map[string]any{}, "no cases"},
+	}
+	for _, c := range refused {
+		b, err := Build(BuildOptions{Level: "L1", Template: tmpl, Trigger: hostileTrigger(t, c.key, c.v)})
+		if err != nil || b.OK || b.Result["reason"] != c.reason || len(b.Files) != 0 {
+			t.Errorf("%s: %v %v", c.name, err, b)
+		}
+	}
+	errs := []struct {
+		name string
+		o    BuildOptions
+	}{
+		{"not JSON", BuildOptions{Level: "L1", Template: tmpl, Trigger: []byte("{")}},
+		{"not an object", BuildOptions{Level: "L1", Template: tmpl, Trigger: []byte("[]")}},
+		{"two values", BuildOptions{Level: "L1", Template: tmpl, Trigger: []byte("{} {}")}},
+		{"invalid UTF-8", BuildOptions{Level: "L1", Template: tmpl, Trigger: []byte("{\"a\":\"\xff\"}")}},
+		{"nested over 512", BuildOptions{Level: "L1", Template: tmpl, Trigger: []byte(`{"a":` + strings.Repeat("[", 600) + strings.Repeat("]", 600) + "}")}},
+		{"a number out of range", BuildOptions{Level: "L1", Template: tmpl, Trigger: hostileTrigger(t, "cases", []any{map[string]any{"id": "a", "inputs": map[string]any{"vpc_security_group_ids": map[string]any{"value": json.Number("1e999")}}}})}},
+		{"a template over its cap", BuildOptions{Level: "L1", Template: bytes.Repeat([]byte("x"), maxTemplateBytes+1), Trigger: hostileTrigger(t, "id", "x")}},
+		{"a template without its sections", BuildOptions{Level: "L1", Template: []byte("#-- standin\n"), Trigger: hostileTrigger(t, "id", "x")}},
+		{"another level", BuildOptions{Level: "L4", Template: tmpl, Trigger: hostileTrigger(t, "id", "x")}},
+	}
+	for _, c := range errs {
+		if b, err := Build(c.o); err == nil {
+			t.Errorf("%s: built %v", c.name, b.Result)
+		}
+	}
+}
+
+// allowedPath is a path the builder may write: a case var file, a side's
+// files, or a side's manifest.
+var allowedPath = regexp.MustCompile(`\A(?:vars/[A-Za-z0-9_.:-]{1,64}\.tfvars\.json|(?:base|head)/(?:main\.tf|subject\.tf|ladder\.tftest\.hcl)|expect/(?:base|head)\.json)\z`)
+
+// FuzzBuild feeds arbitrary triggers at each level. No input may panic;
+// a build writes only the fixture's own paths, each once, and every JSON file
+// it writes parses.
+func FuzzBuild(f *testing.F) {
+	tmpl, err := os.ReadFile(filepath.Join(buildTD, "templates", "l1.tf.tmpl"))
+	if err != nil {
+		f.Fatal(err)
+	}
+	l3, err := os.ReadFile(filepath.Join(buildTD, "templates", "aws_rds_cluster.tf.tmpl"))
+	if err != nil {
+		f.Fatal(err)
+	}
+	dirs, err := filepath.Glob(filepath.Join(buildTD, "*", "trigger.json"))
+	if err != nil {
+		f.Fatal(err)
+	}
+	for _, p := range dirs {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(data, uint8(0))
+	}
+	f.Fuzz(func(t *testing.T, trigger []byte, lv uint8) {
+		o := BuildOptions{Trigger: trigger, Template: tmpl}
+		switch lv % 4 {
+		case 0, 1:
+			o.Level = "L1"
+		case 2:
+			o.Level, o.Attribute = "L2", "for_each"
+		case 3:
+			o.Level, o.Attribute, o.Resource, o.ResourceTemplate = "L3", "vpc_security_group_ids", "aws_rds_cluster", l3
+		}
+		b, err := Build(o)
+		if err != nil {
+			return
+		}
+		if _, err := EncodeResult(b.Result); err != nil {
+			t.Fatalf("result does not encode: %v", err)
+		}
+		if !b.OK {
+			if len(b.Files) != 0 {
+				t.Fatal("a refusal has files")
+			}
+			r, _ := b.Result["reason"].(string)
+			if r == "" || utf8.RuneCountInString(r) > maxReasonChars {
+				t.Fatalf("reason %q", r)
+			}
+			return
+		}
+		seen := map[string]bool{}
+		for _, fl := range b.Files {
+			if !allowedPath.MatchString(fl.Path) || seen[fl.Path] {
+				t.Fatalf("path %q", fl.Path)
+			}
+			seen[fl.Path] = true
+			if strings.HasSuffix(fl.Path, ".json") && !json.Valid(fl.Data) {
+				t.Fatalf("%s is not JSON: %q", fl.Path, fl.Data)
+			}
+		}
+	})
+}
+
+// TestBuildWritesUTF8 pins the other place the first builder differs: a
+// \u escape of a character below U+0100 in the trigger. That builder wrote
+// it as one Latin-1 byte, which is not valid UTF-8, unless the same output
+// held a wider character; this one always writes UTF-8. A behaviour report
+// writes such characters as UTF-8 bytes, which both builders copy as they
+// are.
+func TestBuildWritesUTF8(t *testing.T) {
+	tmpl := readTD(t, filepath.Join(buildTD, "templates", "l1.tf.tmpl"))
+	trig := hostileTrigger(t, "cases", []any{map[string]any{"id": "a", "inputs": map[string]any{"vpc_security_group_ids": map[string]any{"value": []any{"é"}}}}})
+	trig = bytes.Replace(trig, []byte("é"), []byte(`é`), 1)
+	b, err := Build(BuildOptions{Level: "L1", Template: tmpl, Trigger: trig})
+	if err != nil || !b.OK {
+		t.Fatal(err, b.Result)
+	}
+	for _, f := range b.Files {
+		if f.Path == "vars/a.tfvars.json" && (!utf8.Valid(f.Data) || !bytes.Contains(f.Data, []byte("é"))) {
+			t.Errorf("%s: %q", f.Path, f.Data)
+		}
+	}
+}

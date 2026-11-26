@@ -1,0 +1,3 @@
+run "ladder" {
+  command = plan
+}

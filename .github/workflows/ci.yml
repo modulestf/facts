@@ -236,6 +236,7 @@ jobs:
           - { pkg: ./internal/registry, name: FuzzParse }
           - { pkg: ./internal/profile, name: FuzzNew }
           - { pkg: ./internal/fixture, name: FuzzFile }
+          - { pkg: ./internal/fixture, name: FuzzBuild }
           - { pkg: ./internal/schema, name: FuzzHandoff }
           - { pkg: ./internal/merge, name: FuzzParseReply }
           - { pkg: ./internal/schema, name: FuzzNullScan }

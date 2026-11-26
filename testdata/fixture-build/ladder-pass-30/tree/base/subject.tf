@@ -1,0 +1,4 @@
+output "subject" {
+  value = x
+}
+

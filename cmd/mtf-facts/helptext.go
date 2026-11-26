@@ -365,3 +365,51 @@ Exit codes:
 	affectedJSONUsage       = "write the list as JSON (schema/affected.schema.json)"
 	affectedModuleRootUsage = "the repository-relative `dir` of the module under review; <dir> is then the repository root"
 )
+
+const (
+	fixtureBuildShort = "Build the fixture pair a ladder level runs for one trigger"
+	fixtureBuildLong  = `Build the scratch trees a verification ladder level runs for one trigger of a
+behaviour report that carries the classifier's cases, from trusted templates.
+
+<trigger.json> is one trigger object: base_expr and head_expr, the
+referenced_inputs with their type constraints, contextual_ref_details, category,
+address and cases. --template is the L1 and L2 template and, at L3,
+--resource-template the resource template; each holds sections that start at a
+line "#-- <name>", with __NAME__ placeholders filled in one pass.
+
+Under --out, an existing empty directory, it writes for each side with an
+expression <side>/main.tf (a variable, a terraform_data stand-in whose output is
+a typed unknown and a canary per input, and a local per input whose state a
+case var file picks), <side>/subject.tf (the expression with each input renamed
+to its local), at L2 <side>/ladder.tftest.hcl, and expect/<side>.json, the
+manifest fixture-check --expect reads; and vars/<case id>.tfvars.json per case.
+
+A type constraint is string, number, bool, any, list, set or map of one type,
+tuple, or object with optional attributes, at most 400 tokens and 20 levels
+deep. A trigger the builder cannot model, such as a type outside that grammar,
+a local or module reference, over 32 cases, an expression over 16 KiB, or a
+count, each or default context at L2 or L3, is refused with a fixed reason and
+no file is written.
+
+It prints one JSON object, sorted keys: {"schema_version":1,"ok":true,"wrap",
+"sides","canaries","cases":[{"id","inputs","unknown_inputs","addr"}]} or
+{"schema_version":1,"ok":false,"reason"}.
+
+Exit codes:
+  0  the fixture is written
+  1  the trigger is refused, with its reason
+  2  an error: bad flags, an input over its size, a template without a
+     section or value, an --out that is not an empty directory, or a timeout`
+	fixtureBuildExample = `  mtf-facts fixture-build trigger.json --template l1.tf.tmpl --out scratch
+  mtf-facts fixture-build trigger.json --template l1.tf.tmpl --out scratch \
+    --level L2 --attribute for_each
+  mtf-facts fixture-build trigger.json --template l1.tf.tmpl --out scratch \
+    --level L3 --attribute vpc_security_group_ids --resource aws_rds_cluster \
+    --resource-template template.tf.tmpl`
+	fixtureBuildTemplateUsage         = "L1 and L2 template `file`, required"
+	fixtureBuildOutUsage              = "existing empty `dir` to write the fixture to, required"
+	fixtureBuildLevelUsage            = "ladder `level`: L1, L2 or L3"
+	fixtureBuildAttributeUsage        = "`attribute` the expression sets: count or for_each at L2, the attribute under test at L3"
+	fixtureBuildResourceUsage         = "resource `type` under test, at L3"
+	fixtureBuildResourceTemplateUsage = "resource template `file`, at L3"
+)

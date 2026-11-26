@@ -1,0 +1,1 @@
+{"canaries":["canary_ladder_u_0","canary_ladder_ue_0"],"cases":[{"addr":"terraform_data.subject[1]","id":"a","inputs":{"count.index":{"null":false,"omitted":false,"unknown":false,"value":1},"vpc_security_group_ids":{"null":false,"omitted":false,"unknown":false,"value":["p","q"]}},"unknown_inputs":[]}],"ok":true,"schema_version":1,"sides":["base","head"],"wrap":"count"}

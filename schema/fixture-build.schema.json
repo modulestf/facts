@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "fixture-build.schema.json",
+  "title": "mtf-facts fixture-build result",
+  "description": "The result of building the fixture pair of one trigger for a verification ladder level. ok true: the files are written; wrap is the context the expression runs in, sides the sides with an expression, canaries the output names fixture-check and the plan read, and cases each case of the classifier with its inputs as given, the inputs it makes unknown and, in a count or for_each context, the subject instance address. ok false: the trigger is refused with a fixed reason, and no file is written.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ok"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "ok": {
+      "type": "boolean"
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "ok",
+        "wrap",
+        "sides",
+        "canaries",
+        "cases"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "wrap": {
+          "enum": [
+            "none",
+            "count",
+            "for_each"
+          ]
+        },
+        "sides": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "base",
+              "head"
+            ]
+          }
+        },
+        "canaries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^canary_ladder_ue?_[0-9]+$"
+          }
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/case"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "ok",
+        "reason"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "ok": {
+          "const": false
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "inputs",
+        "unknown_inputs",
+        "addr"
+      ],
+      "properties": {
+        "id": {
+          "description": "The case id as the trigger gives it: a string, or a number whose text is a case id.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "inputs": {
+          "type": "object",
+          "description": "The case's inputs as the trigger gives them."
+        },
+        "unknown_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "addr": {
+          "type": "string",
+          "description": "terraform_data.subject[<index>] or terraform_data.subject[\"<key>\"] in a count or for_each context, else empty."
+        }
+      }
+    }
+  }
+}
