@@ -182,6 +182,7 @@ jobs:
           - { pkg: ./internal/facts, name: FuzzDiffBaseGitHubFiles }
           - { pkg: ./internal/facts, name: FuzzDiffBaseUnified }
           - { pkg: ./internal/facts, name: FuzzReadYAML }
+          - { pkg: ./internal/facts, name: FuzzChangesFile }
           - { pkg: ./internal/registry, name: FuzzParse }
           - { pkg: ./internal/profile, name: FuzzNew }
           - { pkg: ./internal/fixture, name: FuzzFile }
