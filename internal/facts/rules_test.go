@@ -258,15 +258,25 @@ func TestVersionsMissingNoTerraform(t *testing.T) {
 		"examples/complete/main.tf":            "",
 		"examples/complete/versions.tf":        "terraform {}\n",
 		"examples/complete/fixtures/README.md": "x\n",
+		"examples/regions/us":                  "->../shared/us",
+		"examples/regions2/a/b":                "->../../shared/b",
+		"examples/hiddenlink/.cache":           "->../../shared",
+		"examples/shared/us/main.tf":           "",
+		"examples/shared/b/main.tf":            "",
 	})
 	for area, want := range map[string]string{
-		"examples/fixtures": "clean",
-		"examples/hidden":   "clean",
-		"examples/complete": "clean",
-		"examples/plain":    "finding",
-		"examples/json":     "finding",
-		"examples/linked":   "finding",
-		"examples/multi":    "finding",
+		// A linked directory may hold the configuration and is never
+		// followed, so the rule cannot say the example has none.
+		"examples/regions":    "not_evaluated: examples/regions/us is a symbolic link the engine does not follow, so whether it holds Terraform is unknown",
+		"examples/regions2":   "not_evaluated: examples/regions2/a/b is a symbolic link the engine does not follow, so whether it holds Terraform is unknown",
+		"examples/hiddenlink": "clean",
+		"examples/fixtures":   "clean",
+		"examples/hidden":     "clean",
+		"examples/complete":   "clean",
+		"examples/plain":      "finding",
+		"examples/json":       "finding",
+		"examples/linked":     "finding",
+		"examples/multi":      "finding",
 	} {
 		if s := statusOf(r.Manifest, "examples.versions-missing", area); s != want {
 			t.Errorf("%s: %s, want %s", area, s, want)

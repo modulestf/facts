@@ -180,7 +180,8 @@ func checkMissingDescription(a *Area) Result {
 // path exists, so a symbolic link at versions.tf counts as present and is
 // never followed. A directory with no .tf or .tf.json file in it or below
 // it, such as one holding fixtures for other examples, is no configuration
-// and has no versions.tf to miss.
+// and has no versions.tf to miss, unless a link sits in it: a linked
+// directory may hold the configuration, so the rule is not_evaluated.
 func checkVersionsMissing(a *Area) Result {
 	if !a.HeadExists {
 		return Result{NotEvaluated: StatusNotApplicable}
@@ -188,6 +189,11 @@ func checkVersionsMissing(a *Area) Result {
 	e := a.headEntry("versions.tf")
 	switch {
 	case e == nil && !holdsTerraform(a.headTree, a.Path):
+		if l := linkBelow(a.headTree, a.Path); l != "" {
+			// The reader never follows a link, so a linked directory may hold
+			// the example's configuration.
+			return Result{NotEvaluated: l + " is a symbolic link the engine does not follow, so whether it holds Terraform is unknown", Code: ReasonSymlink}
+		}
 		return Result{}
 	case e == nil:
 		return Result{Findings: []Finding{{
@@ -199,6 +205,18 @@ func checkVersionsMissing(a *Area) Result {
 		return Result{NotEvaluated: "versions.tf is " + kindText(e.Kind), Code: kindCode(e.Kind)}
 	}
 	return Result{}
+}
+
+// linkBelow returns the first symbolic link in dir or below it, not counting
+// ignored names, or "". The reader records a link and never follows it, so
+// what it points to is unknown.
+func linkBelow(t *Tree, dir string) string {
+	for _, p := range t.Paths {
+		if strings.HasPrefix(p, dir+"/") && !ignoredName(path.Base(p)) && t.Entries[p].Kind == KindSymlink {
+			return p
+		}
+	}
+	return ""
 }
 
 // holdsTerraform reports a directory with a .tf or .tf.json file in it or

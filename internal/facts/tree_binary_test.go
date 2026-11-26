@@ -257,3 +257,51 @@ func TestReadersRefuseOpaque(t *testing.T) {
 		t.Errorf("changedFiles: over %v", c.over)
 	}
 }
+
+// The base half of the opaque check: a text head file against a binary base
+// file, and the reverse, has no known changed lines.
+func TestChangeMapOpaqueBaseLinesUnknown(t *testing.T) {
+	for name, c := range map[string]struct{ head, base string }{
+		"base opaque": {"text\n", binaryBody(30)},
+		"head opaque": {binaryBody(30), "text\n"},
+	} {
+		head := mustTree(t, writeTree(t, map[string]string{"a.zip": c.head}))
+		base := mustTree(t, writeTree(t, map[string]string{"a.zip": c.base}))
+		ch, err := BuildChangeMap(head, base, nil, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed, unknown := ch.rangeChanged("a.zip", 1, 1); changed || !unknown {
+			t.Errorf("%s: changed %v, unknown %v, want unknown lines", name, changed, unknown)
+		}
+	}
+}
+
+// changedFiles marks a file over its bounds when only the base side is
+// binary, and when only the head side is.
+func TestChangedFilesOpaqueBase(t *testing.T) {
+	text := mustTree(t, writeTree(t, map[string]string{"a.dat": "x\ny\n"}))
+	bin := mustTree(t, writeTree(t, map[string]string{"a.dat": "\x00x\ny\n"}))
+	for name, c := range map[string]struct{ head, base *Tree }{
+		"base opaque": {text, bin},
+		"head opaque": {bin, text},
+	} {
+		cf := &changedFiles{head: c.head, base: c.base, lines: map[string][]lineRange{}, budget: maxDiffTotalCells}
+		if cf.changed("a.dat", 1) || !cf.over {
+			t.Errorf("%s: over %v, want true and no changed line", name, cf.over)
+		}
+	}
+}
+
+// A binary file named LICENSE in any case is kept, since a rule reads the
+// name, and the name test is case-insensitive.
+func TestReadTreeBinaryLicenseKept(t *testing.T) {
+	body := binaryBody(40)
+	tr := mustTree(t, writeTree(t, map[string]string{"LICENSE": body, "NOTICE": body}))
+	if e := tr.Entries["LICENSE"]; e.Opaque() || string(e.Data) != body {
+		t.Errorf("LICENSE with a NUL byte was not kept: opaque %v, %d bytes", e.Opaque(), len(e.Data))
+	}
+	if e := tr.Entries["NOTICE"]; !e.Opaque() {
+		t.Error("NOTICE with a NUL byte was kept, so the control case tests nothing")
+	}
+}
