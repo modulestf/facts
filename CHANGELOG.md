@@ -1,3 +1,12 @@
+## [0.19.1](https://github.com/modulestf/facts/compare/v0.19.0...v0.19.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* Quote the remaining untrusted names in error text ([#106](https://github.com/modulestf/facts/issues/106)) ([55af065](https://github.com/modulestf/facts/commit/55af065eae13b02e2e210ac3b97b58649944f2c8)), closes [#88](https://github.com/modulestf/facts/issues/88) [#96](https://github.com/modulestf/facts/issues/96)
+
+
+
 # [0.19.0](https://github.com/modulestf/facts/compare/v0.18.0...v0.19.0) (2026-11-26)
 
 
