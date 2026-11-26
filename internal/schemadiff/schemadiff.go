@@ -214,7 +214,7 @@ func block(s *schema.Set, name string, t Type) (*tfjson.SchemaBlock, error) {
 	case schema.AbsentFromSchema:
 		return nil, nil
 	}
-	return nil, fmt.Errorf("provider %s, which %s %s uses, is not in %s", t.ProviderSource, t.Mode, t.Type, name)
+	return nil, fmt.Errorf("provider %q, which %s %q uses, is not in %s", t.ProviderSource, t.Mode, t.Type, name)
 }
 
 // ModuleTypes lists the resource and data source types every directory of
@@ -233,15 +233,18 @@ func ModuleTypes(dir string, lim facts.Limits) ([]TypeUse, error) {
 			return nil, err
 		}
 		if len(m.Unsupported) > 0 {
-			return nil, fmt.Errorf("the types of %s cannot be listed: %s", d, m.Unsupported[0])
+			return nil, fmt.Errorf("the types of %q cannot be listed: %s", d, m.Unsupported[0])
 		}
 		for _, b := range m.Other {
 			if b.Type == "ephemeral" {
 				// shortcut: ephemeral resource schemas are not compared; upgrade when the schema package reads them.
-				return nil, fmt.Errorf("%s:%d: ephemeral resources are not compared", path.Join(d, b.File), b.Line)
+				return nil, fmt.Errorf("%q:%d: ephemeral resources are not compared", path.Join(d, b.File), b.Line)
 			}
 		}
 		for _, r := range m.Resources {
+			if !facts.IsTypeLabel(r.Type) {
+				return nil, fmt.Errorf("%s %q: the type is not a Terraform identifier", r.Mode, r.Type)
+			}
 			ty := Type{Mode: r.Mode, Type: r.Type, ProviderSource: facts.ResourceProviderSource(m, r)}
 			if !slices.Contains(uses[ty], d) {
 				uses[ty] = append(uses[ty], d)

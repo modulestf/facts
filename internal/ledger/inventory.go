@@ -147,7 +147,7 @@ func readModule(dir string, lim facts.Limits) (*facts.Module, error) {
 	for _, b := range m.Other {
 		if b.Type == "ephemeral" {
 			// shortcut: ephemeral resource schemas are not read; upgrade when the schema package reads them.
-			return nil, fmt.Errorf("%s:%d: ephemeral resources are not inventoried", b.File, b.Line)
+			return nil, fmt.Errorf("%q:%d: ephemeral resources are not inventoried", b.File, b.Line)
 		}
 	}
 	if len(m.Resources) == 0 {
@@ -157,17 +157,20 @@ func readModule(dir string, lim facts.Limits) (*facts.Module, error) {
 }
 
 func typeInventory(set *schema.Set, m *facts.Module, r facts.Resource) (Type, error) {
+	if !facts.IsTypeLabel(r.Type) {
+		return Type{}, fmt.Errorf("%s %q: the type is not a Terraform identifier", r.Mode, r.Type)
+	}
 	source := facts.ResourceProviderSource(m, r)
 	out, f := set.Lookup(schema.Query{Source: source, DataSource: r.Mode == "data", Type: r.Type})
 	switch out {
 	case schema.Unavailable:
-		return Type{}, fmt.Errorf("%s %s: no schema file has provider %s", r.Mode, r.Type, source)
+		return Type{}, fmt.Errorf("%s %q: no schema file has provider %q", r.Mode, r.Type, source)
 	case schema.AbsentFromSchema:
-		return Type{}, fmt.Errorf("%s %s: provider %s has no such type", r.Mode, r.Type, source)
+		return Type{}, fmt.Errorf("%s %q: provider %q has no such type", r.Mode, r.Type, source)
 	}
 	fs, err := blockFields(nil, "", f.Block, 0)
 	if err != nil {
-		return Type{}, fmt.Errorf("%s %s: %w", r.Mode, r.Type, err)
+		return Type{}, fmt.Errorf("%s %q: %w", r.Mode, r.Type, err)
 	}
 	slices.SortFunc(fs, func(a, b Field) int { return cmp.Compare(a.Name, b.Name) })
 	return Type{Mode: r.Mode, Type: r.Type, Provider: source, Fields: fs}, nil

@@ -98,18 +98,18 @@ func TestBuildErrors(t *testing.T) {
 		{name: "no schema file", files: map[string]string{"main.tf": `resource "aws_example_bucket" "x" {}`}, want: "at least one --schema-files"},
 		{name: "type not in schema", files: map[string]string{"main.tf": `resource "aws_other" "x" {}`}, schemas: []string{testSchema}, want: "has no such type"},
 		{name: "data source looked up as data", files: map[string]string{"main.tf": `data "aws_example_bucket" "x" {}`}, schemas: []string{testSchema}, want: "has no such type"},
-		{name: "provider not in schema", files: map[string]string{"main.tf": `resource "random_id" "x" {}`}, schemas: []string{testSchema}, want: "no schema file has provider registry.terraform.io/hashicorp/random"},
+		{name: "provider not in schema", files: map[string]string{"main.tf": `resource "random_id" "x" {}`}, schemas: []string{testSchema}, want: `no schema file has provider "registry.terraform.io/hashicorp/random"`},
 		{
 			name:    "required_providers source is used",
 			files:   map[string]string{"main.tf": "terraform {\n  required_providers {\n    aws = { source = \"example/aws\" }\n  }\n}\nresource \"aws_example_bucket\" \"x\" {}\n"},
 			schemas: []string{testSchema},
-			want:    "no schema file has provider registry.terraform.io/example/aws",
+			want:    `no schema file has provider "registry.terraform.io/example/aws"`,
 		},
 		{
 			name:    "ephemeral block names its file and line",
 			files:   map[string]string{"main.tf": "\nephemeral \"aws_example_secret\" \"x\" {}\n"},
 			schemas: []string{testSchema},
-			want:    "main.tf:2: ephemeral resources are not inventoried",
+			want:    `"main.tf":2: ephemeral resources are not inventoried`,
 		},
 		{
 			name:    "provider argument names the local name",
@@ -225,5 +225,66 @@ func TestBuildDeadlineInSchemaLoad(t *testing.T) {
 	lim.Deadline = time.Now().Add(-time.Second)
 	if _, err := Build(t.TempDir(), []string{testSchema}, lim); !errors.Is(err, facts.ErrDeadline) {
 		t.Errorf("error %v, want ErrDeadline", err)
+	}
+}
+
+// TestBuildQuotesHostileValues: a value from the tree or a schema file that
+// holds a line break is quoted in the error, so it cannot add a line to
+// stderr; a type label that is no Terraform identifier is refused.
+func TestBuildQuotesHostileValues(t *testing.T) {
+	t.Parallel()
+	const forged = "forged: line"
+	hostileSchema := filepath.Join(t.TempDir(), "hostile.json")
+	doc := `{"format_version": "1.0", "provider_schemas": {"registry.terraform.io/x/aws\nforged: line": {"resource_schemas": {}}}}`
+	if err := os.WriteFile(hostileSchema, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name    string
+		files   map[string]string
+		schemas []string
+		want    string
+	}{
+		{
+			name:    "provider source not in any schema file",
+			files:   map[string]string{"main.tf": "terraform {\n  required_providers {\n    aws = { source = \"x/aws\\n" + forged + "\" }\n  }\n}\nresource \"aws_example_bucket\" \"x\" {}\n"},
+			schemas: []string{testSchema},
+			want:    `no schema file has provider "registry.terraform.io/x/aws\nforged: line"`,
+		},
+		{
+			name:    "provider source with no such type",
+			files:   map[string]string{"main.tf": "terraform {\n  required_providers {\n    aws = { source = \"x/aws\\n" + forged + "\" }\n  }\n}\nresource \"aws_other\" \"x\" {}\n"},
+			schemas: []string{hostileSchema},
+			want:    `provider "registry.terraform.io/x/aws\nforged: line" has no such type`,
+		},
+		{
+			name:    "type label with a line break",
+			files:   map[string]string{"main.tf": "resource \"aws_example\\n" + forged + "\" \"x\" {}\n"},
+			schemas: []string{testSchema},
+			want:    `resource "aws_example\nforged: line": the type is not a Terraform identifier`,
+		},
+		{
+			name:    "ephemeral block in a file with a line break in its name",
+			files:   map[string]string{"a\nb.tf": "ephemeral \"aws_example_secret\" \"x\" {}\n"},
+			schemas: []string{testSchema},
+			want:    `"a\nb.tf":1: ephemeral resources are not inventoried`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			for name, body := range tc.files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err := Build(dir, tc.schemas, facts.DefaultLimits)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error %v, want %q", err, tc.want)
+			}
+			if strings.ContainsAny(err.Error(), "\n\r") {
+				t.Errorf("error holds a raw line break: %q", err)
+			}
+		})
 	}
 }

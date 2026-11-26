@@ -47,3 +47,15 @@ data "undeclared_e" "x" {}
 		}
 	}
 }
+
+func TestIsTypeLabel(t *testing.T) {
+	t.Parallel()
+	for s, want := range map[string]bool{
+		"aws_s3_bucket": true, "_x": true, "a-b9": true, "A": true,
+		"": false, "9a": false, "-a": false, "a b": false, "a\nb": false, "a\rb": false, "a.b": false, "\u00e9": false,
+	} {
+		if got := IsTypeLabel(s); got != want {
+			t.Errorf("IsTypeLabel(%q) = %v, want %v", s, got, want)
+		}
+	}
+}
