@@ -2,6 +2,7 @@ package behaviour
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,9 +32,7 @@ func TestUndecomposableReasons(t *testing.T) {
 			t.Parallel()
 			files := func(vars string) map[string]string {
 				m := map[string]string{"variables.tf": vars}
-				for k, v := range c.extra {
-					m[k] = v
-				}
+				maps.Copy(m, c.extra)
 				return m
 			}
 			r := runLinked(t, files(base), files(head))
