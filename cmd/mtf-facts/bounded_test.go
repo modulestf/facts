@@ -98,14 +98,19 @@ func TestEveryCommandRefusesNonPositiveTimeout(t *testing.T) {
 }
 
 // TestEveryCommandCapsOutput lowers the output cap below each command's
-// output: the run exits 2 with no stdout, and bundle writes no file.
+// output: the run exits 2 with no stdout, and bundle, whose files the cap
+// holds too, writes no file.
 func TestEveryCommandCapsOutput(t *testing.T) {
 	orig := facts.DefaultLimits.MaxOutputBytes
 	facts.DefaultLimits.MaxOutputBytes = 1
 	t.Cleanup(func() { facts.DefaultLimits.MaxOutputBytes = orig })
 	for _, c := range boundedCases(t) {
 		code, out, errOut := runCLI(c.args)
-		if code != exitError || out != "" || errOut != "mtf-facts: output over 1 bytes\n" {
+		want := "mtf-facts: output over 1 bytes\n"
+		if c.name == "bundle" { // its files are refused before its stdout
+			want = "mtf-facts: bundle: a file over 1 bytes\n"
+		}
+		if code != exitError || out != "" || errOut != want {
 			t.Errorf("%s: exit %d, stdout %q, stderr %q", c.name, code, out, errOut)
 		}
 		if c.name == "bundle" {

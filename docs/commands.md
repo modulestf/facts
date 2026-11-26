@@ -2,7 +2,7 @@
 
 Each command's flags, report and exit codes. `mtf-facts <command> --help` prints the same flags and exit codes.
 
-Every command that reads files, all but `profile-snapshot`, `rules` and `version`, takes `--timeout <duration>`, default `60s`, which must be greater than zero, and refuses output over 16 MiB. A run past the timeout writes `mtf-facts: timeout` to stderr and exits 2 with nothing on stdout; `depth` alone fails closed instead, with its `deep-unwalked` report and exit 0. Output over the cap writes `mtf-facts: output over 16777216 bytes` and exits 2 with nothing on stdout, and `bundle` then writes no file.
+Every command that reads files, all but `profile-snapshot`, `rules` and `version`, takes `--timeout <duration>`, default `60s`, which must be greater than zero, and refuses output over 16 MiB. A run past the timeout writes `mtf-facts: timeout` to stderr and exits 2 with nothing on stdout; `depth` alone fails closed instead, with its `deep-unwalked` report and exit 0. Output over the cap writes `mtf-facts: output over 16777216 bytes` and exits 2 with nothing on stdout. The cap holds each file `bundle` writes too, and a refused `bundle` run writes no file.
 
 ## lint
 
@@ -296,10 +296,10 @@ The bundle carries `schema_version: 1`, `module_areas` (the report's `scope.modu
 `mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
 
 ```sh
-mtf-facts merge check bundle.txt reply.json
+mtf-facts merge check bundle.txt reply.json [--timeout <duration>]
 mtf-facts merge final --registry rule-facts.md [--report lint.json] [--templates templates.json] \
-  bundle.txt reply.json [repair.json]
-mtf-facts merge counts bundle.txt reply.json [repair.json]
+  bundle.txt reply.json [repair.json] [--timeout <duration>]
+mtf-facts merge counts bundle.txt reply.json [repair.json] [--timeout <duration>]
 ```
 
 The reply is one JSON object with the arrays `candidate_decisions` and `findings` and, optionally, a `counts` object, in the shape of [model-output.schema.json](../schema/model-output.schema.json). `counts` holds the three counts a reviewer's summary line carries: `instruction-like-text-from-others`, `conversation-claims-unread` and `review.quoted-claim-unverifiable`. When present, it has exactly those three keys, each a natural number written as decimal digits, 0 included and at most 9007199254740991; anything else makes the reply invalid.
@@ -381,7 +381,7 @@ The three file flags are required. It writes the report as JSON, in the shape of
 `mtf-facts fixture-check` checks the scratch tree a verification ladder level will run against a default-deny allowlist, before any Terraform command runs on it, and hashes the tree:
 
 ```sh
-mtf-facts fixture-check scratch/head --json
+mtf-facts fixture-check scratch/head --json [--timeout <duration>]
 mtf-facts fixture-check scratch/l2 --level L2 --pins pins.json --schema schema.json --json
 mtf-facts fixture-check scratch/l3 --level L3 --resource aws_rds_cluster --pins pins.json --json
 ```

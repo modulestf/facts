@@ -39,7 +39,12 @@ func Prefix(p string, limit int64) ([]byte, error) {
 		if pe, ok := errors.AsType[*fs.PathError](err); ok {
 			err = pe.Err // drop the path the caller did not ask to print
 		}
-		return nil, fmt.Errorf("not a regular file: %w", err)
+		// O_NOFOLLOW refuses a link with ELOOP, and a socket fails with
+		// ENXIO; any other error, such as a missing file, is kept as it is.
+		if errors.Is(err, syscall.ELOOP) || errors.Is(err, syscall.ENXIO) {
+			return nil, errors.New("not a regular file")
+		}
+		return nil, err
 	}
 	defer f.Close()
 	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {

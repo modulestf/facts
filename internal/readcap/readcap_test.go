@@ -38,7 +38,7 @@ func TestFile(t *testing.T) {
 		{"link", link, 5, "not a regular file", true},
 		{"fifo", fifo, 5, "not a regular file", true},
 		{"directory", dir, 5, "not a regular file", true},
-		{"missing", filepath.Join(dir, "none"), 5, "not a regular file", true},
+		{"missing", filepath.Join(dir, "none"), 5, "no such file or directory", true},
 	} {
 		data, err := File(c.p, c.limit)
 		switch {

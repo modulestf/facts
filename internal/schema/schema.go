@@ -80,10 +80,13 @@ type decodedKey struct {
 // ErrDeadline is returned when Load passes its deadline.
 var ErrDeadline = errors.New("deadline exceeded")
 
+// now is the clock expired reads; a test replaces it.
+var now = time.Now
+
 // expired returns ErrDeadline once deadline has passed; a zero deadline never
 // passes.
 func expired(deadline time.Time) error {
-	if !deadline.IsZero() && time.Now().After(deadline) {
+	if !deadline.IsZero() && now().After(deadline) {
 		return ErrDeadline
 	}
 	return nil

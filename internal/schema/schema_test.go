@@ -627,3 +627,24 @@ func TestLoadDeadline(t *testing.T) {
 		}
 	}
 }
+
+// TestLoadDeadlineBetweenFiles passes the deadline after the first of two
+// raw files is read: Load stops with ErrDeadline before the second.
+func TestLoadDeadlineBetweenFiles(t *testing.T) {
+	first := writeFile(t, "aws.json", []byte(rawSchema))
+	second := writeFile(t, "empty.json", []byte(`{"format_version":"1.0","provider_schemas":{}}`))
+	start := time.Now()
+	deadline := start.Add(time.Minute)
+	calls := 0
+	now = func() time.Time {
+		calls++
+		if calls == 1 { // the check before the first file
+			return start
+		}
+		return deadline.Add(time.Second)
+	}
+	t.Cleanup(func() { now = time.Now })
+	if _, err := Load("", []string{first, second}, deadline); !errors.Is(err, ErrDeadline) || calls != 2 {
+		t.Errorf("error %v after %d clock reads, want ErrDeadline after 2", err, calls)
+	}
+}

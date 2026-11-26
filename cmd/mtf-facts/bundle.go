@@ -84,6 +84,12 @@ func bundle(cmd *cobra.Command, a bundleArgs, timeout time.Duration) int {
 			out.notes = []string{"mtf-facts: bundle: full variant: " + res.Reason}
 			return out
 		}
+		// The files are output too: each is held to the output cap.
+		for _, f := range [][]byte{res.Bundle, res.Injection} {
+			if len(f) > lim.MaxOutputBytes {
+				return workResult{err: fmt.Errorf("bundle: a file over %d bytes", lim.MaxOutputBytes)}
+			}
+		}
 		out.commit = func() error {
 			if err := writeOutputs(a.out, a.injection, res.Bundle, res.Injection); err != nil {
 				return fmt.Errorf("bundle: %w", err)
