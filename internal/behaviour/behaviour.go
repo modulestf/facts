@@ -374,7 +374,13 @@ func (c *classifier) trigger(s spec) Trigger {
 		if typ == "" && v[0] != nil {
 			typ = v[0].vars[name]
 		}
-		t.ReferencedInputs = append(t.ReferencedInputs, Input{Name: name, Type: cmp.Or(typ, "any")})
+		t.ReferencedInputs = append(t.ReferencedInputs, Input{Name: name, Type: cmp.Or(typ, "any"), Declaration: declaration(v, name)})
+	}
+	if name, ok := strings.CutPrefix(s.addr, "var."); ok {
+		t.Declaration = declaration(v, name)
+	}
+	if c.schema != nil && s.res != nil && s.attr != "" {
+		t.SchemaRequired = c.schemaRequired(s.res, s.attr)
 	}
 	t.ContextualRefs = append(t.ContextualRefs, ctx...)
 	t.ContextualRefDetails = c.refDetails(path.Dir(s.file), rb, rh)

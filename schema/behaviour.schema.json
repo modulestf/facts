@@ -60,7 +60,8 @@
               "type": "object",
               "additionalProperties": false,
               "required": ["name", "type"],
-              "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1}}
+              "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1},
+                "declaration": {"$ref": "#/$defs/declaration"}}
             }
           },
           "contextual_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
@@ -117,6 +118,11 @@
             "type": "array",
             "uniqueItems": true,
             "items": {"$ref": "#/$defs/trigger_id"}
+          },
+          "declaration": {"$ref": "#/$defs/declaration"},
+          "schema_required": {
+            "description": "With --schema, for an argument or nested block of a resource or data source: whether the schema, at the head's provider source, requires it at that path (a required attribute at any block depth, or a block type with min_items above 0). A dynamic segment stands for the block it generates. unknown when the schema lacks the provider, the type or the path.",
+            "enum": ["required", "not_required", "unknown"]
           }
         },
         "if": {"type": "object", "required": ["levels"], "properties": {"levels": {"type": "array", "maxItems": 0}}},
@@ -137,6 +143,17 @@
   },
   "$defs": {
     "trigger_id": {"type": "string", "pattern": "^T-[0-9]{3}$"},
-    "change_kind": {"enum": ["added", "removed", "modified", "renamed", "mode"]}
+    "change_kind": {"enum": ["added", "removed", "modified", "renamed", "mode"]},
+    "declaration": {
+      "description": "The variable's block at the head in the trigger's module directory, read with the HCL parser. On a referenced input, and on a trigger at var.<name>. Omitted when the directory does not decompose at either revision, holds a .tf.json, .tofu or .tofu.json file at either revision, or holds no such variable at the head.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["added", "default", "nullable"],
+      "properties": {
+        "added": {"type": "boolean", "description": "The directory has no variable of that name at the base."},
+        "default": {"enum": ["null", "literal", "other", "none"], "description": "null: the default evaluates to null with no reference or function call; literal: any other such constant; other: any other expression; none: no default argument."},
+        "nullable": {"enum": ["unset", "true", "false", "other"], "description": "unset: no nullable argument; true or false: that constant; other: any other expression."}
+      }
+    }
   }
 }

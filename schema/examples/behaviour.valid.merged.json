@@ -29,7 +29,12 @@
       "referenced_inputs": [
         {
           "name": "ids",
-          "type": "list(string)"
+          "type": "list(string)",
+          "declaration": {
+            "added": false,
+            "default": "none",
+            "nullable": "unset"
+          }
         }
       ],
       "contextual_refs": [],
@@ -175,7 +180,12 @@
       "referenced_inputs": [
         {
           "name": "ami",
-          "type": "string"
+          "type": "string",
+          "declaration": {
+            "added": false,
+            "default": "none",
+            "nullable": "unset"
+          }
         }
       ],
       "contextual_refs": [

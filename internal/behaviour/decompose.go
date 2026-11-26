@@ -286,6 +286,9 @@ type spec struct {
 	rng *hcl.Range
 	// variable is the block of a variable the change adds.
 	variable *item
+	// res is the resource or data source the argument or block belongs to,
+	// for its schema lookup.
+	res *resourceCtx
 	// sid numbers the spec; follows are the sids of the specs whose state
 	// this one follows, non-nil for a follower.
 	sid     int
@@ -574,7 +577,7 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 		}
 		p := append(slices.Clone(prefix), name)
 		s := d.at(bi, hi, bb, hb, name, bx, hx)
-		s.cat, s.attr = cat, strings.Join(p, ".")
+		s.cat, s.attr, s.res = cat, strings.Join(p, "."), ctx
 		s.typeExpr = top && bi.kind == itemVariable && name == "type"
 		if top && (name == "count" || name == "for_each") &&
 			(bi.kind == itemResource || bi.kind == itemData || bi.kind == itemModule) {
@@ -670,7 +673,7 @@ func (d *decomposer) blocks(bi, hi *item, bb, hb *hclsyntax.Body, prefix []strin
 		if same {
 			continue
 		}
-		s := spec{addr: hi.addr, attr: attr, kind: kind}
+		s := spec{addr: hi.addr, attr: attr, kind: kind, res: ctx}
 		s.file, s.line = hi.file, 0
 		if first.head != nil {
 			s.line = first.head.TypeRange.Start.Line
