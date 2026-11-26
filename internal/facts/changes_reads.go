@@ -47,7 +47,7 @@ func addReader(a *ChangedAttribute, r Reader) {
 }
 
 // markReads sets the read state of every changed attribute of a resource or
-// data block of a parsed, modified file: whether an expression of the
+// data block with two labels of a parsed, modified file: whether an expression of the
 // module that holds the block, the files directly in its directory, reads
 // it at head. Terraform resolves a block address only inside its module.
 func markReads(files []ChangedFile, head *Tree, lim Limits) error {
@@ -56,8 +56,8 @@ func markReads(files []ChangedFile, head *Tree, lim Limits) error {
 		f := &files[fi]
 		for bi := range f.Blocks {
 			b := &f.Blocks[bi]
-			if b.Kind != "resource" && b.Kind != "data" {
-				continue
+			if !b.named {
+				continue // no reference names it; its attributes stay unknown
 			}
 			for ai := range b.Attributes {
 				if byDir[f.Dir] == nil {

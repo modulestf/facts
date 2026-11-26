@@ -81,7 +81,8 @@ func TestChangesOracle(t *testing.T) {
 			if err := json.Unmarshal(data, &want); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(got, want) {
+			wantJSON, _ := json.MarshalIndent(want, "", "  ") // JSON, so unexported fields do not count
+			if string(gotJSON) != string(wantJSON) {
 				t.Errorf("report differs from expected.json\ngot:\n%s", gotJSON)
 			}
 		})

@@ -431,6 +431,64 @@
               "readers_truncated": false
             }
           ]
+        },
+        {
+          "address": "aws_lb.for_expr",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "id",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 20,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 20,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "resource.aws_s3_bucket",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "bucket",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
         }
       ]
     }

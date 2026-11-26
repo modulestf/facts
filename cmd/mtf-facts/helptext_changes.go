@@ -44,7 +44,8 @@ resource.<type>.<name> is read as <type>.<name>. Reads are by name or by the
 whole object: a derived (computed) attribute such as id or arn, or an ignore_changes
 entry, reads no other attribute. A
 .tf.json, .tofu, .tofu.json, override, unparsed or non-regular file in that
-directory makes the state unknown. Blocks of other kinds have state unknown. readers lists the
+directory makes the state unknown. Blocks of other kinds, and resource or data blocks without two labels,
+have state unknown. .tftest.hcl files are not scanned. readers lists the
 reads, at most 32 per attribute.
 
 data_sources lists, per head directory with a configuration file, the data

@@ -62,3 +62,13 @@ resource "aws_lb" "fe" {
   name     = var.name_a
   other    = var.other_a
 }
+
+resource "aws_lb" "for_expr" {
+  for_each = var.set
+  id       = var.id_a
+  name     = var.name_a
+}
+
+resource "aws_s3_bucket" {
+  bucket = var.bucket_a
+}

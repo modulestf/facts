@@ -15,3 +15,7 @@ locals {
   each_index = aws_lb.e[*][var.k].foo
   each_key   = aws_lb.fe["name"]
 }
+
+locals {
+  for_expr = { for k, x in aws_lb.for_expr : k => x }["id"].arn
+}

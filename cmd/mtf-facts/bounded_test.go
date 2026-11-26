@@ -37,6 +37,8 @@ func boundedCases(t *testing.T) []boundedCase {
 		{"lint", []string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, exitFindings},
 		{"lint text", []string{"lint", "../../testdata/variable-untyped-base/head"}, exitFindings},
 		{"affected", []string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, exitClean},
+		{"changes", []string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base", "--json"}, exitClean},
+		{"changes text", []string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base"}, exitClean},
 		{"depth", []string{"depth", "--head", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--files", "../../testdata/diff-base/files.json"}, exitClean},
 		{"behaviour", []string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, exitClean},
 		{"claims-eval", []string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json",

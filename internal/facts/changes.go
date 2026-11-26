@@ -116,6 +116,9 @@ type ChangedBlock struct {
 	Status     string             `json:"status"`
 	Structural bool               `json:"structural"`
 	Attributes []ChangedAttribute `json:"attributes"`
+	// named is set for a resource or data block with two labels, the blocks
+	// a reference can name; only their attributes get a read state.
+	named bool
 }
 
 // ChangedAttribute is one direct attribute of an edited block, present at
@@ -358,7 +361,7 @@ func diffBlock(h *hclsyntax.Block, hsrc []byte, b *hclsyntax.Block, bsrc []byte)
 	if bytes.Equal(hr.SliceBytes(hsrc), br.SliceBytes(bsrc)) {
 		return ChangedBlock{}, false
 	}
-	cb := ChangedBlock{Address: blockAddress(h), Kind: h.Type, Status: BlockEdited, Attributes: []ChangedAttribute{}}
+	cb := ChangedBlock{Address: blockAddress(h), Kind: h.Type, Status: BlockEdited, Attributes: []ChangedAttribute{}, named: refBlock(h)}
 	ha, ba := sortedAttrs(h.Body), sortedAttrs(b.Body)
 	hv, bv := valueRanges(ha), valueRanges(ba)
 	cb.Structural = !slices.EqualFunc(gapsIn(hsrc, hr, hv), gapsIn(bsrc, br, bv), bytes.Equal)
