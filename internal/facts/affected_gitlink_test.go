@@ -363,3 +363,191 @@ func TestFindAreasGitlink(t *testing.T) {
 		t.Errorf("touched areas = %q, want modules/x", got)
 	}
 }
+
+const gitSHA = "0123456789abcdef0123456789abcdef01234567"
+
+// diffAffected runs Affected on a head and a change given as a diff text.
+func diffAffected(t *testing.T, head, diff, root string) *AffectedReport {
+	t.Helper()
+	f := filepath.Join(t.TempDir(), "change")
+	if err := os.WriteFile(f, []byte(diff), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Affected(AffectedOptions{Head: head, Diff: f, ModuleRoot: root, Limits: DefaultLimits})
+	if err != nil {
+		t.Fatalf("Affected: %v", err)
+	}
+	checkAffectedSchema(t, r)
+	return r
+}
+
+func filesList(status, p, patch string) string {
+	return `[{"filename":"` + p + `","status":"` + status + `","additions":1,"deletions":1,"patch":"` + patch + `"}]`
+}
+
+// TestAffectedDiffGitlink gives each way a diff changes a submodule pointer,
+// in a files list and in a unified diff: none is inert, each lists the path.
+func TestAffectedDiffGitlink(t *testing.T) {
+	t.Parallel()
+	read := with(gitlinkBase, map[string]string{"main.tf": "locals {\n  p = file(\"${path.module}/docs/sub/policy.json\")\n}\n"})
+	sub := "Subproject commit " + gitSHA
+	cases := map[string]struct {
+		files map[string]string
+		dirs  []string // gitlinks at the head
+		diff  string
+	}{
+		"files list, gitlink removed":         {gitlinkBase, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub)},
+		"files list, gitlink removed, read":   {read, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub)},
+		"files list, gitlink bumped":          {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+"+sub+"1")},
+		"files list, gitlink to file":         {with(gitlinkBase, map[string]string{"docs/sub": "text\n"}), nil, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+text")},
+		"files list, file to gitlink":         {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-text\\n+"+sub)},
+		"files list, gitlink added":           {gitlinkBase, []string{"docs/sub"}, filesList("added", "docs/sub", "@@ -0,0 +1 @@\\n+"+sub)},
+		"unified, gitlink removed":            {gitlinkBase, nil, "diff --git a/docs/sub b/docs/sub\ndeleted file mode 160000\nindex " + gitSHA[:7] + "..0000000\n--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n"},
+		"unified, gitlink bumped":             {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nindex abc1234..def5678 160000\n--- a/docs/sub\n+++ b/docs/sub\n@@ -1 +1 @@\n-" + sub + "\n+" + sub + "1\n"},
+		"unified, gitlink added":              {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nnew file mode 160000\nindex 0000000..def5678\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+" + sub + "\n"},
+		"unified, mode change to a gitlink":   {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nold mode 100644\nnew mode 160000\n"},
+		"unified, mode change from a gitlink": {with(gitlinkBase, map[string]string{"docs/sub": "x\n"}), nil, "diff --git a/docs/sub b/docs/sub\nold mode 160000\nnew mode 100644\n"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head := writeGitlinkTree(t, c.files, c.dirs, false)
+			r := diffAffected(t, head, c.diff, "")
+			notInert(t, r, "docs/sub", true)
+		})
+	}
+	t.Run("a mode line of an ordinary file is no gitlink", func(t *testing.T) {
+		t.Parallel()
+		head := writeGitlinkTree(t, gitlinkBase, nil, false)
+		r := diffAffected(t, head, "diff --git a/docs/guide.md b/docs/guide.md\nold mode 100644\nnew mode 100755\n", "")
+		if r.Fallback != nil || slices.Contains(r.Changed, "docs/sub") {
+			t.Errorf("fallback %v changed %q", r.Fallback, r.Changed)
+		}
+	})
+	t.Run("module root", func(t *testing.T) {
+		t.Parallel()
+		files := gitlinkRootFiles(map[string]string{"mod/main.tf": "locals {\n  p = file(\"${path.module}/docs/sub/policy.json\")\n}\n"})
+		head := writeGitlinkTree(t, files, nil, false)
+		r := diffAffected(t, head, filesList("removed", "mod/docs/sub", "@@ -1 +0,0 @@\\n-"+sub), "mod")
+		notInert(t, r, "mod/docs/sub", true)
+	})
+}
+
+// TestParseUnifiedGitlinkMarks checks which side of a change each mode line
+// and hunk line shows as a gitlink.
+func TestParseUnifiedGitlinkMarks(t *testing.T) {
+	t.Parallel()
+	sub := "Subproject commit " + gitSHA
+	cases := map[string]struct {
+		diff           string
+		oldGit, newGit bool
+	}{
+		"deleted file mode": {"diff --git a/s b/s\ndeleted file mode 160000\n--- a/s\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n", true, false},
+		"new file mode":     {"diff --git a/s b/s\nnew file mode 160000\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", false, true},
+		"old mode":          {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n", true, false},
+		"new mode":          {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n", false, true},
+		"index line":        {"diff --git a/s b/s\nindex abc..def 160000\n", true, true},
+		"hunk lines":        {"diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+text\n", true, false},
+		"ordinary file":     {"diff --git a/s b/s\nindex abc..def 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseUnified([]byte(c.diff))
+			if err != nil || len(got) != 1 {
+				t.Fatalf("parse: %v %v", got, err)
+			}
+			if got[0].oldGit != c.oldGit || got[0].newGit != c.newGit {
+				t.Errorf("old %v new %v, want %v %v", got[0].oldGit, got[0].newGit, c.oldGit, c.newGit)
+			}
+		})
+	}
+}
+
+// TestGitlinkAreaIsNotEvaluated: lint reads a gitlink that holds an area as
+// an area with an issue, so its rules are not evaluated.
+func TestGitlinkAreaIsNotEvaluated(t *testing.T) {
+	t.Parallel()
+	files := map[string]string{
+		"main.tf":            "resource \"null_resource\" \"this\" {}\n",
+		"modules/ok/main.tf": "resource \"null_resource\" \"ok\" {}\n",
+	}
+	head := mustTree(t, writeGitlinkTree(t, files, []string{"modules/sub"}, false))
+	base := mustTree(t, writeGitlinkTree(t, files, []string{"modules/sub"}, false))
+	areas, err := FindAreas(head, base, DefaultLimits, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sub *Area
+	for _, a := range areas {
+		if a.Path == "modules/sub" {
+			sub = a
+		}
+	}
+	if sub == nil {
+		t.Fatalf("no area modules/sub in %d areas", len(areas))
+	}
+	if sub.Issue == "" || sub.issueCode == "" {
+		t.Errorf("head issue %q code %q, want an issue", sub.Issue, sub.issueCode)
+	}
+	if sub.Base == nil || len(sub.Base.Unsupported) == 0 {
+		t.Errorf("base is not marked unsupported: %+v", sub.Base)
+	}
+}
+
+// TestAffectedGitlinkCalls: a module call into a gitlink, an example that is
+// a gitlink, and a template read below one are walks the tree cannot follow.
+func TestAffectedGitlinkCalls(t *testing.T) {
+	t.Parallel()
+	// With --diff an unchanged gitlink is no change, so only the walk can say.
+	modDoc := `[{"filename":"mod/docs/guide.md","status":"modified","additions":1,"deletions":1,"patch":"@@ -1 +1 @@\n-# guide\n+# guide 2"}]`
+	t.Run("module root, an example calling a gitlink", func(t *testing.T) {
+		t.Parallel()
+		files := gitlinkRootFiles(map[string]string{"examples/other/main.tf": "module \"v\" {\n  source = \"../../vendor/sub\"\n}\n", "mod/docs/guide.md": "# guide 2\n"})
+		r := diffAffected(t, writeGitlinkTree(t, files, []string{"vendor/sub"}, false), modDoc, "mod")
+		if r.Inert || !slices.Contains(rootPairs(r), "all examples/other unresolved") {
+			t.Errorf("inert %v examples %q, want not inert with examples/other unresolved", r.Inert, rootPairs(r))
+		}
+	})
+	t.Run("module root, an example that is a gitlink", func(t *testing.T) {
+		t.Parallel()
+		files := gitlinkRootFiles(map[string]string{"mod/docs/guide.md": "# guide 2\n"})
+		r := diffAffected(t, writeGitlinkTree(t, files, []string{"examples/submod"}, false), modDoc, "mod")
+		if r.Inert || !slices.Contains(rootPairs(r), "all examples/submod unresolved") {
+			t.Errorf("inert %v examples %q, want not inert with examples/submod unresolved", r.Inert, rootPairs(r))
+		}
+	})
+	t.Run("module root, an own example that is a gitlink", func(t *testing.T) {
+		t.Parallel()
+		files := gitlinkRootFiles(map[string]string{"mod/docs/guide.md": "# guide 2\n"})
+		r := diffAffected(t, writeGitlinkTree(t, files, []string{"mod/examples/submod"}, false), modDoc, "mod")
+		if r.Inert || r.Fallback == nil || !slices.Contains(rootPairs(r), "all mod/examples/submod") {
+			t.Errorf("inert %v fallback %v examples %q", r.Inert, r.Fallback, rootPairs(r))
+		}
+	})
+	readme := `[{"filename":"README.md","status":"modified","additions":1,"deletions":1,"patch":"@@ -1 +1 @@\n-# a\n+# b"}]`
+	cases := map[string]map[string]string{
+		"a module call into an unchanged gitlink": {"main.tf": "module \"v\" {\n  source = \"./vendor/sub\"\n}\n"},
+		"a template read below a gitlink":         {"main.tf": "locals {\n  t = templatefile(\"${path.module}/vendor/sub/t.tpl\", {})\n}\n"},
+	}
+	for name, set := range cases {
+		t.Run("diff, "+name, func(t *testing.T) {
+			t.Parallel()
+			files := with(gitlinkBase, with(set, map[string]string{"README.md": "# b\n"}))
+			head := writeGitlinkTree(t, files, []string{"vendor/sub"}, false)
+			r := diffAffected(t, head, readme, "")
+			if r.Inert || r.Fallback == nil || *r.Fallback != FallbackUnparsed {
+				t.Errorf("inert %v fallback %v, want not inert, unparsed", r.Inert, r.Fallback)
+			}
+		})
+	}
+	t.Run("diff, an unchanged gitlink an example is", func(t *testing.T) {
+		t.Parallel()
+		files := with(gitlinkBase, map[string]string{"README.md": "# b\n"})
+		head := writeGitlinkTree(t, files, []string{"examples/submod"}, false)
+		r := diffAffected(t, head, readme, "")
+		if r.Inert || r.Fallback == nil {
+			t.Errorf("inert %v fallback %v, want a fallback", r.Inert, r.Fallback)
+		}
+	})
+}

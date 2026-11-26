@@ -60,6 +60,10 @@ func (g *lazyGraph) parse(d string) error {
 		return nil
 	}
 	g.parsed[d] = true
+	if g.t.InGitlink(d) {
+		g.problem[d] = FallbackUnparsed // its module calls are a commit the tree does not hold
+		return nil
+	}
 	if !g.config[d] {
 		return nil
 	}
@@ -251,6 +255,14 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	for _, ex := range listed {
 		siteRoots = append(siteRoots, ex.dir)
 	}
+	if read := gitlinksRead(head, slices.DeleteFunc(slices.Clone(sites), func(s ReadSite) bool {
+		return !siteDirs[s.Dir] && !inDir(s.Dir, m)
+	}), siteRoots); len(read) > 0 {
+		for _, g := range read {
+			extra[g] = true
+		}
+		return fallback(FallbackUnparsed, all), nil
+	}
 	reachedBy := func(p string, dir bool) []string {
 		var dirs []string
 		for _, s := range sites {
@@ -346,8 +358,18 @@ func moduleRootExamples(t *Tree, m string) (own, roots []string, err error) {
 			own = append(own, d)
 		}
 	}
+	for d := range t.gitlinks {
+		if path.Dir(d) == m+"/examples" {
+			own = append(own, d) // its module calls cannot be read; the walk reports it unresolved
+		}
+	}
 	slices.Sort(own)
 	roots = exampleRoots(t)[1:]
+	for d := range t.gitlinks {
+		if path.Dir(d) == "examples" {
+			roots = append(roots, d)
+		}
+	}
 	for d := range t.Dirs {
 		if path.Dir(d) == "examples" && !holdsTF(t, d) && slices.ContainsFunc(t.DirEntries(d), func(e *Entry) bool {
 			return strings.HasSuffix(e.Path, ".tf.json") && !ignoredName(path.Base(e.Path))

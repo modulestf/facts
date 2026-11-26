@@ -168,8 +168,11 @@ type Tree struct {
 	// no reader sees it as content; see ChangedGitlinks.
 	gitlinks map[string]bool
 	// gitlinksOfHead is set on a base rebuilt from a diff, which takes the
-	// head's gitlinks: a diff that does not list one leaves it alone.
+	// head's gitlinks: a diff that does not list one leaves it alone. Its
+	// gitlinkDiff holds the gitlinks the diff changes, one the head holds
+	// and one it lacks, a removed one or one that became a file included.
 	gitlinksOfHead bool
+	gitlinkDiff    map[string]bool
 }
 
 // IsGitlink reports whether p is a directory that stands for a submodule's
@@ -179,16 +182,27 @@ func (t *Tree) IsGitlink(p string) bool { return t.gitlinks[p] }
 // ChangedGitlinks lists, in path order, the gitlinks of either tree. Two
 // trees read from directories cannot tell a moved commit pointer from an
 // unmoved one, so every gitlink counts as changed there. A base rebuilt from
-// a diff shares the head's gitlinks, and none is changed.
+// a diff shares the head's gitlinks, and only those the diff names are changed.
 func ChangedGitlinks(head, base *Tree) []string {
 	if base.gitlinksOfHead {
-		return nil
+		return slices.Sorted(maps.Keys(base.gitlinkDiff))
 	}
 	set := map[string]bool{}
 	for _, t := range []*Tree{head, base} {
 		maps.Copy(set, t.gitlinks)
 	}
 	return slices.Sorted(maps.Keys(set))
+}
+
+// InGitlink reports whether p is a gitlink or a path below one: a place whose
+// files the tree does not hold.
+func (t *Tree) InGitlink(p string) bool {
+	for ; p != "." && p != "/" && p != ""; p = path.Dir(p) {
+		if t.gitlinks[p] {
+			return true
+		}
+	}
+	return false
 }
 
 // gitlinkDir reports whether a directory with these entries stands for a

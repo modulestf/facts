@@ -436,6 +436,9 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 func dirState(t *Tree, p string) (exists bool, issue, code string) {
 	e := t.Entries[p]
 	switch {
+	case t.IsGitlink(p):
+		// Its files are a commit the tree does not hold, so no rule can read it.
+		return true, p + " is a submodule commit pointer whose files the tree does not hold", ReasonUnsupportedFile
 	case e != nil && t.Dirs[p]:
 		return true, p + " is a directory that cannot be read", ReasonUnsupportedFile
 	case e != nil:
