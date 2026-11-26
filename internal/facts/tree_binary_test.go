@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 // binaryBody returns n bytes with a NUL byte first, as a build archive or
@@ -107,7 +108,7 @@ func TestReadTreeHostileLargeFiles(t *testing.T) {
 		"zero.tf":    "->/dev/zero",
 		"random.zip": "->/dev/urandom",
 	})
-	if err := syscall.Mkfifo(filepath.Join(root, "fifo.tftpl"), 0o644); err != nil {
+	if err := unix.Mkfifo(filepath.Join(root, "fifo.tftpl"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for i := range 50 {

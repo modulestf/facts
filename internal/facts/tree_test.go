@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestReadTreeKinds(t *testing.T) {
@@ -24,7 +25,7 @@ func TestReadTreeKinds(t *testing.T) {
 		".terraform/x":    "state",
 		"big.txt":         strings.Repeat("x", 100),
 	})
-	if err := syscall.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
+	if err := unix.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	lim := DefaultLimits
@@ -183,7 +184,7 @@ func TestReadTreeUnreadableSubdirectory(t *testing.T) {
 
 func TestOpenDirRefusesNonDirectories(t *testing.T) {
 	root := writeTree(t, map[string]string{"real/x.tf": "", "link": "->real", "file.tf": ""})
-	if err := syscall.Mkfifo(filepath.Join(root, "pipe"), 0o644); err != nil {
+	if err := unix.Mkfifo(filepath.Join(root, "pipe"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r, err := os.OpenRoot(root)
@@ -289,7 +290,7 @@ func TestOpenUnchangedRefusesSwappedPath(t *testing.T) {
 
 func TestReadFileRefusesLinksAndFifos(t *testing.T) {
 	root := writeTree(t, map[string]string{"real.tf": "secret", "link.tf": "->real.tf"})
-	if err := syscall.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
+	if err := unix.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r, err := os.OpenRoot(root)

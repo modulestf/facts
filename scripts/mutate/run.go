@@ -85,6 +85,7 @@ func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []resul
 		start := time.Now()
 		// The rest of the budget is the test timeout, so a hung baseline
 		// test binary ends itself even if the process group is not killed.
+		// That holds for a budget within go test's 10m default timeout.
 		// No test can see this argument: the test binary's timer starts after
 		// the build, so the group kill at the budget's end always comes first,
 		// and a baseline with the timeout dropped ends the same way.

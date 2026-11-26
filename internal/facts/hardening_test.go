@@ -13,12 +13,12 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"golang.org/x/sys/unix"
 )
 
 // Regression tests for the review of the first engine version.
@@ -375,7 +375,7 @@ func TestTopLevelAreaDirectories(t *testing.T) {
 		"modules link":  {files: map[string]string{"real/main.tf": "variable \"x\" {}\n", "modules": "->real"}, want: "modules is a symbolic link, not a directory"},
 		"examples link": {files: map[string]string{"real/e1/main.tf": "", "examples": "->real"}, want: "examples is a symbolic link, not a directory"},
 		"examples fifo": {setup: func(t *testing.T, root string) {
-			if err := syscall.Mkfifo(filepath.Join(root, "examples"), 0o644); err != nil {
+			if err := unix.Mkfifo(filepath.Join(root, "examples"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}, want: "examples is a special file, not a directory"},
