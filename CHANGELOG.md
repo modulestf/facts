@@ -1,3 +1,12 @@
+# [0.13.0](https://github.com/modulestf/facts/compare/v0.12.6...v0.13.0) (2026-11-26)
+
+
+### Features
+
+* Report changed attributes and their readers ([#60](https://github.com/modulestf/facts/issues/60)) ([64dc9e1](https://github.com/modulestf/facts/commit/64dc9e160853ecfef8f9cd3859b870bc1aca03f7))
+
+
+
 ## [0.12.6](https://github.com/modulestf/facts/compare/v0.12.5...v0.12.6) (2026-11-26)
 
 
