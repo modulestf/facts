@@ -873,3 +873,136 @@ func TestContextualRefResourceAlias(t *testing.T) {
 		t.Errorf("%d cases with the alias, %d without", len(long.Cases), len(short.Cases))
 	}
 }
+
+// floorPair is a provider floor raised from >= 5.0 to >= 6.0.
+func floorPair() (string, string) {
+	f := "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \">= %s\"\n    }\n  }\n}\n"
+	return fmt.Sprintf(f, "5.0"), fmt.Sprintf(f, "6.0")
+}
+
+// capTrees is a change with floors provider version floors raised in
+// submodules that sort first, and literals argument changes in a module
+// that sorts last.
+func capTrees(floors, literals int) (base, head map[string]string) {
+	base, head = map[string]string{}, map[string]string{}
+	fb, fh := floorPair()
+	for i := range floors {
+		p := fmt.Sprintf("modules/m%02d/versions.tf", i)
+		base[p], head[p] = fb, fh
+	}
+	var b, h strings.Builder
+	b.WriteString("resource \"aws_s3_bucket\" \"b\" {\n")
+	h.WriteString("resource \"aws_s3_bucket\" \"b\" {\n")
+	for i := range literals {
+		fmt.Fprintf(&b, "  a%02d = \"x\"\n", i)
+		fmt.Fprintf(&h, "  a%02d = \"y\"\n", i)
+	}
+	b.WriteString("}\n")
+	h.WriteString("}\n")
+	base["zz/main.tf"], head["zz/main.tf"] = b.String(), h.String()
+	return base, head
+}
+
+// TestCapSparesEvidence: version floors that sort first do not push the
+// triggers that need evidence past the cap; each kind has its own cap.
+func TestCapSparesEvidence(t *testing.T) {
+	t.Parallel()
+	count := func(r *Report) (floors, others int) {
+		for _, tr := range r.Triggers {
+			if tr.Category == CatVersionFloor {
+				floors++
+			} else {
+				others++
+			}
+		}
+		return floors, others
+	}
+	for _, tc := range []struct {
+		name                         string
+		floors, literals             int
+		wantFloors, wantOthers, capd int
+	}{
+		// The shape of a small feature in a module family: one floor per
+		// submodule and the real change after them in sort order.
+		{"under both caps", 30, 20, 30, 20, 0},
+		{"at both caps", MaxTriggers, MaxTriggers, MaxTriggers, MaxTriggers, 0},
+		{"evidence over its cap", 3, MaxTriggers + 2, 3, MaxTriggers, 2},
+		{"floors over their cap", MaxOffLadderTriggers + 3, 5, MaxOffLadderTriggers, 5, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base, head := capTrees(tc.floors, tc.literals)
+			r := runPair(t, base, head, "")
+			floors, others := count(r)
+			if floors != tc.wantFloors || others != tc.wantOthers || r.Capped != tc.capd {
+				t.Fatalf("got %d floors, %d others, %d capped", floors, others, r.Capped)
+			}
+			for i, tr := range r.Triggers {
+				if want := fmt.Sprintf("T-%03d", i+1); tr.ID != want {
+					t.Fatalf("trigger %d id %s, want %s", i, tr.ID, want)
+				}
+				if i > 0 && compareTriggers(r.Triggers[i-1], tr) > 0 {
+					t.Fatalf("triggers %d and %d out of order", i-1, i)
+				}
+			}
+		})
+	}
+}
+
+// TestOffLadder: each guard of offLadder holds on its own.
+func TestOffLadder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		t    Trigger
+		want bool
+	}{
+		{"compat floor", Trigger{Category: CatVersionFloor, Levels: []string{LevelCompat}}, true},
+		{"moved", Trigger{Category: CatMoved, Levels: []string{}}, true},
+		{"floor merged", Trigger{Category: CatVersionFloor, Levels: []string{LevelCompat}, AlsoCategories: []string{CatLiteral}}, false},
+		{"floor with a ladder level", Trigger{Category: CatVersionFloor, Levels: []string{LevelL4, LevelCompat}}, false},
+		{"floor with no level", Trigger{Category: CatVersionFloor, Levels: []string{}}, false},
+		{"moved with a level", Trigger{Category: CatMoved, Levels: []string{LevelL4}}, false},
+		{"floor that follows", Trigger{Category: CatVersionFloor, Levels: []string{LevelCompat}, followSIDs: []int{1}}, false},
+		{"moved that follows nothing yet", Trigger{Category: CatMoved, Levels: []string{}, followSIDs: []int{}}, false},
+		{"other category at compat", Trigger{Category: CatLiteral, Levels: []string{LevelCompat}}, false},
+	} {
+		if got := offLadder(tc.t); got != tc.want {
+			t.Errorf("%s: offLadder %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestCapMovedAndFloors: moved blocks and version floors share the
+// off-ladder cap, kept in file, line and category order.
+func TestCapMovedAndFloors(t *testing.T) {
+	t.Parallel()
+	const floors, moved = 5, MaxOffLadderTriggers + 1
+	base, head := capTrees(floors, 3)
+	var m strings.Builder
+	for i := range moved {
+		fmt.Fprintf(&m, "moved {\n  from = aws_s3_bucket.a%02d\n  to   = aws_s3_bucket.b%02d\n}\n", i, i)
+	}
+	// The moved blocks sort after the floors and before the literals.
+	base["modules/n/main.tf"], head["modules/n/main.tf"] = "", m.String()
+	r := runPair(t, base, head, "")
+	var got []string
+	evidence := 0
+	for _, tr := range r.Triggers {
+		switch tr.Category {
+		case CatVersionFloor, CatMoved:
+			got = append(got, tr.Category)
+		default:
+			evidence++
+		}
+	}
+	want := slices.Repeat([]string{CatVersionFloor}, floors)
+	want = append(want, slices.Repeat([]string{CatMoved}, MaxOffLadderTriggers-floors)...)
+	if !slices.Equal(got, want) || evidence != 3 || r.Capped != floors+moved-MaxOffLadderTriggers {
+		t.Fatalf("off-ladder %v, %d evidence, %d capped", got, evidence, r.Capped)
+	}
+	last := r.Triggers[len(r.Triggers)-4]
+	if deref(last.Address) != fmt.Sprintf("aws_s3_bucket.b%02d", MaxOffLadderTriggers-floors-1) {
+		t.Errorf("last kept moved trigger %s", deref(last.Address))
+	}
+}

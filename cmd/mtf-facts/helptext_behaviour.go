@@ -47,8 +47,11 @@ passes it through as try(each.value.N, var.defaults.N, <default>) follows it.
 
 Triggers of one line with the same base and head expressions are merged
 into one, the others' categories in also_categories, levels and cases the
-union; a trigger with a null side is never merged. At most 40 triggers are listed; capped counts the rest. It never runs
-Terraform. Exit 0 with the report, 2 on bad input, a limit or the timeout.`
+union; a trigger with a null side is never merged. At most 40 triggers
+that may need evidence are listed, and apart from them at most 40 that
+no ladder level can verify: a version floor that selects compat alone and
+a moved or renamed address. These stay unverifiable to claims-eval, as
+before. capped counts the rest of both. It never runs Terraform. Exit 0 with the report, 2 on bad input, a limit or the timeout.`
 	behaviourExample = `  mtf-facts behaviour ./head --diff files.json --json > behaviour.json
   mtf-facts behaviour ./head --base ./base --schema schema.json --json`
 	behaviourBaseUsage      = "base `tree` the change started from"
