@@ -138,10 +138,13 @@ func checkDefaultChanged(a *Area) Result {
 			// sets nothing, gets where configuration the caller already had
 			// reads it. A new argument or block behind it is a feature the
 			// caller had not, which the review judges from the diff.
-			if readByBase == nil && v.Default != nil && moduleAtBase(a) {
-				readByBase = varsReadByBaseConfig(a)
-			}
-			if v.Default != nil && strings.TrimSpace(v.Default.Text) != "null" && moduleAtBase(a) && readByBase.has(v.Name) {
+			if v.Default != nil && strings.TrimSpace(v.Default.Text) != "null" && moduleAtBase(a) {
+				if readByBase == nil {
+					readByBase = varsReadByBaseConfig(a)
+				}
+				if !readByBase.has(v.Name) {
+					continue
+				}
 				e := newCompatEvidence(a)
 				line := argLine(v.Body, "default")
 				e.line(revHead, v.File, line)
@@ -218,7 +221,8 @@ func (r *varReads) add(e *Expr) {
 				names[s.Name] = true
 				continue
 			case hcl.TraverseIndex:
-				if s.Key.IsKnown() && !s.Key.IsNull() && s.Key.Type() == cty.String {
+				// A key in a traversal is a literal, so a string one is known.
+				if s.Key.Type() == cty.String {
 					names[s.Key.AsString()] = true
 					continue
 				}
@@ -263,11 +267,9 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	}
 	from := map[string]string{}
 	for _, m := range a.Head.Moved {
-		if m.FromAddr != "" && m.ToAddr != "" {
-			to, _, _ := strings.Cut(m.ToAddr, "[")
-			f, _, _ := strings.Cut(m.FromAddr, "[")
-			from[to] = f
-		}
+		to, _, _ := strings.Cut(m.ToAddr, "[")
+		f, _, _ := strings.Cut(m.FromAddr, "[")
+		from[to] = f
 	}
 	shared := func(key string, h Body, top bool) {
 		b, ok := bodies[key]
@@ -317,10 +319,12 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	}
 	baseVars := variablesByName(a.Base)
 	for _, v := range firstVariables(a.Head) {
-		if b := baseVars[v.Name]; b != nil {
-			for i := 0; i < len(v.Validations) && i < len(b.Validations); i++ {
-				r.add(v.Validations[i].Condition)
-				r.add(v.Validations[i].ErrorMessage)
+		// A validation can fail a plan, so every one of an existing variable
+		// counts, an added one too.
+		if baseVars[v.Name] != nil {
+			for _, val := range v.Validations {
+				r.add(val.Condition)
+				r.add(val.ErrorMessage)
 			}
 		}
 	}

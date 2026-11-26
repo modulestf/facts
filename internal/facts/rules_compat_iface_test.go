@@ -242,6 +242,24 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\ncheck \"c\" {\n  assert {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\n"}},
 		{name: "new resource with a precondition", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  lifecycle {\n    precondition {\n      condition     = var.a != \"\"\n      error_message = \"e\"\n    }\n  }\n}\n"}},
+		{name: "second block of an existing type", base: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n  t {\n    w = var.a\n  }\n}\n"}, found: true},
+		{name: "new type inside an ambiguous block", base: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n  t {\n    v = \"f\"\n    u {\n      w = var.a\n    }\n  }\n}\n"}, found: true},
+		{name: "new dynamic block of a new type", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n  dynamic \"u\" {\n    for_each = var.a\n    content {\n      v = \"f\"\n    }\n  }\n}\n"}},
+		{name: "data block beside a resource of the same name", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\ndata \"aws_r\" \"x\" {\n  name = var.a\n}\n"}},
+		{name: "data block argument", base: map[string]string{"main.tf": "data \"aws_r\" \"x\" {\n  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "data \"aws_r\" \"x\" {\n  name = var.a\n}\n"}, found: true},
+		{name: "for_each added", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  for_each = var.a\n  name     = \"f\"\n}\n"}, found: true},
+		{name: "count named argument of a nested block", base: map[string]string{"main.tf": r + "  t {\n    v = \"f\"\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    v     = \"f\"\n    count = var.a\n  }\n}\n"}},
+		{name: "validation added to an existing variable", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {\n  validation {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\n"}, found: true},
+		{name: "validation with no message", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {\n  validation {\n    condition = true\n  }\n}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {\n  validation {\n    condition = true\n  }\n}\n"}},
 		{name: "unrelated resource and example only", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			head:  map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			extra: map[string]string{"examples/basic/main.tf": "resource \"aws_r\" \"e\" {\n  name = var.a\n}\n", "examples/basic/variables.tf": vars}},
@@ -266,6 +284,48 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			}
 			if (len(got) == 1 && got[0] == want) != tt.found || len(got) > 1 {
 				t.Errorf("got %q, found want %v", got, tt.found)
+			}
+		})
+	}
+}
+
+// varReads reads names from a static key and everything from a whole object,
+// a key it cannot resolve, a number key or text that does not parse.
+func TestVarReads(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text       string
+		vars, locs []string
+		allV, allL bool
+	}{
+		{text: "var.a", vars: []string{"a"}},
+		{text: `var["a"]`, vars: []string{"a"}},
+		{text: "local.m", locs: []string{"m"}},
+		{text: `local["m"]`, locs: []string{"m"}},
+		{text: "var[0]", allV: true},
+		{text: "var[local.k]", allV: true, locs: []string{"k"}},
+		{text: "length(var)", allV: true},
+		{text: "length(local)", allL: true},
+		{text: "each.value", vars: nil},
+		{text: "(", allV: true, allL: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.text, func(t *testing.T) {
+			t.Parallel()
+			r := &varReads{vars: map[string]bool{}, locals: map[string]bool{}}
+			r.add(&Expr{Text: tt.text})
+			r.add(nil)
+			got := func(m map[string]bool) []string {
+				var s []string
+				for k := range m {
+					s = append(s, k)
+				}
+				slices.Sort(s)
+				return s
+			}
+			if !slices.Equal(got(r.vars), tt.vars) || !slices.Equal(got(r.locals), tt.locs) ||
+				r.allVars != tt.allV || r.allLocals != tt.allL {
+				t.Errorf("vars %v locals %v allVars %v allLocals %v", got(r.vars), got(r.locals), r.allVars, r.allLocals)
 			}
 		})
 	}
