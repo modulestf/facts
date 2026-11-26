@@ -211,6 +211,11 @@ var (
 			"resource \"aws_s3_object\" \"o\" {\n  source = join(var.sep, [path.module, var.doc])\n}\n",
 		"examples/a/main.tf": "module \"sub\" {\n  source = \"../../modules/sub\"\n  sep    = \"/\"\n  doc    = var.doc\n}\n",
 	}
+	sepChild = map[string]string{
+		"main.tf": "module \"child\" {\n  source = \"./modules/sub\"\n  base   = path.module\n}\n",
+		"modules/sub/main.tf": "variable \"base\" {\n  type    = string\n  default = \"/\"\n}\n" +
+			"resource \"aws_s3_object\" \"o\" {\n  source = \"${var.base}/README.md\"\n}\n",
+	}
 	iamModule = map[string]string{"examples/a/main.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"}
 )
 
@@ -265,6 +270,8 @@ func TestInert(t *testing.T) {
 			sepRead(sepFormat, "a"), sepRead(sepFormat, "b"), false, []string{CatNonHCL, CatNonHCL}},
 		{"slash passed to a submodule as a module argument",
 			sepRead(sepModule, "a"), sepRead(sepModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash as a child variable default beside path.module passed in",
+			sepRead(sepChild, "a"), sepRead(sepChild, "b"), false, []string{CatNonHCL, CatNonHCL}},
 		{"iam path module argument is still a read site",
 			sepRead(iamModule, "a"), sepRead(iamModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
 		{"iam path with a dynamic part is still a read site", map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "a"},

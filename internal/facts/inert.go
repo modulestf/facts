@@ -63,8 +63,9 @@ func InertDocPath(p string) bool {
 // argument of a file function, an attribute a resource, data source or
 // provisioner reads a file or runs a program from, or any other string that
 // is a path, anchored at path.module, path.root or path.cwd, or a plain
-// literal other than an IAM path of "/" alone (see iamPathRoot). Text is the static part of the path after its anchor; Exact is
-// set when the path has no dynamic part.
+// literal other than an IAM path of "/" alone (see iamPathRoot). Text is
+// the static part of the path after its anchor; Exact is set when the path
+// has no dynamic part.
 type ReadSite struct {
 	File   string // tree path of the .tf file
 	Line   int
