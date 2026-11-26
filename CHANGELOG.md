@@ -1,3 +1,12 @@
+# [0.14.0](https://github.com/modulestf/facts/compare/v0.13.0...v0.14.0) (2026-11-26)
+
+
+### Features
+
+* Write per-phase timing and memory stats on request ([#62](https://github.com/modulestf/facts/issues/62)) ([b46c154](https://github.com/modulestf/facts/commit/b46c15484a92a4031c8c8bc4f57a815b2a614793)), closes [#73](https://github.com/modulestf/facts/issues/73) [#74](https://github.com/modulestf/facts/issues/74) [#74](https://github.com/modulestf/facts/issues/74) [#60](https://github.com/modulestf/facts/issues/60)
+
+
+
 # [0.13.0](https://github.com/modulestf/facts/compare/v0.12.6...v0.13.0) (2026-11-26)
 
 
