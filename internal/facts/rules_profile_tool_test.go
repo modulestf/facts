@@ -215,6 +215,9 @@ func TestPutinGateFromSyntax(t *testing.T) {
 		"for over keys of a gated":     {"for_each = { for k in keys(local.gated) : k => k }", false},
 		"for over an ungated input":    {"for_each = { for k, v in var.m : k => var.create }", true},
 		"for over a concat with gated": {"for_each = { for k in concat(keys(local.gated), [\"x\"]) : k => k }", true},
+		"length of a gated":            {"count = length(local.gated)", true},
+		"spread of a gated":            {"for_each = { for k in toset(local.gated...) : k => k }", true},
+		"flatten of two arguments":     {"for_each = toset(flatten(keys(local.gated), keys(var.m)))", true},
 	} {
 		head := map[string]string{"main.tf": locals + "\nresource \"a\" \"b\" {\n  " + c.meta + "\n}\n" + putinVar}
 		got := findingSpots(runProfileTool(t, map[string]string{"main.tf": locals + putinVar}, head), "profile.putin-khuylo-missing")
