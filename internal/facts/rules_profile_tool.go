@@ -255,10 +255,12 @@ func createsNothing(e hclsyntax.Expression) bool {
 // guards reports whether the gate decides an expression, read from its
 // syntax: the expression is var.putin_khuylo or a local the gate decides, an
 // && chain with such an operand, a conditional whose condition is gated, or
-// whose true branch is, and whose false branch creates nothing, or a for
-// expression whose filter is gated. The gate under || or !, in a branch
-// beside one that creates something, or only in a function argument does
-// not decide it.
+// whose true branch is, and whose false branch creates nothing, a for
+// expression whose filter or collection is gated, or one of the
+// emptyKeeping functions of a gated argument: an empty collection gives an
+// empty result. The gate under || or !, in a branch beside one that
+// creates something, or only in another function's argument does not
+// decide it.
 func (g *gateGraph) guards(e hclsyntax.Expression) bool {
 	switch x := e.(type) {
 	case *hclsyntax.ParenthesesExpr:
@@ -276,10 +278,16 @@ func (g *gateGraph) guards(e hclsyntax.Expression) bool {
 	case *hclsyntax.ConditionalExpr:
 		return createsNothing(x.FalseResult) && (g.guards(x.Condition) || g.guards(x.TrueResult))
 	case *hclsyntax.ForExpr:
-		return x.CondExpr != nil && g.guards(x.CondExpr)
+		return (x.CondExpr != nil && g.guards(x.CondExpr)) || g.guards(x.CollExpr)
+	case *hclsyntax.FunctionCallExpr:
+		return emptyKeeping[x.Name] && len(x.Args) == 1 && !x.ExpandFinal && g.guards(x.Args[0])
 	}
 	return false
 }
+
+// emptyKeeping are the functions of one argument that return an empty
+// collection for an empty one.
+var emptyKeeping = map[string]bool{"toset": true, "tolist": true, "tomap": true, "keys": true, "values": true, "flatten": true}
 
 // localGuards is guards for a head local. A local met again on the current
 // walk is not gated by that path.
