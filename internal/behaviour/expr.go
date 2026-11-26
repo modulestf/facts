@@ -102,6 +102,92 @@ func isConditional(x *exprInfo) bool {
 	return ok
 }
 
+// knownAtoms is the set of the subexpressions whose values decide whether x
+// is wholly known: a literal part of a template and a literal element of a
+// tuple or object never makes it unknown, so those structures are looked
+// through; any other node that is not a literal is one atom, by its
+// normalized text. A literal inside such an atom (a function argument, an
+// index key, a condition) stays in its text: lookup(local.m, "a") and
+// lookup(local.m, "b") can differ in what is known. ok is false when x
+// holds a structure the set cannot stand for: a template with a directive,
+// whose parts are no expressions of their own, or an object with a key that
+// is no static name or string, or with a key twice, where the last entry
+// wins.
+func knownAtoms(x *exprInfo) (atoms map[string]bool, ok bool) {
+	out, ok := map[string]bool{}, true
+	var walk func(e hclsyntax.Expression)
+	walk = func(e hclsyntax.Expression) {
+		switch n := unwrap(e).(type) {
+		case *hclsyntax.LiteralValueExpr:
+		case *hclsyntax.TemplateExpr:
+			for _, p := range n.Parts {
+				switch p.(type) {
+				case *hclsyntax.ConditionalExpr, *hclsyntax.TemplateJoinExpr:
+					ok = false
+				}
+			}
+			for _, p := range n.Parts {
+				walk(p)
+			}
+		case *hclsyntax.TemplateWrapExpr:
+			walk(n.Wrapped)
+		case *hclsyntax.TupleConsExpr:
+			for _, el := range n.Exprs {
+				walk(el)
+			}
+		case *hclsyntax.ObjectConsExpr:
+			keys := map[string]bool{}
+			for _, it := range n.Items {
+				k, static := staticKey(it.KeyExpr)
+				if !static || keys[k] {
+					ok = false
+				}
+				keys[k] = true
+				walk(it.ValueExpr)
+			}
+		default:
+			if a := (&exprInfo{n, x.src}); !isLiteral(a) {
+				out[a.key()] = true
+			}
+		}
+	}
+	walk(x.expr)
+	return out, ok
+}
+
+// staticKey is the name of an object key that is a bare name or a quoted
+// string with no interpolation.
+func staticKey(e hclsyntax.Expression) (string, bool) {
+	k, isKey := e.(*hclsyntax.ObjectConsKeyExpr)
+	if !isKey || k.ForceNonLiteral {
+		return "", false
+	}
+	if name := hcl.ExprAsKeyword(k.Wrapped); name != "" {
+		return name, true
+	}
+	var lit *hclsyntax.LiteralValueExpr
+	switch w := k.Wrapped.(type) {
+	case *hclsyntax.TemplateExpr:
+		if len(w.Parts) == 1 {
+			lit, _ = w.Parts[0].(*hclsyntax.LiteralValueExpr)
+		}
+	case *hclsyntax.LiteralValueExpr:
+		lit = w
+	}
+	if lit == nil || lit.Val.Type() != cty.String || !lit.Val.IsKnown() || lit.Val.IsNull() {
+		return "", false
+	}
+	return lit.Val.AsString(), true
+}
+
+// sameKnown reports two expressions known or unknown alike: both have the
+// same known-atoms and both can be read that way.
+func sameKnown(b, h *exprInfo) bool {
+	ba, bok := knownAtoms(b)
+	ha, hok := knownAtoms(h)
+	return bok && hok && maps.Equal(ba, ha)
+}
+
 // isLiteral reports an expression with no reference and no function call.
 func isLiteral(x *exprInfo) bool {
 	if x == nil {
