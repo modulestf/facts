@@ -72,7 +72,7 @@ func TestScanLimitsMatchLexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scanned := 0
+	scanned, sumBound, sumTokens := 0, 0, 0
 	for _, src := range srcs {
 		depth, prefix, bound, ok := scanLimits([]byte(src))
 		if !ok {
@@ -80,6 +80,7 @@ func TestScanLimitsMatchLexer(t *testing.T) {
 		}
 		scanned++
 		tokens, _ := hclsyntax.LexConfig([]byte(src), "x.tf", hcl.InitialPos)
+		sumBound, sumTokens = sumBound+bound, sumTokens+len(tokens)
 		if d := nestingDepth(tokens); depth != d {
 			t.Errorf("depth %d, lexer %d: %q", depth, d, src)
 		}
@@ -92,6 +93,11 @@ func TestScanLimitsMatchLexer(t *testing.T) {
 	}
 	if scanned < len(scanCases) {
 		t.Errorf("scanned %d inputs, want at least %d", scanned, len(scanCases))
+	}
+	// The run's token budget charges a scanned file by the bound, so a loose
+	// bound spends it on files well within it.
+	if 2*sumBound > 3*sumTokens {
+		t.Errorf("scan bound %d over 1.5 times the %d tokens of the inputs", sumBound, sumTokens)
 	}
 }
 

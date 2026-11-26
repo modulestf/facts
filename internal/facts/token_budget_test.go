@@ -88,6 +88,36 @@ func TestRunTokenBudget(t *testing.T) {
 			t.Errorf("no budget: %q", m.Unsupported)
 		}
 	})
+	t.Run("a template parsed past the budget may read any file", func(t *testing.T) {
+		t.Parallel()
+		main := "locals {\n  u = templatefile(\"${path.module}/tpl/user.tpl\", {})\n}\n"
+		tree := mustTree(t, writeTree(t, map[string]string{
+			"main.tf":      main,
+			"tpl/user.tpl": "${file(\"${path.module}/x.txt\")}\n",
+		}))
+		_, _, bound, ok := scanLimits([]byte(main))
+		if !ok {
+			t.Fatal("main.tf is not scanned")
+		}
+		anyTemplate := func(lim Limits) bool {
+			sites, _, err := ReadSites(tree, lim)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, s := range sites {
+				if s.Kind == "template" && s.Anchor == AnchorNone {
+					return true
+				}
+			}
+			return false
+		}
+		if anyTemplate(budgetLimits(DefaultLimits.MaxRunTokens)) {
+			t.Error("within the budget the template reads any file")
+		}
+		if !anyTemplate(budgetLimits(int64(bound))) { // main.tf spends it all
+			t.Error("a template parsed past the budget does not read any file")
+		}
+	})
 	t.Run("ParseBodyOnly gives ParseBody's body and error", func(t *testing.T) {
 		t.Parallel()
 		for name, src := range files {
