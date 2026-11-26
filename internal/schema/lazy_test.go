@@ -58,7 +58,7 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 			t.Errorf("%s: Load accepted", name)
 		}
 		// A bad type is named, with its provider.
-		if want := "provider " + aws + `: resource "aws_unused_thing": `; !strings.HasPrefix(name, "provider ") &&
+		if want := fmt.Sprintf("provider %q: resource %q: ", aws, "aws_unused_thing"); !strings.HasPrefix(name, "provider ") &&
 			!strings.HasPrefix(name, "functions") && (err == nil || !strings.Contains(err.Error(), want)) {
 			t.Errorf("%s: error %v does not name %q", name, err, want)
 		}
@@ -88,6 +88,24 @@ func TestRawErrorQuotesTypeName(t *testing.T) {
 	}
 	if want := fmt.Sprintf("%q", hostile); !strings.Contains(err.Error(), want) {
 		t.Errorf("error %q does not hold the quoted name %s", err, want)
+	}
+	if strings.ContainsAny(err.Error(), "\n\x1b") {
+		t.Errorf("error holds a raw line break or control character: %q", err)
+	}
+}
+
+// TestRawErrorQuotesProviderSource: the provider source is a key of the
+// file, so a line break or a control character in it must not forge a line
+// of the message either.
+func TestRawErrorQuotesProviderSource(t *testing.T) {
+	hostile := "registry.terraform.io/x/aws\nforged: line\x1b[0m"
+	doc := strings.Replace(unusedDoc("", `{"block": {"attributes": 5}}`), aws, `registry.terraform.io/x/aws\nforged: line\u001b[0m`, 1)
+	_, err := Load("", []string{writeFile(t, "aws.json", []byte(doc))}, time.Time{})
+	if err == nil {
+		t.Fatal("Load accepted a bad type")
+	}
+	if want := "provider " + fmt.Sprintf("%q", hostile) + ": "; !strings.Contains(err.Error(), want) {
+		t.Errorf("error %q does not hold the quoted source %s", err, want)
 	}
 	if strings.ContainsAny(err.Error(), "\n\x1b") {
 		t.Errorf("error holds a raw line break or control character: %q", err)

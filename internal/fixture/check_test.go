@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 var testPins = []Pin{{Source: "hashicorp/aws", Version: "6.15.0"}}
@@ -276,7 +277,7 @@ var ruleCases = []ruleCase{
 		mustDo(t, os.Link(filepath.Join(dir, "main.tf"), filepath.Join(dir, "other.tf")))
 	}, rule: RuleFileSpecial},
 	{name: "fifo", files: l1(okTF), setup: func(t *testing.T, dir string) {
-		mustDo(t, syscall.Mkfifo(filepath.Join(dir, "pipe.tf"), 0o644))
+		mustDo(t, unix.Mkfifo(filepath.Join(dir, "pipe.tf"), 0o644))
 	}, rule: RuleFileSpecial},
 	{name: "file size", files: map[string]string{"main.tf": okTF, "big.tf": pad(MaxFileBytes + 1)}, rule: RuleLimitFileSize},
 	{name: "file count", files: manyFiles(MaxFiles + 1), rule: RuleLimitFileCount},

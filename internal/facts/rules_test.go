@@ -261,6 +261,10 @@ func TestVersionsMissingNoTerraform(t *testing.T) {
 		"examples/regions/us":                  "->../shared/us",
 		"examples/regions2/a/b":                "->../../shared/b",
 		"examples/hiddenlink/.cache":           "->../../shared",
+		"examples/hiddendir/.cache/us":         "->../../shared/us",
+		"examples/hiddenmix/.cache":            "->../../shared",
+		"examples/hiddenmix/docs/notes.md":     "x\n",
+		"examples/hiddentf/.cache/main.tf":     "",
 		"examples/shared/us/main.tf":           "",
 		"examples/shared/b/main.tf":            "",
 	})
@@ -270,13 +274,18 @@ func TestVersionsMissingNoTerraform(t *testing.T) {
 		"examples/regions":    "not_evaluated: examples/regions/us is a symbolic link the engine does not follow, so whether it holds Terraform is unknown",
 		"examples/regions2":   "not_evaluated: examples/regions2/a/b is a symbolic link the engine does not follow, so whether it holds Terraform is unknown",
 		"examples/hiddenlink": "clean",
-		"examples/fixtures":   "clean",
-		"examples/hidden":     "clean",
-		"examples/complete":   "clean",
-		"examples/plain":      "finding",
-		"examples/json":       "finding",
-		"examples/linked":     "finding",
-		"examples/multi":      "finding",
+		// Terraform loads nothing under a hidden directory: a link or a .tf
+		// file there is no configuration, whatever else sits beside it.
+		"examples/hiddendir": "clean",
+		"examples/hiddenmix": "clean",
+		"examples/hiddentf":  "clean",
+		"examples/fixtures":  "clean",
+		"examples/hidden":    "clean",
+		"examples/complete":  "clean",
+		"examples/plain":     "finding",
+		"examples/json":      "finding",
+		"examples/linked":    "finding",
+		"examples/multi":     "finding",
 	} {
 		if s := statusOf(r.Manifest, "examples.versions-missing", area); s != want {
 			t.Errorf("%s: %s, want %s", area, s, want)

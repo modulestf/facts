@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/modulestf/facts/internal/profile"
+	"golang.org/x/sys/unix"
 )
 
 const testProfile = "../../testdata/profile"
@@ -80,7 +81,7 @@ func TestTakeRefuses(t *testing.T) {
 		"symlink file":  func(t *testing.T, dir string) { must(t, os.Symlink("PROFILE.md", filepath.Join(dir, "link.md"))) },
 		"symlink dir":   func(t *testing.T, dir string) { must(t, os.Symlink("templates", filepath.Join(dir, "tpl"))) },
 		"dangling":      func(t *testing.T, dir string) { must(t, os.Symlink("/nonexistent", filepath.Join(dir, "x"))) },
-		"fifo":          func(t *testing.T, dir string) { must(t, syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644)) },
+		"fifo":          func(t *testing.T, dir string) { must(t, unix.Mkfifo(filepath.Join(dir, "pipe"), 0o644)) },
 		"name with LF":  func(t *testing.T, dir string) { must(t, os.WriteFile(filepath.Join(dir, "a\nb"), nil, 0o644)) },
 		"name with DEL": func(t *testing.T, dir string) { must(t, os.WriteFile(filepath.Join(dir, "a\x7fb"), nil, 0o644)) },
 		"name not UTF-8": func(t *testing.T, dir string) {
@@ -197,7 +198,7 @@ func TestTakeRefusesSwaps(t *testing.T) {
 		}},
 		"file to fifo": {"PROFILE.md", func(t *testing.T, full string) {
 			must(t, os.Remove(full))
-			must(t, syscall.Mkfifo(full, 0o644))
+			must(t, unix.Mkfifo(full, 0o644))
 		}},
 		"dir to link": {"templates", func(t *testing.T, full string) {
 			must(t, os.RemoveAll(full))

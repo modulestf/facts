@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/modulestf/facts/internal/profile"
+	"golang.org/x/sys/unix"
 )
 
 const cliTestProfile = "../../testdata/profile"
@@ -99,7 +99,7 @@ func TestProfileCheckRefusesWhatSnapshotRefuses(t *testing.T) {
 	t.Parallel()
 	for name, setup := range map[string]func(dir string) error{
 		"symlink":  func(dir string) error { return os.Symlink("PROFILE.md", filepath.Join(dir, "x.md")) },
-		"fifo":     func(dir string) error { return syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },
+		"fifo":     func(dir string) error { return unix.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },
 		"bad name": func(dir string) error { return os.WriteFile(filepath.Join(dir, "a\nb"), nil, 0o644) },
 		"over the byte cap": func(dir string) error {
 			return os.WriteFile(filepath.Join(dir, "big"), make([]byte, 8<<20+1), 0o644)
@@ -191,7 +191,7 @@ func TestProfileSnapshotRefuses(t *testing.T) {
 	t.Parallel()
 	for name, setup := range map[string]func(dir string) error{
 		"symlink": func(dir string) error { return os.Symlink("PROFILE.md", filepath.Join(dir, "x.md")) },
-		"fifo":    func(dir string) error { return syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },
+		"fifo":    func(dir string) error { return unix.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },
 		"over the byte cap": func(dir string) error {
 			return os.WriteFile(filepath.Join(dir, "big"), make([]byte, 8<<20+1), 0o644)
 		},

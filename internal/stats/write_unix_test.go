@@ -11,6 +11,16 @@ import (
 	"time"
 )
 
+// inTree is inTreeAt on a descriptor of the parent directory of p.
+func (g Guard) inTree(p string) error {
+	dfd, _, err := openParent(p)
+	if err != nil {
+		return err
+	}
+	defer closeFd(dfd)
+	return g.inTreeAt(p, dfd)
+}
+
 // TestWriteFileOtherOwner pretends to be another user, as a file planted
 // by someone else would look, and checks that the file is left alone.
 func TestWriteFileOtherOwner(t *testing.T) {

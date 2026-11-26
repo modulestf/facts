@@ -207,12 +207,20 @@ func checkVersionsMissing(a *Area) Result {
 	return Result{}
 }
 
+// visibleBelow reports a path below dir with no ignored name among the
+// elements under dir. Terraform loads neither a hidden file nor a hidden
+// directory, so nothing under one is part of a configuration.
+func visibleBelow(p, dir string) bool {
+	rest, ok := strings.CutPrefix(p, dir+"/")
+	return ok && !slices.ContainsFunc(strings.Split(rest, "/"), ignoredName)
+}
+
 // linkBelow returns the first symbolic link in dir or below it, not counting
-// ignored names, or "". The reader records a link and never follows it, so
-// what it points to is unknown.
+// a path with an ignored name, or "". The reader records a link and never
+// follows it, so what it points to is unknown.
 func linkBelow(t *Tree, dir string) string {
 	for _, p := range t.Paths {
-		if strings.HasPrefix(p, dir+"/") && !ignoredName(path.Base(p)) && t.Entries[p].Kind == KindSymlink {
+		if visibleBelow(p, dir) && t.Entries[p].Kind == KindSymlink {
 			return p
 		}
 	}
@@ -221,11 +229,11 @@ func linkBelow(t *Tree, dir string) string {
 
 // holdsTerraform reports a directory with a .tf or .tf.json file in it or
 // in any directory below it, by name, as the parser reads it: a link
-// counts, a dot file does not. An example whose configurations sit in
+// counts, a dot file or a dot directory does not. An example whose configurations sit in
 // subdirectories, one per region, still needs its versions.tf.
 func holdsTerraform(t *Tree, dir string) bool {
 	return slices.ContainsFunc(t.Paths, func(p string) bool {
 		name := path.Base(p)
-		return strings.HasPrefix(p, dir+"/") && !ignoredName(name) && (strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json"))
+		return visibleBelow(p, dir) && (strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json"))
 	})
 }

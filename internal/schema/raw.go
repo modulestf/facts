@@ -77,7 +77,7 @@ func nameRawError(data []byte, err error) error {
 		}{{"resource", p.R}, {"data source", p.D}} {
 			named = namedType(ts.raw, func(name string, t json.RawMessage) error {
 				if _, err := decodeRawType(t); err != nil {
-					return fmt.Errorf("provider %s: %s %q: %w", source, ts.kind, name, err)
+					return fmt.Errorf("provider %q: %s %q: %w", source, ts.kind, name, err)
 				}
 				return nil
 			})
@@ -86,7 +86,7 @@ func nameRawError(data []byte, err error) error {
 			}
 		}
 		if err := json.Unmarshal(v, new(rawProvider)); err != nil {
-			named = fmt.Errorf("provider %s: %w", source, err)
+			named = fmt.Errorf("provider %q: %w", source, err)
 		}
 		return named
 	})
