@@ -7,8 +7,9 @@
 //
 // It is a port of the plan pass's Perl, line for line: the rules read text
 // with the Perl's patterns, hits in comments and strings included, so its
-// output is the Perl's byte for byte. It reads only the listed files and
-// the names in their directories.
+// output is the Perl's byte for byte, apart from the G2 hits the structural
+// source read adds (structural.go). It reads only the listed files and the
+// names in their directories.
 package gates
 
 import (

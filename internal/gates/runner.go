@@ -302,30 +302,27 @@ func (r *run) runnerFile(f, raw string) {
 		return
 	}
 	dir := dirOf(f)
+	sr := newSrcReads()
 	for x := findWord(m, 0, "module", header); x.start >= 0; {
 		next := x.end
 		e := mt.block(x.end)
-		switch {
-		case e < 0:
-			r.hit("G2", f, m, x.start)
-		default:
+		pass, s := false, ""
+		if e >= 0 {
 			next = e
-			z := findWord(m[x.end:e], 0, "source", atSourceAttr)
-			if z.start < 0 {
-				r.hit("G2", f, m, x.start)
-				break
+			if z := findWord(m[x.end:e], 0, "source", atSourceAttr); z.start >= 0 {
+				s, _ = sourceAfter(raw, x.end+z.end)
+				pass = r.sourceOK(dir, s)
 			}
-			s, _ := sourceAfter(raw, x.end+z.end)
-			if localSource(s) {
-				if rp, ok := realpath(dir + "/" + s); !ok || !under(rp, r.root) {
-					r.hit("G2", f, m, x.start)
-				}
-			} else if !moduleSource(s) && !githubSource(s) {
-				r.hit("G2", f, m, x.start)
-			}
+		}
+		if pass {
+			sr.pass[x.start] = s
+		} else {
+			r.hit("G2", f, m, x.start)
+			sr.refused[x.start] = true
 		}
 		x = findWord(m, next, "module", header)
 	}
+	r.structuralSources(f, raw, sr)
 }
 
 // runnerProviders checks each aws provider block for credentials and

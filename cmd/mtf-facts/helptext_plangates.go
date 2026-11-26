@@ -14,14 +14,16 @@ override file, a carriage return, form feed or vertical tab, a byte over
 comment or heredoc that does not end. G1 is a required provider outside the
 allowlist, G2 a module source outside the clone or the terraform-aws-modules
 registry namespace (a source that holds a NUL byte is a G2 hit; the Perl
-gates truncated it at the NUL), G3 a block or expression that runs code or
-reads an account. Runner mode relaxes the code-execution gates and records the
-exceptions Xrole, a fixed role in another account, and Xdocker, a Docker
-daemon.
+gates truncated it at the NUL; a source Terraform reads otherwise than the
+text, as behind a commented-out source, is one too), G3 a block or
+expression that runs code or reads an account. Runner mode relaxes the
+code-execution gates and records the exceptions Xrole, a fixed role in
+another account, and Xdocker, a Docker daemon.
 
 The rules read text as the plan pass always has, comments and strings
 included, so the lines are those the pass printed before, in its order,
-with duplicates. Only the listed files are read, and the names in their
+with duplicates, followed in each file by any G2 lines the second read of
+module sources adds. Only the listed files are read, and the names in their
 directories; links are followed.
 
 Exit 0 with no hit, 1 with hits, 2 on a usage error, bad input, the output

@@ -843,26 +843,25 @@ func (r *run) laptopClone(f, raw string) {
 		x = findWord(bl, next, "required_providers", head)
 	}
 	header := atHeader("module")
+	sr := newSrcReads()
 	for x := findWord(bl, 0, "module", header); x.start >= 0; {
 		at, next := x.start, x.end
 		e := blt.block(x.end)
 		if e < 0 {
 			r.hit("G2", f, raw, at)
+			sr.refused[at] = true
 			x = findWord(bl, next, "module", header)
 			continue
 		}
 		next = e
 		s, ok := sourceValue(raw[x.end:e])
-		switch {
-		case !ok:
+		if ok && r.sourceOK(dir, s) {
+			sr.pass[at] = s
+		} else {
 			r.hit("G2", f, raw, at)
-		case localSource(s):
-			if rp, ok := realpath(dir + "/" + s); !ok || !under(rp, r.root) {
-				r.hit("G2", f, raw, at)
-			}
-		case !moduleSource(s):
-			r.hit("G2", f, raw, at)
+			sr.refused[at] = true
 		}
 		x = findWord(bl, next, "module", header)
 	}
+	r.structuralSources(f, raw, sr)
 }
