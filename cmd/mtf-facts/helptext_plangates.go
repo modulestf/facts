@@ -15,10 +15,10 @@ comment or heredoc that does not end. G1 is a required provider outside the
 allowlist, G2 a module source outside the clone or the terraform-aws-modules
 registry namespace (a source that holds a NUL byte is a G2 hit; the Perl
 gates truncated it at the NUL; a source Terraform reads otherwise than the
-text, as behind a commented-out source, is one too), G3 a block or expression that runs code or
-reads an account. Runner mode relaxes the code-execution gates and records the
-exceptions Xrole, a fixed role in another account, and Xdocker, a Docker
-daemon.
+text, as behind a commented-out source, is one too), G3 a block or
+expression that runs code or reads an account. Runner mode relaxes the
+code-execution gates and records the exceptions Xrole, a fixed role in
+another account, and Xdocker, a Docker daemon.
 
 The rules read text as the plan pass always has, comments and strings
 included, so the lines are those the pass printed before, in its order,

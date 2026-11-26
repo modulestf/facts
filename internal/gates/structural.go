@@ -31,17 +31,26 @@ func newSrcReads() *srcReads {
 }
 
 // structuralSources adds a G2 hit for each module block of raw that the
-// text read did not refuse and Terraform would read otherwise: the file does
-// not parse, the source attribute is missing or not a constant string, it is
-// another string than the text read passed, or, for a block the text read
-// did not see, it fails the G2 rule.
+// text read did not refuse and Terraform would read otherwise: the source
+// attribute is missing or not a constant string, it is another string than
+// the text read passed, or, for a block the text read did not see, it fails
+// the G2 rule. A file that does not parse is no refusal: terraform init
+// still installs the modules of the blocks before the error, so there every
+// block the text read passed and every block of the partial body it did not
+// see is a hit.
 func (r *run) structuralSources(f, raw string, sr *srcReads) {
 	file, diags := hclsyntax.ParseConfig([]byte(raw), f, hcl.InitialPos)
 	body, ok := file.Body.(*hclsyntax.Body)
 	if diags.HasErrors() || !ok {
-		// Terraform would refuse the file, but the gates cannot confirm a
-		// source they cannot parse, so every passed block is a hit.
-		for _, at := range slices.Sorted(maps.Keys(sr.pass)) {
+		hits := maps.Clone(sr.pass)
+		if ok {
+			for _, b := range body.Blocks {
+				if at := b.TypeRange.Start.Byte; b.Type == "module" && !sr.refused[at] {
+					hits[at] = ""
+				}
+			}
+		}
+		for _, at := range slices.Sorted(maps.Keys(hits)) {
 			r.hit("G2", f, raw, at)
 		}
 		return

@@ -69,6 +69,10 @@ func TestStructuralSource(t *testing.T) {
 			[]string{"G2 main.tf:1"}, []string{"G2 main.tf:1"}},
 		{"file does not parse", "module \"m\" {\n  source = \"./mod\"\n}\nresource \"x\" \"y\" {\n",
 			[]string{"G2 main.tf:1"}, []string{"G2 main.tf:1"}},
+		{"unseen block, file does not parse", "module\"m\"{\n  source = \"../outside\"\n}\nlocals {\n  a =\n}\n",
+			[]string{"G2 main.tf:1"}, []string{"G2 main.tf:1"}},
+		{"unseen good block, file does not parse", "module\"m\"{\n  source = \"./mod\"\n}\nmodule \"n\" {\n  source = \"./mod\"\n}\nlocals {\n  a =\n}\n",
+			[]string{"G2 main.tf:1", "G2 main.tf:4"}, []string{"G2 main.tf:1", "G2 main.tf:4"}},
 		{"unseen block, bad source", "module\"m\"{\n  source = \"git::https://example.invalid/m\"\n}\n",
 			[]string{"G2 main.tf:1"}, []string{"G2 main.tf:1"}},
 
