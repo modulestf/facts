@@ -183,7 +183,7 @@ func (m *model) configDirs() []string {
 
 // hclConfig adds the items of one .tf file.
 func hclConfig(mod *module, file string, src []byte, lim facts.Limits) string {
-	body, _, err := facts.ParseBody(file, src, lim)
+	body, err := facts.ParseBodyOnly(file, src, lim)
 	if err != nil {
 		return "does not parse"
 	}
@@ -278,7 +278,7 @@ func (mod *module) requiredHCL(body *hclsyntax.Body) {
 
 // hclFile reads a Terraform-read HCL file that is not configuration.
 func hclFile(fm *fileModel, src []byte, lim facts.Limits) string {
-	body, _, err := facts.ParseBody(fm.path, src, lim)
+	body, err := facts.ParseBodyOnly(fm.path, src, lim)
 	if err != nil {
 		return "does not parse"
 	}

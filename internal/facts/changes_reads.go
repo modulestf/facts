@@ -110,7 +110,7 @@ func scanDirReads(head *Tree, dir string, targets map[string]*readTarget, lim Li
 			unreadable = append(unreadable, e.Path)
 			continue
 		}
-		body, _, err := parseSyntax(name, e.Data, lim)
+		body, _, err := parseBody(name, e.Data, lim)
 		if err != nil {
 			unreadable = append(unreadable, e.Path)
 			continue
@@ -398,7 +398,7 @@ func dataSources(head *Tree, lim Limits) ([]DirDataSources, error) {
 				ds.Complete = false
 				continue
 			}
-			body, _, err := parseSyntax(name, e.Data, lim)
+			body, _, err := parseBody(name, e.Data, lim)
 			if err != nil {
 				ds.Complete = false
 				continue
