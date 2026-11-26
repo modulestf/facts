@@ -397,6 +397,37 @@ removed {
 				}
 			},
 		},
+		"moved with the resource alias": {
+			src: `moved {
+  from = resource.aws_x.a
+  to   = resource.aws_x.b[0]
+}
+
+moved {
+  from = module.m["k"].resource.aws_x.y
+  to   = module.n.resource.aws_x.y["a"]
+}
+
+moved {
+  from = module.resource
+  to   = module.other
+}
+`,
+			check: func(t *testing.T, m *Module) {
+				var got [][2]string
+				for _, mv := range m.Moved {
+					got = append(got, [2]string{mv.FromAddr, mv.ToAddr})
+				}
+				want := [][2]string{
+					{"aws_x.a", "aws_x.b[0]"},
+					{`module.m["k"].aws_x.y`, `module.n.aws_x.y["a"]`},
+					{"module.resource", "module.other"},
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("moved addresses\n got %v\nwant %v", got, want)
+				}
+			},
+		},
 		"module call arguments": {
 			src: "module \"m\" {\n  source  = \"org/name/aws\"\n  version = \"1.0.0\"\n  name    = var.name\n  tags    = merge(var.tags, {})\n}\n",
 			check: func(t *testing.T, m *Module) {

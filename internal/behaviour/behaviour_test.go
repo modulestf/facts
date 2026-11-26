@@ -834,3 +834,42 @@ func TestNestedDynamicNarrowed(t *testing.T) {
 		})
 	}
 }
+
+// TestContextualRefResourceAlias: resource.<type>.<name> is Terraform's long
+// form of <type>.<name>, so a reference written with it gives the same
+// contextual references, details and cases as the short form.
+func TestContextualRefResourceAlias(t *testing.T) {
+	t.Parallel()
+	run := func(alias bool) *Trigger {
+		files := map[string]map[string]string{"base": {}, "head": {}}
+		for side := range files {
+			for _, name := range []string{"main.tf", "variables.tf", "versions.tf"} {
+				data, err := os.ReadFile(filepath.Join(pr556, side, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				text := string(data)
+				if alias {
+					text = strings.ReplaceAll(text, "aws_security_group.this[*]", "resource.aws_security_group.this[*]")
+				}
+				files[side][name] = text
+			}
+		}
+		r := runPair(t, files["base"], files["head"], filepath.Join(pr556, "schema-optional-computed.json"))
+		if len(r.Triggers) != 1 {
+			t.Fatalf("alias %v: %d triggers", alias, len(r.Triggers))
+		}
+		return &r.Triggers[0]
+	}
+	short, long := run(false), run(true)
+	if !slices.Equal(long.ContextualRefs, []string{"aws_security_group.this"}) {
+		t.Errorf("contextual refs %v, want the short address", long.ContextualRefs)
+	}
+	d := long.ContextualRefDetails
+	if len(d) != 1 || d[0].Kind != "resource" || str(d[0].Type) != "string" || str(d[0].Multi) != "count" {
+		t.Errorf("contextual ref details %s, want a resource with its type and count", mustJSON(t, d))
+	}
+	if len(long.Cases) == 0 || len(long.Cases) != len(short.Cases) {
+		t.Errorf("%d cases with the alias, %d without", len(long.Cases), len(short.Cases))
+	}
+}

@@ -86,6 +86,7 @@ func splatAttr(e *hclsyntax.SplatExpr) string {
 
 // refDetail describes one reference. attr is the attribute a splat reads.
 func (c *classifier) refDetail(dir, text string, tr hcl.Traversal, attr string) RefDetail {
+	tr = facts.Unaliased(tr) // resource.<type>.<name> is <type>.<name>
 	root := tr.RootName()
 	d := RefDetail{Text: text, Kind: cmp.Or(refKinds[root], "resource")}
 	// The block address and the attribute after it, skipping index steps.

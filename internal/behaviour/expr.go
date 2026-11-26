@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/hclnorm"
 	"github.com/modulestf/facts/internal/tffunc"
 	"github.com/zclconf/go-cty/cty"
@@ -155,6 +156,7 @@ func refs(xs ...*exprInfo) (inputs, contextual []string) {
 			continue
 		}
 		for _, tr := range x.expr.Variables() {
+			tr = facts.Unaliased(tr)
 			root := tr.RootName()
 			names := []string{root}
 			for _, step := range tr[1:] {
