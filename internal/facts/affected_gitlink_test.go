@@ -322,6 +322,16 @@ func TestReadTreeRootIsNoGitlink(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if mustTree(t, writeGitlinkTree(t, nil, nil, true)).IsGitlink(".") {
+		t.Error("an empty root is a gitlink")
+	}
+	only := t.TempDir()
+	if err := os.WriteFile(filepath.Join(only, ".git"), []byte("gitdir: x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if mustTree(t, only).IsGitlink(".") {
+		t.Error("a root with only a .git file is a gitlink")
+	}
 	tr := mustTree(t, dir)
 	if tr.IsGitlink(".") || !tr.IsGitlink("sub") {
 		t.Errorf("gitlinks: root %v, sub %v, want false, true", tr.IsGitlink("."), tr.IsGitlink("sub"))
