@@ -30,6 +30,9 @@ func WriteFile(p string, data []byte, g Guard) error {
 	if err := checkSize(data); err != nil {
 		return err
 	}
+	if hasDotDot(p) {
+		return fmt.Errorf("%s: holds a .. element", p)
+	}
 	if err := g.inTree(p); err != nil {
 		return err
 	}

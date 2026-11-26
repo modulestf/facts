@@ -298,6 +298,46 @@ func TestWriteFileTreeAlias(t *testing.T) {
 			t.Error("a file was created in the input tree")
 		}
 	})
+	t.Run("link then dotdot", func(t *testing.T) {
+		// lnk/.. is the physical parent of what lnk points to, the tree,
+		// while the text lnk/.. names dir.
+		lnk := filepath.Join(dir, "lnk")
+		if err := os.Symlink(filepath.Join(tree, "modules"), lnk); err != nil {
+			t.Fatal(err)
+		}
+		p := lnk + "/../main.tf"
+		if err := WriteFile(p, []byte("{}\n"), g); err == nil {
+			t.Error("lnk/../main.tf was written")
+		}
+		if err := g.inTree(p); err == nil {
+			t.Error("the walk did not find the tree through lnk/..")
+		}
+		if got, _ := os.ReadFile(target); string(got) != "keep" {
+			t.Errorf("%s changed to %q", target, got)
+		}
+	})
+	t.Run("plain dotdot", func(t *testing.T) {
+		p := tree + "/../outside.json"
+		if err := WriteFile(p, []byte("{}\n"), g); err == nil {
+			t.Error("a path with a .. element was written")
+		}
+		if _, err := os.Lstat(filepath.Join(dir, "outside.json")); err == nil {
+			t.Error("a file was created through a .. path")
+		}
+	})
+	t.Run("link chain through the tree", func(t *testing.T) {
+		deep := filepath.Join(dir, "deep")
+		if err := os.Symlink(filepath.Join(tree, "modules", "a"), deep); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(deep, "new.json")
+		if err := WriteFile(p, []byte("{}\n"), g); err == nil {
+			t.Error("a path whose physical parents pass through the tree was written")
+		}
+		if err := g.inTree(p); err == nil {
+			t.Error("the walk did not find the tree above the link's target")
+		}
+	})
 	t.Run("case alias", func(t *testing.T) {
 		alias := filepath.Join(dir, "tree")
 		if _, err := os.Stat(alias); err != nil {

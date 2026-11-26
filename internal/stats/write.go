@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 // MaxRecordBytes bounds the record a command writes. A record is a few
@@ -20,7 +22,7 @@ var errNotOwned = errors.New("not a regular file with one link that the caller o
 type Guard struct {
 	Outputs []*os.File // such as os.Stdout and os.Stderr
 	Files   []string   // single input files, compared by identity
-	Trees   []string   // input tree roots, compared by resolved path
+	Trees   []string   // input tree roots, compared by directory identity
 }
 
 // sameFile reports which of g's outputs and input files fi is, "" for none.
@@ -41,13 +43,22 @@ func (g Guard) sameFile(fi os.FileInfo) string {
 	return ""
 }
 
+// hasDotDot reports whether p holds a ".." element. The kernel resolves
+// ".." after the link before it, which a textual check cannot follow, so
+// such a path is refused before any other check.
+func hasDotDot(p string) bool {
+	return slices.Contains(strings.Split(p, string(filepath.Separator)), "..")
+}
+
 // inTree refuses p when its parent directory is an input tree root or lies
-// inside one. Directories are compared by identity, not by path, so a
-// differently cased name on a case-insensitive file system, a firmlink or a
-// bind mount of a root is still the root. The parent is resolved first, so
-// each step up is its physical parent; each step is compared with every
-// root, stat'ed once. A parent or root that does not resolve is left to the
-// open, which then fails or creates a file no tree holds.
+// inside one. The walk is physical, with no step on the path's text: it
+// starts at the raw parent of p (p made absolute by prefixing the working
+// directory, cut at its last separator) and stats it, then its "..", then
+// that one's "..", up to the file system root, where ".." stops changing.
+// Each directory is compared with every root, stat'ed once, by identity, so
+// a link, a differently cased name on a case-insensitive file system, a
+// firmlink or a bind mount of a root is the root. A directory on the way
+// that cannot be stat'ed refuses p: the check fails closed.
 func (g Guard) inTree(p string) error {
 	var roots []os.FileInfo
 	for _, t := range g.Trees {
@@ -58,27 +69,31 @@ func (g Guard) inTree(p string) error {
 	if len(roots) == 0 {
 		return nil
 	}
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return nil
+	raw := p
+	if !filepath.IsAbs(raw) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("%s: cannot check it against the input trees: %w", p, err)
+		}
+		raw = wd + string(filepath.Separator) + raw
 	}
-	dir, err := filepath.EvalSymlinks(filepath.Dir(abs))
-	if err != nil {
-		return nil
-	}
+	dir := raw[:strings.LastIndexByte(raw, filepath.Separator)+1] // keeps the separator, so "/" stays "/"
+	var prev os.FileInfo
 	for {
-		if fi, err := os.Stat(dir); err == nil {
-			for _, r := range roots {
-				if os.SameFile(fi, r) {
-					return fmt.Errorf("%s: is inside an input tree of this run", p)
-				}
+		fi, err := os.Stat(dir)
+		if err != nil {
+			return fmt.Errorf("%s: cannot check it against the input trees: %w", p, err)
+		}
+		if prev != nil && os.SameFile(fi, prev) {
+			return nil // the root: its ".." is itself
+		}
+		for _, r := range roots {
+			if os.SameFile(fi, r) {
+				return fmt.Errorf("%s: is inside an input tree of this run", p)
 			}
 		}
-		up := filepath.Dir(dir)
-		if up == dir {
-			return nil
-		}
-		dir = up
+		prev = fi
+		dir += ".." + string(filepath.Separator)
 	}
 }
 

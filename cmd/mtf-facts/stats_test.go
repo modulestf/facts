@@ -241,6 +241,7 @@ func TestStatsRefusesInputs(t *testing.T) {
 	bh, bb := cp(pr556+"/head"), cp(pr556+"/base")
 	beh, lad := cp(ex+"/behaviour.valid.json"), cp(ex+"/ladder-record.valid.json")
 	from, to, mod := cp(sd+"/from.json"), cp(sd+"/to.json"), cp(sd+"/module")
+	schemaFile := cp(sd + "/to.json")
 	fx := cp("../../testdata/fixture-check/l1")
 	shas := []string{"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)}
 	firstFile := func(dir string) string {
@@ -263,6 +264,7 @@ func TestStatsRefusesInputs(t *testing.T) {
 		{"lint tree argument", firstFile(head), []string{"lint", head, "--base", base}},
 		{"lint new file in --base", filepath.Join(base, "stats.json"), []string{"lint", head, "--base", base}},
 		{"lint --diff", files, []string{"lint", head, "--diff", files}},
+		{"lint --schema-files", schemaFile, []string{"lint", head, "--base", base, "--schema-files", schemaFile}},
 		{"affected tree argument", filepath.Join(head, "new.json"), []string{"affected", head, "--base", base}},
 		{"behaviour --base", firstFile(bb), []string{"behaviour", bh, "--base", bb, "--json"}},
 		{"claims-eval --behaviour", beh, append([]string{"claims-eval", "--behaviour", beh, "--ladder", lad, "--json"}, shas...)},
@@ -424,5 +426,40 @@ func TestStatsRefusesCaseAlias(t *testing.T) {
 	}
 	if after, _ := os.ReadFile(target); !bytes.Equal(after, before) {
 		t.Errorf("%s changed", target)
+	}
+}
+
+// TestStatsRefusesDotDot names a file of the input tree as lnk/../file,
+// with lnk a link into the tree: the kernel resolves .. after the link, so
+// the path is the tree's file, and it is refused. A plain .. path is
+// refused too.
+func TestStatsRefusesDotDot(t *testing.T) {
+	dir := t.TempDir()
+	tree := filepath.Join(dir, "T")
+	if err := os.CopyFS(tree, os.DirFS("../../testdata/variable-untyped-base/head")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(tree, "modules"), filepath.Join(dir, "lnk")); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(tree, "variables.tf")
+	before, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"lint", tree, "--json"}
+	code, out, errOut := runCLI(args)
+	for _, p := range []string{dir + "/lnk/../variables.tf", tree + "/../stats.json"} {
+		code2, out2, errOut2 := runCLI(append(slices.Clone(args), "--stats-file", p))
+		extra, ok := strings.CutPrefix(errOut2, errOut)
+		if code2 != code || out2 != out || !ok || !strings.HasPrefix(extra, "mtf-facts: stats: ") {
+			t.Errorf("%s: exit %d, stderr %q", p, code2, errOut2)
+		}
+	}
+	if after, _ := os.ReadFile(target); !bytes.Equal(after, before) {
+		t.Errorf("%s changed", target)
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "stats.json")); err == nil {
+		t.Error("a record was written through a .. path")
 	}
 }
