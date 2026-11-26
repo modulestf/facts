@@ -257,6 +257,51 @@ func TestAffectedReadSites(t *testing.T) {
 			inert:    true,
 			examples: []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"},
 		},
+		"a module named like an IAM type stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "module \"aws_iam_policy\" {\n  source = \"../../modules/other\"\n  path   = \"/\"\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"a path of / on a type that is not IAM stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_demo_widget\" \"w\" {\n  path = \"/\"\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"a name of / on an IAM type stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  name = \"/\"\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"an IAM path read by path stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\nresource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, aws_iam_role.r.path, \"README.md\"])\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"an IAM role read whole stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\noutput \"role\" {\n  value = aws_iam_role.r\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"a path of / on an SSM parameter stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_ssm_parameter\" \"p\" {\n  path = \"/\"\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"an IAM path that is not / alone stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"README.md\"\n}\n"},
+			change:   map[string]string{"README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"an IAM policy path in a format call stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_policy\" \"p\" {\n  path = \"/\"\n}\nresource \"aws_s3_object\" \"o\" {\n  source = format(\"%s%s%s\", path.module, aws_iam_policy.p.path, \"README.md\")\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"an IAM policy path as a join separator stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_policy\" \"p\" {\n  path = \"/\"\n}\nresource \"aws_s3_object\" \"o\" {\n  source = join(aws_iam_policy.p.path, [path.module, \"README.md\"])\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
 		"an IAM path module argument stays a read site": {
 			hcl:      map[string]string{"examples/sub/iam.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"},
 			change:   readme,
