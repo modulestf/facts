@@ -251,11 +251,21 @@ func TestAffectedReadSites(t *testing.T) {
 			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
 		},
 		"an IAM path of / is no read": {
-			hcl: map[string]string{"examples/sub/iam.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n" +
-				"resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n"},
+			hcl: map[string]string{"examples/sub/iam.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n" +
+				"data \"aws_iam_roles\" \"all\" {\n  path_prefix = \"/\"\n}\n"},
 			change:   readme,
 			inert:    true,
 			examples: []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"},
+		},
+		"an IAM path module argument stays a read site": {
+			hcl:      map[string]string{"examples/sub/iam.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"},
+			change:   readme,
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"a / variable default stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "variable \"sep\" {\n  default = \"/\"\n}\nresource \"aws_s3_object\" \"o\" {\n  source = join(var.sep, [path.module, var.doc])\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
 		},
 		"an IAM path with a dynamic part stays a read site": {
 			hcl:      map[string]string{"examples/sub/iam.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/${var.team}/\"\n}\n"},
@@ -268,7 +278,7 @@ func TestAffectedReadSites(t *testing.T) {
 			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
 		},
 		"an IAM path of / beside a file read": {
-			hcl: map[string]string{"examples/sub/iam.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n" +
+			hcl: map[string]string{"examples/sub/iam.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n" +
 				"locals {\n  doc = file(\"${path.module}/README.md\")\n}\n"},
 			change:   map[string]string{"examples/sub/README.md": "# changed\n"},
 			examples: []string{"touched examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},

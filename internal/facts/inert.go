@@ -63,7 +63,7 @@ func InertDocPath(p string) bool {
 // argument of a file function, an attribute a resource, data source or
 // provisioner reads a file or runs a program from, or any other string that
 // is a path, anchored at path.module, path.root or path.cwd, or a plain
-// literal other than an attribute value of "/" alone (see rootSlash). Text is the static part of the path after its anchor; Exact is
+// literal other than an IAM path of "/" alone (see iamPathRoot). Text is the static part of the path after its anchor; Exact is
 // set when the path has no dynamic part.
 type ReadSite struct {
 	File   string // tree path of the .tf file
@@ -240,7 +240,7 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
 				s.add(name, a.Expr, true)
 			}
 		}
-		if !rootSlash(a.Expr) {
+		if !iamPathRoot(kind, label, name, a.Expr) {
 			s.expr(a.Expr)
 		}
 	}
@@ -253,13 +253,16 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
 	}
 }
 
-// rootSlash reports whether e is the string "/" and nothing else, as the
-// IAM path argument of a role, policy or user often is. Joined to the root
-// module it names the whole tree, yet on its own it is an absolute path that
-// names no file of the tree. Where code appends "/" to a path, the "/" sits
-// inside a function call or a template with its other parts, and stays a
-// read site there, as does "/" followed by a dynamic part.
-func rootSlash(e hclsyntax.Expression) bool {
+// iamPathRoot reports whether name is the path or path_prefix argument of an
+// aws_iam_* resource or data block and its whole value is the string "/".
+// That is an IAM path, not a file path: joined to the root module it would
+// name the whole tree. A "/" anywhere else stays a read site, a variable
+// default, module argument, local or output included, since other code may
+// join it to path.module.
+func iamPathRoot(kind, label, name string, e hclsyntax.Expression) bool {
+	if kind != "resource" && kind != "data" || !strings.HasPrefix(label, "aws_iam_") || name != "path" && name != "path_prefix" {
+		return false
+	}
 	anchor, text, exact := staticPath(e)
 	return anchor == AnchorRoot && exact && text == "/"
 }

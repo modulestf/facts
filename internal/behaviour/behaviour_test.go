@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -174,24 +175,44 @@ const rds = `resource "aws_rds_cluster" "this" {
 }
 `
 
-// iamPath returns a tree whose example passes the IAM path "/" to a registry
-// module and a role, and whose root defaults a variable to it, with readme as
-// the text of every README.
+// iamPath returns a tree whose example sets the IAM path "/" on a role, a
+// policy and a roles data source, with readme as the text of every README.
 func iamPath(main, readme string) map[string]string {
 	return map[string]string{
 		"main.tf": main,
-		"variables.tf": "variable \"role_path\" {\n  type    = string\n  default = \"/\"\n}\n" +
-			"variable \"team\" {\n  type = string\n}\n",
-		"examples/postgres/main.tf": "module \"policy\" {\n  source  = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n" +
-			"  version = \"~> 5.28.0\"\n  path    = \"/\"\n}\n" +
-			"resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n" +
-			"variable \"team\" {\n  type = string\n}\n",
+		"examples/postgres/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n" +
+			"resource \"aws_iam_policy\" \"p\" {\n  path = \"/\"\n}\n" +
+			"data \"aws_iam_roles\" \"all\" {\n  path_prefix = \"/\"\n}\n",
 		"README.md":                   readme,
 		"examples/postgres/README.md": readme,
 		"examples/mysql/README.md":    readme,
 		"examples/mysql/main.tf":      "module \"db\" {\n  source = \"../../\"\n}\n",
 	}
 }
+
+// sepRead returns a tree where "/" reaches code that may join it to
+// path.module: the only read site is the "/" itself.
+func sepRead(files map[string]string, readme string) map[string]string {
+	out := map[string]string{"README.md": readme, "modules/sub/README.md": readme}
+	maps.Copy(out, files)
+	return out
+}
+
+var (
+	sepVars    = "variable \"sep\" {\n  type    = string\n  default = \"/\"\n}\nvariable \"doc\" {\n  type = string\n}\n"
+	sepDefault = map[string]string{"main.tf": sepVars + "locals {\n  dir = path.module\n}\n" +
+		"resource \"aws_s3_object\" \"o\" {\n  source = \"${local.dir}${var.sep}${var.doc}\"\n}\n"}
+	sepJoin = map[string]string{"main.tf": sepVars +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(var.sep, [path.module, var.doc])\n}\n"}
+	sepFormat = map[string]string{"main.tf": sepVars +
+		"resource \"aws_s3_object\" \"o\" {\n  source = format(\"%s%s%s\", path.module, var.sep, var.doc)\n}\n"}
+	sepModule = map[string]string{
+		"modules/sub/main.tf": "variable \"sep\" {\n  type = string\n}\nvariable \"doc\" {\n  type = string\n}\n" +
+			"resource \"aws_s3_object\" \"o\" {\n  source = join(var.sep, [path.module, var.doc])\n}\n",
+		"examples/a/main.tf": "module \"sub\" {\n  source = \"../../modules/sub\"\n  sep    = \"/\"\n  doc    = var.doc\n}\n",
+	}
+	iamModule = map[string]string{"examples/a/main.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"}
+)
 
 func TestInert(t *testing.T) {
 	t.Parallel()
@@ -236,6 +257,16 @@ func TestInert(t *testing.T) {
 		{"iam path of / reads no file", iamPath(rds, "a"), iamPath(rds, "b"), true, nil},
 		{"iam path of / beside a file read", iamPath(rds+`output "r" { value = file("${path.module}/README.md") }`+"\n", "a"),
 			iamPath(rds+`output "r" { value = file("${path.module}/README.md") }`+"\n", "b"), false, []string{CatNonHCL}},
+		{"slash in a variable default joined in a template",
+			sepRead(sepDefault, "a"), sepRead(sepDefault, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash in a variable default as a join separator",
+			sepRead(sepJoin, "a"), sepRead(sepJoin, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash in a variable default in a format call",
+			sepRead(sepFormat, "a"), sepRead(sepFormat, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash passed to a submodule as a module argument",
+			sepRead(sepModule, "a"), sepRead(sepModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam path module argument is still a read site",
+			sepRead(iamModule, "a"), sepRead(iamModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
 		{"iam path with a dynamic part is still a read site", map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "a"},
 			map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "b"}, false, []string{CatNonHCL}},
 		{"no change", map[string]string{"main.tf": rds}, map[string]string{"main.tf": rds}, true, nil},
