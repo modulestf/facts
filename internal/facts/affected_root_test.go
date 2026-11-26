@@ -179,15 +179,15 @@ func TestAffectedModuleRootUnresolved(t *testing.T) {
 	for name, body := range map[string]string{
 		"a dynamic source":            "variable \"s\" {}\nmodule \"x\" {\n  source = var.s\n}\n",
 		"a file that does not parse":  strings.Repeat("<", 4096),
-		"a file over the token limit": strings.Repeat("variable \"v\" {}\n", 30000),
+		"a file over the token limit": strings.Repeat("variable \"v\" {}\n", 100000),
 	} {
 		t.Run(name+" in a root example makes it unresolved and the change not inert", func(t *testing.T) {
 			r := run(t, map[string]string{"examples/odd/main.tf": body})
 			wantRoot(t, r, false, "", nil, append(slices.Clone(callers), "all examples/odd unresolved", "all examples/sub")...)
 		})
 	}
-	t.Run("a .tf file that is a link or over 1 MiB in a root example makes it unresolved", func(t *testing.T) {
-		r := run(t, map[string]string{"examples/odd/main.tf": "->../direct/main.tf", "examples/big/main.tf": "# " + strings.Repeat("x", 1<<20) + "\n"})
+	t.Run("a .tf file that is a link or over 2 MiB in a root example makes it unresolved", func(t *testing.T) {
+		r := run(t, map[string]string{"examples/odd/main.tf": "->../direct/main.tf", "examples/big/main.tf": "# " + strings.Repeat("x", 2<<20) + "\n"})
 		wantRoot(t, r, false, "", nil, append(slices.Clone(callers), "all examples/big unresolved", "all examples/odd unresolved", "all examples/sub")...)
 	})
 	t.Run("a root example that reaches the root through a directory with a problem stays a caller", func(t *testing.T) {

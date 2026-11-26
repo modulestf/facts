@@ -67,11 +67,11 @@ func (l Limits) expired() error {
 // DefaultLimits are the limits the CLI uses.
 var DefaultLimits = Limits{
 	MaxFiles:       10000,
-	MaxFileBytes:   1 << 20,
+	MaxFileBytes:   2 << 20,
 	MaxTotalBytes:  64 << 20,
 	MaxDepth:       64,
 	MaxOutputBytes: 16 << 20,
-	MaxTokens:      100000,
+	MaxTokens:      262144,
 	MaxPrefixOps:   64,
 	MaxAreas:       512,
 }

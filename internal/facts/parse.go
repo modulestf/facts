@@ -329,6 +329,10 @@ func kindCode(k string) string {
 	return ReasonUnsupportedFile
 }
 
+// KindText is the wording for an entry kind that is not a regular file with
+// known content, for reasons outside this package.
+func KindText(k string) string { return kindText(k) }
+
 func kindText(k string) string {
 	switch k {
 	case KindSymlink:
