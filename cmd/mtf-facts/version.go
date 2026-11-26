@@ -76,7 +76,7 @@ var behaviourFeatures = []string{
 	// (internal/behaviour TestSchemaRequired).
 	"behaviour.schema-required",
 	// The trigger cap of 40 counts only triggers that may need evidence;
-	// up to 40 more that need none (a compat-only version floor, a moved
+	// up to 40 more that no ladder level can verify (a compat-only version floor, a moved
 	// address) are listed apart, so a report holds up to 80
 	// (internal/behaviour TestCapSparesEvidence).
 	"behaviour.off-ladder-cap",

@@ -284,7 +284,8 @@ func diffEntries(head, base *facts.Tree) []change {
 }
 
 // report builds the report: triggers sorted and numbered, at most
-// MaxTriggers that need evidence and MaxOffLadderTriggers that need none,
+// MaxTriggers that may need evidence and MaxOffLadderTriggers that no
+// ladder level can verify,
 // and each entry with the triggers in it.
 func (c *classifier) report(changes []change, specs []spec, inertFiles map[string]bool) *Report {
 	triggers := make([]Trigger, 0, len(specs))
@@ -326,7 +327,8 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 }
 
 // capTriggers keeps, in order, the first MaxTriggers triggers that may need
-// evidence and the first MaxOffLadderTriggers that need none, so version
+// evidence and the first MaxOffLadderTriggers that no ladder level can
+// verify, so version
 // floors that sort first never push a change past the cap. It returns the
 // kept triggers and the count of the rest.
 func capTriggers(ts []Trigger) ([]Trigger, int) {
@@ -345,10 +347,11 @@ func capTriggers(ts []Trigger) ([]Trigger, int) {
 	return kept, len(ts) - len(kept)
 }
 
-// offLadder reports a trigger no ladder level can verify and none needs to:
-// a version floor that selects compat alone, or a moved or renamed address,
-// which selects no level, neither merged with another category nor
-// following another trigger.
+// offLadder reports a trigger that no ladder level can verify: a version
+// floor that selects compat alone, or a moved or renamed address, which
+// selects no level, neither merged with another category nor following
+// another trigger. Such a trigger stays unverifiable to claims-eval, as
+// before; only the cap it counts toward differs.
 func offLadder(t Trigger) bool {
 	if len(t.AlsoCategories) > 0 || t.followSIDs != nil {
 		return false

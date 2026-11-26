@@ -14,10 +14,11 @@ const SchemaVersion = 1
 // Report.Capped and stay unverifiable.
 const MaxTriggers = 40
 
-// MaxOffLadderTriggers caps, apart from MaxTriggers, the triggers that need
-// no ladder evidence: a version floor that selects compat alone, and a moved
-// or renamed address, which selects no level. Past it they are counted in
-// Report.Capped too. A report lists at most MaxTriggers+MaxOffLadderTriggers.
+// MaxOffLadderTriggers caps, apart from MaxTriggers, the triggers that no
+// ladder level can verify: a version floor that selects compat alone, and
+// a moved or renamed address, which selects no level. They stay
+// unverifiable to claims-eval. Past it they are counted in Report.Capped
+// too. A report lists at most MaxTriggers+MaxOffLadderTriggers.
 const MaxOffLadderTriggers = 40
 
 // Change kinds of an entry or a trigger.

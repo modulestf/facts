@@ -948,3 +948,61 @@ func TestCapSparesEvidence(t *testing.T) {
 		})
 	}
 }
+
+// TestOffLadder: each guard of offLadder holds on its own.
+func TestOffLadder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		t    Trigger
+		want bool
+	}{
+		{"compat floor", Trigger{Category: CatVersionFloor, Levels: []string{LevelCompat}}, true},
+		{"moved", Trigger{Category: CatMoved, Levels: []string{}}, true},
+		{"floor merged", Trigger{Category: CatVersionFloor, Levels: []string{LevelCompat}, AlsoCategories: []string{CatLiteral}}, false},
+		{"floor with a ladder level", Trigger{Category: CatVersionFloor, Levels: []string{LevelL4, LevelCompat}}, false},
+		{"floor with no level", Trigger{Category: CatVersionFloor, Levels: []string{}}, false},
+		{"moved with a level", Trigger{Category: CatMoved, Levels: []string{LevelL4}}, false},
+		{"floor that follows", Trigger{Category: CatVersionFloor, Levels: []string{LevelCompat}, followSIDs: []int{1}}, false},
+		{"moved that follows nothing yet", Trigger{Category: CatMoved, Levels: []string{}, followSIDs: []int{}}, false},
+		{"other category at compat", Trigger{Category: CatLiteral, Levels: []string{LevelCompat}}, false},
+	} {
+		if got := offLadder(tc.t); got != tc.want {
+			t.Errorf("%s: offLadder %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestCapMovedAndFloors: moved blocks and version floors share the
+// off-ladder cap, kept in file, line and category order.
+func TestCapMovedAndFloors(t *testing.T) {
+	t.Parallel()
+	const floors, moved = 5, MaxOffLadderTriggers + 1
+	base, head := capTrees(floors, 3)
+	var m strings.Builder
+	for i := range moved {
+		fmt.Fprintf(&m, "moved {\n  from = aws_s3_bucket.a%02d\n  to   = aws_s3_bucket.b%02d\n}\n", i, i)
+	}
+	// The moved blocks sort after the floors and before the literals.
+	base["modules/n/main.tf"], head["modules/n/main.tf"] = "", m.String()
+	r := runPair(t, base, head, "")
+	var got []string
+	evidence := 0
+	for _, tr := range r.Triggers {
+		switch tr.Category {
+		case CatVersionFloor, CatMoved:
+			got = append(got, tr.Category)
+		default:
+			evidence++
+		}
+	}
+	want := slices.Repeat([]string{CatVersionFloor}, floors)
+	want = append(want, slices.Repeat([]string{CatMoved}, MaxOffLadderTriggers-floors)...)
+	if !slices.Equal(got, want) || evidence != 3 || r.Capped != floors+moved-MaxOffLadderTriggers {
+		t.Fatalf("off-ladder %v, %d evidence, %d capped", got, evidence, r.Capped)
+	}
+	last := r.Triggers[len(r.Triggers)-4]
+	if deref(last.Address) != fmt.Sprintf("aws_s3_bucket.b%02d", MaxOffLadderTriggers-floors-1) {
+		t.Errorf("last kept moved trigger %s", deref(last.Address))
+	}
+}
