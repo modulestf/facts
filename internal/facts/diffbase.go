@@ -54,9 +54,7 @@ const gitlinkMode = "160000"
 
 // subprojectLine reports a hunk body line, past its sign, that names a
 // submodule commit.
-func subprojectLine(l string) bool {
-	return strings.HasPrefix(l, "Subproject commit ") && len(strings.TrimSpace(l)) > len("Subproject commit ")
-}
+func subprojectLine(l string) bool { return strings.HasPrefix(l, "Subproject commit ") }
 
 // markGitlink sets oldGit and newGit from the patch. A hunk line that removes
 // or keeps a "Subproject commit" line shows a gitlink at the base, and one
@@ -64,7 +62,7 @@ func subprojectLine(l string) bool {
 func (c *fileChange) markGitlink() {
 	for l := range strings.Lines(string(c.patch)) {
 		l = strings.TrimRight(l, "\n")
-		if l == "" || strings.HasPrefix(l, "@@") || !subprojectLine(l[1:]) {
+		if len(l) < 2 || !subprojectLine(l[1:]) {
 			continue
 		}
 		switch l[0] {
@@ -256,17 +254,17 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			i += n - 1
 		case strings.HasPrefix(l, "new file mode"):
 			cur.status, cur.prev = "added", ""
-			cur.newGit = cur.newGit || strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode
+			cur.newGit = strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode
 		case strings.HasPrefix(l, "deleted file mode "):
 			cur.status, cur.prev = "removed", ""
 			cur.oldMode = strings.TrimPrefix(l, "deleted file mode ")
-			cur.oldGit = cur.oldGit || cur.oldMode == gitlinkMode
+			cur.oldGit = cur.oldMode == gitlinkMode
 		case strings.HasPrefix(l, "old mode "):
 			cur.oldMode = strings.TrimPrefix(l, "old mode ")
-			cur.oldGit = cur.oldGit || cur.oldMode == gitlinkMode
+			cur.oldGit = cur.oldMode == gitlinkMode
 		case strings.HasPrefix(l, "new mode "):
-			cur.newGit = cur.newGit || strings.TrimPrefix(l, "new mode ") == gitlinkMode
-		case strings.HasPrefix(l, "index ") && strings.HasSuffix(l, " "+gitlinkMode):
+			cur.newGit = strings.TrimPrefix(l, "new mode ") == gitlinkMode
+		case strings.HasSuffix(l, " "+gitlinkMode): // the index line of a gitlink, whose mode is the same at both sides
 			cur.oldGit, cur.newGit = true, true
 		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
 			cur.prev = l[strings.Index(l, "from ")+5:]

@@ -442,13 +442,18 @@ func TestParseUnifiedGitlinkMarks(t *testing.T) {
 		diff           string
 		oldGit, newGit bool
 	}{
-		"deleted file mode": {"diff --git a/s b/s\ndeleted file mode 160000\n--- a/s\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n", true, false},
-		"new file mode":     {"diff --git a/s b/s\nnew file mode 160000\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", false, true},
-		"old mode":          {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n", true, false},
-		"new mode":          {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n", false, true},
-		"index line":        {"diff --git a/s b/s\nindex abc..def 160000\n", true, true},
-		"hunk lines":        {"diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+text\n", true, false},
-		"ordinary file":     {"diff --git a/s b/s\nindex abc..def 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
+		"deleted file mode":           {"diff --git a/s b/s\ndeleted file mode 160000\n--- a/s\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n", true, false},
+		"new file mode":               {"diff --git a/s b/s\nnew file mode 160000\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", false, true},
+		"deleted file mode, no hunk":  {"diff --git a/s b/s\ndeleted file mode 160000\n", true, false},
+		"new file mode, no hunk":      {"diff --git a/s b/s\nnew file mode 160000\n", false, true},
+		"deleted file mode of a file": {"diff --git a/s b/s\ndeleted file mode 100644\n", false, false},
+		"new file mode of a file":     {"diff --git a/s b/s\nnew file mode 100644\n", false, false},
+		"old mode of a file":          {"diff --git a/s b/s\nold mode 100644\nnew mode 100755\n", false, false},
+		"old mode":                    {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n", true, false},
+		"new mode":                    {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n", false, true},
+		"index line":                  {"diff --git a/s b/s\nindex abc..def 160000\n", true, true},
+		"hunk lines":                  {"diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+text\n", true, false},
+		"ordinary file":               {"diff --git a/s b/s\nindex abc..def 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -550,4 +555,70 @@ func TestAffectedGitlinkCalls(t *testing.T) {
 			t.Errorf("inert %v fallback %v, want a fallback", r.Inert, r.Fallback)
 		}
 	})
+}
+
+// TestDiffBaseGitlinkEntries checks what the rebuilt base holds at a path the
+// diff shows as a gitlink: no file where the base had a gitlink or nothing,
+// an unknown file where the head holds the gitlink alone.
+func TestDiffBaseGitlinkEntries(t *testing.T) {
+	t.Parallel()
+	sub := "Subproject commit " + gitSHA
+	cases := map[string]struct {
+		files   map[string]string
+		dirs    []string
+		diff    string
+		want    string // the kind at the base, or "" for none
+		changed []string
+	}{
+		"bumped":        {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+"+sub+"1"), "", []string{"docs/sub"}},
+		"removed":       {gitlinkBase, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub), "", []string{"docs/sub"}},
+		"added":         {gitlinkBase, []string{"docs/sub"}, filesList("added", "docs/sub", "@@ -0,0 +1 @@\\n+"+sub), "", []string{"docs/sub"}},
+		"to a file":     {with(gitlinkBase, map[string]string{"docs/sub": "text\n"}), nil, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+text"), "", []string{"docs/sub"}},
+		"from a file":   {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-text\\n+"+sub), KindNoPatch, []string{"docs/sub"}},
+		"not a gitlink": {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/guide.md", "@@ -1 +1 @@\\n-# old\\n+# guide"), KindFile, nil},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			headDir := writeGitlinkTree(t, c.files, c.dirs, false)
+			head := mustTree(t, headDir)
+			f := filepath.Join(t.TempDir(), "change")
+			if err := os.WriteFile(f, []byte(c.diff), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			base, _, err := ReadDiffBase(head, f, DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := "docs/sub"
+			if name == "not a gitlink" {
+				p = "docs/guide.md"
+			}
+			got := ""
+			if e := base.Entries[p]; e != nil {
+				got = e.Kind
+			}
+			if got != c.want {
+				t.Errorf("base entry kind %q, want %q", got, c.want)
+			}
+			if gl := ChangedGitlinks(head, base); !slices.Equal(gl, c.changed) {
+				t.Errorf("changed gitlinks %q, want %q", gl, c.changed)
+			}
+		})
+	}
+}
+
+// TestAffectedGitlinkReadModuleRootDiff: an unchanged gitlink a module file
+// reads is a fallback with --diff, as the walk cannot see below it.
+func TestAffectedGitlinkReadModuleRootDiff(t *testing.T) {
+	t.Parallel()
+	doc := `[{"filename":"mod/docs/guide.md","status":"modified","additions":1,"deletions":1,"patch":"@@ -1 +1 @@\n-# guide\n+# guide 2"}]`
+	read := gitlinkRootFiles(map[string]string{
+		"mod/main.tf":       "locals {\n  p = file(\"${path.module}/docs/sub/policy.json\")\n}\n",
+		"mod/docs/guide.md": "# guide 2\n",
+	})
+	r := diffAffected(t, writeGitlinkTree(t, read, []string{"mod/docs/sub"}, false), doc, "mod")
+	if r.Inert || r.Fallback == nil || *r.Fallback != FallbackUnparsed {
+		t.Errorf("inert %v fallback %v, want not inert, unparsed", r.Inert, r.Fallback)
+	}
 }

@@ -197,12 +197,16 @@ func ChangedGitlinks(head, base *Tree) []string {
 // InGitlink reports whether p is a gitlink or a path below one: a place whose
 // files the tree does not hold.
 func (t *Tree) InGitlink(p string) bool {
-	for ; p != "." && p != "/" && p != ""; p = path.Dir(p) {
+	for {
 		if t.gitlinks[p] {
 			return true
 		}
+		up := path.Dir(p)
+		if up == p {
+			return false
+		}
+		p = up
 	}
-	return false
 }
 
 // gitlinkDir reports whether a directory with these entries stands for a

@@ -255,9 +255,7 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	for _, ex := range listed {
 		siteRoots = append(siteRoots, ex.dir)
 	}
-	if read := gitlinksRead(head, slices.DeleteFunc(slices.Clone(sites), func(s ReadSite) bool {
-		return !siteDirs[s.Dir] && !inDir(s.Dir, m)
-	}), siteRoots); len(read) > 0 {
+	if read := gitlinksRead(head, sites, siteRoots); len(read) > 0 {
 		for _, g := range read {
 			extra[g] = true
 		}
