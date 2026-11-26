@@ -351,7 +351,7 @@ func TestPolicyDocsLimits(t *testing.T) {
 // validator lint's reports are checked with.
 func validateAgainst(t *testing.T, id string, data []byte) {
 	t.Helper()
-	if errs := loadSchemas(t).validate(id, decodeJSON(t, data)); len(errs) > 0 {
+	if errs := loadSchemas(t).Validate(id, decodeJSON(t, data)); len(errs) > 0 {
 		t.Errorf("%s: %v", id, errs)
 	}
 }
@@ -369,7 +369,7 @@ func TestPolicyDocsSchemaExamples(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		errs := set.validate("iam-policy-docs.schema.json", decodeJSON(t, data))
+		errs := set.Validate("iam-policy-docs.schema.json", decodeJSON(t, data))
 		if strings.Contains(f, ".invalid.") == (len(errs) == 0) {
 			t.Errorf("%s: %v", filepath.Base(f), errs)
 		}
