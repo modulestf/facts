@@ -97,10 +97,10 @@ func (fx *fixture) writeTrees(t *testing.T, dir string) []map[string]any {
 			continue
 		}
 		p := filepath.Join(dir, rev, rel)
-		if strings.HasSuffix(rel, " [gitlink]") {
+		if trimmed, isLink := strings.CutSuffix(rel, " [gitlink]"); isLink {
 			// The checkout holds an empty directory; the body, the commit
 			// it points at, only shows in the files list.
-			rel = strings.TrimSuffix(rel, " [gitlink]")
+			rel = trimmed
 			if err := os.MkdirAll(filepath.Join(dir, rev, rel), 0o755); err != nil {
 				t.Fatal(err)
 			}
