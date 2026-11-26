@@ -1,3 +1,12 @@
+# [0.12.0](https://github.com/modulestf/facts/compare/v0.11.1...v0.12.0) (2026-11-26)
+
+
+### Features
+
+* Let affected select examples that call a module root ([#57](https://github.com/modulestf/facts/issues/57)) ([8f00a9e](https://github.com/modulestf/facts/commit/8f00a9e5b1a9914fe3fcdedee1c29436a9148e45))
+
+
+
 ## [0.11.1](https://github.com/modulestf/facts/compare/v0.11.0...v0.11.1) (2026-11-26)
 
 
