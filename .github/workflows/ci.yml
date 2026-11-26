@@ -241,6 +241,8 @@ jobs:
           - { pkg: ./internal/merge, name: FuzzParseReply }
           - { pkg: ./internal/schema, name: FuzzNullScan }
           - { pkg: ./internal/schema, name: FuzzRawSchema }
+          - { pkg: ./internal/gates, name: FuzzMask }
+          - { pkg: ./internal/gates, name: FuzzRun }
     env:
       GOFLAGS: -mod=readonly
     steps:

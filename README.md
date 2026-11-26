@@ -62,7 +62,7 @@ The [usage guide](docs/usage.md) has more examples and a worked review of a real
   - [Run in a review pipeline](docs/usage.md#run-in-a-review-pipeline)
 - [Command reference](docs/commands.md)
   - [lint](docs/commands.md#lint), [affected](docs/commands.md#affected), [changes](docs/commands.md#changes), [depth](docs/commands.md#depth), [behaviour](docs/commands.md#behaviour), [claims-eval](docs/commands.md#claims-eval), [bundle](docs/commands.md#bundle), [merge](docs/commands.md#merge)
-  - [profile-check](docs/commands.md#profile-check), [profile-snapshot](docs/commands.md#profile-snapshot), [ledger](docs/commands.md#ledger), [schema-diff](docs/commands.md#schema-diff), [fixture-build](docs/commands.md#fixture-build), [fixture-check](docs/commands.md#fixture-check), [rules, version and completion](docs/commands.md#rules-version-and-completion)
+  - [profile-check](docs/commands.md#profile-check), [profile-snapshot](docs/commands.md#profile-snapshot), [ledger](docs/commands.md#ledger), [schema-diff](docs/commands.md#schema-diff), [fixture-build](docs/commands.md#fixture-build), [fixture-check](docs/commands.md#fixture-check), [plan-gates](docs/commands.md#plan-gates), [rules, version and completion](docs/commands.md#rules-version-and-completion)
 - [How rules are evaluated](docs/rules.md): areas, module ownership, profile options, in-repo downgrade, scope rules at area boundaries, platform
 - [Benchmarks](docs/benchmarks.md): run the benchmarks and compare two runs
 - [Releases](docs/releases.md): cut a release, verify a release, update a consumer pin

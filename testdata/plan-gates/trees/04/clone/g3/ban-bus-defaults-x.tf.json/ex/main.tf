@@ -1,0 +1,4 @@
+module "m" {
+  source = "../mod"
+
+}
