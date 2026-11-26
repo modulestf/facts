@@ -266,8 +266,6 @@ type policyDirInfo struct {
 	tfvars      bool // a variables file Terraform loads when the directory is a root module
 	blocks      []policyBlock
 	locals      map[string]*policyLocalAttr
-	variables   map[string]*policyBlock
-	outputs     map[string]*policyBlock
 	byAddr      map[string][]*policyBlock // block address -> blocks
 	sites       []policySite
 	docs        []*policyDocInfo
@@ -433,8 +431,8 @@ func policyConfigDirs(t *Tree) []string {
 // file rules of ParseDir. An OpenTofu file also makes it undecidable: the
 // report must hold for both tools.
 func policyLoadDir(t *Tree, dir string, lim Limits) *policyDirInfo {
-	di := &policyDirInfo{dir: dir, locals: map[string]*policyLocalAttr{}, variables: map[string]*policyBlock{},
-		outputs: map[string]*policyBlock{}, byAddr: map[string][]*policyBlock{}}
+	di := &policyDirInfo{dir: dir, locals: map[string]*policyLocalAttr{},
+		byAddr: map[string][]*policyBlock{}}
 	undec := func(code, detail string) {
 		if di.undecidable == nil {
 			di.undecidable = &PolicyReason{Code: code, Detail: detail}
@@ -481,8 +479,7 @@ func policyLoadDir(t *Tree, dir string, lim Limits) *policyDirInfo {
 	for i := range di.blocks {
 		pb := &di.blocks[i]
 		b := pb.block
-		switch {
-		case b.Type == "locals":
+		if b.Type == "locals" {
 			for _, a := range sortedAttrs(b.Body) {
 				if di.locals[a.Name] != nil {
 					undec(ReasonParseError, "local."+a.Name+" is defined twice")
@@ -490,10 +487,6 @@ func policyLoadDir(t *Tree, dir string, lim Limits) *policyDirInfo {
 				di.locals[a.Name] = &policyLocalAttr{file: pb.file, src: pb.src, attr: a}
 			}
 			continue
-		case b.Type == "variable" && len(b.Labels) == 1:
-			di.variables[b.Labels[0]] = pb
-		case b.Type == "output" && len(b.Labels) == 1:
-			di.outputs[b.Labels[0]] = pb
 		}
 		di.byAddr[pb.addr] = append(di.byAddr[pb.addr], pb)
 	}
