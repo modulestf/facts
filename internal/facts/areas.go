@@ -388,6 +388,11 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 				add(inScope, p, base)
 			}
 		}
+		// A gitlink holds no entry, so its change is the touch of the area
+		// that holds it, as a changed file there would be.
+		for _, p := range ChangedGitlinks(head, base) {
+			add(inScope, p+"/x", head)
+		}
 		if untouched {
 			all = map[string]string{}
 			every(all)

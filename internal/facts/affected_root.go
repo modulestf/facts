@@ -174,13 +174,16 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 		return nil, err
 	}
 	r := &AffectedReport{SchemaVersion: AffectedSchemaVersion, ModuleRoot: m, Changed: []string{}}
+	// extra holds the changed gitlinks in scope that no other test of a path
+	// keeps in a fallback's changed list.
+	extra := map[string]bool{}
 	fallback := func(why string, changed []string) *AffectedReport {
 		r.Fallback, r.Inert, r.Examples = &why, false, []AffectedExample{}
 		for _, ex := range slices.Sorted(slices.Values(slices.Concat(own, roots))) {
 			r.Examples = append(r.Examples, AffectedExample{Dir: ex, Reason: ReasonAll})
 		}
 		r.Changed = slices.DeleteFunc(changed, func(p string) bool {
-			return !inDir(p, m) && !slices.ContainsFunc(roots, func(ex string) bool { return inDir(p, ex) })
+			return !inDir(p, m) && !extra[p] && !slices.ContainsFunc(roots, func(ex string) bool { return inDir(p, ex) })
 		})
 		return r
 	}
@@ -203,6 +206,12 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	scope, problem, err := g.closure(slices.Concat([]string{m}, own)...)
 	if err != nil {
 		return nil, err
+	}
+	scopeDirs := slices.Collect(maps.Keys(scope))
+	for _, p := range all {
+		if (head.IsGitlink(p) || base.IsGitlink(p)) && slices.ContainsFunc(scopeDirs, func(d string) bool { return inDir(d, p) }) {
+			extra[p] = true // a module call into a gitlink
+		}
 	}
 	if problem != "" {
 		return fallback(problem, all), nil
@@ -242,11 +251,11 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	for _, ex := range listed {
 		siteRoots = append(siteRoots, ex.dir)
 	}
-	reachedBy := func(p string) []string {
+	reachedBy := func(p string, dir bool) []string {
 		var dirs []string
 		for _, s := range sites {
 			if siteDirs[s.Dir] || inDir(s.Dir, m) {
-				if s.Reaches(p, siteRoots) {
+				if s.Reaches(p, siteRoots) || dir && s.ReachesDir(p, siteRoots) {
 					dirs = append(dirs, s.Dir)
 				}
 			}
@@ -255,27 +264,27 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	}
 
 	changedDirs := map[string]bool{}
-	scopeDirs := slices.Collect(maps.Keys(scope))
 	r.Inert = true
+	gitlinkChanged := false
 	for i, p := range all {
 		if i%256 == 0 {
 			if err := o.Limits.expired(); err != nil {
 				return nil, err
 			}
 		}
-		readers := reachedBy(p)
 		gitlink := head.IsGitlink(p) || base.IsGitlink(p)
-		inScope := inDir(p, m) || scope[path.Dir(p)] || len(readers) > 0 ||
-			slices.ContainsFunc(listed, func(ex rootExample) bool { return inDir(p, ex.dir) }) ||
-			gitlink && slices.ContainsFunc(scopeDirs, func(d string) bool { return inDir(d, p) })
+		readers := reachedBy(p, gitlink)
+		inScope := inDir(p, m) || scope[path.Dir(p)] || len(readers) > 0 || extra[p] ||
+			slices.ContainsFunc(listed, func(ex rootExample) bool { return inDir(p, ex.dir) })
 		if !inScope {
 			continue
 		}
+		r.Changed = append(r.Changed, p)
 		if gitlink {
 			// Its commit is not in the tree, so nothing says what it changed.
-			return fallback(FallbackUnparsed, all), nil
+			extra[p], gitlinkChanged = true, true
+			continue
 		}
-		r.Changed = append(r.Changed, p)
 		h, b := head.Entries[p], base.Entries[p]
 		if dirLoaded(p, h, b) {
 			r.Inert = false
@@ -288,6 +297,10 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 		if len(readers) > 0 || !InertDocPath(p) || !inertEntry(h) || !inertEntry(b) || modeChanged(h, b) {
 			r.Inert = false
 		}
+	}
+
+	if gitlinkChanged {
+		return fallback(FallbackUnparsed, all), nil
 	}
 
 	var touched, callers, rest []AffectedExample

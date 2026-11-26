@@ -154,3 +154,131 @@ func TestAffectedGitlinkModuleRoot(t *testing.T) {
 		})
 	}
 }
+
+// gitlinkRootFiles is a module under mod with a root example that calls it, a
+// gitlink at vendor/sub outside both, and files that name it.
+func gitlinkRootFiles(set map[string]string) map[string]string {
+	return with(map[string]string{
+		"mod/main.tf":               "resource \"null_resource\" \"this\" {}\n",
+		"mod/docs/guide.md":         "# guide\n",
+		"examples/complete/main.tf": "module \"this\" {\n  source = \"../../mod\"\n}\n",
+		"vendor/keep.md":            "# keep\n",
+	}, set)
+}
+
+// TestAffectedGitlinkRead gives a gitlink outside the module root that a read
+// site of the module, of a listed root example or a module call in scope
+// reaches: the change is in scope, listed, and not inert.
+func TestAffectedGitlinkRead(t *testing.T) {
+	t.Parallel()
+	cases := map[string]map[string]string{
+		"file in the module": {
+			"mod/main.tf": "locals {\n  x = file(\"${path.module}/../vendor/sub/x.txt\")\n}\n",
+		},
+		"the gitlink itself in the module": {
+			"mod/main.tf": "locals {\n  x = file(\"${path.module}/../vendor/sub\")\n}\n",
+		},
+		"file in a root example": {
+			"examples/complete/main.tf": "module \"this\" {\n  source = \"../../mod\"\n}\n" +
+				"locals {\n  x = file(\"${path.module}/../../vendor/sub/x.txt\")\n}\n",
+		},
+		"module call into the gitlink": {
+			"mod/main.tf": "module \"v\" {\n  source = \"../vendor/sub\"\n}\n",
+		},
+	}
+	for name, set := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			files := gitlinkRootFiles(set)
+			head := writeGitlinkTree(t, files, []string{"vendor/sub"}, false)
+			base := writeGitlinkTree(t, files, []string{"vendor/sub"}, false)
+			r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+			if err != nil {
+				t.Fatal(err)
+			}
+			notInert(t, r, "vendor/sub", true)
+		})
+	}
+}
+
+// TestAffectedGitlinkNotChanged gives a change that leaves a gitlink alone,
+// with --diff: no tree holds a changed gitlink, so there is no fallback and
+// the gitlink is not in changed.
+func TestAffectedGitlinkNotChanged(t *testing.T) {
+	t.Parallel()
+	head := with(gitlinkBase, map[string]string{"docs/guide.md": "# guide 2\n"})
+	list := filepath.Join(t.TempDir(), "files.json")
+	files := `[{"filename":"docs/guide.md","status":"modified","additions":1,"deletions":1,` +
+		`"patch":"@@ -1 +1 @@\n-# guide\n+# guide 2"}]`
+	if err := os.WriteFile(list, []byte(files), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("whole tree", func(t *testing.T) {
+		dir := writeGitlinkTree(t, head, []string{"vendor/sub", "docs/sub"}, false)
+		r, err := Affected(AffectedOptions{Head: dir, Diff: list, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantAffected(t, r, true, "", "all examples/complete")
+		if !slices.Equal(r.Changed, []string{"docs/guide.md"}) {
+			t.Errorf("changed = %q, want only the file", r.Changed)
+		}
+	})
+	t.Run("module root", func(t *testing.T) {
+		files := gitlinkRootFiles(map[string]string{"mod/docs/guide.md": "# guide 2\n"})
+		dir := writeGitlinkTree(t, files, []string{"vendor/sub", "mod/docs/sub"}, false)
+		list := filepath.Join(t.TempDir(), "files.json")
+		body := `[{"filename":"mod/docs/guide.md","status":"modified","additions":1,"deletions":1,` +
+			`"patch":"@@ -1 +1 @@\n-# guide\n+# guide 2"}]`
+		if err := os.WriteFile(list, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r, err := Affected(AffectedOptions{Head: dir, Diff: list, ModuleRoot: "mod", Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Fallback != nil || !r.Inert || !slices.Equal(r.Changed, []string{"mod/docs/guide.md"}) {
+			t.Errorf("inert %v fallback %v changed %q, want inert, no fallback, the file only", r.Inert, r.Fallback, r.Changed)
+		}
+	})
+}
+
+// TestAffectedGitlinkFileToGitlinkModuleRoot replaces a file of the module
+// with a gitlink, under a module root.
+func TestAffectedGitlinkFileToGitlinkModuleRoot(t *testing.T) {
+	t.Parallel()
+	files := gitlinkRootFiles(nil)
+	head := writeGitlinkTree(t, files, []string{"mod/docs/sub"}, false)
+	base := writeGitlinkTree(t, with(files, map[string]string{"mod/docs/sub": "text\n"}), nil, false)
+	r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notInert(t, r, "mod/docs/sub", true)
+}
+
+// TestFindAreasGitlink: a changed gitlink touches the area that holds it.
+func TestFindAreasGitlink(t *testing.T) {
+	t.Parallel()
+	files := map[string]string{
+		"main.tf":            "resource \"null_resource\" \"this\" {}\n",
+		"modules/x/main.tf":  "resource \"null_resource\" \"x\" {}\n",
+		"modules/y/main.tf":  "resource \"null_resource\" \"y\" {}\n",
+		"examples/a/main.tf": "module \"m\" {\n  source = \"../..\"\n}\n",
+	}
+	head := mustTree(t, writeGitlinkTree(t, files, []string{"modules/x/vendor/s"}, false))
+	base := mustTree(t, writeGitlinkTree(t, files, []string{"modules/x/vendor/s"}, false))
+	areas, err := FindAreas(head, base, DefaultLimits, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, a := range areas {
+		if !a.Untouched {
+			got = append(got, a.Path)
+		}
+	}
+	if !slices.Equal(got, []string{"modules/x"}) {
+		t.Errorf("touched areas = %q, want modules/x", got)
+	}
+}
