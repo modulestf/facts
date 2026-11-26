@@ -1006,3 +1006,14 @@ func TestCapMovedAndFloors(t *testing.T) {
 		t.Errorf("last kept moved trigger %s", deref(last.Address))
 	}
 }
+
+// The caps are part of the report's contract with the schema (maxItems 80)
+// and with the reviewing skill; the other tests are written in terms of the
+// constants, so they would follow a change of either. This one holds the
+// numbers.
+func TestTriggerCapsArePinned(t *testing.T) {
+	if MaxTriggers != 40 || MaxOffLadderTriggers != 40 {
+		t.Fatalf("caps = %d and %d, want 40 and 40 (schema/behaviour.schema.json allows 80 triggers)",
+			MaxTriggers, MaxOffLadderTriggers)
+	}
+}

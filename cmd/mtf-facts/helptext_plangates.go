@@ -13,8 +13,9 @@ override file, a carriage return, form feed or vertical tab, a byte over
 0x7f in code or a label, a block comment, or in runner mode a string,
 comment or heredoc that does not end. G1 is a required provider outside the
 allowlist, G2 a module source outside the clone or the terraform-aws-modules
-registry namespace, G3 a block or expression that runs code or reads an
-account. Runner mode relaxes the code-execution gates and records the
+registry namespace (a source that holds a NUL byte is a G2 hit; the Perl
+gates truncated it at the NUL), G3 a block or expression that runs code or
+reads an account. Runner mode relaxes the code-execution gates and records the
 exceptions Xrole, a fixed role in another account, and Xdocker, a Docker
 daemon.
 
