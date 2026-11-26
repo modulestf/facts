@@ -9,7 +9,8 @@
 //	go run ./scripts/mutate -base origin/master
 //
 // The diff is from the merge base of -base and HEAD to the work tree, so
-// uncommitted edits count. The markdown report goes to stdout and, with
+// uncommitted edits count; a new file counts once git knows it (git add or
+// git add -N). The markdown report goes to stdout and, with
 // -summary, is appended to that file.
 package main
 
