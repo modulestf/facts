@@ -97,7 +97,7 @@ if [ -x "$bin" ]; then
   live_case profile-check "profile-check" "0" profile-check --profile-dir testdata/profile
   live_case profile-snapshot "profile-snapshot" "0" profile-snapshot --profile-dir testdata/profile
   # The stats record lint --stats-file writes is a file, not stdout.
-  live_case lint "lint --json for the stats record" "0 3" lint testdata/variable-untyped-base/head --json --stats-file "$tmp/stats.json"
+  live_case lint "lint --json for the stats record" "0 1 3" lint testdata/variable-untyped-base/head --json --stats-file "$tmp/stats.json"
   if [ -f "$tmp/stats.json" ]; then
     live+=(--live stats "$tmp/stats.json" "lint --stats-file record")
   else
