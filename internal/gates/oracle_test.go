@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -26,6 +27,7 @@ type oracleCase struct {
 	Providers []string `json:"providers"`
 	Stdin     []string `json:"stdin"`
 	Want      string   `json:"want"`
+	GOOS      string   `json:"goos"` // set when the Perl's output differs by platform
 }
 
 type oracle struct {
@@ -77,14 +79,20 @@ func buildTree(t *testing.T, o oracle, n int) string {
 func twoDigits(n int) string { return fmt.Sprintf("%02d", n) }
 
 // TestOracle runs every recorded case and wants the Perl's output byte for
-// byte.
+// byte. A case with a goos runs on that platform only: the link limit of a
+// module source's resolution is the C library's.
 func TestOracle(t *testing.T) {
 	o := loadOracle(t)
 	if len(o.Cases) < 200 {
 		t.Fatalf("%d cases, want the whole recorded set", len(o.Cases))
 	}
 	runs := map[int]string{}
+	ran := 0
 	for _, c := range o.Cases {
+		if c.GOOS != "" && c.GOOS != runtime.GOOS {
+			continue
+		}
+		ran++
 		run, ok := runs[c.Tree]
 		if !ok {
 			run = buildTree(t, o, c.Tree)
@@ -111,5 +119,8 @@ func TestOracle(t *testing.T) {
 		if want := sub(c.Want); string(got) != want {
 			t.Errorf("%s:\n got %q\nwant %q", c.Name, got, want)
 		}
+	}
+	if ran < 330 {
+		t.Errorf("%d cases ran on %s, want every case of the platform", ran, runtime.GOOS)
 	}
 }

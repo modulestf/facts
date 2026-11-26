@@ -8,9 +8,6 @@ import (
 	"syscall"
 )
 
-// maxSymlinks is the link budget of one resolution, as the BSD realpath the
-// shell's Perl used has it.
-const maxSymlinks = 32
 
 // realpath resolves p as the BSD realpath of Perl's Cwd does: every link is
 // followed, "." and ".." are read on the resolved path, and a missing last

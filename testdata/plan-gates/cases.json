@@ -3555,6 +3555,2030 @@
    ],
    "tree": 8,
    "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "216 laptop clone extra/chain-21.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-21.tf"
+   ],
+   "tree": 18,
+   "want": ""
+  },
+  {
+   "example": "",
+   "goos": "darwin",
+   "mode": "laptop",
+   "name": "217 laptop clone extra/chain-22.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-22.tf"
+   ],
+   "tree": 18,
+   "want": ""
+  },
+  {
+   "example": "",
+   "goos": "linux",
+   "mode": "laptop",
+   "name": "217 laptop clone extra/chain-22.tf linux",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-22.tf"
+   ],
+   "tree": 18,
+   "want": "G2 {run}/clone/extra/chain-22.tf:1\n"
+  },
+  {
+   "example": "",
+   "goos": "darwin",
+   "mode": "laptop",
+   "name": "219 laptop clone extra/chain-33.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-33.tf"
+   ],
+   "tree": 18,
+   "want": ""
+  },
+  {
+   "example": "",
+   "goos": "linux",
+   "mode": "laptop",
+   "name": "219 laptop clone extra/chain-33.tf linux",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-33.tf"
+   ],
+   "tree": 18,
+   "want": "G2 {run}/clone/extra/chain-33.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "221 laptop clone extra/chain-34.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-34.tf"
+   ],
+   "tree": 18,
+   "want": "G2 {run}/clone/extra/chain-34.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "222 laptop clone extra/cred-access_key-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-access_key-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-access_key-block.tf:1\nG3 {run}/clone/extra/cred-access_key-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "223 laptop clone extra/cred-access_key-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-access_key-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-access_key-dynamic.tf:1\nG3 {run}/clone/extra/cred-access_key-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "224 laptop clone extra/cred-access_key-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-access_key-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-access_key-eq.tf:1\nG3 {run}/clone/extra/cred-access_key-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "225 laptop clone extra/cred-assume_role-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role-block.tf:1\nG3 {run}/clone/extra/cred-assume_role-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "226 laptop clone extra/cred-assume_role-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role-dynamic.tf:1\nG3 {run}/clone/extra/cred-assume_role-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "227 laptop clone extra/cred-assume_role-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role-eq.tf:1\nG3 {run}/clone/extra/cred-assume_role-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "228 laptop clone extra/cred-assume_role_with_web_identity-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role_with_web_identity-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role_with_web_identity-block.tf:1\nG3 {run}/clone/extra/cred-assume_role_with_web_identity-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "229 laptop clone extra/cred-assume_role_with_web_identity-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role_with_web_identity-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role_with_web_identity-dynamic.tf:1\nG3 {run}/clone/extra/cred-assume_role_with_web_identity-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "230 laptop clone extra/cred-assume_role_with_web_identity-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role_with_web_identity-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role_with_web_identity-eq.tf:1\nG3 {run}/clone/extra/cred-assume_role_with_web_identity-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "231 laptop clone extra/cred-custom_ca_bundle-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-custom_ca_bundle-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-custom_ca_bundle-block.tf:1\nG3 {run}/clone/extra/cred-custom_ca_bundle-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "232 laptop clone extra/cred-custom_ca_bundle-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-custom_ca_bundle-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-custom_ca_bundle-dynamic.tf:1\nG3 {run}/clone/extra/cred-custom_ca_bundle-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "233 laptop clone extra/cred-custom_ca_bundle-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-custom_ca_bundle-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-custom_ca_bundle-eq.tf:1\nG3 {run}/clone/extra/cred-custom_ca_bundle-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "234 laptop clone extra/cred-ec2_metadata_service_endpoint-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-block.tf:1\nG3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "235 laptop clone extra/cred-ec2_metadata_service_endpoint-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-dynamic.tf:1\nG3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "236 laptop clone extra/cred-ec2_metadata_service_endpoint-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-eq.tf:1\nG3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "237 laptop clone extra/cred-ec2_metadata_service_endpoint_mode-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-block.tf:1\nG3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "238 laptop clone extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf:1\nG3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "239 laptop clone extra/cred-ec2_metadata_service_endpoint_mode-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-eq.tf:1\nG3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "240 laptop clone extra/cred-endpoints-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-endpoints-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-endpoints-block.tf:1\nG3 {run}/clone/extra/cred-endpoints-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "241 laptop clone extra/cred-endpoints-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-endpoints-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-endpoints-dynamic.tf:1\nG3 {run}/clone/extra/cred-endpoints-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "242 laptop clone extra/cred-endpoints-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-endpoints-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-endpoints-eq.tf:1\nG3 {run}/clone/extra/cred-endpoints-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "243 laptop clone extra/cred-http_proxy-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-http_proxy-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-http_proxy-block.tf:1\nG3 {run}/clone/extra/cred-http_proxy-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "244 laptop clone extra/cred-http_proxy-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-http_proxy-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-http_proxy-dynamic.tf:1\nG3 {run}/clone/extra/cred-http_proxy-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "245 laptop clone extra/cred-http_proxy-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-http_proxy-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-http_proxy-eq.tf:1\nG3 {run}/clone/extra/cred-http_proxy-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "246 laptop clone extra/cred-https_proxy-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-https_proxy-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-https_proxy-block.tf:1\nG3 {run}/clone/extra/cred-https_proxy-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "247 laptop clone extra/cred-https_proxy-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-https_proxy-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-https_proxy-dynamic.tf:1\nG3 {run}/clone/extra/cred-https_proxy-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "248 laptop clone extra/cred-https_proxy-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-https_proxy-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-https_proxy-eq.tf:1\nG3 {run}/clone/extra/cred-https_proxy-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "249 laptop clone extra/cred-insecure-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-insecure-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-insecure-block.tf:1\nG3 {run}/clone/extra/cred-insecure-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "250 laptop clone extra/cred-insecure-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-insecure-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-insecure-dynamic.tf:1\nG3 {run}/clone/extra/cred-insecure-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "251 laptop clone extra/cred-insecure-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-insecure-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-insecure-eq.tf:1\nG3 {run}/clone/extra/cred-insecure-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "252 laptop clone extra/cred-no_proxy-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-no_proxy-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-no_proxy-block.tf:1\nG3 {run}/clone/extra/cred-no_proxy-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "253 laptop clone extra/cred-no_proxy-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-no_proxy-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-no_proxy-dynamic.tf:1\nG3 {run}/clone/extra/cred-no_proxy-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "254 laptop clone extra/cred-no_proxy-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-no_proxy-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-no_proxy-eq.tf:1\nG3 {run}/clone/extra/cred-no_proxy-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "255 laptop clone extra/cred-profile-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-profile-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-profile-block.tf:1\nG3 {run}/clone/extra/cred-profile-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "256 laptop clone extra/cred-profile-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-profile-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-profile-dynamic.tf:1\nG3 {run}/clone/extra/cred-profile-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "257 laptop clone extra/cred-profile-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-profile-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-profile-eq.tf:1\nG3 {run}/clone/extra/cred-profile-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "258 laptop clone extra/cred-role_arn-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-role_arn-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-role_arn-block.tf:1\nG3 {run}/clone/extra/cred-role_arn-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "259 laptop clone extra/cred-role_arn-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-role_arn-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-role_arn-dynamic.tf:1\nG3 {run}/clone/extra/cred-role_arn-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "260 laptop clone extra/cred-role_arn-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-role_arn-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-role_arn-eq.tf:1\nG3 {run}/clone/extra/cred-role_arn-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "261 laptop clone extra/cred-secret_key-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-secret_key-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-secret_key-block.tf:1\nG3 {run}/clone/extra/cred-secret_key-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "262 laptop clone extra/cred-secret_key-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-secret_key-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-secret_key-dynamic.tf:1\nG3 {run}/clone/extra/cred-secret_key-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "263 laptop clone extra/cred-secret_key-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-secret_key-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-secret_key-eq.tf:1\nG3 {run}/clone/extra/cred-secret_key-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "264 laptop clone extra/cred-shared_config_files-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_config_files-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_config_files-block.tf:1\nG3 {run}/clone/extra/cred-shared_config_files-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "265 laptop clone extra/cred-shared_config_files-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_config_files-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_config_files-dynamic.tf:1\nG3 {run}/clone/extra/cred-shared_config_files-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "266 laptop clone extra/cred-shared_config_files-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_config_files-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_config_files-eq.tf:1\nG3 {run}/clone/extra/cred-shared_config_files-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "267 laptop clone extra/cred-shared_credentials_file-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_file-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_file-block.tf:1\nG3 {run}/clone/extra/cred-shared_credentials_file-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "268 laptop clone extra/cred-shared_credentials_file-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_file-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_file-dynamic.tf:1\nG3 {run}/clone/extra/cred-shared_credentials_file-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "269 laptop clone extra/cred-shared_credentials_file-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_file-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_file-eq.tf:1\nG3 {run}/clone/extra/cred-shared_credentials_file-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "270 laptop clone extra/cred-shared_credentials_files-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_files-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_files-block.tf:1\nG3 {run}/clone/extra/cred-shared_credentials_files-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "271 laptop clone extra/cred-shared_credentials_files-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_files-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_files-dynamic.tf:1\nG3 {run}/clone/extra/cred-shared_credentials_files-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "272 laptop clone extra/cred-shared_credentials_files-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_files-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_files-eq.tf:1\nG3 {run}/clone/extra/cred-shared_credentials_files-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "273 laptop clone extra/cred-token-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-token-block.tf:1\nG3 {run}/clone/extra/cred-token-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "274 laptop clone extra/cred-token-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-token-dynamic.tf:1\nG3 {run}/clone/extra/cred-token-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "275 laptop clone extra/cred-token-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-token-eq.tf:1\nG3 {run}/clone/extra/cred-token-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "276 laptop clone extra/label-nonascii.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/label-nonascii.tf"
+   ],
+   "tree": 18,
+   "want": "G0 {run}/clone/extra/label-nonascii.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "277 laptop clone extra/provider-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/provider-heredoc.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/provider-heredoc.tf:1\nG3 {run}/clone/extra/provider-heredoc.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "278 laptop clone extra/vertical-tab.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/vertical-tab.tf"
+   ],
+   "tree": 18,
+   "want": "G0 {run}/clone/extra/vertical-tab.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "279 runner clone extra/chain-21.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-21.tf"
+   ],
+   "tree": 18,
+   "want": ""
+  },
+  {
+   "example": "",
+   "goos": "darwin",
+   "mode": "runner",
+   "name": "280 runner clone extra/chain-22.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-22.tf"
+   ],
+   "tree": 18,
+   "want": ""
+  },
+  {
+   "example": "",
+   "goos": "linux",
+   "mode": "runner",
+   "name": "280 runner clone extra/chain-22.tf linux",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-22.tf"
+   ],
+   "tree": 18,
+   "want": "G2 {run}/clone/extra/chain-22.tf:1\n"
+  },
+  {
+   "example": "",
+   "goos": "darwin",
+   "mode": "runner",
+   "name": "282 runner clone extra/chain-33.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-33.tf"
+   ],
+   "tree": 18,
+   "want": ""
+  },
+  {
+   "example": "",
+   "goos": "linux",
+   "mode": "runner",
+   "name": "282 runner clone extra/chain-33.tf linux",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-33.tf"
+   ],
+   "tree": 18,
+   "want": "G2 {run}/clone/extra/chain-33.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "284 runner clone extra/chain-34.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/chain-34.tf"
+   ],
+   "tree": 18,
+   "want": "G2 {run}/clone/extra/chain-34.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "285 runner clone extra/cred-access_key-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-access_key-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-access_key-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "286 runner clone extra/cred-access_key-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-access_key-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-access_key-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "287 runner clone extra/cred-access_key-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-access_key-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-access_key-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "288 runner clone extra/cred-assume_role-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "289 runner clone extra/cred-assume_role-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "290 runner clone extra/cred-assume_role-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "291 runner clone extra/cred-assume_role_with_web_identity-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role_with_web_identity-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role_with_web_identity-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "292 runner clone extra/cred-assume_role_with_web_identity-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role_with_web_identity-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role_with_web_identity-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "293 runner clone extra/cred-assume_role_with_web_identity-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-assume_role_with_web_identity-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-assume_role_with_web_identity-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "294 runner clone extra/cred-custom_ca_bundle-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-custom_ca_bundle-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-custom_ca_bundle-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "295 runner clone extra/cred-custom_ca_bundle-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-custom_ca_bundle-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-custom_ca_bundle-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "296 runner clone extra/cred-custom_ca_bundle-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-custom_ca_bundle-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-custom_ca_bundle-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "297 runner clone extra/cred-ec2_metadata_service_endpoint-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "298 runner clone extra/cred-ec2_metadata_service_endpoint-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "299 runner clone extra/cred-ec2_metadata_service_endpoint-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "300 runner clone extra/cred-ec2_metadata_service_endpoint_mode-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "301 runner clone extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "302 runner clone extra/cred-ec2_metadata_service_endpoint_mode-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-ec2_metadata_service_endpoint_mode-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "303 runner clone extra/cred-endpoints-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-endpoints-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-endpoints-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "304 runner clone extra/cred-endpoints-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-endpoints-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-endpoints-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "305 runner clone extra/cred-endpoints-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-endpoints-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-endpoints-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "306 runner clone extra/cred-http_proxy-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-http_proxy-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-http_proxy-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "307 runner clone extra/cred-http_proxy-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-http_proxy-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-http_proxy-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "308 runner clone extra/cred-http_proxy-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-http_proxy-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-http_proxy-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "309 runner clone extra/cred-https_proxy-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-https_proxy-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-https_proxy-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "310 runner clone extra/cred-https_proxy-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-https_proxy-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-https_proxy-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "311 runner clone extra/cred-https_proxy-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-https_proxy-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-https_proxy-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "312 runner clone extra/cred-insecure-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-insecure-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-insecure-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "313 runner clone extra/cred-insecure-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-insecure-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-insecure-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "314 runner clone extra/cred-insecure-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-insecure-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-insecure-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "315 runner clone extra/cred-no_proxy-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-no_proxy-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-no_proxy-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "316 runner clone extra/cred-no_proxy-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-no_proxy-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-no_proxy-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "317 runner clone extra/cred-no_proxy-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-no_proxy-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-no_proxy-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "318 runner clone extra/cred-profile-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-profile-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-profile-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "319 runner clone extra/cred-profile-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-profile-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-profile-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "320 runner clone extra/cred-profile-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-profile-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-profile-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "321 runner clone extra/cred-role_arn-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-role_arn-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-role_arn-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "322 runner clone extra/cred-role_arn-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-role_arn-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-role_arn-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "323 runner clone extra/cred-role_arn-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-role_arn-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-role_arn-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "324 runner clone extra/cred-secret_key-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-secret_key-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-secret_key-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "325 runner clone extra/cred-secret_key-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-secret_key-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-secret_key-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "326 runner clone extra/cred-secret_key-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-secret_key-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-secret_key-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "327 runner clone extra/cred-shared_config_files-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_config_files-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_config_files-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "328 runner clone extra/cred-shared_config_files-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_config_files-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_config_files-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "329 runner clone extra/cred-shared_config_files-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_config_files-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_config_files-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "330 runner clone extra/cred-shared_credentials_file-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_file-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_file-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "331 runner clone extra/cred-shared_credentials_file-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_file-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_file-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "332 runner clone extra/cred-shared_credentials_file-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_file-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_file-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "333 runner clone extra/cred-shared_credentials_files-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_files-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_files-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "334 runner clone extra/cred-shared_credentials_files-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_files-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_files-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "335 runner clone extra/cred-shared_credentials_files-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-shared_credentials_files-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-shared_credentials_files-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "336 runner clone extra/cred-token-block.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-block.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-token-block.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "337 runner clone extra/cred-token-dynamic.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-dynamic.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-token-dynamic.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "338 runner clone extra/cred-token-eq.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-eq.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/cred-token-eq.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "339 runner clone extra/label-nonascii.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/label-nonascii.tf"
+   ],
+   "tree": 18,
+   "want": "G0 {run}/clone/extra/label-nonascii.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "340 runner clone extra/provider-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/provider-heredoc.tf"
+   ],
+   "tree": 18,
+   "want": "G3 {run}/clone/extra/provider-heredoc.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "341 runner clone extra/vertical-tab.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/vertical-tab.tf"
+   ],
+   "tree": 18,
+   "want": "G0 {run}/clone/extra/vertical-tab.tf:2\n"
   }
  ],
  "dirs": {
@@ -4460,7 +6484,463 @@
    "plan/saved",
    "plan/state",
    "plan/tmp"
+  ],
+  "18": [
+   "clone",
+   "clone/extra",
+   "clone/chain",
+   "clone/chain/n21",
+   "clone/chain/n21/t",
+   "clone/chain/n22",
+   "clone/chain/n22/t",
+   "clone/chain/n33",
+   "clone/chain/n33/t",
+   "clone/chain/n34",
+   "clone/chain/n34/t"
   ]
  },
- "links": {}
+ "links": {
+  "18": [
+   [
+    "clone/chain/n21/l0",
+    "l1"
+   ],
+   [
+    "clone/chain/n21/l1",
+    "l2"
+   ],
+   [
+    "clone/chain/n21/l2",
+    "l3"
+   ],
+   [
+    "clone/chain/n21/l3",
+    "l4"
+   ],
+   [
+    "clone/chain/n21/l4",
+    "l5"
+   ],
+   [
+    "clone/chain/n21/l5",
+    "l6"
+   ],
+   [
+    "clone/chain/n21/l6",
+    "l7"
+   ],
+   [
+    "clone/chain/n21/l7",
+    "l8"
+   ],
+   [
+    "clone/chain/n21/l8",
+    "l9"
+   ],
+   [
+    "clone/chain/n21/l9",
+    "l10"
+   ],
+   [
+    "clone/chain/n21/l10",
+    "l11"
+   ],
+   [
+    "clone/chain/n21/l11",
+    "l12"
+   ],
+   [
+    "clone/chain/n21/l12",
+    "l13"
+   ],
+   [
+    "clone/chain/n21/l13",
+    "l14"
+   ],
+   [
+    "clone/chain/n21/l14",
+    "l15"
+   ],
+   [
+    "clone/chain/n21/l15",
+    "l16"
+   ],
+   [
+    "clone/chain/n21/l16",
+    "l17"
+   ],
+   [
+    "clone/chain/n21/l17",
+    "l18"
+   ],
+   [
+    "clone/chain/n21/l18",
+    "l19"
+   ],
+   [
+    "clone/chain/n21/l19",
+    "l20"
+   ],
+   [
+    "clone/chain/n21/l20",
+    "t"
+   ],
+   [
+    "clone/chain/n22/l0",
+    "l1"
+   ],
+   [
+    "clone/chain/n22/l1",
+    "l2"
+   ],
+   [
+    "clone/chain/n22/l2",
+    "l3"
+   ],
+   [
+    "clone/chain/n22/l3",
+    "l4"
+   ],
+   [
+    "clone/chain/n22/l4",
+    "l5"
+   ],
+   [
+    "clone/chain/n22/l5",
+    "l6"
+   ],
+   [
+    "clone/chain/n22/l6",
+    "l7"
+   ],
+   [
+    "clone/chain/n22/l7",
+    "l8"
+   ],
+   [
+    "clone/chain/n22/l8",
+    "l9"
+   ],
+   [
+    "clone/chain/n22/l9",
+    "l10"
+   ],
+   [
+    "clone/chain/n22/l10",
+    "l11"
+   ],
+   [
+    "clone/chain/n22/l11",
+    "l12"
+   ],
+   [
+    "clone/chain/n22/l12",
+    "l13"
+   ],
+   [
+    "clone/chain/n22/l13",
+    "l14"
+   ],
+   [
+    "clone/chain/n22/l14",
+    "l15"
+   ],
+   [
+    "clone/chain/n22/l15",
+    "l16"
+   ],
+   [
+    "clone/chain/n22/l16",
+    "l17"
+   ],
+   [
+    "clone/chain/n22/l17",
+    "l18"
+   ],
+   [
+    "clone/chain/n22/l18",
+    "l19"
+   ],
+   [
+    "clone/chain/n22/l19",
+    "l20"
+   ],
+   [
+    "clone/chain/n22/l20",
+    "l21"
+   ],
+   [
+    "clone/chain/n22/l21",
+    "t"
+   ],
+   [
+    "clone/chain/n33/l0",
+    "l1"
+   ],
+   [
+    "clone/chain/n33/l1",
+    "l2"
+   ],
+   [
+    "clone/chain/n33/l2",
+    "l3"
+   ],
+   [
+    "clone/chain/n33/l3",
+    "l4"
+   ],
+   [
+    "clone/chain/n33/l4",
+    "l5"
+   ],
+   [
+    "clone/chain/n33/l5",
+    "l6"
+   ],
+   [
+    "clone/chain/n33/l6",
+    "l7"
+   ],
+   [
+    "clone/chain/n33/l7",
+    "l8"
+   ],
+   [
+    "clone/chain/n33/l8",
+    "l9"
+   ],
+   [
+    "clone/chain/n33/l9",
+    "l10"
+   ],
+   [
+    "clone/chain/n33/l10",
+    "l11"
+   ],
+   [
+    "clone/chain/n33/l11",
+    "l12"
+   ],
+   [
+    "clone/chain/n33/l12",
+    "l13"
+   ],
+   [
+    "clone/chain/n33/l13",
+    "l14"
+   ],
+   [
+    "clone/chain/n33/l14",
+    "l15"
+   ],
+   [
+    "clone/chain/n33/l15",
+    "l16"
+   ],
+   [
+    "clone/chain/n33/l16",
+    "l17"
+   ],
+   [
+    "clone/chain/n33/l17",
+    "l18"
+   ],
+   [
+    "clone/chain/n33/l18",
+    "l19"
+   ],
+   [
+    "clone/chain/n33/l19",
+    "l20"
+   ],
+   [
+    "clone/chain/n33/l20",
+    "l21"
+   ],
+   [
+    "clone/chain/n33/l21",
+    "l22"
+   ],
+   [
+    "clone/chain/n33/l22",
+    "l23"
+   ],
+   [
+    "clone/chain/n33/l23",
+    "l24"
+   ],
+   [
+    "clone/chain/n33/l24",
+    "l25"
+   ],
+   [
+    "clone/chain/n33/l25",
+    "l26"
+   ],
+   [
+    "clone/chain/n33/l26",
+    "l27"
+   ],
+   [
+    "clone/chain/n33/l27",
+    "l28"
+   ],
+   [
+    "clone/chain/n33/l28",
+    "l29"
+   ],
+   [
+    "clone/chain/n33/l29",
+    "l30"
+   ],
+   [
+    "clone/chain/n33/l30",
+    "l31"
+   ],
+   [
+    "clone/chain/n33/l31",
+    "l32"
+   ],
+   [
+    "clone/chain/n33/l32",
+    "t"
+   ],
+   [
+    "clone/chain/n34/l0",
+    "l1"
+   ],
+   [
+    "clone/chain/n34/l1",
+    "l2"
+   ],
+   [
+    "clone/chain/n34/l2",
+    "l3"
+   ],
+   [
+    "clone/chain/n34/l3",
+    "l4"
+   ],
+   [
+    "clone/chain/n34/l4",
+    "l5"
+   ],
+   [
+    "clone/chain/n34/l5",
+    "l6"
+   ],
+   [
+    "clone/chain/n34/l6",
+    "l7"
+   ],
+   [
+    "clone/chain/n34/l7",
+    "l8"
+   ],
+   [
+    "clone/chain/n34/l8",
+    "l9"
+   ],
+   [
+    "clone/chain/n34/l9",
+    "l10"
+   ],
+   [
+    "clone/chain/n34/l10",
+    "l11"
+   ],
+   [
+    "clone/chain/n34/l11",
+    "l12"
+   ],
+   [
+    "clone/chain/n34/l12",
+    "l13"
+   ],
+   [
+    "clone/chain/n34/l13",
+    "l14"
+   ],
+   [
+    "clone/chain/n34/l14",
+    "l15"
+   ],
+   [
+    "clone/chain/n34/l15",
+    "l16"
+   ],
+   [
+    "clone/chain/n34/l16",
+    "l17"
+   ],
+   [
+    "clone/chain/n34/l17",
+    "l18"
+   ],
+   [
+    "clone/chain/n34/l18",
+    "l19"
+   ],
+   [
+    "clone/chain/n34/l19",
+    "l20"
+   ],
+   [
+    "clone/chain/n34/l20",
+    "l21"
+   ],
+   [
+    "clone/chain/n34/l21",
+    "l22"
+   ],
+   [
+    "clone/chain/n34/l22",
+    "l23"
+   ],
+   [
+    "clone/chain/n34/l23",
+    "l24"
+   ],
+   [
+    "clone/chain/n34/l24",
+    "l25"
+   ],
+   [
+    "clone/chain/n34/l25",
+    "l26"
+   ],
+   [
+    "clone/chain/n34/l26",
+    "l27"
+   ],
+   [
+    "clone/chain/n34/l27",
+    "l28"
+   ],
+   [
+    "clone/chain/n34/l28",
+    "l29"
+   ],
+   [
+    "clone/chain/n34/l29",
+    "l30"
+   ],
+   [
+    "clone/chain/n34/l30",
+    "l31"
+   ],
+   [
+    "clone/chain/n34/l31",
+    "l32"
+   ],
+   [
+    "clone/chain/n34/l32",
+    "l33"
+   ],
+   [
+    "clone/chain/n34/l33",
+    "t"
+   ]
+  ]
+ }
 }

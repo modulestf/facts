@@ -270,8 +270,11 @@ func (r *run) runnerFile(f, raw string) {
 		r.hit("G0", f, m, i)
 	}
 	for x := findLines(m, 0, atLabelLine); x.start >= 0; x = findLines(m, x.end, atLabelLine) {
+		// The Perl tests the raw label with a second match, which resets the
+		// offsets its hit then reads, so it prints line 0 here; the laptop
+		// rule kept its offset and prints the line.
 		if firstNonASCII(raw[x.g0:x.g1]) >= 0 {
-			r.hit("G0", f, m, x.g0)
+			r.hitFile("G0", f)
 		}
 	}
 	for x := findFrom(m, 0, atKW); x.start >= 0; x = findFrom(m, x.end, atKW) {
