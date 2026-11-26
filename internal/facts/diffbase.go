@@ -218,7 +218,7 @@ func parseUnified(data []byte) ([]fileChange, error) {
 		case strings.HasPrefix(l, "@@"):
 			n, err := hunkLines(lines[i:])
 			if err != nil {
-				return nil, fmt.Errorf("unified diff: %s: %w", cur.path, err)
+				return nil, fmt.Errorf("unified diff: %q: %w", cur.path, err)
 			}
 			cur.patch = append(cur.patch, strings.Join(lines[i:i+n], "\n")+"\n"...)
 			i += n - 1
@@ -347,7 +347,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			continue
 		}
 		if seenHead[c.path] {
-			return nil, fmt.Errorf("%s is in the diff more than once", c.path)
+			return nil, fmt.Errorf("%q is in the diff more than once", c.path)
 		}
 		seenHead[c.path] = true
 		at := c.path
@@ -356,21 +356,21 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			at = ""
 		case "removed", statusRemovedEmpty:
 			if head.Entries[c.path] != nil {
-				return nil, fmt.Errorf("%s is removed by the diff but still in the head tree", c.path)
+				return nil, fmt.Errorf("%q is removed by the diff but still in the head tree", c.path)
 			}
 		case "modified", "changed", statusModeOnly:
 		case "renamed", statusPureRename:
 			if c.prev == "" {
-				return nil, fmt.Errorf("%s is renamed with no previous path", c.path)
+				return nil, fmt.Errorf("%q is renamed with no previous path", c.path)
 			}
 			at = c.prev
 		case "unchanged":
 			continue
 		default:
-			return nil, fmt.Errorf("%s: unknown status %q", c.path, c.status)
+			return nil, fmt.Errorf("%q: unknown status %q", c.path, c.status)
 		}
 		if c.status != "removed" && c.status != statusRemovedEmpty && head.Entries[c.path] == nil {
-			return nil, fmt.Errorf("%s is in the diff but not in the head tree", c.path)
+			return nil, fmt.Errorf("%q is in the diff but not in the head tree", c.path)
 		}
 		if c.status != "modified" && c.status != "changed" && c.status != statusModeOnly {
 			delete(entries, c.path) // added or renamed away; a rebuild below may put it back
@@ -379,7 +379,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			continue
 		}
 		if seenBase[at] {
-			return nil, fmt.Errorf("%s is in the diff more than once", at)
+			return nil, fmt.Errorf("%q is in the diff more than once", at)
 		}
 		seenBase[at] = true
 		todo = append(todo, rebuild{at, c})
@@ -388,7 +388,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	for _, r := range todo {
 		e, err := rebuildEntry(r.at, head.Entries[r.c.path], r.c, lim)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", r.c.path, err)
+			return nil, fmt.Errorf("%q: %w", r.c.path, err)
 		}
 		entries[r.at] = e
 	}

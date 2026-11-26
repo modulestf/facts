@@ -172,7 +172,7 @@ func loadRaw(files []string, keep Keep, deadline time.Time) (map[string]*types, 
 		}
 		for source, s := range f.Schemas {
 			if raw[source] != nil {
-				return nil, nil, fmt.Errorf("schema file %s: provider %s is in another schema file too", p, source)
+				return nil, nil, fmt.Errorf("schema file %s: provider %q is in another schema file too", p, source)
 			}
 			if s != nil {
 				raw[source] = &types{resources: s.resources, dataSources: s.dataSources, decode: rawBlock}

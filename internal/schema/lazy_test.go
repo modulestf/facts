@@ -112,6 +112,25 @@ func TestRawErrorQuotesProviderSource(t *testing.T) {
 	}
 }
 
+// TestRawDuplicateQuotesProviderSource: a provider source two schema files
+// share is quoted in the error, so a line break in it cannot add a line.
+func TestRawDuplicateQuotesProviderSource(t *testing.T) {
+	hostile := "registry.terraform.io/x/aws\nforged: line"
+	doc := strings.Replace(unusedDoc("", `null`), aws, `registry.terraform.io/x/aws\nforged: line`, 1)
+	a := writeFile(t, "a.json", []byte(doc))
+	b := writeFile(t, "b.json", []byte(doc))
+	_, err := Load("", []string{a, b}, time.Time{})
+	if err == nil || !strings.Contains(err.Error(), "is in another schema file too") {
+		t.Fatalf("Load did not refuse a provider in two files: %v", err)
+	}
+	if want := "provider " + fmt.Sprintf("%q", hostile) + " is in"; !strings.Contains(err.Error(), want) {
+		t.Errorf("error %q does not hold the quoted source %s", err, want)
+	}
+	if strings.ContainsRune(err.Error(), '\n') {
+		t.Errorf("error holds a raw line break: %q", err)
+	}
+}
+
 // TestLoadTypes: a kept type answers as Load does, a type not kept is
 // schema_unavailable, and a type the file lacks is absent.
 func TestLoadTypes(t *testing.T) {

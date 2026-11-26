@@ -208,8 +208,9 @@ func checkVersionsMissing(a *Area) Result {
 }
 
 // visibleBelow reports a path below dir with no ignored name among the
-// elements under dir. Terraform loads neither a hidden file nor a hidden
-// directory, so nothing under one is part of a configuration.
+// elements under dir. The example's region subdirectories count; a
+// directory Terraform's ignore rule matches (a dot, "~" or "#x#" name, such
+// as .terraform) is not taken as one.
 func visibleBelow(p, dir string) bool {
 	rest, ok := strings.CutPrefix(p, dir+"/")
 	return ok && !slices.ContainsFunc(strings.Split(rest, "/"), ignoredName)

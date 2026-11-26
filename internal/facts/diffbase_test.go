@@ -347,3 +347,20 @@ func TestBaseFromDiffLimits(t *testing.T) {
 		t.Errorf("total limit: %v", err)
 	}
 }
+
+// TestBaseFromDiffQuotesHunkPath: the path of a unified diff is read before
+// the path check runs, so the error for a bad hunk quotes it: a carriage
+// return in it cannot rewrite a line of stderr. Every later error names a
+// path safeDiffPath has accepted, and quotes it as well.
+func TestBaseFromDiffQuotesHunkPath(t *testing.T) {
+	t.Parallel()
+	head := mustTree(t, writeTree(t, map[string]string{"main.tf": "a\n"}))
+	diff := "diff --git a/x\ry.tf b/x\ry.tf\n--- a/x\ry.tf\n+++ b/x\ry.tf\n@@ garbage\n"
+	_, _, err := baseFromDiff(head, []byte(diff), DefaultLimits)
+	if err == nil || !strings.Contains(err.Error(), `unified diff: "x\ry.tf": `) {
+		t.Fatalf("error %v, want the quoted path", err)
+	}
+	if strings.ContainsAny(err.Error(), "\r\n") {
+		t.Errorf("error holds a raw control character: %q", err)
+	}
+}

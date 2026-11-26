@@ -119,7 +119,7 @@ func newProfileSnapshotCmd() *cobra.Command {
 				if !errors.Is(err, snapshot.ErrRefused) {
 					err = fmt.Errorf("profile: %w", err)
 				}
-				fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", err)
+				fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", oneLine(err.Error()))
 				return status(exitError)
 			}
 			return status(writeJSON(cmd, s))
@@ -135,7 +135,7 @@ func newProfileSnapshotCmd() *cobra.Command {
 func writeJSON(cmd *cobra.Command, v any) int {
 	out, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", oneLine(err.Error()))
 		return exitError
 	}
 	if _, err := cmd.OutOrStdout().Write(append(out, '\n')); err != nil {

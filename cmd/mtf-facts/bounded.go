@@ -76,7 +76,7 @@ func runBounded(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, wo
 		fmt.Fprint(stderr, "mtf-facts: timeout\n")
 		return exitError
 	case res.err != nil:
-		fmt.Fprintln(stderr, "mtf-facts:", res.err)
+		fmt.Fprintln(stderr, "mtf-facts:", oneLine(res.err.Error()))
 		return exitError
 	case len(res.out) > lim.MaxOutputBytes:
 		fmt.Fprintf(stderr, "mtf-facts: output over %d bytes\n", lim.MaxOutputBytes)
@@ -84,12 +84,12 @@ func runBounded(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, wo
 	}
 	if res.commit != nil {
 		if err := res.commit(); err != nil {
-			fmt.Fprintln(stderr, "mtf-facts:", err)
+			fmt.Fprintln(stderr, "mtf-facts:", oneLine(err.Error()))
 			return exitError
 		}
 	}
 	for _, n := range res.notes {
-		fmt.Fprintln(stderr, n)
+		fmt.Fprintln(stderr, oneLine(n))
 	}
 	if _, err := stdout.Write(res.out); err != nil {
 		return exitError

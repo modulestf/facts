@@ -155,12 +155,12 @@ func TestRunErrors(t *testing.T) {
 		{"malformed to", from, filepath.Join(module, "main.tf"), module, "--to: schema file main.tf: malformed"},
 		{"missing tree", from, to, filepath.Join(dir, "none"), "--types-from: "},
 		{"override file", from, to, override, "override file"},
-		{"ephemeral block", from, to, ephemeral, "main.tf:1: ephemeral resources are not compared"},
+		{"ephemeral block", from, to, ephemeral, `"main.tf":1: ephemeral resources are not compared`},
 		{"provider missing from from", noExample, to, module,
-			"provider " + example + ", which resource example_widget uses, is not in no-example.json"},
+			`provider "` + example + `", which resource "example_widget" uses, is not in no-example.json`},
 		{"provider missing from to", from, noExample, module,
-			"provider " + example + ", which resource example_widget uses, is not in no-example.json"},
-		{"provider missing from both", noExample, noExample, module, "is not in no-example.json"},
+			`provider "` + example + `", which resource "example_widget" uses, is not in no-example.json`},
+		{"provider missing from both", noExample, noExample, module, `is not in no-example.json`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -251,5 +251,49 @@ func TestRunDeadlineInSchemaLoad(t *testing.T) {
 	})
 	if !errors.Is(err, facts.ErrDeadline) {
 		t.Errorf("error %v, want ErrDeadline", err)
+	}
+}
+
+// TestRunQuotesHostileValues: a provider source, file name or directory with
+// a line break is quoted in the error, so it cannot add a line to stderr; a
+// type label that is no Terraform identifier is refused.
+func TestRunQuotesHostileValues(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	write := func(rel, src string) string {
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(src), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return filepath.Dir(p)
+	}
+	source := write("source/main.tf", "terraform {\n  required_providers {\n    example = { source = \"acme/example\\nforged: line\" }\n  }\n}\nresource \"example_widget\" \"x\" {}\n")
+	label := write("label/main.tf", "resource \"example_widget\\nforged: line\" \"x\" {}\n")
+	file := write("file/a\nb.tf", "ephemeral \"example_secret\" \"x\" {}\n")
+	unparsed := write("unparsed/a\nb.tf", "resource \"example_widget\" \"x\" {\n")
+	sub := write("dirroot/sub\nforged/main.tf", "resource \"example_widget\" \"x\" {\n")
+	from, to := filepath.Join(testdata, "from.json"), filepath.Join(testdata, "to.json")
+	for _, tc := range []struct {
+		name, types, want string
+	}{
+		{"provider source", source, `provider "registry.terraform.io/acme/example\nforged: line", which resource "example_widget" uses, is not in from.json`},
+		{"type label", label, `resource "example_widget\nforged: line": the type is not a Terraform identifier`},
+		{"ephemeral file name", file, `"a\nb.tf":1: ephemeral resources are not compared`},
+		{"file that does not parse", unparsed, `cannot be listed: "a\nb.tf: parse error"`},
+		{"directory", filepath.Dir(sub), `the types of "sub\nforged" cannot be listed`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := Run(Options{From: from, To: to, TypesFrom: tc.types, Limits: facts.DefaultLimits})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error %v, want %q", err, tc.want)
+			}
+			if strings.ContainsAny(err.Error(), "\n\r") {
+				t.Errorf("error holds a raw line break: %q", err)
+			}
+		})
 	}
 }

@@ -41,7 +41,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if st, ok := errors.AsType[exitStatus](err); ok {
 		return st.code
 	}
-	fmt.Fprintf(stderr, "mtf-facts: %v\n"+usageHint, err, cmd.CommandPath())
+	fmt.Fprintf(stderr, "mtf-facts: %s\n"+usageHint, oneLine(err.Error()), cmd.CommandPath())
 	return exitError
 }
 
@@ -61,7 +61,7 @@ func status(code int) error {
 // usageError writes a usage error a handler found, as run writes cobra's,
 // and returns exitError.
 func usageError(cmd *cobra.Command, msg string) int {
-	fmt.Fprintf(cmd.ErrOrStderr(), "mtf-facts: %s\n"+usageHint, msg, cmd.CommandPath())
+	fmt.Fprintf(cmd.ErrOrStderr(), "mtf-facts: %s\n"+usageHint, oneLine(msg), cmd.CommandPath())
 	return exitError
 }
 
