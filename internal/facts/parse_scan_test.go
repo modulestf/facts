@@ -2,6 +2,7 @@ package facts
 
 import (
 	"io/fs"
+	"math/rand/v2"
 	"os"
 	"strings"
 	"testing"
@@ -35,6 +36,14 @@ var scanCases = []string{
 	"a = " + strings.Repeat("[", 64) + strings.Repeat("]", 64) + "\n",
 	"a = " + strings.Repeat("- ", 65) + "1\n",
 	"a = \"\xc0{\" \xff [\n",
+	"a = \"\\\"[[[\"\n",
+	"a = -\t-\t!\t-1\n",
+	"a = ~ b\n",
+	"a = [ ~ [ b ] ]\n",
+	"a = /* x *//y\n",
+	"a = /* x *//y [\n",
+	"a = /**//* c */ [\n",
+	"a = /**/[\n",
 }
 
 // TestScanLimitsMatchLexer holds scanLimits to the lexer: on every input it
@@ -108,7 +117,9 @@ func TestScanLimitsGivesUp(t *testing.T) {
 func TestParseBodyMatchesParseSyntax(t *testing.T) {
 	small := DefaultLimits
 	small.MaxTokens = 20
-	for _, lim := range []Limits{DefaultLimits, small} {
+	unary := DefaultLimits
+	unary.MaxPrefixOps = 3
+	for _, lim := range []Limits{DefaultLimits, small, unary} {
 		for _, src := range append(scanCases, "a = \n", "a = <<EOT\nx\nEOT\n", "a = "+strings.Repeat("[", 65)+strings.Repeat("]", 65)+"\n") {
 			_, _, want := parseSyntax("x.tf", []byte(src), lim)
 			_, _, got := parseBody("x.tf", []byte(src), lim)
@@ -116,6 +127,51 @@ func TestParseBodyMatchesParseSyntax(t *testing.T) {
 				t.Errorf("%q: got %v, want %v", src, got, want)
 			}
 		}
+	}
+}
+
+// A run of unary operators split by tabs, which the lexer emits no token
+// for, is refused with the exact path's message.
+func TestParseBodyUnaryRunWithTabs(t *testing.T) {
+	lim := DefaultLimits
+	lim.MaxPrefixOps = 3
+	_, _, err := parseBody("x.tf", []byte("a = -\t-\t!\t-1\n"), lim)
+	if !IsLimitError(err) || !strings.Contains(errText(err), "4 consecutive unary operators") {
+		t.Errorf("got %v", err)
+	}
+}
+
+// scanFragments are pieces that each move the scanner or the lexer between
+// states, joined at random by TestScanLimitsDifferential.
+var scanFragments = []string{
+	"{", "}", "[", "]", "(", ")", "\"", "\\", "\\\"", "${", "%{", "${~", "~}", "~", "}~",
+	"$${", "%%{", "$", "%", "#", "//", "/*", "*/", "/", "*", "!", "-", " ", "\t", "\n", "\r\n",
+	"a", "1e-5", "x.y", "=", ":", ",", "\xcf", "\xff", "<", "<<", "<<EOT\n", "EOT\n",
+}
+
+// TestScanLimitsDifferential holds scanLimits to the lexer on inputs built
+// from scanFragments with a fixed seed, so a failure reproduces.
+func TestScanLimitsDifferential(t *testing.T) {
+	r := rand.New(rand.NewPCG(1, 2)) //nolint:gosec // G404: a fixed seed, so a failing input reproduces
+	scanned := 0
+	for range 5000 {
+		var b strings.Builder
+		for range 1 + r.IntN(16) {
+			b.WriteString(scanFragments[r.IntN(len(scanFragments))])
+		}
+		src := []byte(b.String())
+		depth, prefix, ok := scanLimits(src)
+		if !ok {
+			continue
+		}
+		scanned++
+		tokens, _ := hclsyntax.LexConfig(src, "x.tf", hcl.InitialPos)
+		if d, n := nestingDepth(tokens), prefixRun(tokens); depth != d || prefix < n || len(tokens) > len(src)+1 {
+			t.Fatalf("%q: scan depth %d run %d, lexer depth %d run %d, %d tokens", src, depth, prefix, d, n, len(tokens))
+		}
+	}
+	if scanned < 1000 {
+		t.Errorf("scanned %d inputs, want at least 1000", scanned)
 	}
 }
 
