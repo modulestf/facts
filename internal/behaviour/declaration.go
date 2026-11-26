@@ -10,18 +10,20 @@ import (
 )
 
 // declaration reads the block of variable name in the head view of a
-// module directory, v being its base and head views. It is nil when the
-// head view is missing, which is a directory that does not decompose, or
-// holds no such variable.
+// module directory, v being its base and head views. It is nil when either
+// view is missing, which is a directory that does not decompose, or is
+// unwalked: a .tf.json, .tofu or .tofu.json file there may declare or
+// override the variable, at the head its default and at the base whether
+// it is new. It is also nil when the head holds no such variable.
 func declaration(v [2]*view, name string) *Declaration {
-	if v[1] == nil {
+	if v[0] == nil || v[1] == nil || v[0].unwalked || v[1].unwalked {
 		return nil
 	}
 	it := v[1].items["variable."+name]
 	if it == nil || it.block == nil {
 		return nil
 	}
-	d := &Declaration{Added: v[0] == nil || v[0].items["variable."+name] == nil, Default: DefaultNone, Nullable: NullableUnset}
+	d := &Declaration{Added: v[0].items["variable."+name] == nil, Default: DefaultNone, Nullable: NullableUnset}
 	attrs := it.block.Body.Attributes
 	if a := attrs["default"]; a != nil {
 		d.Default = DefaultOther

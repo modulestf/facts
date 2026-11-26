@@ -23,7 +23,8 @@ const declSchema = `{"format_version":"1.0","provider_schemas":{
     "block_types":{
       "blk":{"nesting_mode":"list","min_items":1,"block":{"attributes":{
         "inner":{"type":"string","required":true},
-        "loose":{"type":"string","optional":true}}}},
+        "loose":{"type":"string","optional":true}},
+        "block_types":{"deep":{"nesting_mode":"list","min_items":1,"block":{"attributes":{"y":{"type":"string","optional":true}}}}}}},
       "free":{"nesting_mode":"list","block":{"attributes":{"x":{"type":"string","optional":true}}}}}}}},
   "data_source_schemas":{"aws_look":{"version":0,"block":{"attributes":{
     "name":{"type":"string","optional":true},
@@ -114,6 +115,16 @@ func TestDeclarationOracle(t *testing.T) {
 		{"template directive", "variable \"x\" {\n  default = \"%{if true}a%{endif}\"\n}\n", "added default=literal nullable=unset"},
 		{"reference default", "variable \"x\" {\n  default = local.y\n}\n", "added default=other nullable=unset"},
 		{"name holding default", "variable \"x\" {\n  default = null\n}\nvariable \"default_x\" {\n  default = 1\n}\n", "added default=null nullable=unset"},
+		// The shell reader's escaped-quote, nested-object, nested-type, list,
+		// interpolation and directive cases, as written there.
+		{"escaped quotes around brackets, real default 3000", "variable \"x\" {\n  type        = any\n  description = \"\\\"\" == { \"\\\"a\" = 1\n  default = null\n  \"\\\"b\" = 2 } == \"\\\"\" ? \"a\" : \"b\"\n  sensitive   = \"\\\"\" == \"(\" ? false : \"\\\"\" == \"x\"\n  default     = 3000\n  nullable    = \"\\\"\" == \")\" ? true : \"\\\"\" != \"x\"\n}\n", "added default=literal nullable=true"},
+		{"null in a nested object before the real default", "variable \"x\" {\n  type        = number\n  description = (\n{\ndefault = null\n}\n  ).default == null ? \"a\" : \"b\"\n  default     = 3000\n}\n", "added default=literal nullable=unset"},
+		{"column-0 brace of a nested type default", "variable \"x\" {\n  type = object({ m = optional(map(string), {\n  default = null\n}\n) })\n  default = {}\n}\n", "added default=literal nullable=unset"},
+		// default = null inside a list is no HCL: the directory does not
+		// decompose and there is no declaration.
+		{"null in a list inside a call", "variable \"x\" {\n  description = join(\"\", [\ndefault = null\n  ])\n}\n", "<none>"},
+		{"interpolation in a description", "variable \"x\" {\n  description = \"idle ${var.port} seconds\"\n  default     = null\n}\n", "added default=null nullable=unset"},
+		{"directive in a description", "variable \"x\" {\n  description = \"idle %{ if true }x%{ endif }\"\n  default     = null\n}\n", "added default=null nullable=unset"},
 		{"long block", "variable \"x\" {\n" + strings.Repeat("  # line\n", 250) + "  default = null\n}\n", "added default=null nullable=unset"},
 	}
 	for _, c := range cases {
@@ -123,7 +134,7 @@ func TestDeclarationOracle(t *testing.T) {
 			if got := declString(declOf(t, r, "aws_thing.t", "opt", "x")); got != c.want {
 				t.Errorf("input: want %s, got %s", c.want, got)
 			}
-			if d, ok := varDecl(r, "variables.tf", "x"); !ok || declString(d) != c.want {
+			if d, ok := varDecl(r, "variables.tf", "x"); (ok || c.want != "<none>") && declString(d) != c.want || !ok && c.want != "<none>" {
 				t.Errorf("var.x trigger (found %v): want %s, got %s", ok, c.want, declString(d))
 			}
 		})
@@ -157,6 +168,51 @@ func TestDeclarationUnreadable(t *testing.T) {
 	}
 	if d := declOf(t, r, "aws_thing.t", "opt", "x"); d != nil {
 		t.Errorf("link: want no declaration, got %s", declString(d))
+	}
+	// A directory that does not decompose, or holds a file the walk does
+	// not read, gives no declaration: an override file, the block declared
+	// twice in two files, a JSON override of its default, and a variable
+	// moved out of a JSON file (whether it is new is unknown).
+	null := "variable \"x\" {\n  default = null\n}\n"
+	for name, c := range map[string][2]map[string]string{
+		"override.tf":       {base, {"main.tf": optFromX, "variables.tf": null, "override.tf": "variable \"x\" {\n  default = true\n}\n"}},
+		"declared twice":    {base, {"main.tf": optFromX, "variables.tf": null, "more.tf": null}},
+		"JSON override":     {base, {"main.tf": optFromX, "variables.tf": null, "variables_override.tf.json": `{"variable": {"x": {"default": true}}}`}},
+		"moved out of JSON": {{"main.tf": `resource "aws_thing" "t" {}` + "\n", "variables.tf.json": `{"variable": {"x": {"default": true}}}`}, {"main.tf": optFromX, "variables.tf": null}},
+	} {
+		r := runPair(t, c[0], c[1], "")
+		if d := declOf(t, r, "aws_thing.t", "opt", "x"); d != nil {
+			t.Errorf("%s: input: want no declaration, got %s", name, declString(d))
+		}
+		if d, _ := varDecl(r, "variables.tf", "x"); d != nil {
+			t.Errorf("%s: var.x: want no declaration, got %s", name, declString(d))
+		}
+	}
+	// A variables file over the size limit is not read, so the directory
+	// does not decompose.
+	big := null + strings.Repeat(" ", int(facts.DefaultLimits.MaxFileBytes)+1) + "\n"
+	r = runPair(t, base, map[string]string{"main.tf": optFromX, "variables.tf": big}, "")
+	if d := declOf(t, r, "aws_thing.t", "opt", "x"); d != nil {
+		t.Errorf("over the size limit: want no declaration, got %s", declString(d))
+	}
+	// A module directory that is a link to a directory outside the tree is
+	// not read.
+	far := writeTree(t, map[string]string{"main.tf": optFromX, "variables.tf": null})
+	linked := writeTree(t, map[string]string{"main.tf": optFromX, "variables.tf": "variable \"x\" {\n  default = true\n}\n"})
+	if err := os.MkdirAll(filepath.Join(linked, "modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(far, filepath.Join(linked, "modules", "a")); err != nil {
+		t.Fatal(err)
+	}
+	r, err = Run(Options{Head: linked, Base: writeTree(t, map[string]string{"main.tf": optFromX, "variables.tf": "variable \"x\" {\n  default = true\n}\n"}), Limits: facts.DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tr := range r.Triggers {
+		if strings.HasPrefix(tr.File, "modules/a/") && (tr.Declaration != nil || len(tr.ReferencedInputs) > 0 && tr.ReferencedInputs[0].Declaration != nil) {
+			t.Errorf("linked directory: %s has a declaration", tr.File)
+		}
 	}
 	// A removed variable has no head declaration.
 	r = runPair(t, map[string]string{"main.tf": optFromX, "variables.tf": varX}, map[string]string{"main.tf": `resource "aws_thing" "t" {}` + "\n"}, "")
@@ -291,6 +347,33 @@ resource "aws_other" "o" {
 			t.Errorf("blk.inner: %q", tr.SchemaRequired)
 		}
 	}
+	// A dynamic block nested inside a block meets its block's path.
+	r = runPair(t, map[string]string{"main.tf": `resource "aws_thing" "t" {
+  blk {
+    inner = "a"
+  }
+}
+`}, map[string]string{"main.tf": varX + `resource "aws_thing" "t" {
+  blk {
+    inner = "a"
+    dynamic "deep" {
+      for_each = var.x == null ? [] : [1]
+      content {
+        y = "b"
+      }
+    }
+  }
+}
+`}, sch)
+	if trs := atAttr(r, "aws_thing.t", "blk.dynamic.deep"); len(trs) == 0 {
+		t.Errorf("blk.dynamic.deep: no trigger: %v", categories(r))
+	} else {
+		for _, tr := range trs {
+			if tr.SchemaRequired != "required" {
+				t.Errorf("blk.dynamic.deep: %q", tr.SchemaRequired)
+			}
+		}
+	}
 	// No schema: no field on any trigger; a variable trigger never has one.
 	r = runPair(t, base, head, "")
 	for _, tr := range r.Triggers {
@@ -302,6 +385,31 @@ resource "aws_other" "o" {
 	for _, tr := range r.Triggers {
 		if strings.HasPrefix(str(tr.Address), "var.") && tr.SchemaRequired != "" {
 			t.Errorf("variable trigger has %q", tr.SchemaRequired)
+		}
+	}
+}
+
+// TestSchemaRequiredHeadSource: two providers hold a type of one name, and
+// the change moves the local name aws from one source to the other. The
+// lookup uses the head's source, where opt is required.
+func TestSchemaRequiredHeadSource(t *testing.T) {
+	sch := writeJSON(t, "schema.json", `{"format_version":"1.0","provider_schemas":{
+"registry.terraform.io/hashicorp/aws":{"resource_schemas":{"aws_thing":{"version":0,"block":{"attributes":{
+  "opt":{"type":"string","optional":true}}}}}},
+"registry.terraform.io/acme/aws":{"resource_schemas":{"aws_thing":{"version":0,"block":{"attributes":{
+  "opt":{"type":"string","required":true}}}}}}}}`)
+	req := func(src string) string {
+		return "terraform {\n  required_providers {\n    aws = {\n      source = \"" + src + "\"\n    }\n  }\n}\n"
+	}
+	r := runPair(t, map[string]string{"main.tf": req("hashicorp/aws") + `resource "aws_thing" "t" {}` + "\n"},
+		map[string]string{"main.tf": req("acme/aws") + varX + optFromX}, sch)
+	trs := atAttr(r, "aws_thing.t", "opt")
+	if len(trs) == 0 {
+		t.Fatalf("no trigger: %v", categories(r))
+	}
+	for _, tr := range trs {
+		if tr.SchemaRequired != SchemaRequiredYes {
+			t.Errorf("%s: want required at the head source, got %q", tr.Category, tr.SchemaRequired)
 		}
 	}
 }

@@ -145,7 +145,7 @@
     "trigger_id": {"type": "string", "pattern": "^T-[0-9]{3}$"},
     "change_kind": {"enum": ["added", "removed", "modified", "renamed", "mode"]},
     "declaration": {
-      "description": "The variable's block at the head in the trigger's module directory, read with the HCL parser. On a referenced input, and on a trigger at var.<name>. Omitted when the directory does not decompose at the head or holds no such variable.",
+      "description": "The variable's block at the head in the trigger's module directory, read with the HCL parser. On a referenced input, and on a trigger at var.<name>. Omitted when the directory does not decompose at either revision, holds a .tf.json, .tofu or .tofu.json file at either revision, or holds no such variable at the head.",
       "type": "object",
       "additionalProperties": false,
       "required": ["added", "default", "nullable"],

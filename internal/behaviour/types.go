@@ -169,7 +169,8 @@ type Input struct {
 	Type string `json:"type"`
 	// Declaration describes the variable's block at the head in the
 	// trigger's module directory, omitted when the directory does not
-	// decompose at the head or holds no such variable. An optional field.
+	// decompose or is not fully walked at either revision, or holds no such
+	// variable at the head. An optional field.
 	Declaration *Declaration `json:"declaration,omitempty"`
 }
 
