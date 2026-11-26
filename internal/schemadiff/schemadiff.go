@@ -233,7 +233,7 @@ func ModuleTypes(dir string, lim facts.Limits) ([]TypeUse, error) {
 			return nil, err
 		}
 		if len(m.Unsupported) > 0 {
-			return nil, fmt.Errorf("the types of %q cannot be listed: %s", d, m.Unsupported[0])
+			return nil, fmt.Errorf("the types of %q cannot be listed: %q", d, m.Unsupported[0])
 		}
 		for _, b := range m.Other {
 			if b.Type == "ephemeral" {

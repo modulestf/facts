@@ -273,6 +273,7 @@ func TestRunQuotesHostileValues(t *testing.T) {
 	source := write("source/main.tf", "terraform {\n  required_providers {\n    example = { source = \"acme/example\\nforged: line\" }\n  }\n}\nresource \"example_widget\" \"x\" {}\n")
 	label := write("label/main.tf", "resource \"example_widget\\nforged: line\" \"x\" {}\n")
 	file := write("file/a\nb.tf", "ephemeral \"example_secret\" \"x\" {}\n")
+	unparsed := write("unparsed/a\nb.tf", "resource \"example_widget\" \"x\" {\n")
 	sub := write("dirroot/sub\nforged/main.tf", "resource \"example_widget\" \"x\" {\n")
 	from, to := filepath.Join(testdata, "from.json"), filepath.Join(testdata, "to.json")
 	for _, tc := range []struct {
@@ -281,6 +282,7 @@ func TestRunQuotesHostileValues(t *testing.T) {
 		{"provider source", source, `provider "registry.terraform.io/acme/example\nforged: line", which resource "example_widget" uses, is not in from.json`},
 		{"type label", label, `resource "example_widget\nforged: line": the type is not a Terraform identifier`},
 		{"ephemeral file name", file, `"a\nb.tf":1: ephemeral resources are not compared`},
+		{"file that does not parse", unparsed, `cannot be listed: "a\nb.tf: parse error"`},
 		{"directory", filepath.Dir(sub), `the types of "sub\nforged" cannot be listed`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

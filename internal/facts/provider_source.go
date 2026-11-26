@@ -19,7 +19,9 @@ func ProviderKey(source string) string {
 // IsTypeLabel reports whether s is a Terraform identifier, the form a
 // resource or data source type label has: a letter or underscore, then
 // letters, digits, underscores or hyphens. A report never carries any other
-// label, so a line break in one cannot reach the output.
+// label, so a line break in one cannot reach the output. This is the ASCII
+// subset of Terraform's identifier rule, which also takes Unicode letters:
+// stricter fails closed, and no provider's type name is outside it.
 func IsTypeLabel(s string) bool {
 	for i, r := range []byte(s) {
 		switch {

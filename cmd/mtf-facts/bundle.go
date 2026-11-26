@@ -70,7 +70,7 @@ func newBundleCmd() *cobra.Command {
 // worker is done, so a timeout writes none.
 func bundle(cmd *cobra.Command, a bundleArgs, timeout time.Duration) int {
 	if err := checkBundleArgs(a); err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: bundle:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: bundle:", oneLine(err.Error()))
 		return exitError
 	}
 	lim := facts.DefaultLimits

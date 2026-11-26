@@ -264,6 +264,12 @@ func TestBuildQuotesHostileValues(t *testing.T) {
 			want:    `resource "aws_example\nforged: line": the type is not a Terraform identifier`,
 		},
 		{
+			name:    "file with a line break in its name that does not parse",
+			files:   map[string]string{"a\nb.tf": "resource \"aws_example_bucket\" \"x\" {\n"},
+			schemas: []string{testSchema},
+			want:    `module tree: "a\nb.tf: parse error"`,
+		},
+		{
 			name:    "ephemeral block in a file with a line break in its name",
 			files:   map[string]string{"a\nb.tf": "ephemeral \"aws_example_secret\" \"x\" {}\n"},
 			schemas: []string{testSchema},

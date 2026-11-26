@@ -105,7 +105,7 @@ func newVersionCmd() *cobra.Command {
 			}
 			b, err := json.Marshal(newVersionReport(cmd.Root()))
 			if err != nil {
-				fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: version:", err)
+				fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: version:", oneLine(err.Error()))
 				return exitStatus{exitError}
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), string(b))

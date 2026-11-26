@@ -139,7 +139,7 @@ func readModule(dir string, lim facts.Limits) (*facts.Module, error) {
 		return nil, fmt.Errorf("module tree: %w", err)
 	}
 	if len(m.Unsupported) > 0 {
-		return nil, fmt.Errorf("module tree: %s", strings.Join(m.Unsupported, "; "))
+		return nil, fmt.Errorf("module tree: %q", strings.Join(m.Unsupported, "; "))
 	}
 	if !slices.ContainsFunc(tree.DirEntries("."), func(e *facts.Entry) bool { return strings.HasSuffix(e.Path, ".tf") }) {
 		return nil, errors.New("module tree: no .tf file in the module directory")

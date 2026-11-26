@@ -39,7 +39,7 @@ func withStats(cmd *cobra.Command, args []string, path string, handler func(rec 
 	}
 	if rec != nil {
 		if err := writeStats(path, rec.Record(cmd.Name(), version(), code), statsGuard(cmd, args)); err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "mtf-facts: stats: %v\n", err)
+			fmt.Fprintf(cmd.ErrOrStderr(), "mtf-facts: stats: %s\n", oneLine(err.Error()))
 		}
 	}
 	return status(code)
