@@ -16,6 +16,10 @@ cmd:merge
 cmd:merge.check
 cmd:merge.counts
 cmd:merge.final
+cmd:pre-commit
+cmd:pre-commit.derive
+cmd:pre-commit.docs
+cmd:pre-commit.wrapper
 cmd:profile-check
 cmd:profile-snapshot
 cmd:rules
@@ -101,6 +105,15 @@ flag:merge.final:registry
 flag:merge.final:report
 flag:merge.final:templates
 flag:merge.final:timeout
+flag:pre-commit.derive:timeout
+flag:pre-commit.docs:config
+flag:pre-commit.docs:timeout
+flag:pre-commit.docs:version
+flag:pre-commit.docs:workflow
+flag:pre-commit.wrapper:config
+flag:pre-commit.wrapper:module
+flag:pre-commit.wrapper:timeout
+flag:pre-commit.wrapper:wrapper
 flag:profile-check:downgrade-ids
 flag:profile-check:gates
 flag:profile-check:profile-dir

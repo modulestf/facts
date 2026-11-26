@@ -1,0 +1,2 @@
+# Keep every fixture byte for byte: CR bytes are part of some cases.
+* -text

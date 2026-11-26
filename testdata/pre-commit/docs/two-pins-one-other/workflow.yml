@@ -1,0 +1,3 @@
+env:
+  TERRAFORM_DOCS_VERSION: v0.24.0
+  terraform-docs-version: v0.23.0

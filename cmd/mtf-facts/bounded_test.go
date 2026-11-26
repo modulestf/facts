@@ -29,6 +29,7 @@ func boundedCases(t *testing.T) []boundedCase {
 	tmp := t.TempDir()
 	const ex = "../../schema/examples"
 	sd, ftd, mfx := "../../testdata/schema-diff", "../../testdata/fixture-check", filepath.Join(mergeFixtures, "answered-once-duplicate")
+	pcd, pcw, pck := preCommitFixtures+"/derive", preCommitFixtures+"/wrapper/derived", preCommitFixtures+"/docs/mismatch"
 	bundleOut := filepath.Join(tmp, "bundle")
 	if err := os.Mkdir(bundleOut, 0o755); err != nil {
 		t.Fatal(err)
@@ -48,6 +49,9 @@ func boundedCases(t *testing.T) []boundedCase {
 		{"fixture-check", []string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, exitClean},
 		{"profile-check", []string{"profile-check", "--profile-dir", "../../testdata/profile"}, exitClean},
 		{"bundle", bundleArgsFor(writeReport(t, tmp), "../../testdata/bundle/skills", bundleOut), exitClean},
+		{"pre-commit derive", []string{"pre-commit", "derive", pcd + "/terraform-aws-vpc/in.tf"}, exitClean},
+		{"pre-commit wrapper", []string{"pre-commit", "wrapper", "--config", pcw + "/config.yaml", "--module", pcw + "/module.tf", "--wrapper", pcw + "/wrapper.tf"}, exitClean},
+		{"pre-commit docs", []string{"pre-commit", "docs", "--config", pck + "/config.yaml", "--workflow", pck + "/workflow.yml", "--version", "v0.24.0"}, exitClean},
 		{"merge check", []string{"merge", "check", regionFile(t, "answered-once-duplicate"), filepath.Join(mfx, "model-output.repair.json")}, exitReplyValid},
 		{"merge counts", []string{"merge", "counts", regionFile(t, "answered-once-duplicate"), filepath.Join(mfx, "model-output.repair.json")}, exitClean},
 	}

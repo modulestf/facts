@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: x
+        entry: echo
+          - repo:https://github.com/antonbabenko/pre-commit-terraform
+          rev:v1.106.0
+          - id:terraform_wrapper_module_for_each
