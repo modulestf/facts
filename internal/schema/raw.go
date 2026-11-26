@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -47,6 +48,95 @@ func (t *rawType) UnmarshalJSON(b []byte) error {
 	}
 	*t = bytes.Clone(b) // the decoder may reuse b
 	return nil
+}
+
+// nameRawError returns err, from decoding the raw schema file data, with
+// the provider and the type it refused named, as a whole decode named them.
+// It reads the file again member by member, which costs memory, so it runs
+// only after a decode failed. It returns err as it is when it finds no
+// refused type or provider.
+func nameRawError(data []byte, err error) error {
+	var top struct {
+		Schemas json.RawMessage `json:"provider_schemas"`
+	}
+	if json.Unmarshal(data, &top) != nil || len(top.Schemas) == 0 || isNull(top.Schemas) {
+		return err
+	}
+	var named error
+	_ = eachMember(top.Schemas, func(source string, v json.RawMessage) error {
+		var p struct {
+			R json.RawMessage `json:"resource_schemas"`
+			D json.RawMessage `json:"data_source_schemas"`
+		}
+		_ = json.Unmarshal(v, &p) // a member of the wrong shape is found below
+		for _, ts := range []struct {
+			kind string
+			raw  json.RawMessage
+		}{{"resource", p.R}, {"data source", p.D}} {
+			named = namedType(ts.raw, func(name string, t json.RawMessage) error {
+				if _, err := decodeRawType(t); err != nil {
+					return fmt.Errorf("provider %s: %s %s: %w", source, ts.kind, name, err)
+				}
+				return nil
+			})
+			if named != nil {
+				return named
+			}
+		}
+		if err := json.Unmarshal(v, new(rawProvider)); err != nil {
+			named = fmt.Errorf("provider %s: %w", source, err)
+		}
+		return named
+	})
+	if named != nil {
+		return named
+	}
+	return err
+}
+
+// namedType returns the first error check gives a type of the JSON object
+// raw, nil when raw is absent, null or not an object.
+func namedType(raw json.RawMessage, check func(name string, t json.RawMessage) error) error {
+	if len(raw) == 0 || isNull(raw) {
+		return nil
+	}
+	var named error
+	_ = eachMember(raw, func(name string, t json.RawMessage) error {
+		named = check(name, t)
+		return named
+	})
+	return named
+}
+
+// isNull reports whether the JSON value b is null.
+func isNull(b []byte) bool { return string(bytes.TrimSpace(b)) == "null" }
+
+// eachMember calls f with each member of the JSON object b in order, a
+// member written twice included, until f returns an error.
+func eachMember(b []byte, f func(name string, v json.RawMessage) error) error {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	tok, err := dec.Token()
+	switch {
+	case err != nil:
+		return err
+	case tok != json.Delim('{'):
+		return errors.New("not a JSON object")
+	}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		var v json.RawMessage
+		if err := dec.Decode(&v); err != nil {
+			return err
+		}
+		if err := f(tok.(string), v); err != nil {
+			return err
+		}
+	}
+	_, err = dec.Token()
+	return err
 }
 
 // loadRaw reads each `terraform providers schema -json` file. A provider
@@ -101,7 +191,7 @@ type Keep func(dataSource bool, name string) bool
 func parseRaw(data []byte, keep Keep) (*rawFile, error) {
 	var f rawFile
 	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, err
+		return nil, nameRawError(data, err)
 	}
 	for _, p := range f.Schemas {
 		if p == nil {

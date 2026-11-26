@@ -139,6 +139,36 @@ func (t *HandoffType) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// nameHandoffError returns err, from decoding the handoff doc, with the
+// provider schema and the type it refused named, as validate names them.
+// Like nameRawError it reads the document again, only after a decode
+// failed, and returns err as it is when it finds no refused type.
+func nameHandoffError(doc []byte, err error) error {
+	var top struct {
+		ProviderSchemas []struct {
+			Source            string          `json:"source"`
+			Version           string          `json:"version"`
+			ResourceSchemas   json.RawMessage `json:"resource_schemas"`
+			DataSourceSchemas json.RawMessage `json:"data_source_schemas"`
+		} `json:"provider_schemas"`
+	}
+	_ = json.Unmarshal(doc, &top) // a member of the wrong shape leaves the rest decoded
+	for _, p := range top.ProviderSchemas {
+		for _, raw := range []json.RawMessage{p.ResourceSchemas, p.DataSourceSchemas} {
+			named := namedType(raw, func(name string, t json.RawMessage) error {
+				if _, err := decodeHandoffType(t); err != nil {
+					return fmt.Errorf("provider schema %q type %q: %w", schemaKey(p.Source, p.Version), name, err)
+				}
+				return nil
+			})
+			if named != nil {
+				return named
+			}
+		}
+	}
+	return err
+}
+
 // TypeSchema is one resource or data source type.
 type TypeSchema struct {
 	Block *Block `json:"block"`
@@ -224,7 +254,7 @@ func parseHandoff(data []byte) (*Handoff, string, error) {
 	dec := json.NewDecoder(bytes.NewReader(doc))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&h); err != nil {
-		return nil, "", fmt.Errorf("malformed: %w", err)
+		return nil, "", fmt.Errorf("malformed: %w", nameHandoffError(doc, err))
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return nil, "", errors.New("malformed: data after the document")

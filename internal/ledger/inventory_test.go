@@ -189,3 +189,28 @@ func TestBuildDepthCap(t *testing.T) {
 		t.Errorf("error %v", err)
 	}
 }
+
+// TestKeepTypesCoversLookups: every resource and data source type Build
+// looks up is a type the schema files keep, and another type is not. A type
+// not kept reads as schema_unavailable, which Build reports as a provider
+// with no schema file.
+func TestKeepTypesCoversLookups(t *testing.T) {
+	m, err := readModule(testModule, facts.DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keep := keepTypes(m)
+	modes := map[bool]bool{}
+	for _, r := range m.Resources {
+		if !keep(r.Mode == "data", r.Type) {
+			t.Errorf("%s %s is looked up but not kept", r.Mode, r.Type)
+		}
+		modes[r.Mode == "data"] = true
+	}
+	if !modes[true] || !modes[false] {
+		t.Error("the fixture must use a resource and a data source")
+	}
+	if keep(false, "aws_not_in_the_module") || keepTypes(nil)(false, m.Resources[0].Type) {
+		t.Error("a type the module does not use is kept")
+	}
+}

@@ -51,8 +51,14 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 		"bad first of two":         unusedDoc("", `{"block": {"attributes": 5}}, "aws_unused_thing": `+ok),
 	} {
 		p := writeFile(t, "aws.json", []byte(doc))
-		if _, err := Load("", []string{p}); err == nil {
+		_, err := Load("", []string{p})
+		if err == nil {
 			t.Errorf("%s: Load accepted", name)
+		}
+		// A bad type is named, with its provider.
+		if want := "provider " + aws + ": resource aws_unused_thing: "; !strings.HasPrefix(name, "provider ") &&
+			!strings.HasPrefix(name, "functions") && (err == nil || !strings.Contains(err.Error(), want)) {
+			t.Errorf("%s: error %v does not name %q", name, err, want)
 		}
 		if _, err := LoadTypes([]string{p}, func(bool, string) bool { return false }); err == nil {
 			t.Errorf("%s: LoadTypes accepted", name)
@@ -168,8 +174,13 @@ func TestHandoffUnusedTypeRefused(t *testing.T) {
 		"bad first of two":  `{"block": {}, "description": "x"}, "aws_unused_thing": {"block": {}}`,
 	} {
 		doc := strings.Replace(string(data), anchor, anchor+`"aws_unused_thing": `+typ+`, `, 1)
-		if _, err := Load(writeFile(t, "h.json", []byte(doc)), nil); err == nil {
+		_, err := Load(writeFile(t, "h.json", []byte(doc)), nil)
+		if err == nil {
 			t.Errorf("%s: accepted", name)
+		}
+		// A null is refused by the null scan, before any type is read.
+		if name != "attribute is null" && (err == nil || !strings.Contains(err.Error(), `type "aws_unused_thing": `)) {
+			t.Errorf("%s: error %v does not name the type", name, err)
 		}
 	}
 	doc := strings.Replace(string(data), anchor, anchor+`"aws_unused_thing": {"block": {}}, `, 1)
@@ -283,22 +294,69 @@ func FuzzNullScan(f *testing.F) {
 }
 
 // FuzzRawSchema holds parseRaw to a whole decode into
-// tfjson.ProviderSchemas: each accepts what the other accepts.
+// tfjson.ProviderSchemas: each accepts what the other accepts, and an
+// accepted file has the same providers, types and blocks.
 func FuzzRawSchema(f *testing.F) {
 	ok := `{"version": 0, "block": {"attributes": {"x": {"type": "string", "optional": true}}}}`
 	for _, c := range []string{
 		rawSchema, unusedDoc("", ok), unusedDoc("", `null`), unusedDoc(`"provider": {"version": 0},`, ok),
 		unusedDoc("", `{"block": {"attributes": {"x": {"type": "nonsense"}}}}`),
 		`{"format_version": "1.0", "provider_schemas": {"p": {"resource_schemas": {"a": 5, "a": {}}}}}`,
+		`{"format_version": "1.0", "provider_schemas": {"p": {"resource_schemas": {"a": {}}, "resource_schemas": {"b": {}}}}}`,
+		`{"format_version": "1.0", "provider_schemas": {"p": {"resource_schemas": {"a": {}}}}, "provider_schemas": {"q": null}}`,
+		`{"format_version": "1.0", "provider_schemas": {"p": {"resource_schemas": {"a": {}}}, "p": {"data_source_schemas": {"b": {}}}}}`,
+		`{"format_version": "1.0", "provider_schemas": {"p": {"Resource_Schemas": {"a": {}}, "resource_schemas": null}}}`,
 	} {
 		f.Add([]byte(c))
 	}
 	f.Fuzz(func(t *testing.T, doc []byte) {
-		_, err := parseRaw(doc, nil)
+		got, err := parseRaw(doc, nil)
 		var ps tfjson.ProviderSchemas
 		werr := ps.UnmarshalJSON(doc)
 		if (err == nil) != (werr == nil) {
-			t.Errorf("%q: parseRaw %v, whole decode %v", doc, err, werr)
+			t.Fatalf("%q: parseRaw %v, whole decode %v", doc, err, werr)
+		}
+		if err != nil {
+			return
+		}
+		if len(got.Schemas) != len(ps.Schemas) {
+			t.Fatalf("%q: %d providers, whole decode %d", doc, len(got.Schemas), len(ps.Schemas))
+		}
+		for source, want := range ps.Schemas {
+			p, ok := got.Schemas[source]
+			if !ok || (p == nil) != (want == nil) {
+				t.Fatalf("%q: provider %s differs", doc, source)
+			}
+			if p == nil {
+				continue
+			}
+			sameTypes(t, doc, p.resources, want.ResourceSchemas)
+			sameTypes(t, doc, p.dataSources, want.DataSourceSchemas)
 		}
 	})
+}
+
+// sameTypes fails when the types kept as JSON differ from the types of a
+// whole decode, by name or by decoded block.
+func sameTypes(t *testing.T, doc []byte, got map[string]json.RawMessage, want map[string]*tfjson.Schema) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%q: %d types, whole decode %d", doc, len(got), len(want))
+	}
+	for name, w := range want {
+		raw, ok := got[name]
+		if !ok {
+			t.Fatalf("%q: type %s missing", doc, name)
+		}
+		g, err := decodeRawType(raw)
+		if err != nil {
+			t.Fatalf("%q: type %s: %v", doc, name, err)
+		}
+		if w == nil {
+			w = &tfjson.Schema{}
+		}
+		if !reflect.DeepEqual(g, w) {
+			t.Fatalf("%q: type %s decodes to %+v, whole decode %+v", doc, name, g, w)
+		}
+	}
 }

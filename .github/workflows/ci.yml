@@ -187,6 +187,8 @@ jobs:
           - { pkg: ./internal/fixture, name: FuzzFile }
           - { pkg: ./internal/schema, name: FuzzHandoff }
           - { pkg: ./internal/merge, name: FuzzParseReply }
+          - { pkg: ./internal/schema, name: FuzzNullScan }
+          - { pkg: ./internal/schema, name: FuzzRawSchema }
     env:
       GOFLAGS: -mod=readonly
     steps:

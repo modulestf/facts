@@ -82,19 +82,7 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	// The tree is read first so the schema files keep only its types, and
 	// its error is returned after theirs, as before.
 	m, treeErr := readModule(dir, lim)
-	type typeKey struct {
-		data bool
-		name string
-	}
-	keep := map[typeKey]bool{}
-	if treeErr == nil {
-		for _, r := range m.Resources {
-			keep[typeKey{r.Mode == "data", r.Type}] = true
-		}
-	}
-	set, err := schema.LoadTypes(schemaFiles, func(dataSource bool, name string) bool {
-		return keep[typeKey{dataSource, name}]
-	})
+	set, err := schema.LoadTypes(schemaFiles, keepTypes(m))
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +110,22 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	}
 	slices.SortFunc(inv.Types, func(a, b Type) int { return cmp.Or(cmp.Compare(a.Mode, b.Mode), cmp.Compare(a.Type, b.Type)) })
 	return inv, nil
+}
+
+// keepTypes keeps the types of the resources of m, the types Build looks
+// up, and no type when m is nil.
+func keepTypes(m *facts.Module) schema.Keep {
+	type typeKey struct {
+		data bool
+		name string
+	}
+	keep := map[typeKey]bool{}
+	if m != nil {
+		for _, r := range m.Resources {
+			keep[typeKey{r.Mode == "data", r.Type}] = true
+		}
+	}
+	return func(dataSource bool, name string) bool { return keep[typeKey{dataSource, name}] }
 }
 
 // readModule reads and checks the module in dir for Build.
