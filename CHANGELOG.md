@@ -1,3 +1,12 @@
+## [0.14.2](https://github.com/modulestf/facts/compare/v0.14.1...v0.14.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* Check and create the stats file through one parent directory descriptor ([#88](https://github.com/modulestf/facts/issues/88)) ([9509235](https://github.com/modulestf/facts/commit/9509235846f7a7f9d3714e54ae0369b21dbc2a8e))
+
+
+
 ## [0.14.1](https://github.com/modulestf/facts/compare/v0.14.0...v0.14.1) (2026-11-26)
 
 
