@@ -1,0 +1,6 @@
+env:
+  TERRAFORM_DOCS_VERSION: 0.24.0
+jobs:
+  x:
+    with:
+      terraform-docs-version: ${{ env.TERRAFORM_DOCS_VERSION }}

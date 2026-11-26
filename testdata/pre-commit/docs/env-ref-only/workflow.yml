@@ -1,0 +1,4 @@
+jobs:
+  x:
+    with:
+      terraform-docs-version: ${{ env.TERRAFORM_DOCS_VERSION }}
