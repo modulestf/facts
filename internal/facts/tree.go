@@ -161,9 +161,13 @@ type Tree struct {
 	byDir   map[string][]*Entry
 }
 
-// skipDir names directories that are never read: VCS metadata and local
-// Terraform working state, neither of which is module source.
-func skipDir(name string) bool { return name == ".git" || name == ".terraform" }
+// skipDir names directories that are never read: git metadata, which git
+// never tracks and which is no module source. A .terraform directory is read
+// like any other: Terraform loads a local module source and reuses a
+// committed modules cache from inside it, so no content of it may decide a
+// skip. A host reads a clean checkout, with no untracked terraform init
+// output in it.
+func skipDir(name string) bool { return name == ".git" }
 
 // Bounds of hashing oversize files: a file over the cap, or past the budget
 // of hashed bytes in one tree, keeps no hash and so stays changed. A test

@@ -642,3 +642,100 @@ func runAffectedDirs(t *testing.T, head, base string) *AffectedReport {
 	}
 	return r
 }
+
+// TestAffectedDotTerraform: a committed .terraform directory is repository
+// content whatever files sit in it. Terraform loads a local module source
+// from it, so no marker file may hide a change there.
+func TestAffectedDotTerraform(t *testing.T) {
+	t.Parallel()
+	const mod = "resource \"null_resource\" \"m\" {}\n"
+	const mod2 = "resource \"null_resource\" \"m2\" {}\n"
+	markers := map[string]string{
+		".terraform/terraform.tfstate":     "{}",
+		".terraform/modules/modules.json":  "{}",
+		".terraform/providers/x/terraform": "bin",
+		".terraform/environment":           "default",
+		".terraform/plugin_path":           "x",
+	}
+	base := with(affectedHead, map[string]string{
+		".terraform/m/main.tf":   mod,
+		"examples/dot/main.tf":   "module \"m\" {\n  source = \"../../.terraform/m\"\n}\n",
+		"examples/dot/README.md": "# dot\n",
+	})
+	maps.Copy(base, markers)
+	all := []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"}
+	callers := append([]string{"caller examples/dot"}, all...)
+
+	patch := func(t *testing.T, path, oldS, newS string) ghFile {
+		return ghFile{Filename: path, Status: "modified", Additions: 1, Deletions: 1,
+			Patch: new("@@ -1 +1 @@\n-" + strings.TrimSuffix(oldS, "\n") + "\n+" + strings.TrimSuffix(newS, "\n"))}
+	}
+	viaDiff := func(t *testing.T, head map[string]string, files ...ghFile) *AffectedReport {
+		t.Helper()
+		f := filepath.Join(t.TempDir(), "change")
+		if err := os.WriteFile(f, []byte(ghList(t, files...)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r, err := Affected(AffectedOptions{Head: writeTree(t, head), Diff: f, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkAffectedSchema(t, r)
+		return r
+	}
+	wantChanged := func(t *testing.T, r *AffectedReport, want ...string) {
+		t.Helper()
+		if !slices.Equal(r.Changed, want) {
+			t.Errorf("changed = %q, want %q", r.Changed, want)
+		}
+	}
+
+	t.Run("base: a module edit beside committed marker files selects its caller", func(t *testing.T) {
+		r := runAffected(t, with(base, map[string]string{".terraform/m/main.tf": mod2}), base)
+		wantAffected(t, r, false, "", callers...)
+		wantChanged(t, r, ".terraform/m/main.tf")
+	})
+	t.Run("diff: the same change", func(t *testing.T) {
+		head := with(base, map[string]string{".terraform/m/main.tf": mod2})
+		r := viaDiff(t, head, patch(t, ".terraform/m/main.tf", mod, mod2))
+		wantAffected(t, r, false, "", callers...)
+		wantChanged(t, r, ".terraform/m/main.tf")
+	})
+	t.Run("diff: markers added by the same change hide nothing", func(t *testing.T) {
+		head := with(base, map[string]string{".terraform/m/main.tf": mod2})
+		files := []ghFile{patch(t, ".terraform/m/main.tf", mod, mod2)}
+		for _, p := range slices.Sorted(maps.Keys(markers)) {
+			files = append(files, ghFile{Filename: p, Status: "added"})
+		}
+		r := viaDiff(t, head, files...)
+		wantAffected(t, r, false, "", callers...)
+		if !slices.Contains(r.Changed, ".terraform/m/main.tf") {
+			t.Errorf("changed = %q, want the module edit among them", r.Changed)
+		}
+	})
+	t.Run("base: markers added by the same change hide nothing", func(t *testing.T) {
+		without := maps.Clone(base)
+		for p := range markers {
+			delete(without, p)
+		}
+		r := runAffected(t, with(base, map[string]string{".terraform/m/main.tf": mod2}), without)
+		wantAffected(t, r, false, "", callers...)
+		if !slices.Contains(r.Changed, ".terraform/m/main.tf") {
+			t.Errorf("changed = %q, want the module edit among them", r.Changed)
+		}
+	})
+	t.Run("a .terraform file nothing reads is a change of no module, not inert", func(t *testing.T) {
+		unused := with(affectedHead, map[string]string{".terraform/other/notes.txt": "a\n"})
+		r := runAffected(t, with(unused, map[string]string{".terraform/other/notes.txt": "b\n"}), unused)
+		wantAffected(t, r, false, "", all...)
+		wantChanged(t, r, ".terraform/other/notes.txt")
+		r = viaDiff(t, with(unused, map[string]string{".terraform/other/notes.txt": "b\n"}), patch(t, ".terraform/other/notes.txt", "a\n", "b\n"))
+		wantAffected(t, r, false, "", all...)
+		wantChanged(t, r, ".terraform/other/notes.txt")
+	})
+	t.Run("a sibling name is no .terraform", func(t *testing.T) {
+		b := with(affectedHead, map[string]string{".terraform-x/y.txt": "a\n"})
+		r := runAffected(t, with(b, map[string]string{".terraform-x/y.txt": "b\n"}), b)
+		wantChanged(t, r, ".terraform-x/y.txt")
+	})
+}

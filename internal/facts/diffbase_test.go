@@ -191,12 +191,29 @@ func TestBaseFromDiff(t *testing.T) {
 			want: map[string]string{"main.tf": "a\r\nc\r\n"},
 		},
 		{
-			name: "paths under .git and .terraform are skipped",
-			head: map[string]string{"main.tf": v1},
+			name: "a path under .terraform is the change's own, as any other",
+			head: map[string]string{"main.tf": v1, ".terraform/m/main.tf": v2},
 			diff: func(t *testing.T) string {
-				return ghList(t, ghFile{Filename: ".terraform/x.tf", Status: "added"}, ghFile{Filename: "a/.git/config", Status: "removed"})
+				return ghList(t, ghFile{Filename: ".terraform/m/main.tf", Status: "modified", Patch: new(edit), Additions: 1, Deletions: 1})
 			},
-			want: map[string]string{"main.tf": v1},
+			want: map[string]string{"main.tf": v1, ".terraform/m/main.tf": v1},
+		},
+		{
+			name: "a rename into and out of .terraform is each side's own",
+			head: map[string]string{".terraform/b.tf": v1, "c.tf": v1},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: ".terraform/b.tf", PreviousFilename: "a.tf", Status: "renamed"},
+					ghFile{Filename: "c.tf", PreviousFilename: ".terraform/c.tf", Status: "renamed"})
+			},
+			want: map[string]string{"a.tf": v1, ".terraform/c.tf": v1},
+		},
+		{
+			name: "no marker file turns a .terraform path into a skipped one",
+			head: map[string]string{"main.tf": v1, ".terraform/terraform.tfstate": "{}", ".terraform/modules/modules.json": "{}"},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: ".terraform/x.tf", Status: "removed", Patch: new("@@ -1 +0,0 @@\n-a")})
+			},
+			want: map[string]string{"main.tf": v1, ".terraform/terraform.tfstate": "{}", ".terraform/modules/modules.json": "{}", ".terraform/x.tf": "a\n"},
 		},
 		{
 			name: "an empty list is no change",
@@ -258,6 +275,18 @@ func TestBaseFromDiff(t *testing.T) {
 		{name: "a path listed twice", head: map[string]string{"main.tf": v2}, err: "more than once",
 			diff: func(t *testing.T) string {
 				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new(edit)}, ghFile{Filename: "main.tf", Status: "modified", Patch: new(edit)})
+			}},
+		{name: "a .git path", head: map[string]string{"main.tf": v1}, err: "unsafe path",
+			diff: func(t *testing.T) string { return ghList(t, ghFile{Filename: "a/.git/config", Status: "removed"}) }},
+		{name: "a .GIT path", head: map[string]string{"main.tf": v1}, err: "unsafe path",
+			diff: func(t *testing.T) string { return ghList(t, ghFile{Filename: ".GIT/x.tf", Status: "added"}) }},
+		{name: "a rename from .git", head: map[string]string{"main2.tf": v1}, err: "unsafe path",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main2.tf", PreviousFilename: ".git/x.tf", Status: "renamed"})
+			}},
+		{name: "a rename into .git", head: map[string]string{"main.tf": v1}, err: "unsafe path",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "x/.git/y.tf", PreviousFilename: "main.tf", Status: "renamed"})
 			}},
 		{name: "unknown status", head: map[string]string{"main.tf": v1}, err: "status",
 			diff: func(t *testing.T) string { return ghList(t, ghFile{Filename: "main.tf", Status: "exploded"}) }},

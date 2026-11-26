@@ -16,14 +16,16 @@ import (
 
 func TestReadTreeKinds(t *testing.T) {
 	root := writeTree(t, map[string]string{
-		"main.tf":         "# ok\n",
-		"link.tf":         "->main.tf",
-		"outside.tf":      "->../../etc/passwd",
-		"examples/a/x.tf": "",
-		"examples/b":      "->a",
-		".git/config":     "secret",
-		".terraform/x":    "state",
-		"big.txt":         strings.Repeat("x", 100),
+		"main.tf":            "# ok\n",
+		"link.tf":            "->main.tf",
+		"outside.tf":         "->../../etc/passwd",
+		"examples/a/x.tf":    "",
+		"examples/b":         "->a",
+		".git/config":        "secret",
+		".terraform/x":       "state",
+		".terraform-x/y":     "sibling",
+		".terraform/modules": "->../real",
+		"big.txt":            strings.Repeat("x", 100),
 	})
 	if err := unix.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
 		t.Fatal(err)
@@ -38,6 +40,7 @@ func TestReadTreeKinds(t *testing.T) {
 		"main.tf": KindFile, "link.tf": KindSymlink, "outside.tf": KindSymlink,
 		"examples/a/x.tf": KindFile, "examples/b": KindSymlink,
 		"pipe.tf": KindSpecial, "big.txt": KindOversize,
+		".terraform/x": KindFile, ".terraform-x/y": KindFile, ".terraform/modules": KindSymlink,
 	}
 	if len(tr.Entries) != len(want) {
 		t.Errorf("entries %v, want %d", tr.Paths, len(want))
