@@ -11,8 +11,8 @@ permissions:
 env:
   GOTOOLCHAIN: local
   # The rule registry pin, used by the Fetch rule registry step of each job.
-  SKILLS_COMMIT: 19d74e317b5721d14d384bc01699fa97379f21e3
-  REGISTRY_SHA256: e43644044fb373209cad6e208b5119224e06361b7b9b5c698e0cd35507c77f54
+  SKILLS_COMMIT: 146c0c9f8bb5805818b6d2a076e2b47e7dac1ada
+  REGISTRY_SHA256: 0ae78a1ec618d62b08b38843f35d0962de14c2a9dde947ffcd7f1c42a2149e77
 
 jobs:
   test:
