@@ -1,3 +1,12 @@
+## [0.14.4](https://github.com/modulestf/facts/compare/v0.14.3...v0.14.4) (2026-11-26)
+
+
+### Bug Fixes
+
+* Build on 32-bit and illumos targets, quote provider sources, skip hidden directories ([#93](https://github.com/modulestf/facts/issues/93)) ([c4381f2](https://github.com/modulestf/facts/commit/c4381f21366ecb9d075f5b8b0893d6da13790684))
+
+
+
 ## [0.14.3](https://github.com/modulestf/facts/compare/v0.14.2...v0.14.3) (2026-11-26)
 
 
