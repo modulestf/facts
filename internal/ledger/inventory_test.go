@@ -221,8 +221,8 @@ func TestBuildHostileFields(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err := Build(dir, []string{filepath.Join(dir, "s.json")}, facts.DefaultLimits)
-			if err == nil || !strings.Contains(err.Error(), "resource aws_hostile: ") || !strings.Contains(err.Error(), tc.want) {
-				t.Errorf("error %v, want resource aws_hostile and %q", err, tc.want)
+			if err == nil || !strings.Contains(err.Error(), `resource "aws_hostile": `) || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %v, want the type aws_hostile and %q", err, tc.want)
 			}
 		})
 	}
