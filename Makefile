@@ -1,4 +1,4 @@
-.PHONY: build test vet bench release-build release-verify
+.PHONY: build test vet bench mutate release-build release-verify
 
 build:
 	go build -trimpath -o bin/mtf-facts ./cmd/mtf-facts
@@ -16,6 +16,13 @@ BENCH_OUT ?= bench.txt
 bench:
 	go test -run '^$$' -bench . -benchmem -benchtime 500ms -count 6 ./... > $(BENCH_OUT); \
 		status=$$?; cat $(BENCH_OUT); exit $$status
+
+# Report the guards and condition operands on the lines changed since the
+# merge base of BASE that no test needs, as CI does on a pull request.
+# Usage: make mutate BASE=origin/master
+BASE ?= origin/master
+mutate:
+	go run ./scripts/mutate -base "$(BASE)"
 
 # Build the release binaries of the checked-out tag into OUT, as the release
 # workflow does. Usage: make release-build TAG=v0.1.0 OUT=/tmp/dist

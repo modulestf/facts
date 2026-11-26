@@ -140,6 +140,33 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Mutants of the guards and condition operands on the lines a pull
+  # request changes, tested against their package's tests (scripts/mutate).
+  # The survivors, guards no test needs, go to the job summary. Report
+  # only: the job never fails the build.
+  mutate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    env:
+      GOFLAGS: -mod=readonly
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: .go-version
+          # Off for the same reason as the fuzz jobs: this job would save
+          # under the test job's cache key first.
+          cache: false
+      - name: Mutants on changed lines
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: go run ./scripts/mutate -base "$BASE_SHA" -budget 9m -summary "$GITHUB_STEP_SUMMARY"
+
   # Releases ship darwin binaries, and the tree reader and the read caps are
   # built only for unix, so the suite runs on macOS too.
   test-macos:
