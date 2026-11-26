@@ -622,3 +622,14 @@ func TestAffectedGitlinkReadModuleRootDiff(t *testing.T) {
 		t.Errorf("inert %v fallback %v, want not inert, unparsed", r.Inert, r.Fallback)
 	}
 }
+
+// TestMarkGitlinkShortLines: an empty or one-character patch line is no
+// gitlink line and does not stop the scan.
+func TestMarkGitlinkShortLines(t *testing.T) {
+	t.Parallel()
+	c := fileChange{patch: []byte("@@ -1 +1 @@\n\n-\n+\n-Subproject commit " + gitSHA + "\n")}
+	c.markGitlink()
+	if !c.oldGit || c.newGit {
+		t.Errorf("old %v new %v, want true false", c.oldGit, c.newGit)
+	}
+}
