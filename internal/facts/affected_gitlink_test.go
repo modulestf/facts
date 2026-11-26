@@ -257,6 +257,77 @@ func TestAffectedGitlinkFileToGitlinkModuleRoot(t *testing.T) {
 	notInert(t, r, "mod/docs/sub", true)
 }
 
+// TestAffectedGitlinkToFileModuleRoot replaces a gitlink of the module with a
+// file, and reaches a gitlink through a module call that only one tree holds.
+func TestAffectedGitlinkToFileModuleRoot(t *testing.T) {
+	t.Parallel()
+	files := gitlinkRootFiles(nil)
+	t.Run("in the module", func(t *testing.T) {
+		t.Parallel()
+		head := writeGitlinkTree(t, with(files, map[string]string{"mod/docs/sub": "text\n"}), nil, false)
+		base := writeGitlinkTree(t, files, []string{"mod/docs/sub"}, false)
+		r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		notInert(t, r, "mod/docs/sub", true)
+	})
+	call := with(files, map[string]string{"mod/main.tf": "module \"v\" {\n  source = \"../vendor/sub\"\n}\n"})
+	t.Run("module call, gitlink only at head", func(t *testing.T) {
+		t.Parallel()
+		head := writeGitlinkTree(t, call, []string{"vendor/sub"}, false)
+		base := writeGitlinkTree(t, with(call, map[string]string{"vendor/sub": "text\n"}), nil, false)
+		r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		notInert(t, r, "vendor/sub", true)
+	})
+	t.Run("module call, gitlink only at base", func(t *testing.T) {
+		t.Parallel()
+		head := writeGitlinkTree(t, with(call, map[string]string{"vendor/sub": "text\n"}), nil, false)
+		base := writeGitlinkTree(t, call, []string{"vendor/sub"}, false)
+		r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		notInert(t, r, "vendor/sub", true)
+	})
+}
+
+// TestAffectedGitlinkFallbackKeepsRootExample: a fallback for another cause
+// still lists a changed file of a root example and the gitlink in scope.
+func TestAffectedGitlinkFallbackKeepsRootExample(t *testing.T) {
+	t.Parallel()
+	files := gitlinkRootFiles(map[string]string{"mod/main.tf": "module \"d\" {\n  source = var.src\n}\n"})
+	head := writeGitlinkTree(t, with(files, map[string]string{"examples/complete/README.md": "# x\n"}), []string{"mod/docs/sub"}, false)
+	base := writeGitlinkTree(t, files, []string{"mod/docs/sub"}, false)
+	r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Fallback == nil || *r.Fallback != FallbackDynamicSource {
+		t.Fatalf("fallback = %v, want %s", r.Fallback, FallbackDynamicSource)
+	}
+	if want := []string{"examples/complete/README.md", "mod/docs/sub"}; !slices.Equal(r.Changed, want) {
+		t.Errorf("changed = %q, want %q", r.Changed, want)
+	}
+}
+
+// TestReadTreeRootIsNoGitlink: a tree holding nothing but a .git file is no
+// gitlink; only a directory below the root can be one.
+func TestReadTreeRootIsNoGitlink(t *testing.T) {
+	t.Parallel()
+	dir := writeGitlinkTree(t, nil, []string{"sub"}, true)
+	if err := os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tr := mustTree(t, dir)
+	if tr.IsGitlink(".") || !tr.IsGitlink("sub") {
+		t.Errorf("gitlinks: root %v, sub %v, want false, true", tr.IsGitlink("."), tr.IsGitlink("sub"))
+	}
+}
+
 // TestFindAreasGitlink: a changed gitlink touches the area that holds it.
 func TestFindAreasGitlink(t *testing.T) {
 	t.Parallel()

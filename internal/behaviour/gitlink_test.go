@@ -20,10 +20,12 @@ func TestGitlinkChangeIsNotInert(t *testing.T) {
 	cases := map[string]struct {
 		path     string
 		baseFile bool // the base holds a file where the head holds the gitlink
+		headFile bool // the head holds a file where the base holds the gitlink
 	}{
-		"outside any documentation path": {"vendor/sub", false},
-		"under a documentation path":     {"docs/sub", false},
-		"file to gitlink":                {"docs/sub", true},
+		"outside any documentation path": {path: "vendor/sub"},
+		"under a documentation path":     {path: "docs/sub"},
+		"file to gitlink":                {path: "docs/sub", baseFile: true},
+		"gitlink to file":                {path: "docs/sub", headFile: true},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -32,7 +34,7 @@ func TestGitlinkChangeIsNotInert(t *testing.T) {
 			for i := range dirs {
 				dirs[i] = writeTree(t, files)
 				full := filepath.Join(dirs[i], filepath.FromSlash(c.path))
-				if i == 1 && c.baseFile {
+				if i == 1 && c.baseFile || i == 0 && c.headFile {
 					if err := os.WriteFile(full, []byte("text\n"), 0o644); err != nil {
 						t.Fatal(err)
 					}

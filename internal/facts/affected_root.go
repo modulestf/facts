@@ -255,7 +255,11 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 		var dirs []string
 		for _, s := range sites {
 			if siteDirs[s.Dir] || inDir(s.Dir, m) {
-				if s.Reaches(p, siteRoots) || dir && s.ReachesDir(p, siteRoots) {
+				reached := s.Reaches(p, siteRoots)
+				if dir {
+					reached = s.ReachesDir(p, siteRoots)
+				}
+				if reached {
 					dirs = append(dirs, s.Dir)
 				}
 			}
