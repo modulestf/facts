@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 // fuzzSeeds adds every file under dir whose name ends in one of suffixes as
@@ -64,13 +67,25 @@ func limitSeeds(f *testing.F) {
 // tree goes through. A parse error or a limit is fine. A panic is not, and
 // neither is the recovered one parseSyntax reports as an internal error: it
 // is a parser crash the recover only hides. An accepted file stays within
-// the token, depth and unary operator limits.
+// the token, depth and unary operator limits. parseBody, which skips the
+// lexer when scanLimits clears a file, gives the same error, and a file
+// scanLimits clears is within the limits by the lexer's count too.
 func FuzzParseSyntax(f *testing.F) {
 	fuzzSeeds(f, "../../testdata", 200, ".tf", ".tftest.hcl")
 	limitSeeds(f)
 	lim := DefaultLimits
 	f.Fuzz(func(t *testing.T, src []byte) {
+		if depth, prefix, ok := scanLimits(src); ok {
+			lexed, _ := hclsyntax.LexConfig(src, "main.tf", hcl.InitialPos)
+			if d, n := nestingDepth(lexed), prefixRun(lexed); depth != d || prefix < n || len(lexed) > len(src)+1 {
+				t.Fatalf("scan: depth %d run %d, lexer: depth %d run %d, %d tokens for %d bytes", depth, prefix, d, n, len(lexed), len(src))
+			}
+		}
+		_, _, fast := parseBody("main.tf", src, lim)
 		body, tokens, err := parseSyntax("main.tf", src, lim)
+		if errText(fast) != errText(err) {
+			t.Fatalf("parseBody: %v, parseSyntax: %v", fast, err)
+		}
 		if err != nil {
 			if body != nil || tokens != nil {
 				t.Fatalf("error %v with a body or tokens", err)

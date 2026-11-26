@@ -133,8 +133,12 @@ func (w *featureWalker) add(file string, line int, id, text string) {
 	w.uses = append(w.uses, featureUse{file: file, line: line, row: row, text: text})
 }
 
-// expr records the function calls of an expression.
+// expr records the function calls of an expression. A text with no
+// parenthesis holds no call, so it is not parsed again.
 func (w *featureWalker) expr(file string, x Expr) {
+	if !strings.Contains(x.Text, "(") {
+		return
+	}
 	e := reparse(file, x)
 	if e == nil {
 		w.add(file, x.Range.Start.Line, "", x.Text)

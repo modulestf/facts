@@ -257,7 +257,7 @@ func regionLiterals(t *Tree, dir string) []regionLiteral {
 	var out []regionLiteral
 	for _, e := range t.DirEntries(dir) {
 		name := path.Base(e.Path)
-		if e.Kind != KindFile || !strings.HasSuffix(name, ".tf") || ignoredName(name) {
+		if e.Kind != KindFile || !strings.HasSuffix(name, ".tf") || ignoredName(name) || !mayHoldRegion(e.Data) {
 			continue
 		}
 		toks, _ := hclsyntax.LexConfig(e.Data, name, hcl.InitialPos)

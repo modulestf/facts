@@ -286,13 +286,17 @@ func TestStructureLocalSourceLineCap(t *testing.T) {
 	}
 }
 
+// A text that does not parse again is an ARN candidate when it can hold an
+// ARN: it holds arn: or a backslash, which an escape such as \u0061 starts.
 func TestReparseFailureIsACandidate(t *testing.T) {
-	l := Local{Name: "x", Value: Expr{Text: "(", Range: hcl.Range{Start: hcl.Pos{Line: 3, Column: 7}}}}
-	l.File, l.Line = "main.tf", 3
-	a := &Area{Path: ".", Kind: AreaRoot, headTree: &Tree{Entries: map[string]*Entry{}}, Head: &Module{Locals: []Local{l}}}
-	res := checkARNHardcoded(a)
-	if len(res.Candidates) != 1 || res.Candidates[0].Subject != ".:local.x" || *res.Candidates[0].Line != 3 {
-		t.Errorf("candidates %+v", res.Candidates)
+	for text, want := range map[string]int{"(\"arn:": 1, "(\"\\u0061rn:": 1, "(": 0, "(\"ar n:": 0} {
+		l := Local{Name: "x", Value: Expr{Text: text, Range: hcl.Range{Start: hcl.Pos{Line: 3, Column: 7}}}}
+		l.File, l.Line = "main.tf", 3
+		a := &Area{Path: ".", Kind: AreaRoot, headTree: &Tree{Entries: map[string]*Entry{}}, Head: &Module{Locals: []Local{l}}}
+		res := checkARNHardcoded(a)
+		if len(res.Candidates) != want || want == 1 && (res.Candidates[0].Subject != ".:local.x" || *res.Candidates[0].Line != 3) {
+			t.Errorf("%q: candidates %+v", text, res.Candidates)
+		}
 	}
 	if outputSafe("outputs.tf", Expr{Text: "("}) {
 		t.Error("an output that does not parse again is safe")
