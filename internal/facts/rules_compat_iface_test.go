@@ -2,6 +2,7 @@ package facts
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -236,9 +237,7 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			for k, v := range tt.head {
 				head["modules/m/"+k] = v
 			}
-			for k, v := range tt.extra {
-				head[k] = v
-			}
+			maps.Copy(head, tt.extra)
 			var got []string
 			for _, c := range runCompat(t, base, head).Candidates {
 				if c.RuleID == "compat.default-changed" {
