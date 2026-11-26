@@ -9,9 +9,16 @@ package behaviour
 // or writes.
 const SchemaVersion = 1
 
-// MaxTriggers caps the triggers of one report; the rest are counted in
+// MaxTriggers caps the triggers of one report that select a level of the
+// ladder, or no level for another reason; the rest are counted in
 // Report.Capped and stay unverifiable.
 const MaxTriggers = 40
+
+// MaxOffLadderTriggers caps, apart from MaxTriggers, the triggers that need
+// no ladder evidence: a version floor that selects compat alone, and a moved
+// or renamed address, which selects no level. Past it they are counted in
+// Report.Capped too. A report lists at most MaxTriggers+MaxOffLadderTriggers.
+const MaxOffLadderTriggers = 40
 
 // Change kinds of an entry or a trigger.
 const (
@@ -83,7 +90,8 @@ type Report struct {
 	Inert    bool      `json:"inert"`
 	Entries  []Entry   `json:"entries"`
 	Triggers []Trigger `json:"triggers"`
-	// Capped counts the triggers past MaxTriggers, left out of Triggers.
+	// Capped counts the triggers past MaxTriggers or MaxOffLadderTriggers,
+	// left out of Triggers.
 	Capped int `json:"capped"`
 }
 

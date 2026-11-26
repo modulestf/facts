@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "behaviour.schema.json",
   "title": "mtf-facts behaviour",
-  "description": "Every changed tree entry, and the triggers the change decomposes into: one per AST-level change with one category, each with the verification levels it selects. At most 40 triggers; capped counts the rest.",
+  "description": "Every changed tree entry, and the triggers the change decomposes into: one per AST-level change with one category, each with the verification levels it selects. At most 40 triggers that may need evidence and 40 that need none (a compat-only version floor, a moved address); capped counts the rest.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "inert", "entries", "triggers", "capped"],
@@ -28,7 +28,7 @@
     },
     "triggers": {
       "type": "array",
-      "maxItems": 40,
+      "maxItems": 80,
       "items": {
         "type": "object",
         "additionalProperties": false,

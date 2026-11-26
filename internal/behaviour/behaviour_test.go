@@ -873,3 +873,78 @@ func TestContextualRefResourceAlias(t *testing.T) {
 		t.Errorf("%d cases with the alias, %d without", len(long.Cases), len(short.Cases))
 	}
 }
+
+// floorPair is a provider floor raised from >= 5.0 to >= 6.0.
+func floorPair() (string, string) {
+	f := "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \">= %s\"\n    }\n  }\n}\n"
+	return fmt.Sprintf(f, "5.0"), fmt.Sprintf(f, "6.0")
+}
+
+// capTrees is a change with floors provider version floors raised in
+// submodules that sort first, and literals argument changes in a module
+// that sorts last.
+func capTrees(floors, literals int) (base, head map[string]string) {
+	base, head = map[string]string{}, map[string]string{}
+	fb, fh := floorPair()
+	for i := range floors {
+		p := fmt.Sprintf("modules/m%02d/versions.tf", i)
+		base[p], head[p] = fb, fh
+	}
+	var b, h strings.Builder
+	b.WriteString("resource \"aws_s3_bucket\" \"b\" {\n")
+	h.WriteString("resource \"aws_s3_bucket\" \"b\" {\n")
+	for i := range literals {
+		fmt.Fprintf(&b, "  a%02d = \"x\"\n", i)
+		fmt.Fprintf(&h, "  a%02d = \"y\"\n", i)
+	}
+	b.WriteString("}\n")
+	h.WriteString("}\n")
+	base["zz/main.tf"], head["zz/main.tf"] = b.String(), h.String()
+	return base, head
+}
+
+// TestCapSparesEvidence: version floors that sort first do not push the
+// triggers that need evidence past the cap; each kind has its own cap.
+func TestCapSparesEvidence(t *testing.T) {
+	t.Parallel()
+	count := func(r *Report) (floors, others int) {
+		for _, tr := range r.Triggers {
+			if tr.Category == CatVersionFloor {
+				floors++
+			} else {
+				others++
+			}
+		}
+		return floors, others
+	}
+	for _, tc := range []struct {
+		name                         string
+		floors, literals             int
+		wantFloors, wantOthers, capd int
+	}{
+		// The shape of a small feature in a module family: one floor per
+		// submodule and the real change after them in sort order.
+		{"under both caps", 30, 20, 30, 20, 0},
+		{"at both caps", MaxTriggers, MaxTriggers, MaxTriggers, MaxTriggers, 0},
+		{"evidence over its cap", 3, MaxTriggers + 2, 3, MaxTriggers, 2},
+		{"floors over their cap", MaxOffLadderTriggers + 3, 5, MaxOffLadderTriggers, 5, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base, head := capTrees(tc.floors, tc.literals)
+			r := runPair(t, base, head, "")
+			floors, others := count(r)
+			if floors != tc.wantFloors || others != tc.wantOthers || r.Capped != tc.capd {
+				t.Fatalf("got %d floors, %d others, %d capped", floors, others, r.Capped)
+			}
+			for i, tr := range r.Triggers {
+				if want := fmt.Sprintf("T-%03d", i+1); tr.ID != want {
+					t.Fatalf("trigger %d id %s, want %s", i, tr.ID, want)
+				}
+				if i > 0 && compareTriggers(r.Triggers[i-1], tr) > 0 {
+					t.Fatalf("triggers %d and %d out of order", i-1, i)
+				}
+			}
+		})
+	}
+}

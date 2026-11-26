@@ -284,7 +284,8 @@ func diffEntries(head, base *facts.Tree) []change {
 }
 
 // report builds the report: triggers sorted and numbered, at most
-// MaxTriggers, and each entry with the triggers in it.
+// MaxTriggers that need evidence and MaxOffLadderTriggers that need none,
+// and each entry with the triggers in it.
 func (c *classifier) report(changes []change, specs []spec, inertFiles map[string]bool) *Report {
 	triggers := make([]Trigger, 0, len(specs))
 	for _, s := range specs {
@@ -298,10 +299,7 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 	for _, t := range triggers {
 		hasTrigger[t.File] = true
 	}
-	if len(triggers) > MaxTriggers {
-		r.Capped = len(triggers) - MaxTriggers
-		triggers = triggers[:MaxTriggers]
-	}
+	triggers, r.Capped = capTriggers(triggers)
 	ids := map[string][]string{}
 	for i := range triggers {
 		triggers[i].ID = fmt.Sprintf("T-%03d", i+1)
@@ -325,6 +323,43 @@ func (c *classifier) report(changes []change, specs []spec, inertFiles map[strin
 		r.Entries = append(r.Entries, e)
 	}
 	return r
+}
+
+// capTriggers keeps, in order, the first MaxTriggers triggers that may need
+// evidence and the first MaxOffLadderTriggers that need none, so version
+// floors that sort first never push a change past the cap. It returns the
+// kept triggers and the count of the rest.
+func capTriggers(ts []Trigger) ([]Trigger, int) {
+	kept := make([]Trigger, 0, min(len(ts), MaxTriggers+MaxOffLadderTriggers))
+	var evidence, off int
+	for _, t := range ts {
+		n, limit := &evidence, MaxTriggers
+		if offLadder(t) {
+			n, limit = &off, MaxOffLadderTriggers
+		}
+		if *n < limit {
+			*n++
+			kept = append(kept, t)
+		}
+	}
+	return kept, len(ts) - len(kept)
+}
+
+// offLadder reports a trigger no ladder level can verify and none needs to:
+// a version floor that selects compat alone, or a moved or renamed address,
+// which selects no level, neither merged with another category nor
+// following another trigger.
+func offLadder(t Trigger) bool {
+	if len(t.AlsoCategories) > 0 || t.followSIDs != nil {
+		return false
+	}
+	switch t.Category {
+	case CatVersionFloor:
+		return slices.Equal(t.Levels, []string{LevelCompat})
+	case CatMoved:
+		return len(t.Levels) == 0
+	}
+	return false
 }
 
 // decomposed reports whether the directories of a .tf change were
