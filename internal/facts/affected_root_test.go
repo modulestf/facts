@@ -306,13 +306,15 @@ func TestAffectedWithoutModuleRootHasNoField(t *testing.T) {
 	}
 }
 
-// TestAffectedModuleRootReadSites runs testdata/affected/helper-read and
-// root-read, where the only change is a documentation file of a listed
-// repository-root example that a helper module of the example reads, by
-// path.module and by path.root. A plain run and a module root run both find
+// TestAffectedModuleRootReadSites runs testdata/affected/helper-read,
+// root-read, helper-outside and deep-sub, where the only change is a
+// documentation file of a listed repository-root example that another
+// directory reads: a helper module of the example, by path.module and by
+// path.root; a helper module outside the example that it calls; and a
+// directory below the example that nothing calls. A plain run and a module root run both find
 // the change not inert and the example touched.
 func TestAffectedModuleRootReadSites(t *testing.T) {
-	for _, name := range []string{"helper-read", "root-read"} {
+	for _, name := range []string{"helper-read", "root-read", "helper-outside", "deep-sub"} {
 		t.Run(name, func(t *testing.T) {
 			dir := filepath.Join("..", "..", "testdata", "affected", name)
 			for _, root := range []string{"", "modules/a"} {
