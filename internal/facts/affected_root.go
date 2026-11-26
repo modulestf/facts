@@ -213,8 +213,8 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	}
 	scopeDirs := slices.Collect(maps.Keys(scope))
 	for _, p := range all {
-		if (head.IsGitlink(p) || base.IsGitlink(p)) && slices.ContainsFunc(scopeDirs, func(d string) bool { return inDir(d, p) }) {
-			extra[p] = true // a module call into a gitlink
+		if slices.ContainsFunc(scopeDirs, func(d string) bool { return inDir(d, p) }) {
+			extra[p] = true // a module call through a changed gitlink or link
 		}
 	}
 	if problem != "" {

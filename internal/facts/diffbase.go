@@ -370,6 +370,10 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	entries := maps.Clone(head.Entries)
 	seenHead, seenBase := map[string]bool{}, map[string]bool{}
 	gitDiff := map[string]bool{} // the gitlinks the diff changes
+	// seenGit holds, for each path of the diff, whether a change of it showed
+	// a gitlink at the base and at the head; skipRebuild holds the paths a
+	// merge of two changes of one path rebuilds no content for.
+	seenGit, skipRebuild := map[string][2]bool{}, map[string]bool{}
 	type rebuild struct {
 		at string
 		c  fileChange
@@ -381,10 +385,33 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 				return nil, fmt.Errorf("unsafe path %q", p)
 			}
 		}
+		if head.IsGitlink(c.path) {
+			// The head holds a gitlink here, so the change is of one even when
+			// the diff shows no hunk: a rename keeps the type, and a change
+			// with no patch shows no line.
+			c.newGit = true
+			c.oldGit = c.oldGit || c.status == "renamed" || c.status == statusPureRename || c.status == "copied"
+		}
 		if seenHead[c.path] {
-			return nil, fmt.Errorf("%q is in the diff more than once", c.path)
+			// A change of type, such as a gitlink that became a link, comes as
+			// a removal and an addition of one path. Merge them into one
+			// change of a gitlink, whose base content is unknown unless the
+			// base held the gitlink.
+			prev := seenGit[c.path]
+			if !prev[0] && !prev[1] && !c.oldGit && !c.newGit {
+				return nil, fmt.Errorf("%q is in the diff more than once", c.path)
+			}
+			old := prev[0] || c.oldGit
+			seenGit[c.path] = [2]bool{old, prev[1] || c.newGit}
+			gitDiff[c.path], skipRebuild[c.path] = true, true
+			delete(entries, c.path)
+			if !old {
+				entries[c.path] = &Entry{Path: c.path, Kind: KindNoPatch}
+			}
+			continue
 		}
 		seenHead[c.path] = true
+		seenGit[c.path] = [2]bool{c.oldGit, c.newGit}
 		if c.oldGit || c.newGit {
 			// A gitlink holds no content to reverse, and a diff shows its
 			// commit as a file of one line. The path is changed whatever
@@ -436,6 +463,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	}
 	var total int64
 	for _, r := range todo {
+		if skipRebuild[r.c.path] {
+			continue
+		}
 		e, err := rebuildEntry(r.at, head.Entries[r.c.path], r.c, lim)
 		if err != nil {
 			return nil, fmt.Errorf("%q: %w", r.c.path, err)

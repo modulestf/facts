@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -338,7 +339,8 @@ func TestReadTreeRootIsNoGitlink(t *testing.T) {
 	}
 }
 
-// TestFindAreasGitlink: a changed gitlink touches the area that holds it.
+// TestFindAreasGitlink: a changed gitlink puts every area in scope, since a
+// module call below it cannot be read, and is an area of its own.
 func TestFindAreasGitlink(t *testing.T) {
 	t.Parallel()
 	files := map[string]string{
@@ -347,21 +349,108 @@ func TestFindAreasGitlink(t *testing.T) {
 		"modules/y/main.tf":  "resource \"null_resource\" \"y\" {}\n",
 		"examples/a/main.tf": "module \"m\" {\n  source = \"../..\"\n}\n",
 	}
-	head := mustTree(t, writeGitlinkTree(t, files, []string{"modules/x/vendor/s"}, false))
-	base := mustTree(t, writeGitlinkTree(t, files, []string{"modules/x/vendor/s"}, false))
-	areas, err := FindAreas(head, base, DefaultLimits, false)
+	touched := func(t *testing.T, dirs []string, withBase bool) []string {
+		t.Helper()
+		head := mustTree(t, writeGitlinkTree(t, files, dirs, false))
+		var base *Tree
+		if withBase {
+			base = mustTree(t, writeGitlinkTree(t, files, dirs, false))
+		} else {
+			base = mustTree(t, writeGitlinkTree(t, files, nil, false))
+		}
+		areas, err := FindAreas(head, base, DefaultLimits, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, a := range areas {
+			if !a.Untouched {
+				got = append(got, a.Path)
+			}
+		}
+		return got
+	}
+	for name, dirs := range map[string][]string{"in an area": {"modules/x/vendor/s"}, "outside modules": {"vendor/sub"}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got := touched(t, dirs, true)
+			want := []string{".", "examples/a", "modules/x", "modules/y"}
+			if dirs[0] == "vendor/sub" {
+				want = []string{".", "examples/a", "modules/x", "modules/y", "vendor/sub"}
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("touched areas = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// lintGitlink runs every rule on a head and a base that both hold the
+// gitlink at dir, or on a diff that bumps it.
+func lintGitlink(t *testing.T, files map[string]string, dir string, diff bool) *Report {
+	t.Helper()
+	o := Options{Head: writeGitlinkTree(t, files, []string{dir}, false), ProfileDir: testProfile, Limits: DefaultLimits}
+	if diff {
+		f := filepath.Join(t.TempDir(), "change")
+		patch := "@@ -1 +1 @@\\n-Subproject commit " + gitSHA + "\\n+Subproject commit " + gitSHA[:39] + "0"
+		if err := os.WriteFile(f, []byte(filesList("modified", dir, patch)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		o.Diff = f
+	} else {
+		o.Base = writeGitlinkTree(t, files, []string{dir}, false)
+	}
+	r, err := Run(o)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []string
-	for _, a := range areas {
-		if !a.Untouched {
-			got = append(got, a.Path)
+	return r
+}
+
+// TestGitlinkCalleeIsNotEvaluated: a rule that reads into a module a call
+// names, which is a gitlink, is not evaluated in the calling area, whether the
+// gitlink changed or not, and the calling area is in scope.
+func TestGitlinkCalleeIsNotEvaluated(t *testing.T) {
+	t.Parallel()
+	files := map[string]string{
+		"main.tf":           "module \"s\" {\n  source = \"./sub\"\n  foo = 1\n}\n",
+		"modules/m/main.tf": "module \"s\" {\n  source = \"../../sub/inner\"\n  foo = 1\n}\n",
+	}
+	rules := []string{"scope.module-call", "coverage.unknown-argument", "structure.passthrough-default-drift", "structure.passthrough-field-drift"}
+	for name, diff := range map[string]bool{"base trees": false, "diff": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := lintGitlink(t, files, "sub", diff)
+			for _, area := range []string{".", "modules/m"} {
+				if !slices.Contains(r.Scope.AreasChecked, area) {
+					t.Errorf("%s not checked: %+v", area, r.Scope)
+				}
+				for _, rule := range rules {
+					if area != "." && strings.HasPrefix(rule, "structure.passthrough") {
+						continue // a cross-area pass has its one entry under the root
+					}
+					if s := statusOf(r.Manifest, rule, area); !strings.HasPrefix(s, StatusNotEvaluated) {
+						t.Errorf("%s in %s: %s, want not_evaluated", rule, area, s)
+					}
+				}
+			}
+		})
+	}
+	t.Run("a call into a directory is still read", func(t *testing.T) {
+		t.Parallel()
+		files := map[string]string{
+			"main.tf":           "module \"s\" {\n  source = \"./sub\"\n  foo = 1\n}\n",
+			"sub/main.tf":       "variable \"foo\" {\n  type = number\n}\n",
+			"modules/m/main.tf": "resource \"null_resource\" \"m\" {}\n",
 		}
-	}
-	if !slices.Equal(got, []string{"modules/x"}) {
-		t.Errorf("touched areas = %q, want modules/x", got)
-	}
+		r, err := Run(Options{Head: writeTree(t, files), Base: writeTree(t, files), ProfileDir: testProfile, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := statusOf(r.Manifest, "scope.module-call", "."); strings.HasPrefix(s, StatusNotEvaluated) {
+			t.Errorf("scope.module-call: %s", s)
+		}
+	})
 }
 
 const gitSHA = "0123456789abcdef0123456789abcdef01234567"
@@ -631,5 +720,108 @@ func TestMarkGitlinkShortLines(t *testing.T) {
 	c.markGitlink()
 	if !c.oldGit || c.newGit {
 		t.Errorf("old %v new %v, want true false", c.oldGit, c.newGit)
+	}
+}
+
+// TestDiffGitlinkRenameAndTypeChange: the gitlink forms a diff shows with no
+// hunk or as two entries of one path are changes of the gitlink, not errors.
+func TestDiffGitlinkRenameAndTypeChange(t *testing.T) {
+	t.Parallel()
+	sub := "Subproject commit " + gitSHA
+	unifiedSub := func(del, add string) string {
+		return "diff --git a/docs/sub b/docs/sub\n" + del + "--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n" +
+			"diff --git a/docs/sub b/docs/sub\n" + add
+	}
+	cases := map[string]struct {
+		files   map[string]string
+		dirs    []string
+		diff    string
+		changed []string // gitlinks the diff changes
+	}{
+		"files list, renamed, no patch": {gitlinkBase, []string{"docs/theme2"},
+			`[{"filename":"docs/theme2","previous_filename":"docs/theme","status":"renamed","additions":0,"deletions":0}]`,
+			[]string{"docs/theme", "docs/theme2"}},
+		"unified, pure rename": {gitlinkBase, []string{"docs/theme2"},
+			"diff --git a/docs/theme b/docs/theme2\nsimilarity index 100%\nrename from docs/theme\nrename to docs/theme2\n",
+			[]string{"docs/theme", "docs/theme2"}},
+		"files list, modified, no patch": {gitlinkBase, []string{"docs/sub"},
+			`[{"filename":"docs/sub","status":"modified","additions":0,"deletions":0}]`, []string{"docs/sub"}},
+		"unified, gitlink to a link": {with(gitlinkBase, map[string]string{"docs/sub": "->guide.md"}), nil,
+			unifiedSub("deleted file mode 160000\n", "new file mode 120000\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+guide.md\n\\ No newline at end of file\n"),
+			[]string{"docs/sub"}},
+		"unified, file to a gitlink": {gitlinkBase, []string{"docs/sub"},
+			"diff --git a/docs/sub b/docs/sub\ndeleted file mode 100644\n--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-text\n" +
+				"diff --git a/docs/sub b/docs/sub\nnew file mode 160000\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+" + sub + "\n",
+			[]string{"docs/sub"}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head := writeGitlinkTree(t, c.files, c.dirs, false)
+			r := diffAffected(t, head, c.diff, "")
+			notInert(t, r, c.changed[len(c.changed)-1], true)
+			for _, p := range c.changed {
+				if !slices.Contains(r.Changed, p) {
+					t.Errorf("changed = %q, want %q in it", r.Changed, p)
+				}
+			}
+		})
+	}
+	t.Run("the base of a gitlink that became a link holds no file", func(t *testing.T) {
+		t.Parallel()
+		c := cases["unified, gitlink to a link"]
+		f := filepath.Join(t.TempDir(), "change")
+		if err := os.WriteFile(f, []byte(c.diff), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		base, _, err := ReadDiffBase(mustTree(t, writeGitlinkTree(t, c.files, c.dirs, false)), f, DefaultLimits)
+		if err != nil || base.Entries["docs/sub"] != nil {
+			t.Errorf("base entry %v, err %v, want none", base.Entries["docs/sub"], err)
+		}
+	})
+	t.Run("the base of a file that became a gitlink is unknown", func(t *testing.T) {
+		t.Parallel()
+		c := cases["unified, file to a gitlink"]
+		f := filepath.Join(t.TempDir(), "change")
+		if err := os.WriteFile(f, []byte(c.diff), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		base, _, err := ReadDiffBase(mustTree(t, writeGitlinkTree(t, c.files, c.dirs, false)), f, DefaultLimits)
+		if err != nil || base.Entries["docs/sub"] == nil || base.Entries["docs/sub"].Kind != KindNoPatch {
+			t.Errorf("base entry %v, err %v, want a no_patch entry", base.Entries["docs/sub"], err)
+		}
+	})
+	t.Run("two changes of one ordinary file are still an error", func(t *testing.T) {
+		t.Parallel()
+		two := "diff --git a/docs/guide.md b/docs/guide.md\n--- a/docs/guide.md\n+++ b/docs/guide.md\n@@ -1 +1 @@\n-# guide\n+# guide\n" +
+			"diff --git a/docs/guide.md b/docs/guide.md\n--- a/docs/guide.md\n+++ b/docs/guide.md\n@@ -1 +1 @@\n-# guide\n+# guide\n"
+		f := filepath.Join(t.TempDir(), "change")
+		if err := os.WriteFile(f, []byte(two), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := ReadDiffBase(mustTree(t, writeGitlinkTree(t, gitlinkBase, nil, false)), f, DefaultLimits); err == nil {
+			t.Error("want an error")
+		}
+	})
+}
+
+// TestAffectedModuleCallThroughChangedLink: a module call through a link
+// that the change retargets puts the link in scope, outside the module root.
+func TestAffectedModuleCallThroughChangedLink(t *testing.T) {
+	t.Parallel()
+	files := gitlinkRootFiles(map[string]string{
+		"mod/main.tf":   "module \"v\" {\n  source = \"../vendor/lnk\"\n}\n",
+		"vendor/real/a": "a\n",
+		"vendor/real/b": "b\n",
+		"vendor/lnk":    "->real",
+	})
+	base := writeGitlinkTree(t, with(files, map[string]string{"vendor/lnk": "->other"}), nil, false)
+	head := writeGitlinkTree(t, files, nil, false)
+	r, err := Affected(AffectedOptions{Head: head, Base: base, ModuleRoot: "mod", Limits: DefaultLimits})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Inert || !slices.Contains(r.Changed, "vendor/lnk") {
+		t.Errorf("inert %v changed %q, want not inert with vendor/lnk", r.Inert, r.Changed)
 	}
 }
