@@ -292,15 +292,27 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	for _, o := range a.Head.Outputs {
 		shared("output."+o.Name, o.Body, false)
 	}
+	// Blocks with no label to pair them by (import) are paired by position;
+	// when the counts differ, position says nothing and every argument counts.
 	headOther := map[string]int{}
 	for _, o := range a.Head.Other {
+		headOther[o.Type+"."+strings.Join(o.Labels, ".")]++
+	}
+	seenOther := map[string]int{}
+	for _, o := range a.Head.Other {
 		k := o.Type + "." + strings.Join(o.Labels, ".")
-		i := headOther[k]
-		headOther[k]++
-		if i < len(baseOther[k]) {
-			for _, e := range sharedArgs(baseOther[k][i], o.Body, false, false) {
-				r.add(e)
-			}
+		i := seenOther[k]
+		seenOther[k]++
+		if len(baseOther[k]) == 0 {
+			continue
+		}
+		differ := len(baseOther[k]) != headOther[k]
+		var b Body
+		if !differ {
+			b = baseOther[k][i]
+		}
+		for _, e := range sharedArgs(b, o.Body, false, differ) {
+			r.add(e)
 		}
 	}
 	baseVars := variablesByName(a.Base)
@@ -333,10 +345,13 @@ func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
 
 // sharedArgs are the head arguments of a block that the base block also
 // has, with count and for_each at the top level whether the base has them
-// or not, and those of nested blocks paired by type and position, static and
-// dynamic together. When a type has a different number of blocks at the two
-// revisions, or all is set, position says nothing about which block is the
-// old one, so every argument and for_each of those blocks counts.
+// or not, and those of nested blocks of a type the base block has, static
+// and dynamic together. The base blocks of one type are read as one body, so
+// a reorder or an insertion cannot move a read onto a block that is new.
+// When a type has a different number of blocks at the two revisions, or all
+// is set, every argument and for_each of those blocks counts. So do the
+// blocks that can fail a plan or hold a replacement trigger, whether the
+// base had them or not: precondition, postcondition, assert and lifecycle.
 func sharedArgs(base, head Body, top, all bool) []*Expr {
 	var out []*Expr
 	for i := range head.Attributes {
@@ -355,23 +370,29 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 	bt, ht := byType(base), byType(head)
 	for t, hb := range ht {
 		known := len(bt[t]) > 0
-		ambiguous := all || (known && len(bt[t]) != len(hb))
+		ambiguous := all || failingBlocks[t] || (known && len(bt[t]) != len(hb))
 		if !known && !ambiguous {
 			continue
 		}
-		for i, h := range hb {
+		var bb Body
+		for _, b := range bt[t] {
+			bb.Attributes = append(bb.Attributes, b.Body.Attributes...)
+			bb.Blocks = append(bb.Blocks, b.Body.Blocks...)
+		}
+		for _, h := range hb {
 			if h.ForEach != nil {
 				out = append(out, h.ForEach)
-			}
-			var bb Body
-			if !ambiguous {
-				bb = bt[t][i].Body
 			}
 			out = append(out, sharedArgs(bb, h.Body, false, ambiguous)...)
 		}
 	}
 	return out
 }
+
+// failingBlocks are the nested block types that can fail a plan or name what
+// replaces a resource: a new one in an existing block can break an existing
+// caller whose input is left at the new default.
+var failingBlocks = map[string]bool{"precondition": true, "postcondition": true, "assert": true, "lifecycle": true}
 
 // compat.type-narrowed: a type that compareTypes cannot show accepts every
 // value the base type accepted, or a validation whose condition the base did
