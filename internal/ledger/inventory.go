@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -46,6 +47,28 @@ type Field struct {
 	// attribute, 0 when it states none; nil for any other field.
 	MinItems *uint64 `json:"min_items,omitempty"`
 	MaxItems *uint64 `json:"max_items,omitempty"`
+}
+
+// fieldNameRE is a Terraform identifier, the form of one segment of a field
+// path in the report's schema.
+var fieldNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
+
+// nestingModes are the nesting modes a provider schema may state for a
+// nested block or nested attribute.
+var nestingModes = map[string]bool{"single": true, "group": true, "list": true, "set": true, "map": true}
+
+// checkField refuses a field name or nesting mode the report's schema would
+// not accept, so the report never holds what the schema rejects. The schema
+// file is untrusted input.
+func checkField(prefix, name, nesting string, nested bool) error {
+	path := prefix + name
+	if !fieldNameRE.MatchString(name) {
+		return fmt.Errorf("field %q: name %q is not a Terraform identifier", path, name)
+	}
+	if nested && !nestingModes[nesting] {
+		return fmt.Errorf("field %q: nesting mode %q is not single, group, list, set or map", path, nesting)
+	}
+	return nil
 }
 
 // maxDepth caps how deep fields nest, so a hostile schema file cannot make
@@ -187,6 +210,9 @@ func blockFields(out []Field, prefix string, b *tfjson.SchemaBlock, depth int) (
 	}
 	for name, bt := range b.NestedBlocks {
 		minItems, maxItems := bt.MinItems, bt.MaxItems
+		if err := checkField(prefix, name, string(bt.NestingMode), true); err != nil {
+			return nil, err
+		}
 		f := Field{Name: prefix + name, Kind: KindBlock, Type: "block", Nesting: string(bt.NestingMode),
 			Required: minItems > 0, Optional: minItems == 0, MinItems: &minItems, MaxItems: &maxItems}
 		if bt.Block != nil {
@@ -210,12 +236,21 @@ func attributeFields(out []Field, prefix string, attrs map[string]*tfjson.Schema
 		f := Field{Name: prefix + name, Kind: KindAttribute, Required: a.Required, Optional: a.Optional, Computed: a.Computed,
 			Deprecated: a.Deprecated, Sensitive: a.Sensitive, WriteOnly: a.WriteOnly}
 		nt := a.AttributeNestedType
+		mode := ""
+		if nt != nil {
+			mode = string(nt.NestingMode)
+		}
+		if err := checkField(prefix, name, mode, nt != nil); err != nil {
+			return nil, err
+		}
 		switch {
 		case nt != nil:
 			minItems, maxItems := nt.MinItems, nt.MaxItems
 			f.Type, f.Nesting, f.MinItems, f.MaxItems = "nested", string(nt.NestingMode), &minItems, &maxItems
 		case a.AttributeType != cty.NilType:
 			f.Type = a.AttributeType.FriendlyName()
+		default:
+			return nil, fmt.Errorf("field %q: attribute has neither a type nor a nested type", f.Name)
 		}
 		out = append(out, f)
 		if nt != nil {

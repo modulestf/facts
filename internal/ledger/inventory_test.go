@@ -192,6 +192,42 @@ func TestBuildDepthCap(t *testing.T) {
 	}
 }
 
+// TestBuildHostileFields: a schema file is untrusted input, and the report's
+// schema accepts only identifier names, a type on every attribute and a known
+// nesting mode, so a field outside them stops the run with an error that names
+// the type and the field.
+func TestBuildHostileFields(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, block, want string
+	}{
+		{"empty attribute name", `{"attributes": {"": {"type": "string", "optional": true}}}`, `field "": name "" is not a Terraform identifier`},
+		{"attribute name with a space", `{"attributes": {"bad name": {"type": "string", "optional": true}}}`, `field "bad name": name "bad name" is not a Terraform identifier`},
+		{"attribute name with a dot", `{"attributes": {"a.b": {"type": "string", "optional": true}}}`, `name "a.b" is not a Terraform identifier`},
+		{"attribute with no type", `{"attributes": {"untyped": {"optional": true}}}`, `field "untyped": attribute has neither a type nor a nested type`},
+		{"block with an unknown nesting mode", `{"block_types": {"b": {"nesting_mode": "weird", "block": {}}}}`, `field "b": nesting mode "weird"`},
+		{"nested attribute with an unknown nesting mode", `{"attributes": {"n": {"nested_type": {"nesting_mode": "weird", "attributes": {}}, "optional": true}}}`, `field "n": nesting mode "weird"`},
+		{"hostile name below a block", `{"block_types": {"b": {"nesting_mode": "list", "block": {"attributes": {"x y": {"type": "string"}}}}}}`, `field "b.x y": name "x y"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			doc := `{"format_version": "1.0", "provider_schemas": {"registry.terraform.io/hashicorp/aws": {"resource_schemas": {"aws_hostile": {"version": 0, "block": ` + tc.block + `}}}}}`
+			if err := os.WriteFile(filepath.Join(dir, "s.json"), []byte(doc), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`resource "aws_hostile" "x" {}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Build(dir, []string{filepath.Join(dir, "s.json")}, facts.DefaultLimits)
+			if err == nil || !strings.Contains(err.Error(), "resource aws_hostile: ") || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %v, want resource aws_hostile and %q", err, tc.want)
+			}
+		})
+	}
+}
+
 // TestKeepTypesCoversLookups: every resource and data source type Build
 // looks up is a type the schema files keep, and another type is not. A type
 // not kept reads as schema_unavailable, which Build reports as a provider
