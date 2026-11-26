@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"os"
+	"time"
 
+	"github.com/modulestf/facts/internal/facts"
 	factsmerge "github.com/modulestf/facts/internal/merge"
+	"github.com/modulestf/facts/internal/readcap"
 	"github.com/modulestf/facts/internal/registry"
 	"github.com/spf13/cobra"
 )
@@ -32,34 +32,56 @@ func newMergeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    usageExit,
 	}
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:     "check <bundle> <reply>",
-			Short:   mergeCheckShort,
-			Long:    mergeCheckLong,
-			Example: mergeCheckExample,
-			Args:    cobra.ExactArgs(2),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return status(mergeCheck(args, cmd.OutOrStdout(), cmd.ErrOrStderr()))
-			},
+	cmd.AddCommand(newMergeCheckCmd(), newMergeFinalCmd(), newMergeCountsCmd())
+	return cmd
+}
+
+// mergeRun runs a merge subcommand's work under the timeout.
+func mergeRun(cmd *cobra.Command, timeout time.Duration, work func() workResult) int {
+	lim := facts.DefaultLimits
+	return runBounded(cmd, timeout, &lim, work, nil)
+}
+
+func newMergeCheckCmd() *cobra.Command {
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:     "check <bundle> <reply>",
+		Short:   mergeCheckShort,
+		Long:    mergeCheckLong,
+		Example: mergeCheckExample,
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return status(mergeRun(cmd, timeout, func() workResult { return mergeCheck(args) }))
 		},
-		newMergeFinalCmd(),
-		&cobra.Command{
-			Use:     "counts <bundle> <reply> [<repair-reply>]",
-			Short:   mergeCountsShort,
-			Long:    mergeCountsLong,
-			Example: mergeCountsExample,
-			Args:    cobra.RangeArgs(2, 3),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return status(mergeCounts(args, cmd.OutOrStdout(), cmd.ErrOrStderr()))
-			},
+	}
+	addTimeoutFlag(cmd, &timeout)
+	return cmd
+}
+
+func newMergeCountsCmd() *cobra.Command {
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:     "counts <bundle> <reply> [<repair-reply>]",
+		Short:   mergeCountsShort,
+		Long:    mergeCountsLong,
+		Example: mergeCountsExample,
+		Args:    cobra.RangeArgs(2, 3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return status(mergeRun(cmd, timeout, func() workResult {
+				out, err := mergeCountsWork(args)
+				return workResult{out: append(out, '\n'), err: err}
+			}))
 		},
-	)
+	}
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
 func newMergeFinalCmd() *cobra.Command {
-	var regFile, reportFile, templatesFile string
+	var (
+		regFile, reportFile, templatesFile string
+		timeout                            time.Duration
+	)
 	cmd := &cobra.Command{
 		Use:     "final <bundle> <reply> [<repair-reply>]",
 		Short:   mergeFinalShort,
@@ -70,7 +92,7 @@ func newMergeFinalCmd() *cobra.Command {
 			if regFile == "" {
 				return status(usageError(cmd, registryRequired))
 			}
-			return status(mergeFinal(regFile, reportFile, templatesFile, args, cmd.OutOrStdout(), cmd.ErrOrStderr()))
+			return status(mergeRun(cmd, timeout, func() workResult { return mergeFinal(regFile, reportFile, templatesFile, args) }))
 		},
 	}
 	f := cmd.Flags()
@@ -78,6 +100,7 @@ func newMergeFinalCmd() *cobra.Command {
 	f.StringVar(&regFile, "registry", "", mergeFinalRegistryUsage)
 	f.StringVar(&reportFile, "report", "", mergeFinalReportUsage)
 	f.StringVar(&templatesFile, "templates", "", mergeFinalTemplatesUsage)
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
@@ -87,16 +110,14 @@ type checkResult struct {
 	Reasons []string `json:"reasons,omitempty"`
 }
 
-func mergeCheck(args []string, stdout, stderr io.Writer) int {
+func mergeCheck(args []string) workResult {
 	b, err := mergeBundle(args[0])
 	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
+		return workResult{err: err}
 	}
 	reply, err := mergeReadFile(args[1], factsmerge.MaxReplyBytes)
 	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
+		return workResult{err: err}
 	}
 	res, code := checkResult{Result: "valid"}, exitReplyValid
 	if reasons := factsmerge.Problems(b, factsmerge.ParseReply(reply)); len(reasons) > 0 {
@@ -104,26 +125,9 @@ func mergeCheck(args []string, stdout, stderr io.Writer) int {
 	}
 	out, err := json.Marshal(res)
 	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
+		return workResult{err: err}
 	}
-	if _, err := fmt.Fprintf(stdout, "%s\n", out); err != nil {
-		return exitError
-	}
-	return code
-}
-
-// mergeCounts prints the counts of the reply merge final reads, or null.
-func mergeCounts(args []string, stdout, stderr io.Writer) int {
-	out, err := mergeCountsWork(args)
-	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
-	}
-	if _, err := fmt.Fprintf(stdout, "%s\n", out); err != nil {
-		return exitError
-	}
-	return 0
+	return workResult{out: append(out, '\n'), code: code}
 }
 
 func mergeCountsWork(files []string) ([]byte, error) {
@@ -150,21 +154,18 @@ func mergeCountsWork(files []string) ([]byte, error) {
 	}{c})
 }
 
-// mergeFinal prints the findings merged from the files: the bundle, the
-// first reply and the repair reply, if given.
-func mergeFinal(regFile, reportFile, templatesFile string, files []string, stdout, stderr io.Writer) int {
+// mergeFinal merges the findings from the files: the bundle, the first
+// reply and the repair reply, if given.
+func mergeFinal(regFile, reportFile, templatesFile string, files []string) workResult {
 	out, stats, err := mergeFinalWork(regFile, reportFile, templatesFile, files)
 	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
+		return workResult{err: err}
 	}
+	res := workResult{out: out}
 	if note := offListNote(stats.OffList); note != "" {
-		fmt.Fprintln(stderr, note)
+		res.notes = []string{note}
 	}
-	if _, err := stdout.Write(out); err != nil {
-		return exitError
-	}
-	return 0
+	return res
 }
 
 // offListNote is the stderr line for n model severities off their rule's
@@ -244,26 +245,13 @@ func mergeBundle(path string) (*factsmerge.Bundle, error) {
 	return factsmerge.ParseBundle(data)
 }
 
-// mergeReadFile reads a regular file of at most limit bytes, plus one byte
-// more when it is larger, so a reply over its cap is read as too large
-// rather than cut. It never returns nil data without an error.
+// mergeReadFile reads a regular file, not a link, of at most limit bytes,
+// plus one byte more when it is larger, so a reply over its cap is read as
+// too large rather than cut. It never returns nil data without an error.
 func mergeReadFile(path string, limit int) ([]byte, error) {
-	f, err := os.Open(path) //nolint:gosec // G703: the CLI opens the paths its user names
+	data, err := readcap.Prefix(path, int64(limit))
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	if st, err := f.Stat(); err != nil {
-		return nil, err
-	} else if !st.Mode().IsRegular() {
-		return nil, errors.New(path + " is not a regular file")
-	}
-	data, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
-	if err != nil {
-		return nil, err
-	}
-	if data == nil {
-		data = []byte{}
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return data, nil
 }

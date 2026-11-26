@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // TestFifoHandoffIsRefused checks the open neither blocks on a fifo nor
@@ -15,7 +16,7 @@ func TestFifoHandoffIsRefused(t *testing.T) {
 	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(fifo, nil); err == nil {
+	if _, err := Load(fifo, nil, time.Time{}); err == nil {
 		t.Error("fifo accepted")
 	}
 }

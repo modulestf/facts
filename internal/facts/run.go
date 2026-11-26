@@ -8,11 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"regexp"
 
 	"github.com/modulestf/facts/internal/profile"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // SchemaVersion is the version of the report format in schema/.
@@ -254,26 +253,12 @@ func optionalSHA(name, s string) (*string, error) {
 }
 
 func hashRegistry(p string) (string, error) {
-	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
-		return "", fmt.Errorf("registry: %s is not a regular file", p)
-	}
-	f, err := os.Open(p)
+	data, err := readcap.File(p, maxRegistryBytes)
 	if err != nil {
-		return "", fmt.Errorf("registry: %w", err)
+		return "", fmt.Errorf("registry: %s: %w", p, err)
 	}
-	defer f.Close()
-	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
-		return "", fmt.Errorf("registry: %s is not a regular file", p)
-	}
-	h := sha256.New()
-	n, err := io.Copy(h, io.LimitReader(f, maxRegistryBytes+1))
-	if err != nil {
-		return "", fmt.Errorf("registry: %w", err)
-	}
-	if n > maxRegistryBytes {
-		return "", fmt.Errorf("registry: over %d bytes", maxRegistryBytes)
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func treeInput(t *Tree) TreeInput {

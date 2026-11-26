@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/profile"
@@ -30,8 +31,11 @@ type profileCheckReport struct {
 // newProfileCheckCmd builds profile-check, which validates a profile and
 // prints its options.
 func newProfileCheckCmd() *cobra.Command {
-	var dir string
-	var gates, downgrade bool
+	var (
+		dir              string
+		gates, downgrade bool
+		timeout          time.Duration
+	)
 	cmd := &cobra.Command{
 		Use:     "profile-check --profile-dir <dir>",
 		Short:   profileCheckShort,
@@ -43,7 +47,7 @@ func newProfileCheckCmd() *cobra.Command {
 			if dir == "" {
 				return status(usageError(cmd, profileDirRequired))
 			}
-			return status(profileCheck(cmd, dir, gates, downgrade))
+			return status(profileCheck(cmd, dir, gates, downgrade, timeout))
 		},
 	}
 	f := cmd.Flags()
@@ -51,23 +55,27 @@ func newProfileCheckCmd() *cobra.Command {
 	f.StringVar(&dir, "profile-dir", "", profileDirUsage)
 	f.BoolVar(&gates, "gates", false, profileGatesUsage)
 	f.BoolVar(&downgrade, "downgrade-ids", false, profileDowngradeUsage)
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
-func profileCheck(cmd *cobra.Command, dir string, gates, downgrade bool) int {
+func profileCheck(cmd *cobra.Command, dir string, gates, downgrade bool, timeout time.Duration) int {
+	lim := facts.DefaultLimits
+	return runBounded(cmd, timeout, &lim, func() workResult { return profileCheckWork(dir, gates, downgrade) }, nil)
+}
+
+func profileCheckWork(dir string, gates, downgrade bool) workResult {
 	// Refuse what profile-snapshot refuses, so a check cannot pass on a tree
 	// the snapshot would not copy.
 	if err := snapshot.Check(dir); err != nil {
 		if !errors.Is(err, snapshot.ErrRefused) {
 			err = fmt.Errorf("profile: %w", err)
 		}
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", err)
-		return exitError
+		return workResult{err: err}
 	}
 	p, unreadable, invalid := facts.ReadProfile(dir)
 	if unreadable != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: profile:", unreadable)
-		return exitError
+		return workResult{err: fmt.Errorf("profile: %w", unreadable)}
 	}
 	rep := profileCheckReport{Valid: invalid == nil, Problems: []string{}}
 	if invalid != nil {
@@ -84,13 +92,11 @@ func profileCheck(cmd *cobra.Command, dir string, gates, downgrade bool) int {
 	if downgrade {
 		rep.DowngradeIDs = profile.DowngradeRules
 	}
-	if code := writeJSON(cmd, rep); code != exitClean {
-		return code
-	}
+	code := exitClean
 	if invalid != nil {
-		return exitProfileInvalid
+		code = exitProfileInvalid
 	}
-	return exitClean
+	return jsonResult(rep, code)
 }
 
 // newProfileSnapshotCmd builds profile-snapshot, which copies a profile

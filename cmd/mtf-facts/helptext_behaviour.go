@@ -81,7 +81,8 @@ outranks covered.
 A record with runs needs --head-sha and --base-sha, and must name those
 commits, so a record of another run cannot decide anything.
 
-Exit 0 with the report, 2 on bad input or a record of other commits.`
+Exit 0 with the report, 2 on bad input, a record of other commits or the
+timeout.`
 	claimsEvalExample = `  mtf-facts claims-eval --behaviour behaviour.json --ladder ladder.json \
     --claims claims.json --json`
 	claimsEvalBehaviourUsage = "behaviour --json report `file`"

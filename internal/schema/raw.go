@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Caps of the raw schema files. Variables so a test can lower them.
@@ -144,7 +146,7 @@ func eachMember(b []byte, f func(name string, v json.RawMessage) error) error {
 // on the order of the flags. Each file is recorded by its base name, so the
 // envelope holds no host path and the same file read from another directory
 // hashes the same; two files with one base name are an error.
-func loadRaw(files []string, keep Keep) (map[string]*types, []FileHash, error) {
+func loadRaw(files []string, keep Keep, deadline time.Time) (map[string]*types, []FileHash, error) {
 	if len(files) > maxSchemaFiles {
 		return nil, nil, fmt.Errorf("schema files: more than %d", maxSchemaFiles)
 	}
@@ -152,14 +154,17 @@ func loadRaw(files []string, keep Keep) (map[string]*types, []FileHash, error) {
 	hashes := []FileHash{}
 	seen := map[string]bool{}
 	for _, p := range files {
+		if err := expired(deadline); err != nil {
+			return nil, nil, err
+		}
 		name := filepath.Base(p)
 		if seen[name] {
 			return nil, nil, fmt.Errorf("schema file %s: another schema file has the base name %s", p, name)
 		}
 		seen[name] = true
-		data, err := readCapped(p, maxSchemaFileBytes)
+		data, err := readcap.File(p, maxSchemaFileBytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("schema file: %w", err)
+			return nil, nil, fmt.Errorf("schema file: %s: %w", p, err)
 		}
 		f, err := parseRaw(data, keep)
 		if err != nil {
@@ -175,6 +180,9 @@ func loadRaw(files []string, keep Keep) (map[string]*types, []FileHash, error) {
 		}
 		sum := sha256.Sum256(data)
 		hashes = append(hashes, FileHash{Path: name, SHA256: hex.EncodeToString(sum[:])})
+	}
+	if err := expired(deadline); err != nil {
+		return nil, nil, err
 	}
 	return raw, hashes, nil
 }

@@ -82,7 +82,7 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	// The tree is read first so the schema files keep only its types, and
 	// its error is returned after theirs, as before.
 	m, treeErr := readModule(dir, lim)
-	set, err := schema.LoadTypes(schemaFiles, keepTypes(m))
+	set, err := schema.LoadTypes(schemaFiles, keepTypes(m), lim.Deadline)
 	if err != nil {
 		return nil, err
 	}

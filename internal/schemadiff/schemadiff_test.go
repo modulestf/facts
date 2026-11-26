@@ -149,7 +149,7 @@ func TestRunErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name, from, to, types, want string
 	}{
-		{"missing from", filepath.Join(dir, "none.json"), to, module, "--from: schema file: open none.json: "},
+		{"missing from", filepath.Join(dir, "none.json"), to, module, "--from: schema file: none.json: not a regular file: "},
 		{"malformed to", from, filepath.Join(module, "main.tf"), module, "--to: schema file main.tf: malformed"},
 		{"missing tree", from, to, filepath.Join(dir, "none"), "--types-from: "},
 		{"override file", from, to, override, "override file"},

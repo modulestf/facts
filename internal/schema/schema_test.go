@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -28,7 +30,7 @@ func oracleHandoff(name string) string {
 // bound loads p and binds it to the commits and tree hashes it records.
 func bound(t *testing.T, p string) *Set {
 	t.Helper()
-	s, err := Load(p, nil)
+	s, err := Load(p, nil, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +198,7 @@ func TestGzippedHandoff(t *testing.T) {
 }
 
 func TestSchemaExamples(t *testing.T) {
-	if _, err := Load("../../schema/examples/schema-handoff.valid.json", nil); err != nil {
+	if _, err := Load("../../schema/examples/schema-handoff.valid.json", nil, time.Time{}); err != nil {
 		t.Errorf("valid example: %v", err)
 	}
 	invalid, _ := filepath.Glob("../../schema/examples/schema-handoff.invalid.*.json")
@@ -204,7 +206,7 @@ func TestSchemaExamples(t *testing.T) {
 		t.Fatal("no invalid examples")
 	}
 	for _, p := range invalid {
-		if _, err := Load(p, nil); err == nil {
+		if _, err := Load(p, nil, time.Time{}); err == nil {
 			t.Errorf("%s: accepted", filepath.Base(p))
 		}
 	}
@@ -345,7 +347,7 @@ func TestMalformedHandoffs(t *testing.T) {
 			t.Errorf("%s: mutation changed nothing", name)
 			continue
 		}
-		if _, err := Load(writeFile(t, "h.json", []byte(mutated)), nil); err == nil {
+		if _, err := Load(writeFile(t, "h.json", []byte(mutated)), nil, time.Time{}); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
@@ -420,7 +422,7 @@ func TestHandoffAcceptsWhatTheSchemaAllows(t *testing.T) {
 			t.Errorf("%s: mutation changed nothing", name)
 			continue
 		}
-		if _, err := Load(writeFile(t, "h.json", []byte(mutated)), nil); err != nil {
+		if _, err := Load(writeFile(t, "h.json", []byte(mutated)), nil, time.Time{}); err != nil {
 			t.Errorf("%s: refused: %v", name, err)
 		}
 	}
@@ -441,7 +443,7 @@ func TestBlockDepth(t *testing.T) {
 	}
 	for n, ok := range map[int]bool{maxBlockDepth: true, maxBlockDepth + 1: false} {
 		doc := strings.Replace(string(data), `"data_source_schemas": {}`, `"data_source_schemas": {"aws_deep": {"block": `+nested(n)+`}}`, 1)
-		_, err := Load(writeFile(t, "h.json", []byte(doc)), nil)
+		_, err := Load(writeFile(t, "h.json", []byte(doc)), nil, time.Time{})
 		if (err == nil) != ok {
 			t.Errorf("depth %d: %v", n, err)
 		}
@@ -458,18 +460,18 @@ func TestHandoffCaps(t *testing.T) {
 
 	maxCompressedBytes, maxHandoffBytes = int64(len(gz)), int64(len(data))
 	for _, p := range []string{writeFile(t, "h.json", data), writeFile(t, "h.json.gz", gz)} {
-		if _, err := Load(p, nil); err != nil {
+		if _, err := Load(p, nil, time.Time{}); err != nil {
 			t.Errorf("at the caps: %v", err)
 		}
 	}
 	maxHandoffBytes = int64(len(data)) - 1
 	for _, p := range []string{writeFile(t, "h.json", data), writeFile(t, "h.json.gz", gz)} {
-		if _, err := Load(p, nil); err == nil || !strings.Contains(err.Error(), "over") {
+		if _, err := Load(p, nil, time.Time{}); err == nil || !strings.Contains(err.Error(), "over") {
 			t.Errorf("%s over the uncompressed cap: %v", filepath.Base(p), err)
 		}
 	}
 	maxCompressedBytes, maxHandoffBytes = int64(len(gz))-1, int64(len(data))
-	if _, err := Load(writeFile(t, "h.json.gz", gz), nil); err == nil || !strings.Contains(err.Error(), "over") {
+	if _, err := Load(writeFile(t, "h.json.gz", gz), nil, time.Time{}); err == nil || !strings.Contains(err.Error(), "over") {
 		t.Errorf("over the compressed cap: %v", err)
 	}
 
@@ -479,10 +481,10 @@ func TestHandoffCaps(t *testing.T) {
 	if own == string(data) {
 		t.Fatal("caps not found")
 	}
-	if _, err := Load(writeFile(t, "h.json", []byte(own)), nil); err != nil {
+	if _, err := Load(writeFile(t, "h.json", []byte(own)), nil, time.Time{}); err != nil {
 		t.Errorf("plain copy under a small compressed cap: %v", err)
 	}
-	if _, err := Load(writeFile(t, "h.json.gz", gzipped(t, []byte(own))), nil); err == nil || !strings.Contains(err.Error(), "own cap") {
+	if _, err := Load(writeFile(t, "h.json.gz", gzipped(t, []byte(own))), nil, time.Time{}); err == nil || !strings.Contains(err.Error(), "own cap") {
 		t.Errorf("over its own compressed cap: %v", err)
 	}
 }
@@ -498,7 +500,7 @@ func TestHandoffMustBeARegularFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []string{filepath.Join(dir, "missing.json"), dir, link} {
-		if _, err := Load(p, nil); err == nil {
+		if _, err := Load(p, nil, time.Time{}); err == nil {
 			t.Errorf("%s: accepted", p)
 		}
 	}
@@ -525,7 +527,7 @@ const rawSchema = `{
 
 func TestRawSchemaFiles(t *testing.T) {
 	p := writeFile(t, "aws.json", []byte(rawSchema))
-	s, err := Load("", []string{p})
+	s, err := Load("", []string{p}, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -569,18 +571,18 @@ func TestRawSchemaFilesRefused(t *testing.T) {
 		"directory":       {t.TempDir()},
 		"too many":        slices.Repeat([]string{good}, maxSchemaFiles+1),
 	} {
-		if _, err := Load("", files); err == nil {
+		if _, err := Load("", files, time.Time{}); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
 	// Two files with one base name, and no other fault: refused for the name.
 	empty := writeFile(t, "aws.json", []byte(`{"format_version": "1.0", "provider_schemas": {}}`))
-	if _, err := Load("", []string{good, empty}); err == nil || !strings.Contains(err.Error(), "base name aws.json") {
+	if _, err := Load("", []string{good, empty}, time.Time{}); err == nil || !strings.Contains(err.Error(), "base name aws.json") {
 		t.Errorf("same base name: %v", err)
 	}
 	defer func(n int64) { maxSchemaFileBytes = n }(maxSchemaFileBytes)
 	maxSchemaFileBytes = int64(len(rawSchema)) - 1
-	if _, err := Load("", []string{good}); err == nil {
+	if _, err := Load("", []string{good}, time.Time{}); err == nil {
 		t.Error("over the cap: accepted")
 	}
 }
@@ -605,4 +607,23 @@ func gzipped(t *testing.T, data []byte) []byte {
 		t.Fatal(err)
 	}
 	return b.Bytes()
+}
+
+// TestLoadDeadline checks Load stops with ErrDeadline once its deadline has
+// passed, for a handoff and for raw files, and loads with one ahead.
+func TestLoadDeadline(t *testing.T) {
+	raw := writeFile(t, "aws.json", []byte(rawSchema))
+	const handoff = "../../schema/examples/schema-handoff.valid.json"
+	past := time.Now().Add(-time.Second)
+	for name, c := range map[string]struct {
+		handoff string
+		files   []string
+	}{"handoff": {handoff, nil}, "raw": {"", []string{raw}}} {
+		if _, err := Load(c.handoff, c.files, past); !errors.Is(err, ErrDeadline) {
+			t.Errorf("%s past the deadline: %v", name, err)
+		}
+		if _, err := Load(c.handoff, c.files, time.Now().Add(time.Minute)); err != nil {
+			t.Errorf("%s before the deadline: %v", name, err)
+		}
+	}
 }

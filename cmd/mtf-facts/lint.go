@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -54,7 +53,7 @@ func newLintCmd() *cobra.Command {
 	f.BoolVar(&ai, "ai", false, lintAIUsage)
 	f.BoolVar(&view.candidates, "candidates", false, lintCandidatesUsage)
 	f.BoolVar(&view.notEvaluated, "not-evaluated", false, lintNotEvaluatedUsage)
-	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
+	addTimeoutFlag(cmd, &timeout)
 	f.StringVar(&o.RegistryFile, "registry", "", lintRegistryUsage)
 	f.StringVar(&o.ProfileDir, "profile-dir", "", lintProfileDirUsage)
 	f.StringArrayVar(&o.SchemaFiles, "schema-files", nil, lintSchemaFilesUsage)
@@ -68,89 +67,45 @@ func newLintCmd() *cobra.Command {
 // lint returns one of the exit codes above. Candidates are unconfirmed and
 // never change the exit code.
 func lint(cmd *cobra.Command, o facts.Options, view textView, asJSON, ai bool, timeout time.Duration) int {
-	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
-	if timeout <= 0 {
-		return usageError(cmd, timeoutNotPositive)
-	}
 	o.Version = version()
-	// Defense in depth only: the timer below is the timeout mechanism.
-	o.Limits.Deadline = time.Now().Add(timeout)
-
-	done := make(chan lintResult, 1) // buffered: a late worker never blocks
 	// Read the engine here: a worker the timer abandons outlives this call
 	// and must not read runFacts after it returns.
 	engine := runFacts
-	go func() { done <- lintWork(engine, o, view, asJSON, ai) }()
-	timer := time.NewTimer(timeout)
-	var res lintResult
-	select {
-	case res = <-done:
-		timer.Stop()
-	case <-timer.C:
-		// main's os.Exit ends the worker, which may be stuck in a parser.
-		fmt.Fprint(stderr, "mtf-facts: timeout\n")
-		return exitError
-	}
-	if errors.Is(res.err, facts.ErrDeadline) {
-		// The engine's own deadline can win the race with the timer.
-		fmt.Fprint(stderr, "mtf-facts: timeout\n")
-		return exitError
-	}
-	if res.err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", res.err)
-		return exitError
-	}
-	if _, err := stdout.Write(res.out); err != nil {
-		return exitError
-	}
-	return res.code
+	return runBounded(cmd, timeout, &o.Limits, func() workResult { return lintWork(engine, o, view, asJSON, ai) }, nil)
 }
 
 // runFacts is the engine entry point; tests replace it.
 var runFacts = facts.Run
 
-// lintResult is what the lint worker hands back. Only lint writes output.
-type lintResult struct {
-	out  []byte
-	code int
-	err  error
-}
-
 // lintWork runs engine and renders the report, the AI form of the JSON
 // report when ai is set, or the text report view shapes. It writes
 // nothing.
-func lintWork(engine func(facts.Options) (*facts.Report, error), o facts.Options, view textView, asJSON, ai bool) lintResult {
+func lintWork(engine func(facts.Options) (*facts.Report, error), o facts.Options, view textView, asJSON, ai bool) workResult {
 	sum, err := binarySHA256()
 	if err != nil {
-		return lintResult{err: err}
+		return workResult{err: err}
 	}
 	o.BinarySHA256 = sum
 	r, err := engine(o)
 	if err != nil {
-		return lintResult{err: err}
+		return workResult{err: err}
 	}
 	var out []byte
 	switch {
 	case asJSON && ai:
 		// One line: indentation is a third of the bytes a reader pays for.
 		if out, err = json.Marshal(r.AIReport()); err != nil {
-			return lintResult{err: err}
+			return workResult{err: err}
 		}
 		out = append(out, '\n')
 	case asJSON:
-		if out, err = json.MarshalIndent(r, "", "  "); err != nil {
-			return lintResult{err: err}
-		}
-		out = append(out, '\n')
+		return jsonResult(r, exitCode(r))
 	default:
 		view.profileGiven = o.ProfileDir != ""
 		view.schemaGiven = len(o.SchemaFiles) > 0 || o.SchemaHandoff != ""
 		out = []byte(human(r, view))
 	}
-	if len(out) > o.Limits.MaxOutputBytes {
-		return lintResult{err: fmt.Errorf("output over %d bytes", o.Limits.MaxOutputBytes)}
-	}
-	return lintResult{out: out, code: exitCode(r)}
+	return workResult{out: out, code: exitCode(r)}
 }
 
 func exitCode(r *facts.Report) int {

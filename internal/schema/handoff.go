@@ -16,6 +16,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Caps of the handoff, the producer's own: 16 MiB gzipped and 128 MiB of
@@ -226,9 +227,9 @@ func (c count) uint64() uint64 { return uint64(c) } //nolint:gosec // G115: Unma
 // loadHandoff reads, decompresses when gzipped, decodes and validates the
 // handoff, and returns it with the SHA-256 of the file as read.
 func loadHandoff(p string) (*Handoff, string, error) {
-	data, err := readCapped(p, max(maxCompressedBytes, maxHandoffBytes))
+	data, err := readcap.File(p, max(maxCompressedBytes, maxHandoffBytes))
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("%s: %w", p, err)
 	}
 	return parseHandoff(data)
 }

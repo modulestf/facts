@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Version is the ledger format version in schema/ledger.schema.json.
@@ -250,23 +251,9 @@ func ReadFile(p string, limit int64) ([]byte, error) {
 	if p == "" {
 		return nil, errors.New("empty path")
 	}
-	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
-	}
-	f, err := os.Open(p)
+	data, err := readcap.File(p, limit)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
-	}
-	data, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%s is over %d bytes", p, limit)
+		return nil, fmt.Errorf("%s: %w", p, err)
 	}
 	return data, nil
 }

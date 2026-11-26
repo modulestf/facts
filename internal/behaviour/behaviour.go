@@ -58,7 +58,7 @@ func Run(o Options) (*Report, error) {
 	}
 	c := &classifier{head: head, base: base, lim: o.Limits, views: map[string][2]*view{}}
 	if o.Schema != "" {
-		if c.schema, err = schema.Load("", []string{o.Schema}); err != nil {
+		if c.schema, err = schema.Load("", []string{o.Schema}, o.Limits.Deadline); err != nil {
 			return nil, err
 		}
 	}

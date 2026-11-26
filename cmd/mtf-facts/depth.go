@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -43,48 +41,27 @@ func newDepthCmd() *cobra.Command {
 	f.StringVar(&o.Classify, "classify", "", depthClassifyUsage)
 	f.StringVar(&o.Affected, "affected", "", depthAffectedUsage)
 	f.StringVar(&examples, "examples", "", depthExamplesUsage)
-	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
 // depthRun runs depth under the timeout. A run past it is a deep report
 // with deep-unwalked and exit 0, never an error: depth fails closed.
 func depthRun(cmd *cobra.Command, o depth.Options, timeout time.Duration) int {
-	if timeout <= 0 {
-		return usageError(cmd, timeoutNotPositive)
-	}
-	o.Limits.Deadline = time.Now().Add(timeout)
-	type result struct {
-		rep *depth.Report
-		err error
-	}
-	done := make(chan result, 1) // buffered: a late worker never blocks
-	go func() {
+	return runBounded(cmd, timeout, &o.Limits, func() workResult {
 		rep, err := depth.Run(o)
-		done <- result{rep, err}
-	}()
-	timer := time.NewTimer(timeout)
-	var res result
-	select {
-	case res = <-done:
-		timer.Stop()
-	case <-timer.C:
-		res.rep = depth.Unwalked() // main's os.Exit ends the worker
+		if err != nil {
+			return workResult{err: err}
+		}
+		return depthResult(rep)
+	}, func() workResult { return depthResult(depth.Unwalked()) })
+}
+
+// depthResult is the output of rep and its notes.
+func depthResult(rep *depth.Report) workResult {
+	res := jsonResult(rep, exitClean)
+	for _, n := range rep.Notes() {
+		res.notes = append(res.notes, "mtf-facts: depth: "+n)
 	}
-	if res.err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", res.err)
-		return exitError
-	}
-	out, err := json.MarshalIndent(res.rep, "", "  ")
-	if err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts:", err)
-		return exitError
-	}
-	for _, n := range res.rep.Notes() {
-		fmt.Fprintf(cmd.ErrOrStderr(), "mtf-facts: depth: %s\n", n)
-	}
-	if _, err := cmd.OutOrStdout().Write(append(out, '\n')); err != nil {
-		return exitError
-	}
-	return exitClean
+	return res
 }

@@ -1,9 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"time"
 
 	"github.com/modulestf/facts/internal/behaviour"
@@ -42,7 +39,7 @@ func newBehaviourCmd() *cobra.Command {
 	f.StringVar(&o.Diff, "diff", "", behaviourDiffUsage)
 	f.StringVar(&o.Schema, "schema", "", behaviourSchemaUsage)
 	f.BoolVar(&asJSON, "json", false, jsonUsage)
-	f.DurationVar(&timeout, "timeout", 60*time.Second, lintTimeoutUsage)
+	addTimeoutFlag(cmd, &timeout)
 	cmd.MarkFlagsMutuallyExclusive("base", "diff")
 	return cmd
 }
@@ -54,6 +51,7 @@ func newClaimsEvalCmd() *cobra.Command {
 		behaviourFile, ladderFile, claimsFile string
 		headSHA, baseSHA                      string
 		asJSON                                bool
+		timeout                               time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:     "claims-eval",
@@ -70,7 +68,7 @@ func newClaimsEvalCmd() *cobra.Command {
 				return status(usageError(cmd, claimsEvalRequired))
 			}
 			lim := facts.DefaultLimits
-			return status(withTimeout(cmd, 60*time.Second, &lim, func() (any, error) {
+			return status(withTimeout(cmd, timeout, &lim, func() (any, error) {
 				return claimsEval(behaviourFile, ladderFile, claimsFile, headSHA, baseSHA)
 			}))
 		},
@@ -83,6 +81,7 @@ func newClaimsEvalCmd() *cobra.Command {
 	f.StringVar(&headSHA, "head-sha", "", claimsEvalHeadSHAUsage)
 	f.StringVar(&baseSHA, "base-sha", "", claimsEvalBaseSHAUsage)
 	f.BoolVar(&asJSON, "json", false, jsonUsage)
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
@@ -110,52 +109,14 @@ func claimsEval(behaviourFile, ladderFile, claimsFile, headSHA, baseSHA string) 
 	return behaviour.Evaluate(b, l, claims, discarded), nil
 }
 
-// withTimeout runs work in a worker under a deadline and writes its result
-// as indented JSON. It returns exitClean or exitError.
+// withTimeout runs work under the timeout and writes its result as indented
+// JSON. It returns exitClean or exitError.
 func withTimeout(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, work func() (any, error)) int {
-	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
-	if timeout <= 0 {
-		return usageError(cmd, timeoutNotPositive)
-	}
-	// Defense in depth only: the timer below is the timeout mechanism.
-	lim.Deadline = time.Now().Add(timeout)
-	type result struct {
-		out []byte
-		err error
-	}
-	done := make(chan result, 1) // buffered: a late worker never blocks
-	go func() {
+	return runBounded(cmd, timeout, lim, func() workResult {
 		v, err := work()
 		if err != nil {
-			done <- result{err: err}
-			return
+			return workResult{err: err}
 		}
-		out, err := json.MarshalIndent(v, "", "  ")
-		done <- result{out: append(out, '\n'), err: err}
-	}()
-	timer := time.NewTimer(timeout)
-	var res result
-	select {
-	case res = <-done:
-		timer.Stop()
-	case <-timer.C:
-		// main's os.Exit ends the worker, which may be stuck in a parser.
-		fmt.Fprint(stderr, "mtf-facts: timeout\n")
-		return exitError
-	}
-	switch {
-	case errors.Is(res.err, facts.ErrDeadline):
-		fmt.Fprint(stderr, "mtf-facts: timeout\n")
-		return exitError
-	case res.err != nil:
-		fmt.Fprintln(stderr, "mtf-facts:", res.err)
-		return exitError
-	case len(res.out) > lim.MaxOutputBytes:
-		fmt.Fprintf(stderr, "mtf-facts: output over %d bytes\n", lim.MaxOutputBytes)
-		return exitError
-	}
-	if _, err := stdout.Write(res.out); err != nil {
-		return exitError
-	}
-	return exitClean
+		return jsonResult(v, exitClean)
+	}, nil)
 }

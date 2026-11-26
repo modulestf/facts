@@ -19,7 +19,7 @@ func applySchema(o Options, head, base *Tree, areas []*Area) (*SchemaInputs, err
 	if o.SchemaHandoff == "" && len(o.SchemaFiles) == 0 {
 		return nil, nil
 	}
-	s, err := schema.Load(o.SchemaHandoff, o.SchemaFiles)
+	s, err := schema.Load(o.SchemaHandoff, o.SchemaFiles, o.Limits.Deadline)
 	if err != nil {
 		return nil, err
 	}

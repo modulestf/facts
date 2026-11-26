@@ -2,12 +2,11 @@ package fixture
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Schemas are the provider schemas of `terraform providers schema -json`, by
@@ -18,17 +17,9 @@ const maxSchemaBytes = 128 << 20
 
 // ReadSchemas reads one `terraform providers schema -json` file.
 func ReadSchemas(name string) (Schemas, error) {
-	f, err := os.Open(name)
+	data, err := readcap.File(name, maxSchemaBytes)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxSchemaBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxSchemaBytes {
-		return nil, fmt.Errorf("schema: over %d bytes", maxSchemaBytes)
+		return nil, fmt.Errorf("schema: %w", err)
 	}
 	var ps tfjson.ProviderSchemas
 	// UnmarshalJSON also refuses a format_version it does not know.

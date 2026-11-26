@@ -112,7 +112,7 @@ null; without --registry, registry_sha256 is null.
 Exit codes:
   0  the inventory, and with --check a complete ledger
   1  with --check: at least one problem, listed in problems
-  2  an error: bad input or a limit`
+  2  an error: bad input, a limit or the timeout`
 	ledgerExample = `  mtf-facts ledger path/to/module --schema-files schema.json
   mtf-facts ledger path/to/module --schema-files schema.json \
     --check coverage-ledger.json`
@@ -125,13 +125,13 @@ const (
 	schemaDiffShort = "Compare two provider schemas for the types a module uses"
 	schemaDiffLong  = `Compare two terraform providers schema -json files, the current and the
 target provider version, for the resource and data source types a module tree
-uses. All three flags are required. It writes the report as JSON and records
+uses. The three file flags are required. It writes the report as JSON and records
 each schema file by base name and SHA-256 only.
 
 Exit codes:
   0  the report, with changes or none
-  2  an error: a provider the tree uses that either file lacks, bad input or
-     a limit`
+  2  an error: a provider the tree uses that either file lacks, bad input,
+     a limit or the timeout`
 	schemaDiffExample = `  mtf-facts schema-diff --from current.json --to target.json \
     --types-from path/to/module`
 	schemaDiffFromUsage      = "schema `file` of the current provider version"
@@ -194,7 +194,8 @@ Exit codes:
   0  the tree passes
   1  violations, each with its file, line (0 for the whole file, file "."
      for the whole tree) and rule
-  2  an error: bad flags, a bad pins file or a directory that cannot be read`
+  2  an error: bad flags, a bad pins file, a directory that cannot be read,
+     the output cap or the timeout`
 	fixtureCheckExample = `  mtf-facts fixture-check scratch/head --json
   mtf-facts fixture-check scratch/l2 --level L2 --pins pins.json \
     --schema schema.json --json
@@ -225,7 +226,7 @@ It prints the mode to stdout and exits 0:
 
 Exit codes:
   0  the mode on stdout
-  2  an error: bad input, a pin mismatch or a refused report`
+  2  an error: bad input, a pin mismatch, a refused report or the timeout`
 	bundleExample = `  mtf-facts bundle --report lint.json \
     --skills path/to/terraform-module-reviewer \
     --out bundle.txt --injection injection.md \
@@ -256,7 +257,7 @@ and quote nothing from the reply.
 Exit codes:
   0  the reply is valid
   1  the reply needs the repair turn
-  2  an error: bad input or a limit`
+  2  an error: bad input, a limit or the timeout`
 	mergeCheckExample = `  mtf-facts merge check bundle.txt reply.json`
 
 	mergeFinalShort = "Merge a reply with the bundle into the final findings"
@@ -266,7 +267,7 @@ file when the repair turn returned nothing. --registry is required.
 
 Exit codes:
   0  the merged findings
-  2  an error: bad input or a limit`
+  2  an error: bad input, a limit or the timeout`
 	mergeFinalExample = `  mtf-facts merge final --registry rule-facts.md --report lint.json \
     bundle.txt reply.json repair.json`
 	mergeFinalRegistryUsage  = "rule registry `file` (rule-facts.md)"
@@ -280,7 +281,7 @@ No count is read as 0 for its absence.
 
 Exit codes:
   0  the counts
-  2  an error: bad input or a limit`
+  2  an error: bad input, a limit or the timeout`
 	mergeCountsExample = `  mtf-facts merge counts bundle.txt reply.json repair.json`
 )
 

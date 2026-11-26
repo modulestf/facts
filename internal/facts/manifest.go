@@ -27,6 +27,9 @@ const (
 	ReasonNoBase             = "no_base"
 	ReasonSchemaUnavailable  = "schema_unavailable"
 	ReasonProfileUnavailable = "profile_unavailable"
+	// ReasonInternalError is the reason code of a rule whose check failed
+	// inside the tool, a panic, so the rule must be judged another way.
+	ReasonInternalError = "internal_error"
 	// ReasonProfileOption is the reason code of a not_applicable entry for a
 	// rule the profile's options gate; see profile.Gates.
 	ReasonProfileOption = "profile_option"
@@ -42,10 +45,14 @@ const profileOptionReason = "the profile's options make the rule not applicable"
 // noChangeGivenReason is the reason text of ReasonNoChangeGiven.
 const noChangeGivenReason = "no change was given, so there is no base to compare with"
 
+// internalErrorReason is the reason text of ReasonInternalError. It is fixed:
+// a panic's value can hold text from the tree.
+const internalErrorReason = "the rule's check failed inside the tool"
+
 // reasonCodes is the closed list, as manifest.schema.json has it.
 var reasonCodes = map[string]bool{
 	ReasonParseError: true, ReasonUnsupportedFile: true, ReasonSymlink: true, ReasonLimitExceeded: true,
-	ReasonNoBase: true, ReasonSchemaUnavailable: true, ReasonProfileUnavailable: true,
+	ReasonNoBase: true, ReasonSchemaUnavailable: true, ReasonProfileUnavailable: true, ReasonInternalError: true,
 }
 
 // Rule classes: a path rule still runs when the configuration cannot be parsed.
@@ -255,6 +262,18 @@ func evaluate(r Rule, a *Area, ch *ChangeMap) Result {
 	if reason, code := gate(r, a); reason != "" {
 		return Result{NotEvaluated: reason, Code: code}
 	}
+	return check(r, a)
+}
+
+// check runs r's Check on a. A panic there ends neither the run nor the
+// other rules: the result is not_evaluated(internal_error), and the panic's
+// value is dropped.
+func check(r Rule, a *Area) (res Result) {
+	defer func() {
+		if recover() != nil {
+			res = Result{NotEvaluated: internalErrorReason, Code: ReasonInternalError}
+		}
+	}()
 	return r.Check(a)
 }
 

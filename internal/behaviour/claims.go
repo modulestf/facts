@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Predicate types of a claim.
@@ -371,22 +372,11 @@ func decodeStrict(data []byte, v any) error {
 }
 
 // readCapped reads a regular file, not a link, of at most maxInputFileSize
-// bytes.
+// bytes. Its errors name the file by base name only.
 func readCapped(p string) ([]byte, error) {
-	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", path.Base(p))
-	}
-	f, err := os.Open(p)
+	data, err := readcap.File(p, maxInputFileSize)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxInputFileSize+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxInputFileSize {
-		return nil, fmt.Errorf("%s is over %d bytes", path.Base(p), maxInputFileSize)
+		return nil, fmt.Errorf("%s: %w", path.Base(p), err)
 	}
 	return data, nil
 }
