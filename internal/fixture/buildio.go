@@ -77,7 +77,7 @@ func CheckOut(dir string) error {
 		return err
 	}
 	if !st.IsDir() {
-		return fmt.Errorf("%s is not a directory", dir)
+		return fmt.Errorf("%q is not a directory", dir)
 	}
 	r, err := os.OpenRoot(dir)
 	if err != nil {
@@ -95,7 +95,7 @@ func emptyDir(r *os.Root, dir string) error {
 	}
 	defer f.Close()
 	if names, err := f.Readdirnames(1); len(names) > 0 || (err != nil && !errors.Is(err, io.EOF)) {
-		return errors.Join(fmt.Errorf("%s is not empty", dir), err)
+		return errors.Join(fmt.Errorf("%q is not empty", dir), err)
 	}
 	return nil
 }

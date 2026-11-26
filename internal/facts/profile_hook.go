@@ -39,7 +39,7 @@ func applyProfile(o Options, areas []*Area) (sum, tree *string, err error) {
 	if o.ProfileDir != "" {
 		st, err := os.Lstat(o.ProfileDir)
 		if err != nil || !st.IsDir() {
-			return nil, nil, fmt.Errorf("profile: %s is not a directory", o.ProfileDir)
+			return nil, nil, fmt.Errorf("profile: %q is not a directory", o.ProfileDir)
 		}
 		lim := profileLimits
 		lim.Deadline = o.Limits.Deadline

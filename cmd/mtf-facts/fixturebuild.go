@@ -65,7 +65,7 @@ func fixtureBuild(cmd *cobra.Command, trigger string, fl fixtureBuildFlags, rec 
 		return usageError(cmd, msg)
 	}
 	if err := fixture.CheckOut(fl.out); err != nil {
-		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: fixture-build:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: fixture-build:", oneLine(err.Error()))
 		return exitError
 	}
 	lim := facts.DefaultLimits

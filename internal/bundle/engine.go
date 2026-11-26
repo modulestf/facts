@@ -55,7 +55,7 @@ func LoadEngine(dir string) (EngineText, error) {
 // readRootFile reads one regular file of root, not a link, under the cap.
 func readRootFile(root *os.Root, name string) ([]byte, error) {
 	if st, err := root.Lstat(name); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", name)
+		return nil, fmt.Errorf("%q is not a regular file", name)
 	}
 	f, err := root.Open(name)
 	if err != nil {

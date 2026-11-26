@@ -133,7 +133,7 @@ func SchemaPins(handoff string, files []string, deadline time.Time) (*facts.Sche
 // and parses. A dir that is not a directory is an error, as it is to lint.
 func ProfileSHA256(dir string) (*string, error) {
 	if st, err := os.Lstat(dir); err != nil || !st.IsDir() {
-		return nil, fmt.Errorf("profile: %s is not a directory", dir)
+		return nil, fmt.Errorf("profile: %q is not a directory", dir)
 	}
 	t, err := facts.ReadTree(dir, facts.ProfileLimits())
 	if err != nil {

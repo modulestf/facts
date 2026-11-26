@@ -311,7 +311,7 @@ func openDir(r *os.Root, dir string) (*os.File, error) {
 		return nil, err
 	}
 	if !before.IsDir() {
-		return nil, fmt.Errorf("%s: not a directory", dir)
+		return nil, fmt.Errorf("%q: not a directory", dir)
 	}
 	f, _, err := openUnchanged(r, dir, before, syscall.O_DIRECTORY)
 	return f, err

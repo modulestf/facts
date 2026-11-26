@@ -340,3 +340,26 @@ func TestReadTreeSkipsGitFile(t *testing.T) {
 		t.Errorf("paths %v", tr.Paths)
 	}
 }
+
+// TestDirErrorsQuotePath checks that the error for a directory that is not
+// one quotes its name, so a line break in the name stays out of the message.
+func TestDirErrorsQuotePath(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	const name = "a\nb"
+	if err := os.WriteFile(filepath.Join(root, name), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if _, err := openDir(r, name); err == nil || strings.ContainsAny(err.Error(), "\n\r") {
+		t.Errorf("openDir: error %q is missing or holds a line break", err)
+	}
+	_, err = Run(Options{Head: profileCase, Limits: DefaultLimits, ProfileDir: filepath.Join(root, name)})
+	if err == nil || !strings.Contains(err.Error(), "is not a directory") || strings.ContainsAny(err.Error(), "\n\r") {
+		t.Errorf("Run: error %q is missing, off its reason or holds a line break", err)
+	}
+}

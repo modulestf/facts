@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -111,6 +112,22 @@ func TestStderrIsOneLineSites(t *testing.T) {
 		wantOneMtfLine(t, errb.String(), false)
 	})
 
+	// fixture-build: the --out check error carries the path, here a missing
+	// one whose name has the break.
+	t.Run("fixture-build out", func(t *testing.T) {
+		t.Parallel()
+		args := fixtureBuildArgs(t, "ladder-pass-01")
+		args[5] = filepath.Join(t.TempDir(), forged)
+		code, out, errOut := runCLI(args)
+		if code != exitError || out != "" {
+			t.Fatalf("exit %d, stdout %q, stderr %q", code, out, errOut)
+		}
+		wantOneMtfLine(t, errOut, false)
+		if !strings.HasPrefix(errOut, "mtf-facts: fixture-build: ") {
+			t.Errorf("not the fixture-build line: %q", errOut)
+		}
+	})
+
 	// stats: the record cannot be written to a directory that does not
 	// exist, and its name carries the break. The run itself is unaffected.
 	t.Run("stats", func(t *testing.T) {
@@ -149,3 +166,18 @@ func TestStderrIsOneLineVersion(t *testing.T) {
 type failingJSON struct{}
 
 func (failingJSON) MarshalJSON() ([]byte, error) { return nil, errors.New(forged) }
+
+// TestWriteOutputsQuotesPath checks that the error for an output that exists
+// quotes the path, so a line break in its name stays out of the message.
+func TestWriteOutputsQuotesPath(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	hostile := filepath.Join(tmp, forged)
+	if err := os.WriteFile(hostile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := writeOutputs(hostile, filepath.Join(tmp, "inj"), nil, nil)
+	if err == nil || strings.ContainsAny(err.Error(), "\n\r") {
+		t.Errorf("error %q is missing or holds a line break", err)
+	}
+}
