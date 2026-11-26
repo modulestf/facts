@@ -401,9 +401,7 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	for _, o := range a.Head.Other {
 		k := o.Type + "." + strings.Join(o.Labels, ".")
 		if len(baseOther[k]) == 0 {
-			if o.Type == "ephemeral" && len(o.Labels) == 2 {
-				newBlocks[k] = o.Body
-			}
+			newBlocks[k] = o.Body // only an ephemeral block can be named by a read
 			continue
 		}
 		for _, e := range sharedArgs(mergeBodies(baseOther[k]), o.Body, true, len(baseOther[k]) != headOther[k]) {
