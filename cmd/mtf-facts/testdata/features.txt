@@ -120,6 +120,7 @@ flag:plan-gates:mode
 flag:plan-gates:provider
 flag:plan-gates:root
 flag:plan-gates:scope
+flag:plan-gates:stats-file
 flag:plan-gates:timeout
 flag:pre-commit.derive:timeout
 flag:pre-commit.docs:config

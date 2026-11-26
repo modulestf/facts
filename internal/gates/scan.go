@@ -59,7 +59,9 @@ func identEnd(s string, i int) int {
 	return i
 }
 
-func hasAt(s string, i int, w string) bool { return i >= 0 && i <= len(s) && strings.HasPrefix(s[i:], w) }
+func hasAt(s string, i int, w string) bool {
+	return i >= 0 && i <= len(s) && strings.HasPrefix(s[i:], w)
+}
 
 // lineEnd is the index of the newline at or after i, or len(s).
 func lineEnd(s string, i int) int {

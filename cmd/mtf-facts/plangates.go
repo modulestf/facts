@@ -9,6 +9,7 @@ import (
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/gates"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +27,7 @@ func newPlanGatesCmd() *cobra.Command {
 	var (
 		o       planGatesOptions
 		timeout time.Duration
+		statsTo string
 	)
 	cmd := &cobra.Command{
 		Use:     "plan-gates --scope <clone|downloaded> --mode <laptop|runner> --root <dir>",
@@ -34,8 +36,10 @@ func newPlanGatesCmd() *cobra.Command {
 		Example: planGatesExample,
 		GroupID: groupPipeline,
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return status(planGates(cmd, o, timeout))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				return planGates(cmd, o, timeout, rec)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -46,13 +50,14 @@ func newPlanGatesCmd() *cobra.Command {
 	f.StringVar(&o.example, "example", "", planGatesExampleUsage)
 	f.StringArrayVar(&o.providers, "provider", nil, planGatesProviderUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	return cmd
 }
 
 // planGates runs the gates over the files on standard input. It exits 0
 // with no hit, 1 with hits and 2 on a usage error, bad input, the output
 // cap or the timeout.
-func planGates(cmd *cobra.Command, o planGatesOptions, timeout time.Duration) int {
+func planGates(cmd *cobra.Command, o planGatesOptions, timeout time.Duration, rec *stats.Recorder) int {
 	if o.scope != "clone" && o.scope != "downloaded" {
 		return usageError(cmd, "--scope must be clone or downloaded")
 	}
@@ -67,11 +72,14 @@ func planGates(cmd *cobra.Command, o planGatesOptions, timeout time.Duration) in
 	}
 	in := cmd.InOrStdin()
 	lim := facts.DefaultLimits
+	lim.Stats = rec
 	return runBounded(cmd, timeout, &lim, func() workResult {
+		rec.Phase("read")
 		paths, err := readPathList(in, lim.MaxFiles)
 		if err != nil {
 			return workResult{err: fmt.Errorf("plan-gates: %w", err)}
 		}
+		rec.Phase("gates")
 		out, err := gates.Run(paths, gates.Options{
 			Downloaded: o.scope == "downloaded",
 			Runner:     o.mode == "runner",

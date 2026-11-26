@@ -1,0 +1,2 @@
+# The plan-gates oracle trees hold the bytes the gates read, carriage returns included.
+testdata/plan-gates/** -text

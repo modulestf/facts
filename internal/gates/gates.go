@@ -55,20 +55,20 @@ type file struct {
 
 // run is the state of one run, the Perl's globals.
 type run struct {
-	o    Options
-	root string
-	ex   string
+	o     Options
+	root  string
+	ex    string
 	hasEx bool
-	out  bytes.Buffer
-	prov provSet
+	out   bytes.Buffer
+	prov  provSet
 
 	// laptop mode
-	masks map[string]*string
-	calls []*call
-	vars  map[string]map[string]*variable
-	dirs  map[string]bool
-	loc   map[string]map[string]*local
-	lbad  map[string]bool
+	masks         map[string]*string
+	calls         []*call
+	vars          map[string]map[string]*variable
+	dirs          map[string]bool
+	loc           map[string]map[string]*local
+	lbad          map[string]bool
 	ban, a3, lall bool
 }
 

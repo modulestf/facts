@@ -45,6 +45,7 @@ func statsCases(t *testing.T) map[string][]string {
 		"fixture-check bad tree": {"fixture-check", "../../testdata/no-such-tree"},
 		"fixture-build refused":  fbArgs, // exit 1, no file, so the same --out serves both runs
 		"fixture-build no out":   {"fixture-build", filepath.Join(fb, "trigger.json"), "--template", filepath.Join(fixtureBuildTD, "templates", "l1.tf.tmpl"), "--out", "../../testdata/no-such-dir"},
+		"plan-gates no scope":    {"plan-gates", "--mode", "laptop", "--root", "."},
 	}
 }
 
