@@ -1,3 +1,12 @@
+# [0.18.0](https://github.com/modulestf/facts/compare/v0.17.0...v0.18.0) (2026-11-26)
+
+
+### Features
+
+* Add schemas for every JSON report and a JSON form of rules ([#55](https://github.com/modulestf/facts/issues/55)) ([39e4eab](https://github.com/modulestf/facts/commit/39e4eaba08486b77caa8727720e2e91fbe454f5a)), closes [#47](https://github.com/modulestf/facts/issues/47) [#47](https://github.com/modulestf/facts/issues/47) [modulestf/modulestf#230](https://github.com/modulestf/modulestf/issues/230)
+
+
+
 # [0.17.0](https://github.com/modulestf/facts/compare/v0.16.0...v0.17.0) (2026-11-26)
 
 
