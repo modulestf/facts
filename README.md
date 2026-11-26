@@ -5,7 +5,7 @@
 It serves two uses:
 
 - Module authoring: `lint`, a provider coverage `ledger` check, and `schema-diff` for provider upgrades.
-- Module review: a facts bundle that lets a model reviewer skip the rules a parser can decide, and `fixture-check`, the allowlist a verification ladder scratch tree passes before Terraform runs on it.
+- Module review: a facts bundle that lets a model reviewer skip the rules a parser can decide, `fixture-build`, which builds the scratch trees of a verification ladder level from trusted templates, and `fixture-check`, the allowlist such a tree passes before Terraform runs on it.
 
 It reads files only. It makes no network call and runs no Terraform or other program.
 
@@ -62,7 +62,7 @@ The [usage guide](docs/usage.md) has more examples and a worked review of a real
   - [Run in a review pipeline](docs/usage.md#run-in-a-review-pipeline)
 - [Command reference](docs/commands.md)
   - [lint](docs/commands.md#lint), [affected](docs/commands.md#affected), [changes](docs/commands.md#changes), [depth](docs/commands.md#depth), [behaviour](docs/commands.md#behaviour), [claims-eval](docs/commands.md#claims-eval), [bundle](docs/commands.md#bundle), [merge](docs/commands.md#merge)
-  - [profile-check](docs/commands.md#profile-check), [profile-snapshot](docs/commands.md#profile-snapshot), [ledger](docs/commands.md#ledger), [schema-diff](docs/commands.md#schema-diff), [fixture-check](docs/commands.md#fixture-check), [rules, version and completion](docs/commands.md#rules-version-and-completion)
+  - [profile-check](docs/commands.md#profile-check), [profile-snapshot](docs/commands.md#profile-snapshot), [ledger](docs/commands.md#ledger), [schema-diff](docs/commands.md#schema-diff), [fixture-build](docs/commands.md#fixture-build), [fixture-check](docs/commands.md#fixture-check), [rules, version and completion](docs/commands.md#rules-version-and-completion)
 - [How rules are evaluated](docs/rules.md): areas, module ownership, profile options, in-repo downgrade, scope rules at area boundaries, platform
 - [Benchmarks](docs/benchmarks.md): run the benchmarks and compare two runs
 - [Releases](docs/releases.md): cut a release, verify a release, update a consumer pin

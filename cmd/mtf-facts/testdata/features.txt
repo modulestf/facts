@@ -9,6 +9,7 @@ cmd:bundle
 cmd:changes
 cmd:claims-eval
 cmd:depth
+cmd:fixture-build
 cmd:fixture-check
 cmd:ledger
 cmd:lint
@@ -72,6 +73,14 @@ flag:depth:files
 flag:depth:head
 flag:depth:stats-file
 flag:depth:timeout
+flag:fixture-build:attribute
+flag:fixture-build:level
+flag:fixture-build:out
+flag:fixture-build:resource
+flag:fixture-build:resource-template
+flag:fixture-build:stats-file
+flag:fixture-build:template
+flag:fixture-build:timeout
 flag:fixture-check:expect
 flag:fixture-check:json
 flag:fixture-check:level

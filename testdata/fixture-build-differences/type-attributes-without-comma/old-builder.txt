@@ -1,0 +1,1 @@
+Two object attributes on one line with no comma, which HCL refuses. The old builder built the fixture; this one refuses the type.

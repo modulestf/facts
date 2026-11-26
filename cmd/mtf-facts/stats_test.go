@@ -16,7 +16,10 @@ import (
 
 // statsCases are runs of every command that takes --stats-file: reports,
 // findings, not-evaluated exits and errors, so each exit path is covered.
-func statsCases() map[string][]string {
+func statsCases(t *testing.T) map[string][]string {
+	t.Helper()
+	fb := filepath.Join(fixtureBuildTD, "crafted-01-expr-not-string")
+	fbArgs := []string{"fixture-build", filepath.Join(fb, "trigger.json"), "--template", filepath.Join(fixtureBuildTD, "templates", "l1.tf.tmpl"), "--out", t.TempDir()}
 	const ex = "../../schema/examples"
 	shas := []string{"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)}
 	sd := "../../testdata/schema-diff"
@@ -40,6 +43,8 @@ func statsCases() map[string][]string {
 		"schema-diff":            {"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")},
 		"schema-diff no from":    {"schema-diff", "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")},
 		"fixture-check bad tree": {"fixture-check", "../../testdata/no-such-tree"},
+		"fixture-build refused":  fbArgs, // exit 1, no file, so the same --out serves both runs
+		"fixture-build no out":   {"fixture-build", filepath.Join(fb, "trigger.json"), "--template", filepath.Join(fixtureBuildTD, "templates", "l1.tf.tmpl"), "--out", "../../testdata/no-such-dir"},
 	}
 }
 
@@ -47,7 +52,7 @@ func statsCases() map[string][]string {
 // exit code, stdout and stderr must be byte for byte the same, and the
 // record must name the command and its exit code.
 func TestStatsKeepOutput(t *testing.T) {
-	for name, args := range statsCases() {
+	for name, args := range statsCases(t) {
 		t.Run(name, func(t *testing.T) {
 			code, out, errOut := runCLI(args)
 			p := filepath.Join(t.TempDir(), "stats.json")
@@ -155,7 +160,7 @@ func TestStatsWriteFailure(t *testing.T) {
 func TestStatsTimeout(t *testing.T) {
 	testHookWork = func() { select {} } // the held worker leaks until the test binary exits
 	t.Cleanup(func() { testHookWork = nil })
-	for name, args := range statsCommands() {
+	for name, args := range statsCommands(t) {
 		t.Run(name, func(t *testing.T) {
 			args := append(slices.Clone(args), "--timeout", "20ms")
 			code, out, errOut := runCLI(args)
@@ -195,7 +200,8 @@ func TestStatsEngineDeadline(t *testing.T) {
 
 // statsCommands is one successful run of each command that takes
 // --stats-file.
-func statsCommands() map[string][]string {
+func statsCommands(t *testing.T) map[string][]string {
+	t.Helper()
 	const ex = "../../schema/examples"
 	sd, db := "../../testdata/schema-diff", "../../testdata/diff-base"
 	return map[string][]string{
@@ -206,6 +212,7 @@ func statsCommands() map[string][]string {
 		"depth":         {"depth", "--head", db + "/head", "--base", db + "/base", "--files", db + "/files.json"},
 		"schema-diff":   {"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")},
 		"fixture-check": {"fixture-check", "../../testdata/fixture-check/l1", "--json"},
+		"fixture-build": fixtureBuildArgs(t, "ladder-pass-01"), // a timeout writes nothing
 	}
 }
 

@@ -1,0 +1,1 @@
+{"canaries":["canary_ladder_u_0","canary_ladder_ue_0"],"cases":[{"addr":"","id":"a","inputs":{"vpc_security_group_ids":{"null":false,"omitted":false,"unknown":false,"value":["xé☃","a\"b\\c\n\t\u0001"]}},"unknown_inputs":[]}],"ok":true,"schema_version":1,"sides":["base","head"],"wrap":"none"}

@@ -46,6 +46,7 @@ func boundedCases(t *testing.T) []boundedCase {
 			"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)}, exitClean},
 		{"ledger", []string{"ledger", ledgerModule, "--schema-files", ledgerSchema}, exitClean},
 		{"schema-diff", []string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, exitClean},
+		{"fixture-build", fixtureBuildArgs(t, "ladder-pass-01"), exitClean},
 		{"fixture-check", []string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, exitClean},
 		{"profile-check", []string{"profile-check", "--profile-dir", "../../testdata/profile"}, exitClean},
 		{"bundle", bundleArgsFor(writeReport(t, tmp), "../../testdata/bundle/skills", bundleOut), exitClean},
@@ -117,8 +118,11 @@ func TestEveryCommandCapsOutput(t *testing.T) {
 	for _, c := range boundedCases(t) {
 		code, out, errOut := runCLI(c.args)
 		want := "mtf-facts: output over 1 bytes\n"
-		if c.name == "bundle" { // its files are refused before its stdout
+		switch c.name { // their files are refused before their stdout
+		case "bundle":
 			want = "mtf-facts: bundle: a file over 1 bytes\n"
+		case "fixture-build":
+			want = "mtf-facts: fixture-build: a file over 1 bytes\n"
 		}
 		if code != exitError || out != "" || errOut != want {
 			t.Errorf("%s: exit %d, stdout %q, stderr %q", c.name, code, out, errOut)
@@ -126,6 +130,11 @@ func TestEveryCommandCapsOutput(t *testing.T) {
 		if c.name == "bundle" {
 			if _, err := os.Lstat(c.args[slices.Index(c.args, "--out")+1]); !os.IsNotExist(err) {
 				t.Errorf("bundle wrote its file past the cap: %v", err)
+			}
+		}
+		if c.name == "fixture-build" {
+			if ents, err := os.ReadDir(c.args[slices.Index(c.args, "--out")+1]); err != nil || len(ents) != 0 {
+				t.Errorf("fixture-build wrote %d entries past the cap: %v", len(ents), err)
 			}
 		}
 	}

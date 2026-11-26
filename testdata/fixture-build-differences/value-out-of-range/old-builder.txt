@@ -1,0 +1,1 @@
+A number past the float range. The old builder wrote Inf, which is not JSON; this one exits 2 and writes nothing.

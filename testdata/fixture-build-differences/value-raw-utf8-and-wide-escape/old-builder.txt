@@ -1,0 +1,1 @@
+Raw UTF-8 beside an escape above U+00FF. The old builder wrote the raw bytes encoded twice (c3 83 c2 a9); this one writes them as they are.

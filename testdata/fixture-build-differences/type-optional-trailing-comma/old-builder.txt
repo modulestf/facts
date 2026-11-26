@@ -1,0 +1,1 @@
+optional(string,) is valid HCL. The old builder refused the type; this one builds the fixture.

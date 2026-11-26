@@ -404,6 +404,33 @@ mtf-facts schema-diff --from current.json --to target.json --types-from path/to/
 
 The three file flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](../schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
 
+## fixture-build
+
+`mtf-facts fixture-build` builds the scratch trees a verification ladder level runs for one trigger of a behaviour report, from the trusted templates of the host. It reads Terraform type constraints without evaluating anything, and it never starts Terraform or reads the network:
+
+```sh
+mtf-facts fixture-build trigger.json --template l1.tf.tmpl --out scratch [--timeout <duration>] [--stats-file <file>]
+mtf-facts fixture-build trigger.json --template l1.tf.tmpl --out scratch --level L2 --attribute for_each
+mtf-facts fixture-build trigger.json --template l1.tf.tmpl --out scratch --level L3 \
+  --attribute vpc_security_group_ids --resource aws_rds_cluster --resource-template template.tf.tmpl
+```
+
+`trigger.json` is one trigger object with the cases of the classifier: `base_expr` and `head_expr`, `referenced_inputs` with each type constraint, `contextual_ref_details`, `category`, `address` and `cases`, at most 4 MiB. Each template, at most 256 KiB, holds sections that start at a line `#-- <name>`, with `__NAME__` placeholders filled in one pass; at L3 the sections of `--resource-template` replace or add to those of `--template`.
+
+`--out` must be an existing empty directory. For each side with an expression it writes `<side>/main.tf` (a variable, a `terraform_data` stand-in whose output is a typed unknown and a canary per input, and a local per input whose state a case var file picks), `<side>/subject.tf` (the expression with each input renamed to its local), at L2 `<side>/ladder.tftest.hcl`, and `expect/<side>.json`, the manifest `fixture-check --expect` reads; and `vars/<case id>.tfvars.json` per case. The files are written only after the build is done, so a refusal, a timeout or the output cap leaves `--out` empty, and a write that fails part way removes what it made. `--attribute` must match `^[a-z][a-z0-9_]{0,63}$` and `--resource` `^[a-z][a-z0-9]*_[a-z0-9_]{1,63}$`.
+
+A type constraint is `string`, `number`, `bool`, `any`, `list`, `set` or `map` of one type, `tuple`, or `object` with `optional` attributes, at most 400 tokens and nested at most 20 deep. An input is renamed where the expression's own tokens name it, so the text of a quoted string, a heredoc or a comment stays as it is. A trigger the builder cannot model is refused with a fixed reason: a type outside the grammar, a local, module, `path` or `terraform` reference, an `each.value` reference, more than 32 cases, a case that does not name exactly the inputs, an expression over 16 KiB, two case ids that differ only in letter case (they would share one var file on a case-insensitive file system), or a `count`, `each` or default context at L2 or L3.
+
+The trigger's JSON values are copied as the ladder pass's earlier Perl builder copied them, so the two build the same files: an integer of up to 20 characters, sign included, that fits neither a signed nor an unsigned 64-bit integer is written as a float with 15 significant digits, a longer one as a string; a whole float in the 64-bit range is written as its digits when its text has an exponent and no point, or both and a value past 2^53, and with 15 significant digits otherwise; and a lone surrogate escape (`\ud800` with no low half) is an error, exit 2. The builder differs on purpose where the earlier one built a wrong or invalid file or refused valid HCL: a type with a vertical tab or form feed, or two object attributes on one line with no comma, is refused; `optional(string,)` is taken; raw UTF-8 and escapes are both written as UTF-8; a number past the float range is an error, not `Inf`; two case ids that differ only in letter case are refused; and a refusal leaves no file.
+
+The output, in the shape of [fixture-build.schema.json](../schema/fixture-build.schema.json), is `{"schema_version":1,"ok":true,"wrap","sides","canaries","cases":[{"id","inputs","unknown_inputs","addr"}]}`, or `{"schema_version":1,"ok":false,"reason"}`, one line with sorted keys.
+
+| Code | Meaning |
+|------|---------|
+| 0 | The fixture is written. |
+| 1 | The trigger is refused, with its reason. |
+| 2 | An error: bad flags, an input that is not a regular file or is over its size, a template without a section or value, an `--out` that is not an empty directory, the output cap or the timeout. |
+
 ## fixture-check
 
 `mtf-facts fixture-check` checks the scratch tree a verification ladder level will run against a default-deny allowlist, before any Terraform command runs on it, and hashes the tree:

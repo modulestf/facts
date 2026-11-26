@@ -1,0 +1,69 @@
+# L1 and L2 fixture template of ladder-pass.sh. Each section starts with a line "#-- <name>".
+# Placeholders are __NAME__, __TYPE__, __COUNT__, __VAR__, __REF__, __BODY__, __LOCAL__
+# and __EXPR__; the script fills them in one pass, so text it puts in never gets filled
+# again. Only the trigger's own expression, its inputs renamed to the case locals,
+# reaches __EXPR__; it goes into subject.tf alone, which holds no comment.
+# fixture-check, level L1 or L2, checks the whole tree before any terraform command. At L2
+# the subject is the count or for_each of terraform_data.subject, and "test" is the whole
+# test file: run blocks that plan, nothing else.
+#-- variable
+variable "__NAME__" {
+  type = __TYPE__
+}
+
+#-- standin
+resource "terraform_data" "__NAME__" {
+__COUNT__  input = var.__VAR__
+}
+
+#-- locals
+locals {
+__BODY__}
+
+#-- canary
+output "__NAME__" {
+  value = __REF__
+}
+
+#-- known
+output "canary_known" {
+  value = "known"
+}
+
+#-- subject-output
+output "subject" {
+  value = __EXPR__
+}
+
+#-- subject-default
+output "subject" {
+  value = var.ladder_omit ? (__EXPR__) : __LOCAL__
+}
+
+#-- subject-count
+resource "terraform_data" "subject" {
+  count = var.ladder_count_index + 1
+  input = __EXPR__
+}
+
+#-- subject-for-each
+resource "terraform_data" "subject" {
+  for_each = { (var.ladder_each_key) = "v" }
+  input    = __EXPR__
+}
+
+#-- subject-l2-for_each
+resource "terraform_data" "subject" {
+  input    = each.value
+  for_each = __EXPR__
+}
+
+#-- subject-l2-count
+resource "terraform_data" "subject" {
+  count = __EXPR__
+}
+
+#-- test
+run "ladder" {
+  command = apply
+}

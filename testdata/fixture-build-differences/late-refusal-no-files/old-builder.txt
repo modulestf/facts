@@ -1,0 +1,1 @@
+A default change in a count context is refused after the cases are read. The old builder had already written the var files, and left them; this one writes no file.
