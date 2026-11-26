@@ -613,6 +613,7 @@ func readPath(e hclsyntax.Expression, r Resource, anon *string) (path string, of
 // attrOf returns the attribute path a traversal reads of resource r, "" when
 // it reads the block itself; of is false when it reads anything else.
 func attrOf(t hcl.Traversal, r Resource) (attr string, of bool) {
+	t = Unaliased(t)
 	if len(t) < 2 || t.RootName() != r.Type {
 		return "", false
 	}

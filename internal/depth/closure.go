@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // maxNodes bounds the consumer closure.
@@ -135,6 +136,7 @@ func refsOf(e hclsyntax.Expression) []ref {
 // refKey returns the value a reference reads and the attribute or output
 // read first after any index or splat.
 func refKey(t hcl.Traversal) (key, out string, ok bool) {
+	t = facts.Unaliased(t) // resource.<type>.<name> is <type>.<name>
 	attr := func(i int) string {
 		if i < len(t) {
 			if a, ok := t[i].(hcl.TraverseAttr); ok {

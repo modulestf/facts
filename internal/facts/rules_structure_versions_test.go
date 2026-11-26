@@ -250,6 +250,12 @@ func TestFeatureAboveFloorHardCases(t *testing.T) {
 			want: []string{featureRule + " main.tf:1 .:import", featureRule + " main.tf:6 .:moved.null_resource.a"},
 		},
 		{
+			name: "a moved block written with the resource. alias is read as one written without it",
+			head: map[string]string{"versions.tf": requires(">= 1.8.0"), "main.tf": "moved {\n  from = resource.null_resource.a\n  to   = resource.terraform_data.a\n}\n\n" +
+				"moved {\n  from = module.m[\"k\"].resource.null_resource.b\n  to   = module.m[\"k\"].resource.terraform_data.b\n}\n"},
+			want: []string{featureRule + " main.tf:1 .:moved.null_resource.a", featureRule + " main.tf:6 .:moved.module.m[\"k\"].null_resource.b"},
+		},
+		{
 			name: "optional() in a type, and the type argument of convert(), which is no unlisted function",
 			head: map[string]string{"versions.tf": requires("~> 1.2.0"), "variables.tf": "variable \"v\" {\n" +
 				"  type = object({\n    a = optional(string)\n    b = list(map(set(tuple([string, number, bool, any]))))\n  })\n}\n",

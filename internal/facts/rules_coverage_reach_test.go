@@ -227,6 +227,27 @@ func TestCoverageReachModeThroughLocalsAndModules(t *testing.T) {
 	}
 }
 
+// An output that returns an added block whole through the resource. alias
+// reads every attribute of it, as one that does not use the alias does.
+func TestCoverageReachAttributeReadThroughResourceAlias(t *testing.T) {
+	t.Parallel()
+	main := "resource \"aws_demo_widget\" \"this\" {\n  name = var.name\n}\n"
+	for value, want := range map[string]bool{
+		"aws_demo_widget.this":                false,
+		"resource.aws_demo_widget.this":       false,
+		"resource.aws_demo_widget.this.arn":   true, // id and the rest stay unread
+		"resource.aws_demo_widget.this[0].id": true,
+		"var.other":                           true,
+	} {
+		out := "output \"o\" {\n  value = " + value + "\n}\n"
+		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{})
+		got := slices.ContainsFunc(r.Candidates, func(c Candidate) bool { return c.RuleID == "coverage.attribute-not-output" })
+		if got != want {
+			t.Errorf("%s: candidate %v, want %v", value, got, want)
+		}
+	}
+}
+
 // A computed attribute inside a nested block or a nested attribute of an
 // added resource is a candidate at its nested address unless an output reads
 // it, a level above it or a level below it; a deprecated one is not.
@@ -382,12 +403,30 @@ func TestCoverageReachModeSafeOutputs(t *testing.T) {
 		"[for w in aws_demo_widget.this : var.x[w.arn]]":            true,
 		"[for w in aws_demo_widget.this[0].list : w]":               true,
 		"aws_demo_widget.this":                                      false,
+		"resource.aws_demo_widget.each":                             false,
+		"resource.aws_demo_widget.this[0].arn":                      true,
 	} {
 		out := "output \"o\" {\n  value = " + value + "\n}\n"
 		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out, "variables.tf": vars}, map[string]string{"main.tf": main, "variables.tf": vars})
 		got := slices.ContainsFunc(r.Candidates, func(c Candidate) bool { return c.Subject == ".:output.o" })
 		if got != want {
 			t.Errorf("%s: candidate %v, want %v", value, got, want)
+		}
+	}
+}
+
+// resource.<type>.<name> is Terraform's long form of <type>.<name>, so an
+// output that reads a counted block through it, directly or through a local,
+// is a candidate as one that does not.
+func TestCoverageReachModeOutputResourceAlias(t *testing.T) {
+	t.Parallel()
+	main := "resource \"aws_demo_widget\" \"this\" {\n  count = var.create ? 1 : 0\n}\n\n" +
+		"locals {\n  arn = resource.aws_demo_widget.this[0].arn\n}\n"
+	for _, value := range []string{"resource.aws_demo_widget.this[0].arn", "local.arn"} {
+		out := "output \"o\" {\n  value = " + value + "\n}\n"
+		r := runCoverageReach(t, map[string]string{"main.tf": main, "outputs.tf": out}, map[string]string{"main.tf": main})
+		if !slices.ContainsFunc(r.Candidates, func(c Candidate) bool { return c.Subject == ".:output.o" }) {
+			t.Errorf("%s: no candidate for an output that reads a counted block through the resource alias", value)
 		}
 	}
 }

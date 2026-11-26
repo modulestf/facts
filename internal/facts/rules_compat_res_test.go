@@ -124,6 +124,15 @@ func TestResourceAddressCases(t *testing.T) {
 			base: "resource \"aws_a\" \"x\" {\n  for_each = var.m\n}\n",
 			head: "resource \"aws_a\" \"y\" {\n  for_each = var.m\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
 		},
+		"whole address moved, written with the resource alias": {
+			base: "resource \"aws_a\" \"x\" {\n  for_each = var.m\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  for_each = var.m\n}\nmoved {\n  from = resource.aws_a.x\n  to   = resource.aws_a.y\n}\n",
+		},
+		"whole move to fewer keys, written with the resource alias": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 1\n}\nmoved {\n  from = resource.aws_a.x\n  to   = resource.aws_a.y\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
 		"rename pairs with the added block": {
 			base: "resource \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\nresource \"aws_a\" \"y\" {}\n",

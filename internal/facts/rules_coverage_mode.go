@@ -122,8 +122,9 @@ func switchedBlock(a *Area, e hclsyntax.Expression) (Body, string, bool) {
 	if !ok || !attrsOnly(t.Traversal[1:]) {
 		return Body{}, "", false
 	}
-	names := []string{t.Traversal.RootName()}
-	for _, s := range t.Traversal[1:] {
+	tr := Unaliased(t.Traversal)
+	names := []string{tr.RootName()}
+	for _, s := range tr[1:] {
 		names = append(names, s.(hcl.TraverseAttr).Name)
 	}
 	addr := strings.Join(names, ".")

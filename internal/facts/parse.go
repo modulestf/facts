@@ -701,6 +701,7 @@ func references(e hclsyntax.Expression) (refs []string, usesTry bool) {
 // module and resources, three for data, nothing for each, count, path,
 // terraform, self and iterator symbols it cannot tell apart from them.
 func refAddress(t hcl.Traversal) string {
+	t = Unaliased(t)
 	names := []string{t.RootName()}
 	for _, step := range t[1:] {
 		a, ok := step.(hcl.TraverseAttr)
@@ -722,8 +723,30 @@ func refAddress(t hcl.Traversal) string {
 	return strings.Join(names[:want], ".")
 }
 
+func isAttrStep(s hcl.Traverser) bool {
+	_, ok := s.(hcl.TraverseAttr)
+	return ok
+}
+
+// Unaliased returns t with the long form of a resource address, as in
+// resource.<type>.<name>, written as <type>.<name>, the form Terraform
+// treats as the same address. Any other traversal is returned as it is.
+func Unaliased(t hcl.Traversal) hcl.Traversal {
+	if len(t) < 3 || t.RootName() != "resource" {
+		return t
+	}
+	typ, ok := t[1].(hcl.TraverseAttr)
+	if !ok || !isAttrStep(t[2]) {
+		return t
+	}
+	return append(hcl.Traversal{hcl.TraverseRoot{Name: typ.Name, SrcRange: typ.SrcRange}}, t[2:]...)
+}
+
 // attrAddr returns the canonical form of an address argument, or "" when it
-// is missing or not a static address.
+// is missing or not a static address. The resource. alias of an address,
+// after the start or after a module call, is dropped: resource.<type>.<name>
+// and module.<name>.resource.<type>.<name> name the same blocks as
+// <type>.<name> and module.<name>.<type>.<name>.
 func attrAddr(body *hclsyntax.Body, name string) string {
 	a, ok := body.Attributes[name]
 	if !ok {
@@ -734,12 +757,39 @@ func attrAddr(body *hclsyntax.Body, name string) string {
 		return ""
 	}
 	var b strings.Builder
-	for _, step := range t {
+	const (
+		atStart  = iota // at the start, or after a module call: an alias may follow
+		callName        // after the module keyword
+		inside          // past the block type
+	)
+	state := atStart
+	for i, step := range t {
+		label := ""
+		switch s := step.(type) {
+		case hcl.TraverseRoot:
+			label = s.Name
+		case hcl.TraverseAttr:
+			label = s.Name
+		}
+		switch {
+		case state == callName:
+			state = atStart
+		case state == atStart && label == "resource" && i+2 < len(t) && isAttrStep(t[i+1]) && isAttrStep(t[i+2]):
+			state = inside
+			continue
+		case state == atStart && label == "module":
+			state = callName
+		case state == atStart && label != "":
+			state = inside
+		}
 		switch s := step.(type) {
 		case hcl.TraverseRoot:
 			b.WriteString(s.Name)
 		case hcl.TraverseAttr:
-			b.WriteString("." + s.Name)
+			if b.Len() > 0 { // the type of an address that started with the alias
+				b.WriteByte('.')
+			}
+			b.WriteString(s.Name)
 		case hcl.TraverseIndex:
 			switch {
 			case !s.Key.IsKnown() || s.Key.IsNull():
