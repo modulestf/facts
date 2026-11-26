@@ -5771,6 +5771,38 @@
    ],
    "tree": 19,
    "want": "G2 {run}/clone/extra/source-sibling-prefix.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "354 runner clone extra/cred-token-vt.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-vt.tf"
+   ],
+   "tree": 18,
+   "want": "G0 {run}/clone/extra/cred-token-vt.tf:3\nG3 {run}/clone/extra/cred-token-vt.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "355 laptop clone extra/cred-token-vt.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/cred-token-vt.tf"
+   ],
+   "tree": 18,
+   "want": "G0 {run}/clone/extra/cred-token-vt.tf:3\nG3 {run}/clone/extra/cred-token-vt.tf:1\nG3 {run}/clone/extra/cred-token-vt.tf:1\n"
   }
  ],
  "dirs": {

@@ -100,6 +100,10 @@ var behaviourFeatures = []string{
 	"depth.module-root",
 }
 
+// marshalVersion encodes the version report; tests replace it to reach the
+// error line, which a fixed report never produces.
+var marshalVersion = json.Marshal
+
 func newVersionCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
@@ -113,7 +117,7 @@ func newVersionCmd() *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), version())
 				return nil
 			}
-			b, err := json.Marshal(newVersionReport(cmd.Root()))
+			b, err := marshalVersion(newVersionReport(cmd.Root()))
 			if err != nil {
 				fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: version:", oneLine(err.Error()))
 				return exitStatus{exitError}

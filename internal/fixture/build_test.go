@@ -125,8 +125,8 @@ const diffTD = "../../testdata/fixture-build-differences"
 // this builder's recorded result.
 func TestBuildDifferences(t *testing.T) {
 	dirs := caseDirs(t, diffTD)
-	if len(dirs) < 8 {
-		t.Fatalf("%d difference cases, want 8", len(dirs))
+	if len(dirs) < 9 {
+		t.Fatalf("%d difference cases, want 9", len(dirs))
 	}
 	for _, dir := range dirs {
 		t.Run(filepath.Base(dir), func(t *testing.T) {

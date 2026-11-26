@@ -1,0 +1,1 @@
+An escape below U+0100 with no raw UTF-8 and no wider character in the output. The old builder wrote the escape as the one byte e9, which is not UTF-8 (it wrote UTF-8 only when a wider character was in the same output); this one always writes c3 a9.

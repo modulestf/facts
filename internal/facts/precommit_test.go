@@ -108,6 +108,15 @@ func TestPreCommitConfirmation(t *testing.T) {
 	if docsConfirmed([]byte(extra)) {
 		t.Error("a terraform_docs hook with a third key is confirmed")
 	}
+	// The line reader already refuses a second argument; the structural
+	// confirmation must too, whatever the line reader says.
+	two := docs + "          - --args=--hide=providers\n"
+	if docsConfirmed([]byte(two)) {
+		t.Error("a terraform_docs hook with two args is confirmed")
+	}
+	if !docsConfirmed([]byte(docs)) {
+		t.Error("the profile's own terraform_docs hook is not confirmed")
+	}
 	if _, ok := WrapperDerive([]byte(strings.Repeat("#", MaxWrapperFileBytes) + "\n")); ok {
 		t.Error("derive is defined over MaxWrapperFileBytes")
 	}
