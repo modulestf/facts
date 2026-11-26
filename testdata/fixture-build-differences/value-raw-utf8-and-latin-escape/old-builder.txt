@@ -1,0 +1,1 @@
+Raw UTF-8 beside an escape below U+0100. The old builder wrote the escape as the one byte e9, which is not UTF-8; this one writes c3 a9.

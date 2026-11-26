@@ -20,7 +20,7 @@ import (
 // nil. Numbers keep their text, and str, truthy and encodeCanonical read
 // them as that builder read them: an integer of up to 20 characters, sign
 // included, stays a number, a longer one becomes a string, and any other
-// number is a float written with 15 significant digits.
+// number is a float, written as formatFloat writes it.
 
 // errNumberRange is a number the float type cannot hold.
 var errNumberRange = errors.New("a number is out of range")
@@ -130,10 +130,38 @@ func number(n json.Number) (string, bool, error) {
 	if err != nil || math.IsInf(f, 0) {
 		return "", false, errNumberRange
 	}
-	if f == 0 {
-		return "0", true, nil
+	return formatFloat(f, wholeDigits(s, f)), true, nil
+}
+
+// wholeDigits reports whether the first builder wrote the whole float f,
+// read from the text s, as its digits. It turned a number with an exponent
+// and no point into an integer when it could; one with a point and an
+// exponent only past 2^53, where its division kept integers; and one with
+// a point and no exponent never.
+func wholeDigits(s string, f float64) bool {
+	exp, dot := strings.ContainsAny(s, "eE"), strings.Contains(s, ".")
+	switch {
+	case exp && !dot:
+		return true
+	case exp && dot:
+		return math.Abs(f) > 1<<53
 	}
-	return strconv.FormatFloat(f, 'g', 15, 64), true, nil
+	return false
+}
+
+// formatFloat writes f as the first builder wrote a float: with digits, a
+// whole value in the range of a 64-bit integer, signed or unsigned, as its
+// digits; any other with 15 significant digits.
+func formatFloat(f float64, digits bool) string {
+	switch {
+	case f == 0:
+		return "0"
+	case digits && f == math.Trunc(f) && f >= math.MinInt64 && f < 0:
+		return strconv.FormatInt(int64(f), 10)
+	case digits && f == math.Trunc(f) && f > 0 && f < 1<<64:
+		return strconv.FormatUint(uint64(f), 10)
+	}
+	return strconv.FormatFloat(f, 'g', 15, 64)
 }
 
 // scalar reports whether v is a plain value: a string or a number. A
