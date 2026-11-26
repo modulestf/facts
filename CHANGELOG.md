@@ -1,3 +1,12 @@
+## [0.12.2](https://github.com/modulestf/facts/compare/v0.12.1...v0.12.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* Raise fewer false candidates for policy and template changes ([#61](https://github.com/modulestf/facts/issues/61)) ([a6786cd](https://github.com/modulestf/facts/commit/a6786cd0e8978f30e969f67f2e2e15befd39d5d0)), closes [vpc#1320](https://github.com/vpc/issues/1320) [terraform-aws-iam#665](https://github.com/terraform-aws-iam/issues/665) [iam#665](https://github.com/iam/issues/665) [eks-pod-identity#75](https://github.com/eks-pod-identity/issues/75) [#62](https://github.com/modulestf/facts/issues/62) [iam#646](https://github.com/iam/issues/646) [#652](https://github.com/modulestf/facts/issues/652) [lambda#783](https://github.com/lambda/issues/783) [vpc#1320](https://github.com/vpc/issues/1320) [vpc#1321](https://github.com/vpc/issues/1321) [s3-bucket#397](https://github.com/s3-bucket/issues/397) [#408](https://github.com/modulestf/facts/issues/408) [eventbridge#207](https://github.com/eventbridge/issues/207) [#213](https://github.com/modulestf/facts/issues/213) [iam#654](https://github.com/iam/issues/654) [#671](https://github.com/modulestf/facts/issues/671) [notify-slack#273](https://github.com/notify-slack/issues/273) [eks#3743](https://github.com/eks/issues/3743) [#3758](https://github.com/modulestf/facts/issues/3758) [vpc#1190](https://github.com/vpc/issues/1190) [alb#436](https://github.com/alb/issues/436) [app-runner#21](https://github.com/app-runner/issues/21) [batch#52](https://github.com/batch/issues/52) [cloudwatch#85](https://github.com/cloudwatch/issues/85) [customer-gateway#26](https://github.com/customer-gateway/issues/26) [elasticache#77](https://github.com/elasticache/issues/77) [elb#51](https://github.com/elb/issues/51) [emr#52](https://github.com/emr/issues/52) [fsx#12](https://github.com/fsx/issues/12) [key-pair#36](https://github.com/key-pair/issues/36) [kms#45](https://github.com/kms/issues/45) [notify-slack#282](https://github.com/notify-slack/issues/282) [opensearch#59](https://github.com/opensearch/issues/59) [redshift#113](https://github.com/redshift/issues/113) [vpn-gateway#106](https://github.com/vpn-gateway/issues/106) [s3-bucket#414](https://github.com/s3-bucket/issues/414) [eks-pod-identity#75](https://github.com/eks-pod-identity/issues/75)
+
+
+
 ## [0.12.1](https://github.com/modulestf/facts/compare/v0.12.0...v0.12.1) (2026-11-26)
 
 
