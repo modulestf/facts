@@ -1,3 +1,12 @@
+## [0.20.5](https://github.com/modulestf/facts/compare/v0.20.4...v0.20.5) (2026-11-26)
+
+
+### Bug Fixes
+
+* read a committed .terraform directory as repository content ([#118](https://github.com/modulestf/facts/issues/118)) ([42098ed](https://github.com/modulestf/facts/commit/42098ed88ef15b8ff37fbdfac57bacdae0c99cfa))
+
+
+
 ## [0.20.4](https://github.com/modulestf/facts/compare/v0.20.3...v0.20.4) (2026-11-26)
 
 
