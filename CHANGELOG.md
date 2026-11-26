@@ -1,3 +1,12 @@
+# [0.20.0](https://github.com/modulestf/facts/compare/v0.19.1...v0.20.0) (2026-11-26)
+
+
+### Features
+
+* Read module sources as Terraform does in plan-gates ([#107](https://github.com/modulestf/facts/issues/107)) ([b448f29](https://github.com/modulestf/facts/commit/b448f29d9bbd2e726f18ed42d5d9a6ea9c0826f1)), closes [#98](https://github.com/modulestf/facts/issues/98)
+
+
+
 ## [0.19.1](https://github.com/modulestf/facts/compare/v0.19.0...v0.19.1) (2026-11-26)
 
 
