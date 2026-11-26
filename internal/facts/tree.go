@@ -146,11 +146,14 @@ func (l Limits) opaqueCap() int64 { return cmp.Or(l.opaqueBudget, defaultOpaqueB
 
 // readNames are the name suffixes, compared in lower case, of the files a
 // rule or parser reads by name: Terraform, OpenTofu, test, variable, lock and
-// CLI configuration, JSON, YAML and Markdown. A file with one of them is kept
-// whatever its content.
+// CLI configuration, JSON, YAML and Markdown, and the profile files named
+// most often. A file with one of them is kept whatever its content; a rule
+// that reads another name, such as one a profile names, gets not_evaluated
+// for an opaque file through fileAt.
 var readNames = []string{
 	".tf", ".tf.json", ".tofu", ".tofu.json", ".tfvars", ".tfvars.json", ".hcl", ".tfrc",
 	".json", ".yml", ".yaml", ".md", ".gitattributes", ".terraformrc", "terraform.rc", ".releaserc",
+	".editorconfig", ".gitignore", "license",
 }
 
 // opaqueFile reports whether a regular file of name with content data is

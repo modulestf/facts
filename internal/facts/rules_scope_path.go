@@ -70,8 +70,8 @@ func (p *pathEvidence) candidate(rule, file string, line *int) Candidate {
 }
 
 // fileAt returns the bytes of the regular file at p in t, and whether t has
-// anything at p. A link, special, unreadable or oversize entry has no bytes
-// to read: bad is then the not_evaluated result. t may be nil.
+// anything at p. A link, special, unreadable, oversize or opaque entry has no
+// bytes to read: bad is then the not_evaluated result. t may be nil.
 func fileAt(t *Tree, p string) (data []byte, present bool, bad *Result) {
 	if t == nil {
 		return nil, false, nil
@@ -82,8 +82,22 @@ func fileAt(t *Tree, p string) (data []byte, present bool, bad *Result) {
 		return nil, false, nil
 	case e.Kind != KindFile:
 		return nil, true, &Result{NotEvaluated: p + " is " + kindText(e.Kind), Code: kindCode(e.Kind)}
+	case e.opaque:
+		return nil, true, &Result{NotEvaluated: p + " is " + opaqueText, Code: ReasonUnsupportedFile}
 	}
 	return e.Data, true, nil
+}
+
+// opaqueText says why an opaque file has no bytes to read.
+const opaqueText = "a binary file whose bytes were not kept"
+
+// opaqueAt reports whether the entry at p in t is opaque. t may be nil.
+func opaqueAt(t *Tree, p string) bool {
+	if t == nil {
+		return false
+	}
+	e := t.Entries[p]
+	return e != nil && e.opaque
 }
 
 // unchanged reports whether the change leaves the entry at p as it was.
@@ -180,12 +194,14 @@ func checkTemplateDrift(a *Area) Result {
 	for _, f := range a.Profile.ProfileOwned.Verbatim {
 		tpl := templateFor(a.Profile, f)
 		head, atHead, bad := fileAt(a.headTree, f)
-		base, _, _ := fileAt(a.baseTree, f) // a base that is no file has no lines
+		base, _, baseBad := fileAt(a.baseTree, f) // a base that is no file has no lines
 		switch {
 		case tpl == nil || !atHead || unchanged(a, f):
 			continue
 		case bad != nil:
 			return *bad
+		case opaqueAt(a.baseTree, f):
+			return *baseBad // a base file with content not kept is not one with no lines
 		}
 		t, h, b := unpinned(tpl), unpinned(head), unpinned(base)
 		drift, missHead, ok1 := templateDiff(t, h, &budget)

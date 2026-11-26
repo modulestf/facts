@@ -581,7 +581,7 @@ func ifaceTreeLine(t *Tree, file string, n int) string {
 		return ""
 	}
 	e := t.Entries[file]
-	if e == nil || e.Kind != KindFile {
+	if e == nil || e.Kind != KindFile || e.opaque {
 		return ""
 	}
 	ls := splitLines(e.Data)

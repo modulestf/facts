@@ -208,7 +208,9 @@ func (c *changedFiles) changed(file string, line int) bool {
 		h, _, _ := fileAt(c.head, file)
 		b, _, _ := fileAt(c.base, file)
 		var fine bool
-		if r, fine = changedLines(b, h, &c.budget); !fine {
+		if opaqueAt(c.head, file) || opaqueAt(c.base, file) {
+			c.over = true // which lines of a binary file changed is unknown
+		} else if r, fine = changedLines(b, h, &c.budget); !fine {
 			c.over = true
 		}
 		c.lines[file] = r
