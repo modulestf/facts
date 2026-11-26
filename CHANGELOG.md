@@ -1,3 +1,12 @@
+# [0.19.0](https://github.com/modulestf/facts/compare/v0.18.0...v0.19.0) (2026-11-26)
+
+
+### Features
+
+* Spend the trigger cap on triggers that need evidence ([#70](https://github.com/modulestf/facts/issues/70)) ([2f3523c](https://github.com/modulestf/facts/commit/2f3523c9d18f570da56afdcdfc22ea9403cdba5f)), closes [terraform-aws-rds#634](https://github.com/terraform-aws-rds/issues/634) [rds#634](https://github.com/rds/issues/634) [rds#634](https://github.com/rds/issues/634) [rds#634](https://github.com/rds/issues/634) [rds#634](https://github.com/rds/issues/634) [terraform-aws-rds#634](https://github.com/terraform-aws-rds/issues/634) [terraform-aws-rds#634](https://github.com/terraform-aws-rds/issues/634)
+
+
+
 # [0.18.0](https://github.com/modulestf/facts/compare/v0.17.0...v0.18.0) (2026-11-26)
 
 
