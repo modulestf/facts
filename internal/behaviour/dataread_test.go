@@ -81,6 +81,8 @@ func TestDataReadL1Atoms(t *testing.T) {
 		{"computed key reordered", `{ a = var.x, (local.k) = "b" }`, `{ (local.k) = "b", a = var.x }`, true},
 		{"literal key to computed key", `{ k = "a" }`, `{ (local.p) = "a" }`, true},
 		{"duplicate key removed", `{ a = var.x, a = "lit" }`, `{ a = var.x }`, true},
+		{"bare and quoted key are one key", `{ a = var.x, "a" = "b" }`, `{ "a" = "b", a = var.x }`, true},
+		{"bare and escaped key are one key", `{ a = var.x, "\u0061" = "b" }`, `{ "\u0061" = "b", a = var.x }`, true},
 		{"quoted key literal value", `{ "a" = local.p, b = "x" }`, `{ "a" = local.p, b = "y" }`, false},
 	}
 	for _, c := range cases {
