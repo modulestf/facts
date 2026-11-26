@@ -167,10 +167,12 @@ func templateDiff(t, x []byte, budget *int) (extra []lineRange, missing int, ok 
 // from its template, version pins left out. Drift the base already carries
 // is not the change's: a candidate needs a head line that differs from the
 // template and that the change wrote, or more template lines missing than
-// at the base, as when the change drops template text. A comment or blank
-// line is no such head line in a file that is not JSON, and outside the
-// workflow directory neither is a line that replaces, one for one, a base
-// line that already differed from the template. A deleted file is
+// at the base, as when the change drops template text. In a file that is
+// not JSON, a comment or blank line is no such head line, unless it sits in
+// a YAML block scalar of a workflow, where it is part of a script; and
+// outside the workflow directory neither is a line that replaces, one for
+// one and under the same key, a base line that already differed from the
+// template. A deleted file is
 // scope.profile-file. Whether a stated reason allows the drift is prose,
 // which the model judges.
 func checkTemplateDrift(a *Area) Result {
@@ -201,15 +203,23 @@ func checkTemplateDrift(a *Area) Result {
 		}
 		lineOriented := !strings.HasSuffix(f, ".json")
 		workflow := po.WorkflowDir != "" && strings.HasPrefix(f, po.WorkflowDir+"/")
+		var scalar map[int]bool
+		if workflow {
+			scalar = blockScalarLines(head)
+		}
 		// skip is drift the change wrote that is not its own: a comment or
-		// blank line, or outside the workflows a line that replaces a base
-		// line which already differed from the template.
+		// blank line outside a YAML block scalar, or outside the workflows a
+		// line that edits, under the same key, a base line which already
+		// differed from the template.
 		skip := func(n int) bool {
-			if lineOriented && commentOrBlank(lineOf(head, n)) {
+			if !lineOriented {
+				return false
+			}
+			if commentOrBlank(lineOf(head, n)) && !scalar[n] {
 				return true
 			}
 			bn, ok := pairs[n]
-			return ok && !workflow && inRanges(baseDrift, bn) && (!lineOriented || !commentOrBlank(lineOf(base, bn)))
+			return ok && !workflow && inRanges(baseDrift, bn) && sameLineKey(lineOf(head, n), lineOf(base, bn))
 		}
 		ev := newPathEvidence()
 		var line *int
@@ -246,6 +256,48 @@ func checkTemplateDrift(a *Area) Result {
 		res.Candidates = append(res.Candidates, ev.candidate(id, f, line))
 	}
 	return res
+}
+
+// sameLineKey reports two lines with the same non-empty key: the text
+// before the first = or :, or the first word when there is neither.
+func sameLineKey(a, b []byte) bool {
+	key := func(l []byte) string {
+		t := strings.TrimSpace(string(l))
+		if i := strings.IndexAny(t, "=:"); i > 0 {
+			return strings.TrimSpace(t[:i])
+		}
+		if f := strings.Fields(t); len(f) > 0 {
+			return f[0]
+		}
+		return ""
+	}
+	k := key(a)
+	return k != "" && k == key(b)
+}
+
+// blockScalarPattern matches a YAML line that opens a block scalar: a key
+// or list item whose value is | or >, with optional indicators and comment.
+var blockScalarPattern = regexp.MustCompile(`(^|:|-)\s*[|>][0-9+-]{0,2}\s*(#.*)?$`)
+
+// blockScalarLines lists the lines, by number, inside the YAML block
+// scalars of a file: after a line that opens one, every blank line and
+// every line indented deeper than the opener.
+func blockScalarLines(data []byte) map[int]bool {
+	out := map[int]bool{}
+	open := -1 // indent of the open scalar's opener
+	for i, l := range splitLines(data) {
+		t := strings.TrimRight(strings.TrimSuffix(string(l), "\r"), " \t")
+		indent := len(t) - len(strings.TrimLeft(t, " "))
+		if open >= 0 && (t == "" || indent > open) {
+			out[i+1] = true
+			continue
+		}
+		open = -1
+		if blockScalarPattern.MatchString(t) && !strings.HasPrefix(strings.TrimSpace(t), "#") {
+			open = indent
+		}
+	}
+	return out
 }
 
 // commentOrBlank reports a line that is blank or a # comment once its

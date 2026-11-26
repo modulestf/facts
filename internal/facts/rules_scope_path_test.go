@@ -390,13 +390,13 @@ func TestScopePathEmptyValues(t *testing.T) {
 // one.
 func TestTemplateDriftSkips(t *testing.T) {
 	gi := readTemplate(t, ".gitignore.template")
-	rel := readTemplate(t, "github-workflows-release.yml.template")
 	rc := readTemplate(t, ".releaserc.json.template")
-	giLines := strings.SplitAfter(gi, "\n")
-	firstGi := strings.TrimSuffix(giLines[0], "\n")
 	relStep := "    steps:\n"
-	if !strings.Contains(rel, relStep) {
-		t.Fatalf("release template has no %q", relStep)
+	rel := readTemplate(t, "github-workflows-release.yml.template")
+	ec := readTemplate(t, ".editorconfig.template")
+	runLine := "          npm install \\\n"
+	if !strings.Contains(rel, relStep) || !strings.Contains(rel, runLine) || !strings.Contains(ec, "indent_size = 2\n") || !strings.Contains(gi, "crash.log\n") {
+		t.Fatal("a template lost a line the cases edit")
 	}
 	for name, c := range map[string]struct {
 		file, base, head string
@@ -405,18 +405,30 @@ func TestTemplateDriftSkips(t *testing.T) {
 		"comment added to a workflow": {".github/workflows/release.yml", rel,
 			strings.Replace(rel, relStep, relStep+"      # held back on purpose\n", 1), 0},
 		"blank line added to a workflow": {".github/workflows/release.yml", rel, strings.Replace(rel, relStep, relStep+"\n", 1), 0},
+		"comment added inside a run block": {".github/workflows/release.yml", rel,
+			strings.Replace(rel, runLine, runLine+"          # skip the git plugin\n", 1), 1},
+		"blank line added inside a run block": {".github/workflows/release.yml", rel,
+			strings.Replace(rel, runLine, runLine+"\n", 1), 1},
 		"step added to a workflow": {".github/workflows/release.yml", rel,
 			strings.Replace(rel, relStep, relStep+"      - run: echo\n", 1), 1},
 		"template line commented out": {".gitignore", gi, "# " + gi, 1},
 		"comment added to .gitignore": {".gitignore", gi, gi + "# local files\n", 0},
-		"base drift rewritten": {".gitignore", strings.Replace(gi, firstGi, firstGi+"x", 1),
-			strings.Replace(gi, firstGi, firstGi+"y", 1), 0},
-		"base drift rewritten, a line inserted": {".gitignore", strings.Replace(gi, firstGi, firstGi+"x", 1),
-			strings.Replace(gi, firstGi, firstGi+"y\nextra", 1), 1},
-		"template line rewritten": {".gitignore", gi, strings.Replace(gi, firstGi, firstGi+"y", 1), 1},
+		"base drift rewritten under its key": {".editorconfig", strings.Replace(ec, "indent_size = 2\n", "indent_size = 4\n", 1),
+			strings.Replace(ec, "indent_size = 2\n", "indent_size = 3\n", 1), 0},
+		"base drift rewritten under another key": {".editorconfig", strings.Replace(ec, "indent_size = 2\n", "indent_size = 4\n", 1),
+			strings.Replace(ec, "indent_size = 2\n", "indent_style = tab\n", 1), 1},
+		"base drift replaced by another pattern": {".gitignore", strings.Replace(gi, "crash.log\n", "crash.logs\n", 1),
+			strings.Replace(gi, "crash.log\n", "*.log\n", 1), 1},
+		"drifted comment replaced by a pattern": {".gitignore", strings.Replace(gi, "crash.log\n", "# crash.log\n", 1),
+			strings.Replace(gi, "crash.log\n", "crash.debug\n", 1), 1},
+		"base drift rewritten, a line inserted": {".editorconfig", strings.Replace(ec, "indent_size = 2\n", "indent_size = 4\n", 1),
+			strings.Replace(ec, "indent_size = 2\n", "indent_size = 3\nmax_line_length = 99\n", 1), 1},
+		"template line rewritten": {".editorconfig", ec, strings.Replace(ec, "indent_size = 2\n", "indent_size = 3\n", 1), 1},
 		"base drift rewritten in a workflow": {".github/workflows/release.yml", strings.Replace(rel, relStep, relStep+"      - run: a\n", 1),
 			strings.Replace(rel, relStep, relStep+"      - run: b\n", 1), 1},
 		"hash line in .releaserc.json": {".releaserc.json", rc, strings.Replace(rc, "{\n", "{\n# x\n", 1), 1},
+		"base drift edited in .releaserc.json": {".releaserc.json", strings.Replace(rc, `"ci": false`, `"ci": true`, 1),
+			strings.Replace(rc, `"ci": false`, `"ci": "maybe"`, 1), 1},
 	} {
 		if c.base == c.head {
 			t.Fatalf("%s: the case changes nothing", name)

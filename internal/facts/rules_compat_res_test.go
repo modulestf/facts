@@ -409,6 +409,12 @@ func TestPolicyCases(t *testing.T) {
 	deny := func(actions string) string {
 		return "  statement {\n    effect    = \"Deny\"\n    actions   = " + actions + "\n    resources = [\"*\"]\n  }\n"
 	}
+	src := func(stmts string) string {
+		return "data \"aws_iam_policy_document\" \"p\" {\n  source_policy_documents = [var.doc]\n" + stmts + "}\n"
+	}
+	sid := func(stmt, id string) string {
+		return strings.Replace(stmt, "statement {\n", "statement {\n    sid       = \""+id+"\"\n", 1)
+	}
 	staticCond := "    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"z\"]\n    }\n"
 	dynCond := "  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    dynamic \"condition\" {\n      for_each = var.c\n      content {\n        test     = \"StringEquals\"\n        variable = \"a:x\"\n        values   = [\"v\"]\n      }\n    }\n"
 	for name, tc := range map[string]struct {
@@ -448,6 +454,14 @@ func TestPolicyCases(t *testing.T) {
 		"dynamic condition values grow": {doc(dynCond + "  }\n"), doc(strings.Replace(dynCond, `["v"]`, `["v", "b"]`, 1) + "  }\n"), nil},
 		"dynamic condition kept, static condition on its key dropped": {doc(dynCond + staticCond + "  }\n"), doc(dynCond + "  }\n"),
 			[]string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].condition[0]"}},
+		// A head statement without the dimension a union reads adds nothing to it.
+		"union partner without actions":            {doc(getPut), doc("  statement {\n    resources = [\"*\"]\n  }\n" + allow), []string{"main.tf:6 .:data.aws_iam_policy_document.p.statement[1].actions"}},
+		"union partner without resources":          {doc(allow + put), doc("  statement {\n    actions = [\"a:Get\"]\n  }\n" + put), []string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].resources"}},
+		"static statement turned dynamic":          {doc(allow), doc(dyn(`["a:Get"]`)), []string{"main.tf:1 .:data.aws_iam_policy_document.p.statement[0]"}},
+		"two conditions on one key reduced to one": {doc(strings.TrimSuffix(cond(`"StringEquals"`, `["y"]`), "  }\n") + staticCond + "  }\n"), doc(cond(`"StringEquals"`, `["y"]`)), []string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].condition[1]"}},
+		"sids swapped with a source document":      {src(sid(allow, "A") + sid(put, "B")), src(sid(allow, "B") + sid(put, "A")), []string{"main.tf:5 .:data.aws_iam_policy_document.p.statement[0].actions", "main.tf:10 .:data.aws_iam_policy_document.p.statement[1].actions"}},
+		"principals added":                         {doc("  statement {\n    actions = [\"a:Get\"]\n  }\n"), doc(princ(`"AWS"`)), []string{"main.tf:4 .:data.aws_iam_policy_document.p.statement[0].principals[0]"}},
+		"principals removed":                       {doc(princ(`"AWS"`)), doc("  statement {\n    actions = [\"a:Get\"]\n  }\n"), []string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].principals[0]"}},
 		"new sid with a source document": {"data \"aws_iam_policy_document\" \"p\" {\n  source_policy_documents = [var.doc]\n" + allow + "}\n",
 			"data \"aws_iam_policy_document\" \"p\" {\n  source_policy_documents = [var.doc]\n" + allow + strings.Replace(put, "statement {\n", "statement {\n    sid = \"Base\"\n", 1) + "}\n",
 			[]string{"main.tf:7 .:data.aws_iam_policy_document.p.statement[1]"}},
@@ -526,6 +540,40 @@ func TestCompatResNewModule(t *testing.T) {
 	for _, e := range r.Manifest {
 		if e.Status != StatusClean {
 			t.Errorf("%+v", e)
+		}
+	}
+}
+
+// Past maxPolicyPairs statement pairs, statements match only by their exact
+// text: an unchanged statement still matches, and an action added to one is
+// a candidate, which can only raise more than the content comparison.
+func TestPolicyPairCap(t *testing.T) {
+	stmts := func(n int, grown int) string {
+		var b strings.Builder
+		for i := range n {
+			actions := fmt.Sprintf("[\"a:Get%d\"]", i)
+			if i == grown {
+				actions = fmt.Sprintf("[\"a:Get%d\", \"a:List%d\"]", i, i)
+			}
+			fmt.Fprintf(&b, "  statement {\n    actions   = %s\n    resources = [\"*\"]\n  }\n", actions)
+		}
+		return b.String()
+	}
+	n := 101 // n*n is past maxPolicyPairs
+	if n*n <= maxPolicyPairs {
+		t.Fatalf("%d statements do not pass the cap", n)
+	}
+	base := doc(stmts(n, -1))
+	for name, c := range map[string]struct {
+		head string
+		want int
+	}{
+		"unchanged statements, one inserted first": {doc("  statement {\n    actions = [\"a:New\"]\n  }\n" + stmts(n, -1)), 0},
+		"an action added":                          {doc(stmts(n, 7)), 1},
+	} {
+		r := runChange(t, map[string]string{"main.tf": base}, map[string]string{"main.tf": c.head})
+		if got := len(cands(r, policyRule)); got != c.want {
+			t.Errorf("%s: %d candidates, want %d", name, got, c.want)
 		}
 	}
 }
