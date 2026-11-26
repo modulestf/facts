@@ -1,3 +1,12 @@
+# [0.16.0](https://github.com/modulestf/facts/compare/v0.15.1...v0.16.0) (2026-11-26)
+
+
+### Features
+
+* Add fixture-build, which builds a ladder level's fixture from type constraints ([#83](https://github.com/modulestf/facts/issues/83)) ([a4cf038](https://github.com/modulestf/facts/commit/a4cf038dac39cd0206aa2d93199128d24f36bfd1))
+
+
+
 ## [0.15.1](https://github.com/modulestf/facts/compare/v0.15.0...v0.15.1) (2026-11-26)
 
 
