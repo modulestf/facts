@@ -142,8 +142,12 @@ func checkDefaultChanged(a *Area) Result {
 				if readByBase == nil {
 					readByBase = varsReadByBaseConfig(a)
 				}
+				// A validation of a new variable can reject its own default or
+				// read something else, so it fails a plan for a caller who
+				// sets nothing.
 				nonNull := strings.TrimSpace(v.Default.Text) != "null"
-				if !(nonNull && readByBase.has(v.Name)) && !validationReadsOthers(v) {
+				raise := nonNull && (readByBase.has(v.Name) || len(v.Validations) > 0)
+				if !raise && !validationReadsOthers(v) {
 					continue
 				}
 				e := newCompatEvidence(a)
@@ -219,7 +223,7 @@ func (r *varReads) add(e *Expr) {
 		case "local":
 			names, all = r.locals, &r.allLocals
 		default:
-			if a := refAddress(t); a != "" {
+			if a := readAddr(t); a != "" {
 				r.refs[a] = true
 			}
 			continue
@@ -239,6 +243,21 @@ func (r *varReads) add(e *Expr) {
 		}
 		*all = true
 	}
+}
+
+// readAddr is refAddress, with the three names of an ephemeral resource.
+func readAddr(t hcl.Traversal) string {
+	if t.RootName() != "ephemeral" {
+		return refAddress(t)
+	}
+	if len(t) > 2 {
+		x, ok1 := t[1].(hcl.TraverseAttr)
+		y, ok2 := t[2].(hcl.TraverseAttr)
+		if ok1 && ok2 {
+			return "ephemeral." + x.Name + "." + y.Name
+		}
+	}
+	return ""
 }
 
 func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
@@ -356,7 +375,19 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		shared("module."+m.Name, m.Body, true)
 	}
 	for _, p := range a.Head.Providers {
-		shared("provider."+p.Name+"."+p.Alias, p.Body, false)
+		key := "provider." + p.Name + "." + p.Alias
+		shared(key, p.Body, false)
+		// A new provider is read by name.alias, with the alias unquoted;
+		// one with no alias is the default of every resource of its type.
+		if nb, ok := newBlocks[key]; ok {
+			if p.Alias == "" {
+				for _, e := range sharedArgs(Body{}, nb, true, true) {
+					r.add(e)
+				}
+			} else {
+				newBlocks[p.Name+"."+strings.Trim(p.Alias, `"`)] = nb
+			}
+		}
 	}
 	for _, o := range a.Head.Outputs {
 		shared("output."+o.Name, o.Body, false)
@@ -370,6 +401,9 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	for _, o := range a.Head.Other {
 		k := o.Type + "." + strings.Join(o.Labels, ".")
 		if len(baseOther[k]) == 0 {
+			if o.Type == "ephemeral" && len(o.Labels) == 2 {
+				newBlocks[k] = o.Body
+			}
 			continue
 		}
 		for _, e := range sharedArgs(mergeBodies(baseOther[k]), o.Body, true, len(baseOther[k]) != headOther[k]) {
@@ -425,7 +459,7 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 	var out []*Expr
 	for i := range head.Attributes {
 		h := &head.Attributes[i]
-		if all || (top && (h.Name == "count" || h.Name == "for_each")) || bodyAttr(base, h.Name) != nil {
+		if all || (top && instanceArgs[h.Name]) || bodyAttr(base, h.Name) != nil {
 			out = append(out, &h.Value)
 		}
 	}
@@ -457,6 +491,11 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 	}
 	return out
 }
+
+// instanceArgs are the arguments of a resource, data or module block, or an
+// import, that change which instances exist or which provider they use: they
+// count whether the base block had them or not.
+var instanceArgs = map[string]bool{"count": true, "for_each": true, "provider": true, "providers": true}
 
 // failingBlocks are the nested block types that can fail a plan or name what
 // replaces a resource: a new one in an existing block can break an existing
