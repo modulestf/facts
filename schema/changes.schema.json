@@ -35,7 +35,7 @@
           "required": ["head", "base"],
           "properties": {"head": {"type": "boolean"}, "base": {"type": "boolean"}}
         },
-        "read": {"enum": ["read", "unread", "unknown"]},
+        "read": {"enum": ["read", "unread", "unknown"], "description": "Whether an expression of the module reads the attribute at head, by its name (also through resource.<type>.<name>, tags_all for tags and self) or as the whole object. A read of a derived attribute such as id or arn, or an ignore_changes entry, does not count."},
         "readers": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/reader"}},
         "readers_truncated": {"type": "boolean"}
       },

@@ -245,6 +245,112 @@
               "readers_truncated": false
             }
           ]
+        },
+        {
+          "address": "aws_lb.alias_name",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 2,
+                  "how": "name"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "other",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.alias_whole",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 6,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.keyed",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 10,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.in_each",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 11,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
         }
       ]
     }

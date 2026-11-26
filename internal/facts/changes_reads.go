@@ -241,6 +241,11 @@ func (w *readWalker) reference(st *hclsyntax.ScopeTraversalExpr, anc []hclsyntax
 		if typ, name := attr(1), attr(2); typ != "" && name != "" {
 			addr, steps = "data."+typ+"."+name, t[3:]
 		}
+	case "resource":
+		// resource.<type>.<name> is Terraform's long form of <type>.<name>
+		if typ, name := attr(1), attr(2); typ != "" && name != "" {
+			addr, steps = typ+"."+name, t[3:]
+		}
 	default:
 		if name := attr(1); name != "" {
 			addr, steps = root+"."+name, t[2:]

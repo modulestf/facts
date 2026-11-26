@@ -58,6 +58,11 @@
       "complete": false
     },
     {
+      "dir": "examples/onelabel",
+      "types": [],
+      "complete": false
+    },
+    {
       "dir": "examples/open",
       "types": [],
       "complete": false

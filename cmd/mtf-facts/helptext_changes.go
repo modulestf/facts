@@ -39,7 +39,10 @@ reads. A reference reads the attribute it names after the address, past one
 index or splat that selects instances of a block with count or for_each; an
 index with a literal string key names an attribute; the whole object, a for
 expression over it, and any other index or splat read every attribute.
-tags_all reads tags, and self.<name> inside the block reads <name>. A
+tags_all reads tags, self.<name> inside the block reads <name>, and
+resource.<type>.<name> is read as <type>.<name>. Reads are by name or by the
+whole object: a derived (computed) attribute such as id or arn, or an ignore_changes
+entry, reads no other attribute. A
 .tf.json, .tofu, .tofu.json, override, unparsed or non-regular file in that
 directory makes the state unknown. Blocks of other kinds have state unknown. readers lists the
 reads, at most 32 per attribute.

@@ -36,6 +36,24 @@
       "blocks": []
     },
     {
+      "path": "dupmod.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "duplicate-address",
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "dupout.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "duplicate-address",
+      "outside": true,
+      "blocks": []
+    },
+    {
       "path": "extra.tf.json",
       "dir": ".",
       "status": "modified",

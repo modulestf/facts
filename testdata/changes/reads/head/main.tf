@@ -32,3 +32,21 @@ resource "aws_lb" "numeric" {
 data "aws_ami" "this" {
   owners = var.owners2
 }
+
+resource "aws_lb" "alias_name" {
+  name  = var.name_b
+  other = var.other_b
+}
+
+resource "aws_lb" "alias_whole" {
+  name = var.name_b
+}
+
+resource "aws_lb" "keyed" {
+  count = 1
+  name  = var.name_b
+}
+
+resource "aws_lb" "in_each" {
+  name = var.name_b
+}
