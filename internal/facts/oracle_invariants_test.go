@@ -208,7 +208,7 @@ func readOracleFixture(dir string) (*oracleFixture, error) {
 }
 
 func exists(p string) bool {
-	_, err := os.Lstat(p)
+	_, err := os.Lstat(p) //nolint:gosec // G703: a path under an oracle fixture of this repository
 	return err == nil
 }
 
