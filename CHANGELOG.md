@@ -1,3 +1,12 @@
+## [0.20.1](https://github.com/modulestf/facts/compare/v0.20.0...v0.20.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **behaviour:** Emit the data-read L1 trigger only when what decides knownness changes ([#111](https://github.com/modulestf/facts/issues/111)) ([e4be992](https://github.com/modulestf/facts/commit/e4be992142ba012eff6c6efbaa3cb8d8220efae8))
+
+
+
 # [0.20.0](https://github.com/modulestf/facts/compare/v0.19.1...v0.20.0) (2026-11-26)
 
 
