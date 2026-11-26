@@ -63,7 +63,7 @@ func InertDocPath(p string) bool {
 // argument of a file function, an attribute a resource, data source or
 // provisioner reads a file or runs a program from, or any other string that
 // is a path, anchored at path.module, path.root or path.cwd, or a plain
-// literal. Text is the static part of the path after its anchor; Exact is
+// literal other than an attribute value of "/" alone (see rootSlash). Text is the static part of the path after its anchor; Exact is
 // set when the path has no dynamic part.
 type ReadSite struct {
 	File   string // tree path of the .tf file
@@ -240,7 +240,9 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
 				s.add(name, a.Expr, true)
 			}
 		}
-		s.expr(a.Expr)
+		if !rootSlash(a.Expr) {
+			s.expr(a.Expr)
+		}
 	}
 	for _, blk := range b.Blocks {
 		label := ""
@@ -249,6 +251,17 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
 		}
 		s.body(blk.Body, blk.Type, label)
 	}
+}
+
+// rootSlash reports whether e is the string "/" and nothing else, as the
+// IAM path argument of a role, policy or user often is. Joined to the root
+// module it names the whole tree, yet on its own it is an absolute path that
+// names no file of the tree. Where code appends "/" to a path, the "/" sits
+// inside a function call or a template with its other parts, and stays a
+// read site there, as does "/" followed by a dynamic part.
+func rootSlash(e hclsyntax.Expression) bool {
+	anchor, text, exact := staticPath(e)
+	return anchor == AnchorRoot && exact && text == "/"
 }
 
 // funcs adds the read function calls inside e, a template.

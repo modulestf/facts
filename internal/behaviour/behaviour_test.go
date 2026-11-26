@@ -174,6 +174,25 @@ const rds = `resource "aws_rds_cluster" "this" {
 }
 `
 
+// iamPath returns a tree whose example passes the IAM path "/" to a registry
+// module and a role, and whose root defaults a variable to it, with readme as
+// the text of every README.
+func iamPath(main, readme string) map[string]string {
+	return map[string]string{
+		"main.tf": main,
+		"variables.tf": "variable \"role_path\" {\n  type    = string\n  default = \"/\"\n}\n" +
+			"variable \"team\" {\n  type = string\n}\n",
+		"examples/postgres/main.tf": "module \"policy\" {\n  source  = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n" +
+			"  version = \"~> 5.28.0\"\n  path    = \"/\"\n}\n" +
+			"resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n" +
+			"variable \"team\" {\n  type = string\n}\n",
+		"README.md":                   readme,
+		"examples/postgres/README.md": readme,
+		"examples/mysql/README.md":    readme,
+		"examples/mysql/main.tf":      "module \"db\" {\n  source = \"../../\"\n}\n",
+	}
+}
+
 func TestInert(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -214,6 +233,11 @@ func TestInert(t *testing.T) {
 			map[string]string{"main.tf": rds, ".terraform.lock.hcl": "b"}, false, []string{CatNonHCL}},
 		{"script", map[string]string{"main.tf": rds, "scripts/x.sh": "a"},
 			map[string]string{"main.tf": rds, "scripts/x.sh": "b"}, false, []string{CatNonHCL}},
+		{"iam path of / reads no file", iamPath(rds, "a"), iamPath(rds, "b"), true, nil},
+		{"iam path of / beside a file read", iamPath(rds+`output "r" { value = file("${path.module}/README.md") }`+"\n", "a"),
+			iamPath(rds+`output "r" { value = file("${path.module}/README.md") }`+"\n", "b"), false, []string{CatNonHCL}},
+		{"iam path with a dynamic part is still a read site", map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "a"},
+			map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "b"}, false, []string{CatNonHCL}},
 		{"no change", map[string]string{"main.tf": rds}, map[string]string{"main.tf": rds}, true, nil},
 		{"comment in a tf file a read site hashes", map[string]string{"main.tf": rds + `locals { h = filemd5("${path.module}/main.tf") }` + "\n"},
 			map[string]string{"main.tf": "# c\n" + rds + `locals { h = filemd5("${path.module}/main.tf") }` + "\n"}, false, []string{CatNonHCL}},
