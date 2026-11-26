@@ -35,9 +35,9 @@ func newSrcReads() *srcReads {
 // attribute is missing or not a constant string, it is another string than
 // the text read passed, or, for a block the text read did not see, it fails
 // the G2 rule. A file that does not parse is no refusal: terraform init
-// still installs the modules of the blocks before the error, so there every
-// block the text read passed and every block of the partial body it did not
-// see is a hit.
+// still installs the module blocks of the partial body it reads, blocks after
+// the error included when the parser recovers, so there every block the text
+// read passed and every block of the partial body it did not see is a hit.
 func (r *run) structuralSources(f, raw string, sr *srcReads) {
 	file, diags := hclsyntax.ParseConfig([]byte(raw), f, hcl.InitialPos)
 	body, ok := file.Body.(*hclsyntax.Body)
