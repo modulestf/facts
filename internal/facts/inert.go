@@ -301,15 +301,20 @@ func iamPathRoot(kind, label, name string, e hclsyntax.Expression) bool {
 // iamRef returns the address of the aws_iam_* resource or data block that t
 // names, as heldSite keys it, and whether t reads the block whole or its
 // path or path_prefix. Index and splat steps after the address stay on the
-// block, so aws_iam_role.r["k"].path reads it; an attribute other than path
+// block, so aws_iam_role.r["k"].path and resource.aws_iam_role.r.path read
+// it; an attribute other than path
 // or path_prefix does not. A reference the traversal does not finish, as in
 // aws_iam_role.r[*].path or aws_iam_role.r[each.key].arn, names the block
 // whole, so it counts.
 func iamRef(t hcl.Traversal) (string, bool) {
-	names := []string{t.RootName()}
+	var names []string
 	want := 2
-	if names[0] == "data" {
-		want = 3
+	switch root := t.RootName(); root {
+	case "resource": // resource.<type>.<name> is the address <type>.<name>
+	case "data":
+		names, want = []string{root}, 3
+	default:
+		names = []string{root}
 	}
 	steps := t[1:]
 	for len(names) < want {

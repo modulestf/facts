@@ -302,6 +302,16 @@ func TestAffectedReadSites(t *testing.T) {
 			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
 			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
 		},
+		"an IAM path read by path with the resource prefix stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\nresource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, resource.aws_iam_role.r.path, \"README.md\"])\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
+		"an IAM role read whole with the resource prefix stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\nlocals {\n  role = resource.aws_iam_role.r\n}\nresource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, local.role.path, \"README.md\"])\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
 		"an IAM path module argument stays a read site": {
 			hcl:      map[string]string{"examples/sub/iam.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"},
 			change:   readme,
