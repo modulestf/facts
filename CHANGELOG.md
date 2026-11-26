@@ -1,3 +1,12 @@
+## [0.20.2](https://github.com/modulestf/facts/compare/v0.20.1...v0.20.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* raise the file size cap to 2 MiB and the token cap to 262144 ([#110](https://github.com/modulestf/facts/issues/110)) ([ad6807b](https://github.com/modulestf/facts/commit/ad6807b4698c3eff658522b67dd3273658ca95d7))
+
+
+
 ## [0.20.1](https://github.com/modulestf/facts/compare/v0.20.0...v0.20.1) (2026-11-26)
 
 
