@@ -172,17 +172,18 @@ func TestReportVersions(t *testing.T) {
 		file     string // the report is this file, not stdout
 		schema   string
 	}{
-		"stats":         {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json", "--stats-file", statsFile}, false, statsFile, "stats.schema.json"},
-		"affected":      {[]string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, false, "", "affected.schema.json"},
-		"changes":       {[]string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base", "--json"}, false, "", "changes.schema.json"},
-		"behaviour":     {[]string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, false, "", "behaviour.schema.json"},
-		"claims-eval":   {append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"}, shas...), false, "", "claims-eval.schema.json"},
-		"depth":         {[]string{"depth", "--head", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--files", "../../testdata/diff-base/files.json"}, false, "", "depth.schema.json"},
-		"rules":         {[]string{"rules", "--json"}, false, "", "rules.schema.json"},
-		"fixture-build": {fixtureBuildArgs(t, "ladder-pass-01"), false, "", "fixture-build.schema.json"},
-		"fixture-check": {[]string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, false, "", "fixture-check.schema.json"},
-		"lint":          {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, true, "", "envelope.schema.json"},
-		"schema-diff":   {[]string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, false, "", "schema-diff.schema.json"},
+		"stats":           {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json", "--stats-file", statsFile}, false, statsFile, "stats.schema.json"},
+		"affected":        {[]string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, false, "", "affected.schema.json"},
+		"changes":         {[]string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base", "--json"}, false, "", "changes.schema.json"},
+		"behaviour":       {[]string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, false, "", "behaviour.schema.json"},
+		"claims-eval":     {append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"}, shas...), false, "", "claims-eval.schema.json"},
+		"depth":           {[]string{"depth", "--head", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--files", "../../testdata/diff-base/files.json"}, false, "", "depth.schema.json"},
+		"rules":           {[]string{"rules", "--json"}, false, "", "rules.schema.json"},
+		"fixture-build":   {fixtureBuildArgs(t, "ladder-pass-01"), false, "", "fixture-build.schema.json"},
+		"fixture-check":   {[]string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, false, "", "fixture-check.schema.json"},
+		"iam-policy-docs": {[]string{"iam-policy-docs", "../../testdata/iam-policy-docs/merge-local/head", "--base", "../../testdata/iam-policy-docs/merge-local/base"}, false, "", "iam-policy-docs.schema.json"},
+		"lint":            {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, true, "", "envelope.schema.json"},
+		"schema-diff":     {[]string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, false, "", "schema-diff.schema.json"},
 	}
 	r := decodeVersionReport(t)
 	for name := range r.Reports {

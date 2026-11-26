@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          6,
+          12
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": "Self",
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "arn:aws:s3:::b/*",
+                "arn:aws:s3:::bucket/${aws:username}/*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": null,
+  "compare": null
+}

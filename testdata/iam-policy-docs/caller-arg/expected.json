@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      },
+      {
+        "dir": "modules/role",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": "modules/role",
+        "address": "data.aws_iam_policy_document.child",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          2,
+          7
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": "modules/role",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [
+              {
+                "dir": "modules/role",
+                "address": "aws_iam_policy.this",
+                "meta": "count",
+                "text": "var.create ? 1 : 0"
+              }
+            ],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      },
+      {
+        "dir": "modules/role",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": "modules/role",
+        "address": "data.aws_iam_policy_document.child",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          2,
+          7
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": "modules/role",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [
+              {
+                "dir": "modules/role",
+                "address": "aws_iam_policy.this",
+                "meta": "count",
+                "text": "var.create ? 1 : 0"
+              }
+            ],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "compare": [
+    {
+      "dir": "modules/role",
+      "address": "data.aws_iam_policy_document.child",
+      "presence": "both",
+      "content": "equal",
+      "uses": "differs"
+    }
+  ]
+}

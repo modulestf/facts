@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.widget",
+            "argument": "policy",
+            "via": [],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "aws_iam_policy.widget",
+                "meta": "count",
+                "text": "0"
+              }
+            ],
+            "instances": "none"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "aws_iam_policy.admin.policy",
+        "kind": "json_string",
+        "file": "main.tf",
+        "lines": [
+          12,
+          17
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "*"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.admin",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "aws_iam_role.this.assume_role_policy",
+        "kind": "expression",
+        "file": "main.tf",
+        "lines": [
+          3,
+          3
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "unresolved_expression",
+          "detail": "assume_role_policy"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_role.this",
+            "argument": "assume_role_policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "compare": [
+    {
+      "dir": ".",
+      "address": "aws_iam_policy.admin.policy",
+      "presence": "head_only",
+      "content": null,
+      "uses": null
+    },
+    {
+      "dir": ".",
+      "address": "aws_iam_role.this.assume_role_policy",
+      "presence": "base_only",
+      "content": null,
+      "uses": null
+    },
+    {
+      "dir": ".",
+      "address": "data.aws_iam_policy_document.widget",
+      "presence": "head_only",
+      "content": null,
+      "uses": null
+    }
+  ]
+}

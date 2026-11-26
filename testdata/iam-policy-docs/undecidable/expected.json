@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": "a",
+        "undecidable": {
+          "code": "unsupported_file",
+          "detail": "extra.tf.json is a JSON configuration file"
+        }
+      },
+      {
+        "dir": "b",
+        "undecidable": {
+          "code": "unsupported_file",
+          "detail": "main_override.tf is an override file"
+        }
+      },
+      {
+        "dir": "c",
+        "undecidable": {
+          "code": "unsupported_file",
+          "detail": "extra.tofu is an OpenTofu file"
+        }
+      },
+      {
+        "dir": "d",
+        "undecidable": {
+          "code": "parse_error",
+          "detail": "broken.tf: parse error"
+        }
+      }
+    ],
+    "documents": [
+      {
+        "dir": "a",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "directory",
+          "detail": "extra.tf.json is a JSON configuration file"
+        },
+        "uses": null,
+        "uses_undecidable": {
+          "code": "directory",
+          "detail": "extra.tf.json is a JSON configuration file"
+        }
+      },
+      {
+        "dir": "b",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "directory",
+          "detail": "main_override.tf is an override file"
+        },
+        "uses": null,
+        "uses_undecidable": {
+          "code": "directory",
+          "detail": "main_override.tf is an override file"
+        }
+      },
+      {
+        "dir": "c",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "directory",
+          "detail": "extra.tofu is an OpenTofu file"
+        },
+        "uses": null,
+        "uses_undecidable": {
+          "code": "directory",
+          "detail": "extra.tofu is an OpenTofu file"
+        }
+      },
+      {
+        "dir": "d",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "directory",
+          "detail": "broken.tf: parse error"
+        },
+        "uses": null,
+        "uses_undecidable": {
+          "code": "directory",
+          "detail": "broken.tf: parse error"
+        }
+      }
+    ]
+  },
+  "base": {
+    "directories": [
+      {
+        "dir": "a",
+        "undecidable": null
+      },
+      {
+        "dir": "b",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": "a",
+        "address": "data.aws_iam_policy_document.gone",
+        "kind": "data_source",
+        "file": "gone.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [],
+        "uses_undecidable": null
+      },
+      {
+        "dir": "a",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [],
+        "uses_undecidable": null
+      },
+      {
+        "dir": "b",
+        "address": "data.aws_iam_policy_document.widget",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "compare": [
+    {
+      "dir": "a",
+      "address": "data.aws_iam_policy_document.gone",
+      "presence": "undecidable",
+      "content": null,
+      "uses": null
+    },
+    {
+      "dir": "a",
+      "address": "data.aws_iam_policy_document.widget",
+      "presence": "undecidable",
+      "content": null,
+      "uses": null
+    },
+    {
+      "dir": "b",
+      "address": "data.aws_iam_policy_document.widget",
+      "presence": "undecidable",
+      "content": null,
+      "uses": null
+    },
+    {
+      "dir": "c",
+      "address": "data.aws_iam_policy_document.widget",
+      "presence": "undecidable",
+      "content": null,
+      "uses": null
+    },
+    {
+      "dir": "d",
+      "address": "data.aws_iam_policy_document.widget",
+      "presence": "undecidable",
+      "content": null,
+      "uses": null
+    }
+  ]
+}

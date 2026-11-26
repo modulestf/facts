@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.d",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.p",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.m",
+                "role": "source"
+              },
+              {
+                "dir": ".",
+                "node": "local.z",
+                "role": "local"
+              },
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.n",
+                "role": "source"
+              }
+            ],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.m",
+                "meta": "count",
+                "text": "0"
+              }
+            ],
+            "instances": "none"
+          },
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.p",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "local.a",
+                "role": "local"
+              },
+              {
+                "dir": ".",
+                "node": "local.z",
+                "role": "local"
+              },
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.n",
+                "role": "source"
+              }
+            ],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.m",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          7,
+          10
+        ],
+        "gate": {
+          "meta": "count",
+          "text": "0"
+        },
+        "instances": "none",
+        "content": null,
+        "content_undecidable": {
+          "code": "merge",
+          "detail": "source_policy_documents"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.p",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "local.z",
+                "role": "local"
+              },
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.n",
+                "role": "source"
+              }
+            ],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.m",
+                "meta": "count",
+                "text": "0"
+              }
+            ],
+            "instances": "none"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.n",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          15,
+          17
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "merge",
+          "detail": "source_policy_documents"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.p",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": null,
+  "compare": null
+}

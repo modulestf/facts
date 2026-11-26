@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      },
+      {
+        "dir": "examples/complete",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.root",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "output.json",
+            "argument": "value",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          },
+          {
+            "dir": "examples/complete",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "output.json",
+                "role": "output"
+              },
+              {
+                "dir": "examples/complete",
+                "node": "module.root.json",
+                "role": "module_output"
+              }
+            ],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": "examples/complete",
+        "address": "aws_iam_policy.this.policy",
+        "kind": "expression",
+        "file": "main.tf",
+        "lines": [
+          5,
+          5
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "unresolved_expression",
+          "detail": "policy"
+        },
+        "uses": [
+          {
+            "dir": "examples/complete",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": null,
+  "compare": null
+}

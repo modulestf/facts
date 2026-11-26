@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "var.p.default",
+        "kind": "json_string",
+        "file": "main.tf",
+        "lines": [
+          3,
+          5
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "*"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": null,
+        "uses_undecidable": {
+          "code": "variable_default",
+          "detail": "var.p.default"
+        }
+      },
+      {
+        "dir": ".",
+        "address": "aws_iam_policy.this.policy",
+        "kind": "expression",
+        "file": "main.tf",
+        "lines": [
+          8,
+          8
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "unresolved_expression",
+          "detail": "policy"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": null,
+  "compare": null
+}

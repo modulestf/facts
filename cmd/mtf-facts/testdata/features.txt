@@ -12,6 +12,7 @@ cmd:claims-eval
 cmd:depth
 cmd:fixture-build
 cmd:fixture-check
+cmd:iam-policy-docs
 cmd:ledger
 cmd:lint
 cmd:merge

@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "iam-policy-docs.schema.json",
+  "title": "mtf-facts iam-policy-docs",
+  "description": "The IAM policy documents of a module tree, their normalized content and the blocks that use each one, read and never evaluated. What the reader cannot decide is undecidable with a reason code, never equal or absent. base and compare are null when no base tree was given.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "head", "base", "compare"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "head": {"$ref": "#/$defs/report"},
+    "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/report"}]},
+    "compare": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/pair"}}]}
+  },
+  "allOf": [
+    {
+      "if": {"type": "object", "required": ["base"], "properties": {"base": {"type": "null"}}},
+      "then": {"type": "object", "properties": {"compare": {"type": "null"}}}
+    },
+    {
+      "if": {"type": "object", "required": ["compare"], "properties": {"compare": {"type": "null"}}},
+      "then": {"type": "object", "properties": {"base": {"type": "null"}}}
+    }
+  ],
+  "$defs": {
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "detail"],
+      "properties": {
+        "code": {
+          "description": "parse_error, unsupported_file, symlink, limit_exceeded and no_base are the directory codes of the lint manifest; directory marks a document whose directory, or one its uses reach, is undecidable.",
+          "enum": [
+            "conditional", "directory", "duplicate", "dynamic_block", "embedded", "external_module", "caller_unknown",
+            "for_expression", "function", "index", "interpolated_json", "invalid_effect", "invalid_json", "limit_exceeded",
+            "merge", "no_base", "not_literal", "other_expression", "parse_error", "shape", "symlink", "template",
+            "too_large", "unresolved_expression", "unsupported_argument", "unsupported_block", "unsupported_file",
+            "unsupported_key", "variable_default"
+          ]
+        },
+        "detail": {"type": "string"}
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directories", "documents"],
+      "properties": {
+        "directories": {"type": "array", "items": {"$ref": "#/$defs/directory"}},
+        "documents": {"type": "array", "items": {"$ref": "#/$defs/document"}}
+      }
+    },
+    "directory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir", "undecidable"],
+      "properties": {
+        "dir": {"type": "string", "minLength": 1},
+        "undecidable": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/reason"}]}
+      }
+    },
+    "value": {
+      "description": "A string: plain when literal, else a template of literal parts and references, each reference a traversal with literal index keys as written.",
+      "oneOf": [
+        {"type": "string"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["template"],
+          "properties": {
+            "template": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "oneOf": [
+                  {"type": "string"},
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["ref"],
+                    "properties": {"ref": {"type": "string", "minLength": 1}}
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "values": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/value"}}]},
+    "principals": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "identifiers"],
+            "properties": {
+              "type": {"type": "string"},
+              "identifiers": {"type": "array", "items": {"$ref": "#/$defs/value"}}
+            }
+          }
+        }
+      ]
+    },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sid", "effect", "actions", "not_actions", "resources", "not_resources", "principals", "not_principals", "conditions"],
+      "properties": {
+        "sid": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/value"}]},
+        "effect": {"enum": ["Allow", "Deny"]},
+        "actions": {"$ref": "#/$defs/values"},
+        "not_actions": {"$ref": "#/$defs/values"},
+        "resources": {"$ref": "#/$defs/values"},
+        "not_resources": {"$ref": "#/$defs/values"},
+        "principals": {"$ref": "#/$defs/principals"},
+        "not_principals": {"$ref": "#/$defs/principals"},
+        "conditions": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["test", "variable", "values"],
+                "properties": {
+                  "test": {"type": "string"},
+                  "variable": {"$ref": "#/$defs/value"},
+                  "values": {"type": "array", "items": {"$ref": "#/$defs/value"}}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "id", "statements"],
+      "properties": {
+        "version": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/value"}]},
+        "id": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/value"}]},
+        "statements": {"type": "array", "items": {"$ref": "#/$defs/statement"}}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["meta", "text"],
+      "properties": {
+        "dir": {"type": "string", "minLength": 1},
+        "address": {"type": "string", "minLength": 1},
+        "meta": {"enum": ["count", "for_each"]},
+        "text": {"type": "string"}
+      }
+    },
+    "instances": {"enum": ["none", "always", "conditional"]},
+    "use": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir", "address", "argument", "via", "gates", "instances"],
+      "properties": {
+        "dir": {"type": "string", "minLength": 1},
+        "address": {"type": "string", "minLength": 1},
+        "argument": {"type": "string", "minLength": 1},
+        "via": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["dir", "node", "role"],
+            "properties": {
+              "dir": {"type": "string", "minLength": 1},
+              "node": {"type": "string", "minLength": 1},
+              "role": {"enum": ["local", "source", "override", "module_input", "variable", "output", "module_output"]}
+            }
+          }
+        },
+        "gates": {
+          "type": "array",
+          "items": {"allOf": [{"$ref": "#/$defs/gate"}, {"type": "object", "required": ["dir", "address"]}]}
+        },
+        "instances": {"$ref": "#/$defs/instances"}
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir", "address", "kind", "file", "lines", "gate", "instances", "content", "content_undecidable", "uses", "uses_undecidable"],
+      "properties": {
+        "dir": {"type": "string", "minLength": 1},
+        "address": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["data_source", "jsonencode", "json_string", "expression"]},
+        "file": {"type": "string", "minLength": 1},
+        "lines": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1}},
+        "gate": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/gate"}]},
+        "instances": {"$ref": "#/$defs/instances"},
+        "content": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/policy"}]},
+        "content_undecidable": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/reason"}]},
+        "uses": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/use"}}]},
+        "uses_undecidable": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/reason"}]}
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {"type": "object", "properties": {"content": {"type": "object"}, "content_undecidable": {"type": "null"}}},
+            {"type": "object", "properties": {"content": {"type": "null"}, "content_undecidable": {"type": "object"}}}
+          ]
+        },
+        {
+          "oneOf": [
+            {"type": "object", "properties": {"uses": {"type": "array"}, "uses_undecidable": {"type": "null"}}},
+            {"type": "object", "properties": {"uses": {"type": "null"}, "uses_undecidable": {"type": "object"}}}
+          ]
+        }
+      ]
+    },
+    "pair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir", "address", "presence", "content", "uses"],
+      "properties": {
+        "dir": {"type": "string", "minLength": 1},
+        "address": {"type": "string", "minLength": 1},
+        "presence": {"enum": ["both", "head_only", "base_only", "undecidable"]},
+        "content": {"enum": [null, "equal", "differs", "undecidable"]},
+        "uses": {"enum": [null, "equal", "differs", "undecidable"]}
+      },
+      "allOf": [
+        {
+          "if": {"type": "object", "required": ["presence"], "properties": {"presence": {"const": "both"}}},
+          "then": {"type": "object", "properties": {"content": {"type": "string"}, "uses": {"type": "string"}}}
+        },
+        {
+          "if": {"type": "object", "required": ["presence"], "properties": {"presence": {"enum": ["head_only", "base_only", "undecidable"]}}},
+          "then": {"type": "object", "properties": {"content": {"type": "null"}, "uses": {"type": "null"}}}
+        }
+      ]
+    }
+  }
+}

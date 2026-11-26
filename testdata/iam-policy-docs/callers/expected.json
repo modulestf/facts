@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      },
+      {
+        "dir": "examples/broken",
+        "undecidable": {
+          "code": "unsupported_file",
+          "detail": "extra.tf.json is a JSON configuration file"
+        }
+      },
+      {
+        "dir": "modules/docs",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": "modules/docs",
+        "address": "data.aws_iam_policy_document.child",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": null,
+        "uses_undecidable": {
+          "code": "caller_unknown",
+          "detail": "output.json.value"
+        }
+      }
+    ]
+  },
+  "base": null,
+  "compare": null
+}
