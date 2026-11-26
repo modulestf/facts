@@ -1,3 +1,12 @@
+## [0.20.3](https://github.com/modulestf/facts/compare/v0.20.2...v0.20.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* Refuse a module file over the parse limits as a G2 hit, not a crash ([#113](https://github.com/modulestf/facts/issues/113)) ([81b60d0](https://github.com/modulestf/facts/commit/81b60d045d2cadb643157b4985a289df01d4fa2d))
+
+
+
 ## [0.20.2](https://github.com/modulestf/facts/compare/v0.20.1...v0.20.2) (2026-11-26)
 
 
