@@ -141,6 +141,12 @@ func TestFixtureBuildRefusesInput(t *testing.T) {
 			t.Errorf("%s: exit %d, stdout %q, stderr %q", c.name, code, out, errOut)
 		}
 	}
+	// A trigger that would be refused still needs a usable --out.
+	refused := fixtureBuildArgs(t, "crafted-01-expr-not-string")
+	refused[5] = full
+	if code, out, errOut := runCLI(refused); code != exitError || out != "" || !strings.Contains(errOut, "is not empty") {
+		t.Errorf("a refused trigger with a full --out: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
 	if ents, _ := os.ReadDir(full); len(ents) != 1 {
 		t.Errorf("the full --out holds %d entries", len(ents))
 	}
