@@ -10,3 +10,8 @@ locals {
   keyed   = local.m[aws_lb.keyed].name
   in_each = local.list[*].y[aws_lb.in_each]
 }
+
+locals {
+  each_index = aws_lb.e[*][var.k].foo
+  each_key   = aws_lb.fe["name"]
+}

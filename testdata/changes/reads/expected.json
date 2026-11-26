@@ -351,6 +351,86 @@
               "readers_truncated": false
             }
           ]
+        },
+        {
+          "address": "aws_lb.e",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "foo",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 15,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "bar",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 15,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.fe",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 16,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            },
+            {
+              "name": "other",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "read",
+              "readers": [
+                {
+                  "path": "alias.tf",
+                  "line": 16,
+                  "how": "object"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
         }
       ]
     }

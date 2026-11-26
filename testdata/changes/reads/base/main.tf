@@ -50,3 +50,15 @@ resource "aws_lb" "keyed" {
 resource "aws_lb" "in_each" {
   name = var.name_a
 }
+
+resource "aws_lb" "e" {
+  count = 1
+  foo   = var.foo_a
+  bar   = var.bar_a
+}
+
+resource "aws_lb" "fe" {
+  for_each = var.set
+  name     = var.name_a
+  other    = var.other_a
+}
