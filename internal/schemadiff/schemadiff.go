@@ -128,17 +128,23 @@ type Options struct {
 // directory has an ephemeral block, or when a provider the tree uses is
 // missing from either file: the report would be incomplete or wrong.
 func Run(o Options) (*Report, error) {
-	from, err := load("--from", o.From)
+	// The tree is read first so each file keeps only the types it uses, and
+	// its error is returned after the files' errors, as before.
+	types, typesErr := ModuleTypes(o.TypesFrom, o.Limits)
+	keep := map[Type]bool{}
+	for _, t := range types {
+		keep[Type{Mode: t.Mode, Type: t.Type.Type}] = true
+	}
+	from, err := load("--from", o.From, keep)
 	if err != nil {
 		return nil, err
 	}
-	to, err := load("--to", o.To)
+	to, err := load("--to", o.To, keep)
 	if err != nil {
 		return nil, err
 	}
-	types, err := ModuleTypes(o.TypesFrom, o.Limits)
-	if err != nil {
-		return nil, fmt.Errorf("--types-from: %w", baseNamed(err, o.TypesFrom))
+	if typesErr != nil {
+		return nil, fmt.Errorf("--types-from: %w", baseNamed(typesErr, o.TypesFrom))
 	}
 	r := &Report{
 		SchemaVersion: SchemaVersion,
@@ -162,9 +168,16 @@ func Run(o Options) (*Report, error) {
 	return r, nil
 }
 
-// load reads one schema file. Its errors name the file by base name only.
-func load(flag, p string) (*schema.Set, error) {
-	s, err := schema.Load("", []string{p})
+// load reads one schema file and keeps the types of keep, by mode and type
+// name. Its errors name the file by base name only.
+func load(flag, p string, keep map[Type]bool) (*schema.Set, error) {
+	s, err := schema.LoadTypes([]string{p}, func(dataSource bool, name string) bool {
+		mode := "resource"
+		if dataSource {
+			mode = "data"
+		}
+		return keep[Type{Mode: mode, Type: name}]
+	})
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", flag, baseNamed(err, p))
 	}

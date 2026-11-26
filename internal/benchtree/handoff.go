@@ -239,3 +239,25 @@ func genType(i int, older bool) map[string]any {
 	}
 	return typeSchema(top, blocks)
 }
+
+// WriteSchema writes a `terraform providers schema -json` file of the aws
+// provider at its latest version, or at its declared minimum when older is
+// set, with the types of the handoff of WriteHandoff. Two of them are the
+// inputs of a schema-diff run on the tree of Write.
+func WriteSchema(path string, older bool) error {
+	version := awsLatest
+	if older {
+		version = awsMinimum
+	}
+	p := awsSchema(version, older, genResources, genDataSources)
+	doc, err := json.Marshal(map[string]any{
+		"format_version": "1.0",
+		"provider_schemas": map[string]any{awsSource: map[string]any{
+			"resource_schemas": p["resource_schemas"], "data_source_schemas": p["data_source_schemas"],
+		}},
+	})
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, doc, 0o600)
+}

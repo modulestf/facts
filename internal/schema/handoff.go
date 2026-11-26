@@ -115,12 +115,28 @@ func (v *Versions) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(w.OldFloor, &v.OldFloor)
 }
 
-// ProviderSchema is one provider version's filtered block schemas.
+// ProviderSchema is one provider version's filtered block schemas. Each
+// type is kept as its JSON, checked as it is decoded; a lookup decodes only
+// the types it reads.
 type ProviderSchema struct {
 	Source            string                 `json:"source"`
 	Version           string                 `json:"version"`
-	ResourceSchemas   map[string]*TypeSchema `json:"resource_schemas"`
-	DataSourceSchemas map[string]*TypeSchema `json:"data_source_schemas"`
+	ResourceSchemas   map[string]HandoffType `json:"resource_schemas"`
+	DataSourceSchemas map[string]HandoffType `json:"data_source_schemas"`
+}
+
+// HandoffType is one type of a provider schema as JSON. Decoding it decodes
+// and checks it as a TypeSchema, so a type written twice under one name is
+// checked both times.
+type HandoffType []byte
+
+// UnmarshalJSON checks b and keeps a copy.
+func (t *HandoffType) UnmarshalJSON(b []byte) error {
+	if _, err := decodeHandoffType(b); err != nil {
+		return err
+	}
+	*t = bytes.Clone(b) // the decoder may reuse b
+	return nil
 }
 
 // TypeSchema is one resource or data source type.
@@ -242,53 +258,92 @@ func gunzip(data []byte) ([]byte, error) {
 
 // nullsOnlyAtOldFloor refuses a JSON null anywhere but as the value of
 // versions.old_floor, the one member the schema lets be null. Decoding alone
-// would read a null as the zero value, or as a nil pointer.
+// would read a null as the zero value, or as a nil pointer. It reads the
+// bytes once and builds no value, so it costs little next to the decode.
+// On text that is not JSON it may pass or refuse; the decode after it
+// refuses that text either way.
 func nullsOnlyAtOldFloor(doc []byte) error {
-	// frame is one open container: an array, or an object at a key or at
-	// the value of key. in is the key the container itself is the value of.
+	// frame is one open container. In an object, atValue says a member
+	// name was read and its value is next, and oldFloor and versions say
+	// which name that was. inVersions says the object is the value of a
+	// member named versions.
 	type frame struct {
-		array, atValue bool
-		key, in        string
+		array, atValue, oldFloor, versions, inVersions bool
 	}
-	dec := json.NewDecoder(bytes.NewReader(doc))
 	var st []frame
-	for {
-		tok, err := dec.Token()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
+	for i := 0; i < len(doc); i++ {
+		c := doc[i]
+		switch c {
+		case ' ', '\t', '\n', '\r', ',', ':':
+			continue
+		case '}', ']':
+			if len(st) == 0 {
+				return errors.New("unbalanced container")
+			}
+			st = st[:len(st)-1]
+			continue
 		}
 		var top *frame
 		if len(st) > 0 {
 			top = &st[len(st)-1]
 		}
 		if top != nil && !top.array && !top.atValue {
-			if tok == json.Delim('}') {
-				st = st[:len(st)-1]
-				continue
-			}
-			top.key, top.atValue = tok.(string), true
+			end, name := jsonString(doc, i)
+			top.oldFloor, top.versions = memberIs(name, "old_floor"), memberIs(name, "versions")
+			top.atValue, i = true, end
 			continue
 		}
-		in := ""
+		inVersions, atOldFloor := false, false
 		if top != nil && !top.array {
-			in, top.atValue = top.key, false
+			inVersions, atOldFloor = top.versions, top.oldFloor && top.inVersions
+			top.atValue = false
 		}
-		switch tok {
-		case json.Delim('{'):
-			st = append(st, frame{in: in})
-		case json.Delim('['):
-			st = append(st, frame{array: true, in: in})
-		case json.Delim(']'):
-			st = st[:len(st)-1]
-		case nil:
-			if top == nil || top.array || in != "old_floor" || top.in != "versions" {
+		switch c {
+		case '{':
+			st = append(st, frame{inVersions: inVersions})
+		case '[':
+			st = append(st, frame{array: true})
+		case '"':
+			i, _ = jsonString(doc, i)
+		case 'n':
+			if !atOldFloor {
 				return errors.New("null where the schema allows none")
+			}
+			i += len("null") - 1
+		default: // a number, true or false
+			for i+1 < len(doc) && !strings.ContainsRune(" \t\n\r,:]}", rune(doc[i+1])) {
+				i++
 			}
 		}
 	}
+	return nil
+}
+
+// jsonString returns the index of the closing quote of the string that
+// starts at doc[i], or the last index when it does not close, and the bytes
+// between the quotes.
+func jsonString(doc []byte, i int) (int, []byte) {
+	for j := i + 1; j < len(doc); j++ {
+		switch doc[j] {
+		case '\\':
+			j++
+		case '"':
+			return j, doc[i+1 : j]
+		}
+	}
+	return len(doc) - 1, nil
+}
+
+// memberIs reports whether the member name raw, as written between its
+// quotes, decodes to name. Only a name with an escape is decoded.
+func memberIs(raw []byte, name string) bool {
+	if !bytes.ContainsRune(raw, '\\') {
+		return string(raw) == name
+	}
+	var s string
+	q := make([]byte, 0, len(raw)+2)
+	q = append(append(append(q, '"'), raw...), '"')
+	return json.Unmarshal(q, &s) == nil && s == name
 }
 
 // Patterns of schema/schema-handoff.schema.json. Go's $ matches only at the
@@ -346,18 +401,35 @@ func (h *Handoff) validate() error {
 			return fmt.Errorf("provider schema %q: a required member is missing", key)
 		}
 		seen[key] = true
-		for _, types := range []map[string]*TypeSchema{p.ResourceSchemas, p.DataSourceSchemas} {
-			for name, t := range types {
-				if !typeRe.MatchString(name) || t == nil || t.Block == nil {
+		for _, types := range []map[string]HandoffType{p.ResourceSchemas, p.DataSourceSchemas} {
+			for name, raw := range types {
+				// A type that decoded is checked; a null one was not decoded.
+				if !typeRe.MatchString(name) || raw == nil {
 					return fmt.Errorf("provider schema %q type %q: bad name or no block", key, name)
-				}
-				if err := checkBlock(t.Block, 0); err != nil {
-					return fmt.Errorf("provider schema %q type %q: %w", key, name, err)
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// decodeHandoffType decodes and checks one type of a provider schema. The
+// outer decoder's refusal of unknown members does not reach into a
+// json.RawMessage, so this decoder refuses them again.
+func decodeHandoffType(raw json.RawMessage) (*TypeSchema, error) {
+	var t TypeSchema
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&t); err != nil {
+		return nil, err
+	}
+	if t.Block == nil {
+		return nil, errors.New("bad name or no block")
+	}
+	if err := checkBlock(t.Block, 0); err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 func (t *TreeInputs) validate() error {

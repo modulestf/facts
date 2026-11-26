@@ -79,10 +79,53 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	if len(schemaFiles) == 0 {
 		return nil, errors.New("at least one --schema-files file is needed")
 	}
-	set, err := schema.Load("", schemaFiles)
+	// The tree is read first so the schema files keep only its types, and
+	// its error is returned after theirs, as before.
+	m, treeErr := readModule(dir, lim)
+	type typeKey struct {
+		data bool
+		name string
+	}
+	keep := map[typeKey]bool{}
+	if treeErr == nil {
+		for _, r := range m.Resources {
+			keep[typeKey{r.Mode == "data", r.Type}] = true
+		}
+	}
+	set, err := schema.LoadTypes(schemaFiles, func(dataSource bool, name string) bool {
+		return keep[typeKey{dataSource, name}]
+	})
 	if err != nil {
 		return nil, err
 	}
+	if treeErr != nil {
+		return nil, treeErr
+	}
+	inv := &Inventory{Types: []Type{}, SchemaFiles: set.SchemaFiles, variables: map[string]bool{}, outputs: map[string]bool{}}
+	for _, v := range m.Variables {
+		inv.variables[v.Name] = true
+	}
+	for _, o := range m.Outputs {
+		inv.outputs[o.Name] = true
+	}
+	seen := map[string]bool{}
+	for _, r := range m.Resources {
+		if seen[r.Mode+" "+r.Type] {
+			continue
+		}
+		seen[r.Mode+" "+r.Type] = true
+		t, err := typeInventory(set, m, r)
+		if err != nil {
+			return nil, err
+		}
+		inv.Types = append(inv.Types, t)
+	}
+	slices.SortFunc(inv.Types, func(a, b Type) int { return cmp.Or(cmp.Compare(a.Mode, b.Mode), cmp.Compare(a.Type, b.Type)) })
+	return inv, nil
+}
+
+// readModule reads and checks the module in dir for Build.
+func readModule(dir string, lim facts.Limits) (*facts.Module, error) {
 	tree, err := facts.ReadTree(dir, lim)
 	if err != nil {
 		return nil, fmt.Errorf("module tree: %w", err)
@@ -106,27 +149,7 @@ func Build(dir string, schemaFiles []string, lim facts.Limits) (*Inventory, erro
 	if len(m.Resources) == 0 {
 		return nil, errors.New("module tree: no resource or data block, so there is nothing to inventory")
 	}
-	inv := &Inventory{Types: []Type{}, SchemaFiles: set.SchemaFiles, variables: map[string]bool{}, outputs: map[string]bool{}}
-	for _, v := range m.Variables {
-		inv.variables[v.Name] = true
-	}
-	for _, o := range m.Outputs {
-		inv.outputs[o.Name] = true
-	}
-	seen := map[string]bool{}
-	for _, r := range m.Resources {
-		if seen[r.Mode+" "+r.Type] {
-			continue
-		}
-		seen[r.Mode+" "+r.Type] = true
-		t, err := typeInventory(set, m, r)
-		if err != nil {
-			return nil, err
-		}
-		inv.Types = append(inv.Types, t)
-	}
-	slices.SortFunc(inv.Types, func(a, b Type) int { return cmp.Or(cmp.Compare(a.Mode, b.Mode), cmp.Compare(a.Type, b.Type)) })
-	return inv, nil
+	return m, nil
 }
 
 func typeInventory(set *schema.Set, m *facts.Module, r facts.Resource) (Type, error) {
