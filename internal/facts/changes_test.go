@@ -73,7 +73,7 @@ func TestChangesOracle(t *testing.T) {
 				t.Fatal(err)
 			}
 			doc := decodeJSON(t, data).(map[string]any)
-			if errs := set.validate("changes.schema.json", doc); len(errs) > 0 {
+			if errs := set.Validate("changes.schema.json", doc); len(errs) > 0 {
 				t.Errorf("changes schema: %v", errs)
 			}
 			got := map[string]any{"files": doc["files"], "data_sources": doc["data_sources"]}
