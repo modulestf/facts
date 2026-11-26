@@ -1,3 +1,12 @@
+## [0.20.4](https://github.com/modulestf/facts/compare/v0.20.3...v0.20.4) (2026-11-26)
+
+
+### Performance Improvements
+
+* Bound the HCL tokens one run parses and lex a file once where no tokens are needed ([#117](https://github.com/modulestf/facts/issues/117)) ([4fde468](https://github.com/modulestf/facts/commit/4fde468765a23126c7398f5e5f1b995bb4baff13)), closes [terraform-aws-eks#3764](https://github.com/terraform-aws-eks/issues/3764) [terraform-aws-eks#3764](https://github.com/terraform-aws-eks/issues/3764) [terraform-aws-security-group#355](https://github.com/terraform-aws-security-group/issues/355) [terraform-aws-security-group#355](https://github.com/terraform-aws-security-group/issues/355) [security-group#355](https://github.com/security-group/issues/355) [terraform-aws-eks#3766](https://github.com/terraform-aws-eks/issues/3766) [#3764](https://github.com/modulestf/facts/issues/3764) [terraform-aws-security-group#362](https://github.com/terraform-aws-security-group/issues/362) [#355](https://github.com/modulestf/facts/issues/355)
+
+
+
 ## [0.20.3](https://github.com/modulestf/facts/compare/v0.20.2...v0.20.3) (2026-11-26)
 
 
