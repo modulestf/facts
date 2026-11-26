@@ -29,8 +29,19 @@ const (
 	ChangeReasonOverride  = "override"          // override.tf or *_override.tf: it merges into blocks of other files
 	ChangeReasonParse     = "parse-error"       // the HCL does not parse
 	ChangeReasonLimit     = "limit"             // the file is over a parser limit
-	ChangeReasonDuplicate = "duplicate-address" // two top-level blocks of one file share an address
+	ChangeReasonDuplicate = "duplicate-address" // two resource, data, module, variable or output blocks of one file share an address
+	ChangeReasonTofu      = "tofu"              // a .tofu or .tofu.json file, which OpenTofu reads in place of a .tf file of its name
 )
+
+// uniqueTypes are the block types Terraform allows once per address in a
+// module. Every other type, locals, moved, import, removed, terraform, check
+// and provider among them, may repeat, and its blocks are matched in order.
+var uniqueTypes = map[string]bool{"resource": true, "data": true, "module": true, "variable": true, "output": true}
+
+// metaArgs are the meta-arguments of a resource or data block. A change of
+// one changes which instances exist, how they are configured or in what
+// order, not one value: it is a structural edit, never a changed attribute.
+var metaArgs = map[string]bool{"count": true, "for_each": true, "provider": true, "depends_on": true}
 
 // Read states of a changed attribute.
 const (
@@ -176,11 +187,24 @@ func Changes(o ChangesOptions) (*ChangesReport, error) {
 	return r, nil
 }
 
-// configPath reports a .tf or .tf.json file Terraform does not skip.
+// configPath reports a configuration file Terraform or OpenTofu reads and
+// does not skip: .tf, .tf.json, .tofu or .tofu.json.
 func configPath(p string) bool {
 	name := path.Base(p)
-	return !ignoredName(name) && (strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json"))
+	if ignoredName(name) {
+		return false
+	}
+	for _, ext := range []string{".tf", ".tf.json", ".tofu", ".tofu.json"} {
+		if strings.HasSuffix(name, ext) {
+			return true
+		}
+	}
+	return false
 }
+
+// hclName reports a configuration file the engine parses: a .tf file. A
+// JSON or OpenTofu file is never parsed.
+func hclName(name string) bool { return strings.HasSuffix(name, ".tf") }
 
 // overrideName reports an override file, which merges into blocks other
 // files declare.
@@ -192,12 +216,15 @@ func overrideName(name string) bool {
 type parsedFile struct {
 	src    []byte
 	blocks []*hclsyntax.Block
+	keys   []string // blockKeys of blocks
 }
 
 // parseSide parses one side of a changed file, or returns why it cannot.
 func parseSide(p string, e *Entry, lim Limits) (*parsedFile, string) {
 	name := path.Base(p)
 	switch {
+	case strings.HasSuffix(name, ".tofu") || strings.HasSuffix(name, ".tofu.json"):
+		return nil, ChangeReasonTofu
 	case strings.HasSuffix(name, ".tf.json"):
 		return nil, ChangeReasonJSON
 	case e.Kind != KindFile:
@@ -213,15 +240,29 @@ func parseSide(p string, e *Entry, lim Limits) (*parsedFile, string) {
 		return nil, ChangeReasonParse
 	}
 	blocks := slices.Clone(body.Blocks)
-	seen := map[string]bool{}
-	for _, b := range blocks {
-		k := blockKey(b)
-		if seen[k] {
-			return nil, ChangeReasonDuplicate
-		}
-		seen[k] = true
+	keys, dup := blockKeys(blocks)
+	if dup {
+		return nil, ChangeReasonDuplicate
 	}
-	return &parsedFile{src: e.Data, blocks: blocks}, ""
+	return &parsedFile{src: e.Data, blocks: blocks, keys: keys}, ""
+}
+
+// blockKeys identifies each top-level block of a file: its type and labels,
+// and for a type that may repeat its place among the blocks of that type
+// and labels. dup is set when a block of a uniqueTypes type repeats.
+func blockKeys(blocks []*hclsyntax.Block) (keys []string, dup bool) {
+	seen := map[string]int{}
+	keys = make([]string, len(blocks))
+	for i, b := range blocks {
+		k := strings.Join(append([]string{b.Type}, b.Labels...), "\x00")
+		n := seen[k]
+		seen[k]++
+		if n > 0 && uniqueTypes[b.Type] {
+			return nil, true
+		}
+		keys[i] = fmt.Sprintf("%s\x00#%d", k, n)
+	}
+	return keys, false
 }
 
 // diffFile compares one changed configuration file. h or b is nil when the
@@ -263,21 +304,22 @@ func diffFile(p string, h, b *Entry, lim Limits) ChangedFile {
 // outside the blocks present at both sides changed.
 func diffBlocks(hp, bp *parsedFile, outside bool) ([]ChangedBlock, bool) {
 	var hb, bb []*hclsyntax.Block
+	var hk, bk []string
 	if hp != nil {
-		hb = hp.blocks
+		hb, hk = hp.blocks, hp.keys
 	}
 	if bp != nil {
-		bb = bp.blocks
+		bb, bk = bp.blocks, bp.keys
 	}
 	baseBy := map[string]*hclsyntax.Block{}
-	for _, b := range bb {
-		baseBy[blockKey(b)] = b
+	for i, b := range bb {
+		baseBy[bk[i]] = b
 	}
 	headKeys := map[string]bool{}
 	out := []ChangedBlock{}
 	var shared []string // keys at both sides, in head order
-	for _, h := range hb {
-		k := blockKey(h)
+	for i, h := range hb {
+		k := hk[i]
 		headKeys[k] = true
 		b, ok := baseBy[k]
 		if !ok {
@@ -290,17 +332,17 @@ func diffBlocks(hp, bp *parsedFile, outside bool) ([]ChangedBlock, bool) {
 			out = append(out, cb)
 		}
 	}
-	for _, b := range bb {
-		if !headKeys[blockKey(b)] {
+	for i, b := range bb {
+		if !headKeys[bk[i]] {
 			out = append(out, ChangedBlock{Address: blockAddress(b), Kind: b.Type, Status: BlockRemoved, Attributes: []ChangedAttribute{}})
 			outside = true
 		}
 	}
 	if hp != nil && bp != nil && !outside {
 		var baseShared []string
-		for _, b := range bb {
-			if headKeys[blockKey(b)] {
-				baseShared = append(baseShared, blockKey(b))
+		for _, k := range bk {
+			if headKeys[k] {
+				baseShared = append(baseShared, k)
 			}
 		}
 		outside = !slices.Equal(shared, baseShared) ||
@@ -331,6 +373,10 @@ func diffBlock(h *hclsyntax.Block, hsrc []byte, b *hclsyntax.Block, bsrc []byte)
 		}
 		hval, bval := a.Expr.Range().SliceBytes(hsrc), o.Expr.Range().SliceBytes(bsrc)
 		if bytes.Equal(hval, bval) {
+			continue
+		}
+		if refBlock(h) && metaArgs[a.Name] {
+			cb.Structural = true
 			continue
 		}
 		cb.Attributes = append(cb.Attributes, ChangedAttribute{Name: a.Name, Read: ReadUnknown, Readers: []Reader{},
@@ -386,11 +432,6 @@ func gapsIn(src []byte, r hcl.Range, rs []byteRange) [][]byte {
 		shifted[i] = byteRange{x.start - r.Start.Byte, x.end - r.Start.Byte}
 	}
 	return gaps(src[r.Start.Byte:r.End.Byte], shifted)
-}
-
-// blockKey identifies a top-level block within a file: its type and labels.
-func blockKey(b *hclsyntax.Block) string {
-	return strings.Join(append([]string{b.Type}, b.Labels...), "\x00")
 }
 
 // blockAddress is how a report names a top-level block: <type>.<name> for a

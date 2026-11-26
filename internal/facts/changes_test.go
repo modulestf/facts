@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 )
 
 const changesFixtures = "../../testdata/changes"
@@ -212,4 +214,77 @@ func FuzzChangesFile(f *testing.F) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// TestChangesWholeObjectBounded checks a whole-object read is kept once per
+// block: many changed attributes and many whole-object references keep each
+// attribute's readers and the block's record within maxReaders.
+func TestChangesWholeObjectBounded(t *testing.T) {
+	var hb, bb, reads strings.Builder
+	for i := range 200 {
+		fmt.Fprintf(&hb, "  a%d = var.b%d\n", i, i)
+		fmt.Fprintf(&bb, "  a%d = var.a%d\n", i, i)
+	}
+	reads.WriteString("locals {\n")
+	for i := range 500 {
+		fmt.Fprintf(&reads, "  r%d = aws_lb.this\n", i)
+	}
+	reads.WriteString("}\n")
+	r := changesOf(t,
+		map[string]string{"main.tf": "resource \"aws_lb\" \"this\" {\n" + hb.String() + "}\n", "reads.tf": reads.String()},
+		map[string]string{"main.tf": "resource \"aws_lb\" \"this\" {\n" + bb.String() + "}\n", "reads.tf": reads.String()})
+	as := r.Files[0].Blocks[0].Attributes
+	if len(as) != 200 {
+		t.Fatalf("got %d attributes", len(as))
+	}
+	for _, a := range as {
+		if a.Read != ReadFound || len(a.Readers) != maxReaders || !a.ReadersTruncated || a.Readers[0].How != HowObject {
+			t.Fatalf("%s: read %q, %d readers, truncated %v", a.Name, a.Read, len(a.Readers), a.ReadersTruncated)
+		}
+	}
+}
+
+// TestChangesWalkDeadline checks the read walk stops at the deadline.
+func TestChangesWalkDeadline(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("locals {\n")
+	for i := range 2 * walkCheckEvery {
+		fmt.Fprintf(&b, "  r%d = aws_lb.this.name\n", i)
+	}
+	b.WriteString("}\n")
+	body, _, err := parseSyntax("reads.tf", []byte(b.String()), DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lim := DefaultLimits
+	lim.Deadline = time.Now().Add(-time.Second)
+	a := &ChangedAttribute{Name: "name", Read: ReadNone}
+	w := &readWalker{file: "reads.tf", targets: map[string]*readTarget{"aws_lb.this": {attrs: []*ChangedAttribute{a}}}, counted: map[string]bool{}, lim: lim}
+	for _, bl := range body.Blocks {
+		_ = hclsyntax.Walk(bl, w)
+	}
+	if !errors.Is(w.err, ErrDeadline) || len(a.Readers) >= 2*walkCheckEvery {
+		t.Errorf("err %v, %d readers", w.err, len(a.Readers))
+	}
+}
+
+// TestChangesScanBounded checks the scan itself keeps at most maxReaders
+// readers per attribute and whole-object reads per block while it walks,
+// before finishReaders caps the report.
+func TestChangesScanBounded(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("locals {\n")
+	for i := range 4 * maxReaders {
+		fmt.Fprintf(&b, "  w%d = aws_lb.this\n  n%d = aws_lb.this.name\n", i, i)
+	}
+	b.WriteString("}\n")
+	tr := mustTree(t, writeTree(t, map[string]string{"reads.tf": b.String(), "main.tf": "resource \"aws_lb\" \"this\" {\n  name = 1\n}\n"}))
+	a := &ChangedAttribute{Name: "name", Read: ReadNone}
+	tg := &readTarget{attrs: []*ChangedAttribute{a}}
+	if err := scanDirReads(tr, ".", map[string]*readTarget{"aws_lb.this": tg}, DefaultLimits); err != nil {
+		t.Fatal(err)
+	}
+	if len(tg.whole) != maxReaders || tg.wholeCount != 4*maxReaders || len(a.Readers) != maxReaders || !a.ReadersTruncated {
+		t.Errorf("whole %d of %d, readers %d, truncated %v", len(tg.whole), tg.wholeCount, len(a.Readers), a.ReadersTruncated)
+	}
 }

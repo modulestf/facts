@@ -1,0 +1,45 @@
+{
+  "files": [
+    {
+      "path": "main.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "aws_lb.this",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [
+                {
+                  "path": "main_override.tf",
+                  "line": 0,
+                  "how": "unknown"
+                }
+              ],
+              "readers_truncated": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [],
+      "complete": true
+    }
+  ]
+}

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"path"
 	"slices"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -12,13 +11,39 @@ import (
 )
 
 // DirDataSources is the data source types the configuration files directly
-// in one head directory declare. Complete is false when a file there is a
-// .tf.json file, is not a regular file or does not parse, or a data block
-// does not have two labels: Types may then miss a type.
+// in one head directory declare, at the top level or inside a check block.
+// Complete is false when a file there is a .tf.json, .tofu or .tofu.json
+// file, is not a regular file or does not parse, or a data block does not
+// have two labels: Types may then miss a type.
 type DirDataSources struct {
 	Dir      string   `json:"dir"`
 	Types    []string `json:"types"`
 	Complete bool     `json:"complete"`
+}
+
+// readTarget is one resource or data block whose changed attributes the
+// scan looks for. A whole-object read is kept once for the block, not once
+// per attribute, so the readers it records stay within maxReaders whatever
+// the number of changed attributes.
+type readTarget struct {
+	attrs      []*ChangedAttribute
+	whole      []Reader
+	wholeCount int
+}
+
+// addReader records one read of a, at most maxReaders of them.
+func addReader(a *ChangedAttribute, r Reader) {
+	if a.Read != ReadUnknown {
+		a.Read = ReadFound
+	}
+	if n := len(a.Readers); n > 0 && a.Readers[n-1] == r {
+		return
+	}
+	if len(a.Readers) >= maxReaders {
+		a.ReadersTruncated = true
+		return
+	}
+	a.Readers = append(a.Readers, r)
 }
 
 // markReads sets the read state of every changed attribute of a resource or
@@ -26,7 +51,7 @@ type DirDataSources struct {
 // module that holds the block, the files directly in its directory, reads
 // it at head. Terraform resolves a block address only inside its module.
 func markReads(files []ChangedFile, head *Tree, lim Limits) error {
-	byDir := map[string]map[string][]*ChangedAttribute{} // dir -> address -> attributes
+	byDir := map[string]map[string]*readTarget{} // dir -> address -> target
 	for fi := range files {
 		f := &files[fi]
 		for bi := range f.Blocks {
@@ -36,9 +61,16 @@ func markReads(files []ChangedFile, head *Tree, lim Limits) error {
 			}
 			for ai := range b.Attributes {
 				if byDir[f.Dir] == nil {
-					byDir[f.Dir] = map[string][]*ChangedAttribute{}
+					byDir[f.Dir] = map[string]*readTarget{}
 				}
-				byDir[f.Dir][b.Address] = append(byDir[f.Dir][b.Address], &b.Attributes[ai])
+				t := byDir[f.Dir][b.Address]
+				if t == nil {
+					t = &readTarget{}
+					byDir[f.Dir][b.Address] = t
+				}
+				a := &b.Attributes[ai]
+				a.Read = ReadNone
+				t.attrs = append(t.attrs, a)
 			}
 		}
 	}
@@ -46,9 +78,9 @@ func markReads(files []ChangedFile, head *Tree, lim Limits) error {
 		if err := scanDirReads(head, dir, targets, lim); err != nil {
 			return err
 		}
-		for _, as := range targets {
-			for _, a := range as {
-				finishReaders(a)
+		for _, t := range targets {
+			for _, a := range t.attrs {
+				finishReaders(a, t)
 			}
 		}
 	}
@@ -56,9 +88,10 @@ func markReads(files []ChangedFile, head *Tree, lim Limits) error {
 }
 
 // scanDirReads parses every configuration file of dir and records each
-// read of a target attribute. A file it cannot read makes every target's
-// state unknown, with that file as the reader.
-func scanDirReads(head *Tree, dir string, targets map[string][]*ChangedAttribute, lim Limits) error {
+// read of a target attribute. A file it cannot read, a .tf.json, .tofu,
+// .tofu.json or override file among them, makes every target's state
+// unknown, with that file as the reader.
+func scanDirReads(head *Tree, dir string, targets map[string]*readTarget, lim Limits) error {
 	type parsed struct {
 		path string
 		body *hclsyntax.Body
@@ -73,7 +106,7 @@ func scanDirReads(head *Tree, dir string, targets map[string][]*ChangedAttribute
 			continue
 		}
 		name := path.Base(e.Path)
-		if strings.HasSuffix(name, ".tf.json") || overrideName(name) || e.Kind != KindFile {
+		if !hclName(name) || overrideName(name) || e.Kind != KindFile {
 			unreadable = append(unreadable, e.Path)
 			continue
 		}
@@ -84,16 +117,15 @@ func scanDirReads(head *Tree, dir string, targets map[string][]*ChangedAttribute
 		}
 		bodies = append(bodies, parsed{e.Path, body})
 	}
-	for _, as := range targets {
-		for _, a := range as {
-			a.Read = ReadNone
-			for _, p := range unreadable {
+	if len(unreadable) > 0 {
+		for _, t := range targets {
+			for _, a := range t.attrs {
 				a.Read = ReadUnknown
-				a.Readers = append(a.Readers, Reader{Path: p, How: HowUnknown})
+				for _, p := range unreadable {
+					addReader(a, Reader{Path: p, How: HowUnknown})
+				}
 			}
 		}
-	}
-	if len(unreadable) > 0 {
 		return nil
 	}
 	counted := map[string]bool{}
@@ -107,20 +139,20 @@ func scanDirReads(head *Tree, dir string, targets map[string][]*ChangedAttribute
 		}
 	}
 	for _, p := range bodies {
-		if err := lim.expired(); err != nil {
-			return err
-		}
-		w := &readWalker{file: p.path, targets: targets, counted: counted}
+		w := &readWalker{file: p.path, targets: targets, counted: counted, lim: lim}
 		for _, b := range p.body.Blocks {
 			w.top = ""
 			if refBlock(b) {
 				w.top = blockAddress(b)
 			}
-			_ = hclsyntax.Walk(b, w) // the walker reports no diagnostics
+			_ = hclsyntax.Walk(b, w) // the walker reports no diagnostics; it keeps its own error
 		}
 		for _, a := range p.body.Attributes {
 			w.top = ""
 			_ = hclsyntax.Walk(a, w)
+		}
+		if w.err != nil {
+			return w.err
 		}
 	}
 	return nil
@@ -132,36 +164,55 @@ func refBlock(b *hclsyntax.Block) bool {
 	return (b.Type == "resource" || b.Type == "data") && len(b.Labels) == 2
 }
 
-// finishReaders sorts and deduplicates the readers of an attribute, caps
-// them at maxReaders and sets the read state.
-func finishReaders(a *ChangedAttribute) {
+// finishReaders adds the whole-object reads of its block to an attribute,
+// sorts its readers, caps them at maxReaders and sets the read state.
+func finishReaders(a *ChangedAttribute, t *readTarget) {
+	if t.wholeCount > 0 && a.Read == ReadNone {
+		a.Read = ReadFound
+	}
+	a.Readers = append(a.Readers, t.whole...)
 	slices.SortFunc(a.Readers, func(x, y Reader) int {
 		return cmp.Or(cmp.Compare(x.Path, y.Path), cmp.Compare(x.Line, y.Line), cmp.Compare(x.How, y.How))
 	})
 	a.Readers = slices.Compact(a.Readers)
-	if a.Read == ReadNone && len(a.Readers) > 0 {
-		a.Read = ReadFound
+	if len(a.Readers) > maxReaders || t.wholeCount > len(t.whole) {
+		a.ReadersTruncated = true
 	}
 	if len(a.Readers) > maxReaders {
-		a.Readers, a.ReadersTruncated = a.Readers[:maxReaders], true
+		a.Readers = a.Readers[:maxReaders]
 	}
 }
 
+// walkCheckEvery is how many nodes the walker visits between deadline checks.
+const walkCheckEvery = 1024
+
 // readWalker finds the references to target blocks in one file. top is the
-// address of the resource or data block being walked, for self.
+// address of the resource or data block being walked, for self. err is the
+// deadline error; once set, the walker does no more work.
 type readWalker struct {
 	file    string
 	top     string
-	targets map[string][]*ChangedAttribute
+	targets map[string]*readTarget
 	counted map[string]bool
 	stack   []hclsyntax.Node
+	lim     Limits
+	nodes   int
+	err     error
 }
 
 func (w *readWalker) Enter(n hclsyntax.Node) hcl.Diagnostics {
-	if st, ok := n.(*hclsyntax.ScopeTraversalExpr); ok {
-		w.reference(st)
-	}
 	w.stack = append(w.stack, n)
+	if w.err != nil {
+		return nil
+	}
+	if w.nodes++; w.nodes%walkCheckEvery == 0 {
+		if w.err = w.lim.expired(); w.err != nil {
+			return nil
+		}
+	}
+	if st, ok := n.(*hclsyntax.ScopeTraversalExpr); ok {
+		w.reference(st, w.stack[:len(w.stack)-1])
+	}
 	return nil
 }
 
@@ -170,8 +221,9 @@ func (w *readWalker) Exit(hclsyntax.Node) hcl.Diagnostics {
 	return nil
 }
 
-// reference records what one reference reads of a target block.
-func (w *readWalker) reference(st *hclsyntax.ScopeTraversalExpr) {
+// reference records what one reference reads of a target block; anc are
+// its ancestors, innermost last.
+func (w *readWalker) reference(st *hclsyntax.ScopeTraversalExpr, anc []hclsyntax.Node) {
 	t := st.Traversal
 	addr, steps, self := "", hcl.Traversal(nil), false
 	attr := func(i int) string {
@@ -194,23 +246,32 @@ func (w *readWalker) reference(st *hclsyntax.ScopeTraversalExpr) {
 			addr, steps = root+"."+name, t[2:]
 		}
 	}
-	as, ok := w.targets[addr]
+	tg, ok := w.targets[addr]
 	if !ok || addr == "" {
 		return
 	}
-	name, whole := readOf(steps, st, w.stack, w.counted[addr])
-	line := st.SrcRange.Start.Line
-	for _, a := range as {
-		switch {
-		case whole:
-			a.Readers = append(a.Readers, Reader{Path: w.file, Line: line, How: HowObject})
-		case name == a.Name && self:
-			a.Readers = append(a.Readers, Reader{Path: w.file, Line: line, How: HowSelf})
-		case name == a.Name:
-			a.Readers = append(a.Readers, Reader{Path: w.file, Line: line, How: HowName})
-		case a.Name == "tags" && name == "tags_all":
-			a.Readers = append(a.Readers, Reader{Path: w.file, Line: line, How: HowTagsAll})
+	name, whole := readOf(steps, st, anc, w.counted[addr])
+	r := Reader{Path: w.file, Line: st.SrcRange.Start.Line}
+	if whole {
+		r.How = HowObject
+		tg.wholeCount++
+		if n := len(tg.whole); len(tg.whole) < maxReaders && (n == 0 || tg.whole[n-1] != r) {
+			tg.whole = append(tg.whole, r)
 		}
+		return
+	}
+	for _, a := range tg.attrs {
+		switch {
+		case name == a.Name && self:
+			r.How = HowSelf
+		case name == a.Name:
+			r.How = HowName
+		case a.Name == "tags" && name == "tags_all":
+			r.How = HowTagsAll
+		default:
+			continue
+		}
+		addReader(a, r)
 	}
 }
 
@@ -328,7 +389,7 @@ func dataSources(head *Tree, lim Limits) ([]DirDataSources, error) {
 			if !configPath(e.Path) {
 				continue
 			}
-			if strings.HasSuffix(name, ".tf.json") || e.Kind != KindFile {
+			if !hclName(name) || e.Kind != KindFile {
 				ds.Complete = false
 				continue
 			}
@@ -338,12 +399,18 @@ func dataSources(head *Tree, lim Limits) ([]DirDataSources, error) {
 				continue
 			}
 			for _, b := range body.Blocks {
-				switch {
-				case b.Type != "data":
-				case len(b.Labels) == 2:
-					ds.Types = append(ds.Types, b.Labels[0])
-				default:
-					ds.Complete = false
+				blocks := []*hclsyntax.Block{b}
+				if b.Type == "check" {
+					blocks = b.Body.Blocks // a check block may declare scoped data sources
+				}
+				for _, x := range blocks {
+					switch {
+					case x.Type != "data":
+					case len(x.Labels) == 2:
+						ds.Types = append(ds.Types, x.Labels[0])
+					default:
+						ds.Complete = false
+					}
 				}
 			}
 		}

@@ -7,18 +7,23 @@ parser. Give the tree the change started from with --base, or the change
 itself with --diff, a GitHub pull request files list or a unified diff that
 the base tree is rebuilt from. One of them is required.
 
-files lists every .tf and .tf.json file whose entry differs, in path order,
-with its status (added, removed, modified) and whether it was parsed; reason
-says why not: json, override, parse-error, limit, duplicate-address, or the
-kind of an entry that is not a regular file. outside is set when anything
+files lists every .tf, .tf.json, .tofu and .tofu.json file whose entry
+differs, in path order, with its status (added, removed, modified) and
+whether it was parsed; reason says why not: json, tofu, override,
+parse-error, limit, duplicate-address (two resource, data, module, variable
+or output blocks of one address), or the kind of an entry that is not a
+regular file. Other changed files, templates and .tfvars among them, are
+not listed: the host classifies them itself. outside is set when anything
 changed besides the values of direct attributes of blocks present at both
 sides: a comment or blank line between blocks, a block added, removed or
 moved, or the file added, removed or not parsed.
 
 blocks lists each top-level block that was added, removed or edited, by
 address. structural is set for an edit besides the values of its direct
-attributes: its header, a comment, an attribute added, removed or moved, or
-any nested block. attributes lists the direct attributes present at both
+attributes: its header, a comment, an attribute added, removed or moved, any
+nested block, or, in a resource or data block, a change of count, for_each,
+provider or depends_on. Blocks of a type that may repeat, such as locals or
+moved, are matched in order. attributes lists the direct attributes present at both
 sides whose value bytes changed. plain says, per side, whether the value is
 a plain expression: literals, a negative number, quoted strings with plain
 interpolations and no directive, references not rooted at each, count or
@@ -35,13 +40,14 @@ index or splat that selects instances of a block with count or for_each; an
 index with a literal string key names an attribute; the whole object, a for
 expression over it, and any other index or splat read every attribute.
 tags_all reads tags, and self.<name> inside the block reads <name>. A
-.tf.json, override, unparsed or non-regular file in that directory makes the
-state unknown. Blocks of other kinds have state unknown. readers lists the
+.tf.json, .tofu, .tofu.json, override, unparsed or non-regular file in that
+directory makes the state unknown. Blocks of other kinds have state unknown. readers lists the
 reads, at most 32 per attribute.
 
 data_sources lists, per head directory with a configuration file, the data
-source types its files declare. complete is false when a file there is a
-.tf.json file, is not a regular file or does not parse, or a data block does
+source types its files declare, inside check blocks too. complete is false
+when a file there is a .tf.json, .tofu or .tofu.json file, is not a regular
+file or does not parse, or a data block does
 not have two labels. A directory reached through a link is not listed.
 
 Exit codes:

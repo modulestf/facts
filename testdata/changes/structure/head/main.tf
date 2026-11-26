@@ -49,3 +49,28 @@ resource "aws_lb" "two" {
 resource "aws_lb" "trailing" {
   name = var.name # note
 }
+
+resource "aws_lb" "meta_count" {
+  count = var.n_b
+  name  = var.name
+}
+
+resource "aws_lb" "meta_for_each" {
+  for_each = var.set_b
+  name     = var.name
+}
+
+resource "aws_lb" "meta_provider" {
+  provider = aws.b
+  name     = var.name
+}
+
+data "aws_ami" "meta_depends_on" {
+  depends_on = [aws_lb.meta_count_b]
+  owners     = var.owners
+}
+
+module "meta_module" {
+  source = "./m"
+  count  = var.n_b
+}

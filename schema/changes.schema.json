@@ -17,7 +17,7 @@
         "address": {"type": "string", "minLength": 1},
         "kind": {"type": "string", "minLength": 1, "description": "The block type keyword: resource, data, module, variable, output, locals or any other."},
         "status": {"enum": ["added", "removed", "edited"]},
-        "structural": {"type": "boolean", "description": "Edited besides the values of its direct attributes: header, comment, attribute added, removed or moved, or any nested block."},
+        "structural": {"type": "boolean", "description": "Edited besides the values of its direct attributes: header, comment, attribute added, removed or moved, any nested block, or in a resource or data block a change of count, for_each, provider or depends_on."},
         "attributes": {"type": "array", "items": {"$ref": "#/$defs/attribute"}}
       },
       "if": {"type": "object", "properties": {"status": {"enum": ["added", "removed"]}}},
@@ -90,7 +90,7 @@
           "dir": {"$ref": "#/$defs/path"},
           "status": {"enum": ["added", "removed", "modified"]},
           "parsed": {"type": "boolean"},
-          "reason": {"enum": [null, "json", "override", "parse-error", "limit", "duplicate-address", "symlink", "special", "unreadable", "oversize", "no_patch"]},
+          "reason": {"enum": [null, "json", "tofu", "override", "parse-error", "limit", "duplicate-address", "symlink", "special", "unreadable", "oversize", "no_patch"]},
           "outside": {"type": "boolean", "description": "Anything changed besides the values of direct attributes of blocks present at both sides."},
           "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
         },
@@ -108,7 +108,7 @@
         "properties": {
           "dir": {"$ref": "#/$defs/path"},
           "types": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-          "complete": {"type": "boolean", "description": "False when a file there is a .tf.json file, is not a regular file or does not parse, or a data block does not have two labels."}
+          "complete": {"type": "boolean", "description": "False when a file there is a .tf.json, .tofu or .tofu.json file, is not a regular file or does not parse, or a data block does not have two labels."}
         }
       }
     }

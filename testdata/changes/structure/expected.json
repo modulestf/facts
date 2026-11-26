@@ -54,19 +54,8 @@
           "address": "aws_lb.meta",
           "kind": "resource",
           "status": "edited",
-          "structural": false,
-          "attributes": [
-            {
-              "name": "count",
-              "plain": {
-                "head": true,
-                "base": false
-              },
-              "read": "unread",
-              "readers": [],
-              "readers_truncated": false
-            }
-          ]
+          "structural": true,
+          "attributes": []
         },
         {
           "address": "aws_lb.two",
@@ -102,6 +91,52 @@
           "status": "edited",
           "structural": true,
           "attributes": []
+        },
+        {
+          "address": "aws_lb.meta_count",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.meta_for_each",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.meta_provider",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "data.aws_ami.meta_depends_on",
+          "kind": "data",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "module.meta_module",
+          "kind": "module",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "count",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
         }
       ]
     }
@@ -109,7 +144,9 @@
   "data_sources": [
     {
       "dir": ".",
-      "types": [],
+      "types": [
+        "aws_ami"
+      ],
       "complete": true
     }
   ]

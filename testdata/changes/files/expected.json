@@ -54,6 +54,15 @@
       "blocks": []
     },
     {
+      "path": "main.tofu",
+      "dir": ".",
+      "status": "modified",
+      "parsed": false,
+      "reason": "tofu",
+      "outside": true,
+      "blocks": []
+    },
+    {
       "path": "main_override.tf",
       "dir": ".",
       "status": "modified",
@@ -76,6 +85,52 @@
           "status": "removed",
           "structural": false,
           "attributes": []
+        }
+      ]
+    },
+    {
+      "path": "repeat.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "locals",
+          "kind": "locals",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "b",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "moved",
+          "kind": "moved",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "to",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
         }
       ]
     }
