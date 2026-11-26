@@ -20,7 +20,8 @@ import (
 // "-- <name> --" whose body runs to the next section. A name starting with
 // base/ or head/ is a file of that tree; a JSON-quoted name may hold any
 // byte; a name ending in " [link]" is a symbolic link whose target is the
-// body's first line. Other sections: files.json, classify.json and
+// body's first line; a name ending in " [gitlink]" is an empty directory,
+// which is how a checkout holds a submodule's commit pointer. Other sections: files.json, classify.json and
 // affected.json replace the computed inputs; want.json is the exact report.
 //
 // Header keys: kind (must-be-deep, must-not-be-light, must-be-light, bench),
@@ -59,12 +60,16 @@ func loadFixture(t *testing.T, file string) *fixture {
 			cur = strings.TrimSuffix(strings.TrimPrefix(trim, "-- "), " --")
 			if strings.HasPrefix(cur, `"`) {
 				var s string
-				if err := json.Unmarshal([]byte(strings.TrimSuffix(cur, " [link]")), &s); err != nil {
+				suffix := ""
+				for _, sfx := range []string{" [link]", " [gitlink]"} {
+					if strings.HasSuffix(cur, sfx) {
+						suffix = sfx
+					}
+				}
+				if err := json.Unmarshal([]byte(strings.TrimSuffix(cur, suffix)), &s); err != nil {
 					t.Fatalf("%s: section name %s: %v", file, cur, err)
 				}
-				if strings.HasSuffix(cur, " [link]") {
-					s += " [link]"
-				}
+				s += suffix
 				cur = s
 			}
 			continue
@@ -92,6 +97,16 @@ func (fx *fixture) writeTrees(t *testing.T, dir string) []map[string]any {
 			continue
 		}
 		p := filepath.Join(dir, rev, rel)
+		if trimmed, isLink := strings.CutSuffix(rel, " [gitlink]"); isLink {
+			// The checkout holds an empty directory; the body, the commit
+			// it points at, only shows in the files list.
+			rel = trimmed
+			if err := os.MkdirAll(filepath.Join(dir, rev, rel), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			trees[rev][rel] = "\x00gitlink:" + strings.TrimSpace(fx.sections[name])
+			continue
+		}
 		link := strings.HasSuffix(rel, " [link]")
 		if link {
 			p = strings.TrimSuffix(p, " [link]")

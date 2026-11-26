@@ -106,7 +106,10 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	default:
 		return r.fallback(FallbackNoChangeInput, examples), nil
 	}
-	r.Changed = changedPaths(head, base)
+	r.Changed = withGitlinks(changedPaths(head, base), head, base)
+	if len(ChangedGitlinks(head, base)) > 0 {
+		return r.fallback(FallbackUnparsed, examples), nil
+	}
 
 	rec.Phase("call_graph")
 	edges, fb, err := callGraph(head, o.Limits)
@@ -127,6 +130,9 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 
 	rec.Phase("walk")
 	roots := append([]string{"."}, examples...)
+	if len(gitlinksRead(head, sites, roots)) > 0 {
+		return r.fallback(FallbackUnparsed, examples), nil
+	}
 	changedDirs := map[string]bool{}
 	// readers marks the modules whose read sites reach p as changed.
 	readers := func(p string) (bool, error) {
@@ -194,6 +200,12 @@ func (r *AffectedReport) fallback(why string, examples []string) *AffectedReport
 // path is an error.
 func exampleDirs(t *Tree) ([]string, error) {
 	out := exampleRoots(t)[1:]
+	for d := range t.gitlinks {
+		if path.Dir(d) == "examples" {
+			out = append(out, d) // a submodule example: its calls cannot be read
+		}
+	}
+	slices.Sort(out)
 	for _, d := range out {
 		if name := path.Base(d); !exampleName.MatchString(name) {
 			return nil, fmt.Errorf("example directory %q has a name outside [A-Za-z0-9._-]", clean(d))
@@ -234,6 +246,17 @@ func changedPaths(head, base *Tree) []string {
 	return out
 }
 
+// withGitlinks adds the gitlinks of ChangedGitlinks to the changed paths. A
+// gitlink holds no content to compare, so no other test of a path can clear
+// it.
+func withGitlinks(changed []string, head, base *Tree) []string {
+	gl := ChangedGitlinks(head, base)
+	if len(gl) == 0 {
+		return changed
+	}
+	return slices.Compact(slices.Sorted(slices.Values(slices.Concat(changed, gl))))
+}
+
 // inertEntry reports whether an entry can be an inert documentation file:
 // absent, or a regular file. A link may point at anything, and a file a diff
 // gives no patch for may have changed its mode.
@@ -266,6 +289,20 @@ func dirLoaded(p string, entries ...*Entry) bool {
 	})
 }
 
+// gitlinksRead lists, in path order, the gitlinks a read site may read, or
+// read below. The files there are a commit the tree does not hold, so what a
+// change of another file does to them is unknown.
+func gitlinksRead(t *Tree, sites []ReadSite, roots []string) []string {
+	var out []string
+	for g := range t.gitlinks {
+		if slices.ContainsFunc(sites, func(s ReadSite) bool { return s.ReachesDir(g, roots) }) {
+			out = append(out, g)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // configDirs is the set of directories that hold a .tf or .tf.json file.
 func configDirs(t *Tree) map[string]bool {
 	out := map[string]bool{}
@@ -283,6 +320,11 @@ func configDirs(t *Tree) map[string]bool {
 // when a directory does not parse, or a module call has no literal source.
 func callGraph(head *Tree, lim Limits) (edges map[string][]string, fallback string, err error) {
 	edges = map[string][]string{}
+	for g := range head.gitlinks {
+		if path.Dir(g) == "examples" {
+			return nil, FallbackUnparsed, nil // a submodule example: its module calls cannot be read
+		}
+	}
 	dirs := configDirs(head)
 	for _, d := range slices.Sorted(maps.Keys(dirs)) {
 		m, err := ParseDir(head, d, lim)
@@ -300,6 +342,9 @@ func callGraph(head *Tree, lim Limits) (edges map[string][]string, fallback stri
 			case strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../"):
 				if to := path.Join(d, src); to != ".." && !strings.HasPrefix(to, "../") {
 					edges[d] = append(edges[d], to)
+					if head.InGitlink(to) {
+						return nil, FallbackUnparsed, nil // its module calls are a commit the tree does not hold
+					}
 				}
 			}
 		}

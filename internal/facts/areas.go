@@ -103,6 +103,13 @@ func discoverModules(head, base *Tree, lim Limits) (map[string]bool, error) {
 				mods[d] = true
 			}
 		}
+		// A gitlink is an area whose files are not in the tree, so a module
+		// call into it names an area and its rules are not evaluated.
+		for g := range t.gitlinks {
+			if discoverable(g) {
+				mods[g] = true
+			}
+		}
 	}
 	scan(head)
 	if base != nil {
@@ -198,6 +205,10 @@ type Area struct {
 	Issue string
 	// issueCode is the reason code of Issue.
 	issueCode string
+	// callsGitlink is why the area's module calls cannot all be read: one
+	// names a gitlink or a path below it, whose files the tree does not hold.
+	// Empty when none does. See markGitlinkCalls.
+	callsGitlink string
 	// unreadConfig are the .tf and .tf.json files the change adds or edits
 	// in a boundary directory no area reads: on the root, those under tests/,
 	// where a test helper module lives; on a submodule modules/<m>, those more
@@ -388,6 +399,15 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 				add(inScope, p, base)
 			}
 		}
+		// A gitlink holds no entry, so its change is the touch of its own
+		// area, and of every area that may call into it: a call below it
+		// cannot be read, so every area is in scope.
+		if gl := ChangedGitlinks(head, base); len(gl) > 0 {
+			every(inScope)
+			for _, p := range gl {
+				add(inScope, p+"/x", head)
+			}
+		}
 		if untouched {
 			all = map[string]string{}
 			every(all)
@@ -426,11 +446,38 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	return out, nil
 }
 
+// markGitlinkCalls sets callsGitlink when a local module call of the area,
+// at head or at base, names a gitlink or a path below one. A rule that reads
+// the callee would read an empty directory and report it clean, so the
+// configuration rules of the area are not evaluated.
+func (a *Area) markGitlinkCalls() {
+	a.callsGitlink = ""
+	for _, m := range []*Module{a.Head, a.Base} {
+		if m == nil {
+			continue
+		}
+		for _, c := range m.ModuleCalls {
+			src := strings.ReplaceAll(c.Source, `\`, "/")
+			if !strings.HasPrefix(src, "./") && !strings.HasPrefix(src, "../") {
+				continue
+			}
+			to := path.Join(a.Path, src)
+			if a.headTree.InGitlink(to) || a.baseTree != nil && a.baseTree.InGitlink(to) {
+				a.callsGitlink = fmt.Sprintf("module call %q names %s, a submodule commit pointer whose files the tree does not hold", c.Name, to)
+				return
+			}
+		}
+	}
+}
+
 // dirState reports whether p is a directory of t, and an issue with its reason
 // code when p exists but is not a readable directory.
 func dirState(t *Tree, p string) (exists bool, issue, code string) {
 	e := t.Entries[p]
 	switch {
+	case t.IsGitlink(p):
+		// Its files are a commit the tree does not hold, so no rule can read it.
+		return true, p + " is a submodule commit pointer whose files the tree does not hold", ReasonUnsupportedFile
 	case e != nil && t.Dirs[p]:
 		return true, p + " is a directory that cannot be read", ReasonUnsupportedFile
 	case e != nil:

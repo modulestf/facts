@@ -60,6 +60,10 @@ func (g *lazyGraph) parse(d string) error {
 		return nil
 	}
 	g.parsed[d] = true
+	if g.t.InGitlink(d) {
+		g.problem[d] = FallbackUnparsed // its module calls are a commit the tree does not hold
+		return nil
+	}
 	if !g.config[d] {
 		return nil
 	}
@@ -174,13 +178,16 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 		return nil, err
 	}
 	r := &AffectedReport{SchemaVersion: AffectedSchemaVersion, ModuleRoot: m, Changed: []string{}}
+	// extra holds the changed gitlinks in scope that no other test of a path
+	// keeps in a fallback's changed list.
+	extra := map[string]bool{}
 	fallback := func(why string, changed []string) *AffectedReport {
 		r.Fallback, r.Inert, r.Examples = &why, false, []AffectedExample{}
 		for _, ex := range slices.Sorted(slices.Values(slices.Concat(own, roots))) {
 			r.Examples = append(r.Examples, AffectedExample{Dir: ex, Reason: ReasonAll})
 		}
 		r.Changed = slices.DeleteFunc(changed, func(p string) bool {
-			return !inDir(p, m) && !slices.ContainsFunc(roots, func(ex string) bool { return inDir(p, ex) })
+			return !inDir(p, m) && !extra[p] && !slices.ContainsFunc(roots, func(ex string) bool { return inDir(p, ex) })
 		})
 		return r
 	}
@@ -197,12 +204,18 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	default:
 		return fallback(FallbackNoChangeInput, []string{}), nil
 	}
-	all := changedPaths(head, base)
+	all := withGitlinks(changedPaths(head, base), head, base)
 
 	g := newLazyGraph(head, o.Limits)
 	scope, problem, err := g.closure(slices.Concat([]string{m}, own)...)
 	if err != nil {
 		return nil, err
+	}
+	scopeDirs := slices.Collect(maps.Keys(scope))
+	for _, p := range all {
+		if slices.ContainsFunc(scopeDirs, func(d string) bool { return inDir(d, p) }) {
+			extra[p] = true // a module call through a changed gitlink or link
+		}
 	}
 	if problem != "" {
 		return fallback(problem, all), nil
@@ -242,11 +255,21 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	for _, ex := range listed {
 		siteRoots = append(siteRoots, ex.dir)
 	}
-	reachedBy := func(p string) []string {
+	if read := gitlinksRead(head, sites, siteRoots); len(read) > 0 {
+		for _, g := range read {
+			extra[g] = true
+		}
+		return fallback(FallbackUnparsed, all), nil
+	}
+	reachedBy := func(p string, dir bool) []string {
 		var dirs []string
 		for _, s := range sites {
 			if siteDirs[s.Dir] || inDir(s.Dir, m) {
-				if s.Reaches(p, siteRoots) {
+				reached := s.Reaches(p, siteRoots)
+				if dir {
+					reached = s.ReachesDir(p, siteRoots)
+				}
+				if reached {
 					dirs = append(dirs, s.Dir)
 				}
 			}
@@ -256,19 +279,26 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 
 	changedDirs := map[string]bool{}
 	r.Inert = true
+	gitlinkChanged := false
 	for i, p := range all {
 		if i%256 == 0 {
 			if err := o.Limits.expired(); err != nil {
 				return nil, err
 			}
 		}
-		readers := reachedBy(p)
-		inScope := inDir(p, m) || scope[path.Dir(p)] || len(readers) > 0 ||
+		gitlink := head.IsGitlink(p) || base.IsGitlink(p)
+		readers := reachedBy(p, gitlink)
+		inScope := inDir(p, m) || scope[path.Dir(p)] || len(readers) > 0 || extra[p] ||
 			slices.ContainsFunc(listed, func(ex rootExample) bool { return inDir(p, ex.dir) })
 		if !inScope {
 			continue
 		}
 		r.Changed = append(r.Changed, p)
+		if gitlink {
+			// Its commit is not in the tree, so nothing says what it changed.
+			extra[p], gitlinkChanged = true, true
+			continue
+		}
 		h, b := head.Entries[p], base.Entries[p]
 		if dirLoaded(p, h, b) {
 			r.Inert = false
@@ -281,6 +311,10 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 		if len(readers) > 0 || !InertDocPath(p) || !inertEntry(h) || !inertEntry(b) || modeChanged(h, b) {
 			r.Inert = false
 		}
+	}
+
+	if gitlinkChanged {
+		return fallback(FallbackUnparsed, all), nil
 	}
 
 	var touched, callers, rest []AffectedExample
@@ -322,8 +356,18 @@ func moduleRootExamples(t *Tree, m string) (own, roots []string, err error) {
 			own = append(own, d)
 		}
 	}
+	for d := range t.gitlinks {
+		if path.Dir(d) == m+"/examples" {
+			own = append(own, d) // its module calls cannot be read; the walk reports it unresolved
+		}
+	}
 	slices.Sort(own)
 	roots = exampleRoots(t)[1:]
+	for d := range t.gitlinks {
+		if path.Dir(d) == "examples" {
+			roots = append(roots, d)
+		}
+	}
 	for d := range t.Dirs {
 		if path.Dir(d) == "examples" && !holdsTF(t, d) && slices.ContainsFunc(t.DirEntries(d), func(e *Entry) bool {
 			return strings.HasSuffix(e.Path, ".tf.json") && !ignoredName(path.Base(e.Path))
