@@ -75,10 +75,10 @@ func FuzzParseSyntax(f *testing.F) {
 	limitSeeds(f)
 	lim := DefaultLimits
 	f.Fuzz(func(t *testing.T, src []byte) {
-		if depth, prefix, ok := scanLimits(src); ok {
+		if depth, prefix, bound, ok := scanLimits(src); ok {
 			lexed, _ := hclsyntax.LexConfig(src, "main.tf", hcl.InitialPos)
-			if d, n := nestingDepth(lexed), prefixRun(lexed); depth != d || prefix < n || len(lexed) > len(src)+1 {
-				t.Fatalf("scan: depth %d run %d, lexer: depth %d run %d, %d tokens for %d bytes", depth, prefix, d, n, len(lexed), len(src))
+			if d, n := nestingDepth(lexed), prefixRun(lexed); depth != d || prefix < n || len(lexed) > bound {
+				t.Fatalf("scan: depth %d run %d bound %d, lexer: depth %d run %d, %d tokens for %d bytes", depth, prefix, bound, d, n, len(lexed), len(src))
 			}
 		}
 		_, _, fast := parseBody("main.tf", src, lim)

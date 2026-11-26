@@ -200,6 +200,9 @@ func parseTemplate(name string, src []byte, lim Limits) (expr hclsyntax.Expressi
 	if len(tokens) > lim.MaxTokens || nestingDepth(tokens) > lim.MaxDepth || prefixRun(tokens) > lim.MaxPrefixOps {
 		return nil, errors.New("over a parser limit")
 	}
+	if err := lim.chargeTokens(len(tokens)); err != nil {
+		return nil, err
+	}
 	expr, diags = hclsyntax.ParseTemplate(src, name, hcl.InitialPos)
 	if diags.HasErrors() {
 		return nil, errors.New("parse error")

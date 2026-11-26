@@ -235,7 +235,7 @@ func parseSide(p string, e *Entry, lim Limits) (*parsedFile, string) {
 	case overrideName(name):
 		return nil, ChangeReasonOverride
 	}
-	body, _, err := parseSyntax(name, e.Data, lim)
+	body, _, err := parseBody(name, e.Data, lim)
 	if err != nil {
 		if errors.As(err, new(limitError)) {
 			return nil, ChangeReasonLimit

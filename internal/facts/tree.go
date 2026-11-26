@@ -16,6 +16,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -33,8 +34,16 @@ type Limits struct {
 	MaxTokens      int   // HCL tokens per file
 	MaxPrefixOps   int   // consecutive unary operators, which the parser recurses on
 	MaxAreas       int   // discovered module areas; zero means no limit
+	// MaxRunTokens bounds the HCL tokens every parse of one run reads
+	// together, base and head, each time a file is parsed; zero means no
+	// limit. Only a Limits that StartRun returned counts them.
+	MaxRunTokens int64
 	// Deadline stops a run that takes too long. Zero means no deadline.
 	Deadline time.Time
+
+	// runTokens counts the tokens the run has parsed. Every copy of the
+	// Limits StartRun returned shares it; nil counts nothing.
+	runTokens *atomic.Int64
 
 	// Test seams, unset in production. A zero cap is its default.
 	readDirHook        func(dir string, n int) // sees every ReadDir batch: the directory and the entries returned
@@ -57,6 +66,26 @@ type Limits struct {
 // schema loader's, so a deadline hit while loading schemas is this error.
 var ErrDeadline = schema.ErrDeadline
 
+// StartRun returns l with a token count of its own, which every copy of it
+// shares, so MaxRunTokens bounds all the parses of one run together.
+func (l Limits) StartRun() Limits {
+	l.runTokens = new(atomic.Int64)
+	return l
+}
+
+// chargeTokens adds n tokens to the run's count and refuses the parse with
+// a limitError once the count passes MaxRunTokens. A refused parse keeps
+// its tokens counted, so every parse after it is refused too.
+func (l Limits) chargeTokens(n int) error {
+	if l.runTokens == nil || l.MaxRunTokens <= 0 {
+		return nil
+	}
+	if total := l.runTokens.Add(int64(n)); total > l.MaxRunTokens {
+		return limitError(fmt.Sprintf("the run's token budget of %d is spent", l.MaxRunTokens))
+	}
+	return nil
+}
+
 func (l Limits) expired() error {
 	if !l.Deadline.IsZero() && time.Now().After(l.Deadline) {
 		return ErrDeadline
@@ -74,6 +103,7 @@ var DefaultLimits = Limits{
 	MaxTokens:      262144,
 	MaxPrefixOps:   64,
 	MaxAreas:       512,
+	MaxRunTokens:   8 << 20,
 }
 
 // Entry kinds.
