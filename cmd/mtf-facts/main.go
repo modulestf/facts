@@ -45,6 +45,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return exitError
 }
 
+// testStdin, when set, gives each run its standard input; tests set it.
+var testStdin func() io.Reader
+
 // exitStatus is the exit code a handler chose after writing its own message.
 type exitStatus struct{ code int }
 
@@ -86,6 +89,9 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	// Set before InitDefaultCompletionCmd, which keeps the writer it sees.
 	root.SetOut(stdout)
 	root.SetErr(stderr)
+	if testStdin != nil {
+		root.SetIn(testStdin())
+	}
 	root.SetUsageTemplate(usageTemplate)
 	root.Flags().SortFlags = false
 	root.InitDefaultHelpFlag() // listed before --version
@@ -96,7 +102,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 		&cobra.Group{ID: groupPipeline, Title: groupPipelineTitle},
 		&cobra.Group{ID: groupOther, Title: groupOtherTitle},
 	)
-	root.AddCommand(newLintCmd(), newLedgerCmd(), newSchemaDiffCmd(), newAffectedCmd(), newChangesCmd(), newDepthCmd(), newBundleCmd(), newMergeCmd(), newPreCommitCmd(), newFixtureBuildCmd(), newFixtureCheckCmd(), newBehaviourCmd(), newClaimsEvalCmd(), newProfileCheckCmd(), newProfileSnapshotCmd(), newRulesCmd(), newVersionCmd())
+	root.AddCommand(newLintCmd(), newLedgerCmd(), newSchemaDiffCmd(), newAffectedCmd(), newChangesCmd(), newDepthCmd(), newBundleCmd(), newMergeCmd(), newPreCommitCmd(), newFixtureBuildCmd(), newFixtureCheckCmd(), newPlanGatesCmd(), newBehaviourCmd(), newClaimsEvalCmd(), newProfileCheckCmd(), newProfileSnapshotCmd(), newRulesCmd(), newVersionCmd())
 	root.SetHelpCommand(newHelpCmd(root))
 	root.SetHelpCommandGroupID(groupOther)
 	root.SetCompletionCommandGroupID(groupOther)

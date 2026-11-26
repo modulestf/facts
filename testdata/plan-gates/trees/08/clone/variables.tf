@@ -1,0 +1,3 @@
+variable "new" {
+  default = null
+}

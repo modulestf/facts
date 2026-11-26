@@ -34,6 +34,7 @@ func boundedCases(t *testing.T) []boundedCase {
 	if err := os.Mkdir(bundleOut, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	gatesRoot := planGatesTree(t)
 	cases := []boundedCase{
 		{"lint", []string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, exitFindings},
 		{"lint text", []string{"lint", "../../testdata/variable-untyped-base/head"}, exitFindings},
@@ -48,6 +49,7 @@ func boundedCases(t *testing.T) []boundedCase {
 		{"schema-diff", []string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, exitClean},
 		{"fixture-build", fixtureBuildArgs(t, "ladder-pass-01"), exitClean},
 		{"fixture-check", []string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, exitClean},
+		{"plan-gates", []string{"plan-gates", "--scope", "clone", "--mode", "laptop", "--root", gatesRoot}, exitFindings},
 		{"profile-check", []string{"profile-check", "--profile-dir", "../../testdata/profile"}, exitClean},
 		{"bundle", bundleArgsFor(writeReport(t, tmp), "../../testdata/bundle/skills", bundleOut), exitClean},
 		{"pre-commit derive", []string{"pre-commit", "derive", pcd + "/terraform-aws-vpc/in.tf"}, exitClean},

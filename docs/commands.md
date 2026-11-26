@@ -497,6 +497,32 @@ The check reads syntax only and evaluates nothing. It does not bound what a pass
 | 1 | At least one violation. |
 | 2 | An error: bad flags, a bad pins file or a directory that cannot be read. |
 
+## plan-gates
+
+`mtf-facts plan-gates` runs the plan pass's gates G0 to G3 over the `.tf` files listed on standard input, one path a line, before any Terraform command runs on them with credentials:
+
+```sh
+<file list> | mtf-facts plan-gates --scope clone --mode laptop --root <clone> [--example <example dir>] [--timeout <duration>]
+<file list> | mtf-facts plan-gates --scope downloaded --mode runner --root <clone> --provider compliancetf/*
+```
+
+It prints one line per hit, `<gate> <path>:<line>`, with line 0 for a whole file, in the order the rules find them and with duplicates kept. The line `UNREADABLE` in the list stands for a file the caller could not list and is a G0 hit. The lines are byte for byte those of the Perl gates the plan pass of the pull request review skill ran before; the rules read text with the same patterns, so a keyword in a comment or a string counts as it did there.
+
+- G0: a file that is unreadable, not a regular file once links are followed, or over 1 MiB; an override file; a carriage return, form feed or vertical tab; a byte over 0x7f in code or in a block label; a block comment; in runner mode, a string, comment or heredoc that does not end.
+- G1: a `required_providers` entry outside the allowlist, in clone scope: laptop mode allows hashicorp `aws`, `random`, `time`, `tls` and `cloudinit`; runner mode those, `null`, `local`, `external` and each `--provider`. In runner mode, in either scope, also a local name that is not its source's type.
+- G2: a module source outside `--root` or the terraform-aws-modules registry namespace (runner mode also takes github.com). Clone scope only.
+- G3 in laptop mode: a block or expression that runs code or reads an account: provisioners, `file*` and `templatefile` calls, provider functions, `backend` and `cloud`, an unknown top-level block, a resource or data source of another provider, a data source outside the allowed list, a data source `region` that is not a literal region or a variable every call from the example sets to one, and a provider argument other than `region` and `alias`. It allows `default_tags`, the documented skip flags, a data `aws_iam_policy` of one AWS managed policy ARN, and a data `aws_cloudwatch_event_bus` whose name and region the example sets to literals, unless a banned file name (`override.tf`, `*.tfvars`, `*.tf.json` and the like) is in a directory of the scope. `--example` names the example root those rules read; without it the event bus is a hit.
+- G3 in runner mode: a keyword written against its label, a block with a bare label, `backend` and `cloud`, and an `aws` or `awscc` provider that sets credentials, a proxy or an endpoint.
+- Runner mode relaxes the code-execution gates and records two exceptions: `Xrole`, an aws provider whose `assume_role` is one literal role ARN, and `Xdocker`, the Docker provider or a module call with `build_in_docker = true`.
+
+`--scope` is `clone`, the clone's own files, or `downloaded`, the files of a downloaded module. `--provider` takes `ns/name` or `ns/*` and may be repeated; any other value is a usage error. The command reads the listed files and the names in their directories, and nothing else: no network, no program.
+
+| Code | Meaning |
+|------|---------|
+| 0 | No hit. |
+| 1 | At least one hit. |
+| 2 | An error: bad flags, a file list over 8 MiB or 10000 files, files over 64 MiB in all, the output cap or the timeout. A caller must stop. |
+
 ## rules, version and completion
 
 ```sh

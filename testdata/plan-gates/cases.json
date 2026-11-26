@@ -1,0 +1,4466 @@
+{
+ "cases": [
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "000 runner clone rt/ff-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/ff-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/ff-heredoc.tf:4\nG0 {run}/clone/rt/ff-heredoc.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "001 laptop clone rt/role-fixed.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-fixed.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/role-fixed.tf:1\nG3 {run}/clone/rt/role-fixed.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-call-literal/ex",
+   "mode": "laptop",
+   "name": "002 laptop clone g3/reg-mod-call-literal/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-call-literal/ex/main.tf",
+    "{run}/clone/g3/reg-mod-call-literal/mod/main.tf",
+    "{run}/clone/g3/reg-mod-call-literal/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/deniedx",
+   "mode": "laptop",
+   "name": "003 laptop clone examples/deniedx/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/deniedx/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 2,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "004 laptop downloaded g3/reg-mod-default/mod/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-default/mod/main.tf",
+    "{run}/clone/g3/reg-mod-default/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-default/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/gate",
+   "mode": "laptop",
+   "name": "005 laptop clone examples/gate/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/gate/main.tf"
+   ],
+   "tree": 3,
+   "want": "G3 {run}/clone/examples/gate/main.tf:1\nG3 {run}/clone/examples/gate/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-var/ex",
+   "mode": "laptop",
+   "name": "006 laptop clone g3/reg-root-var/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-var/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-root-var/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/free-unlexed/ex",
+   "mode": "laptop",
+   "name": "007 laptop clone g3/free-unlexed/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/free-unlexed/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/free-unlexed/ex/main.tf:0\nG3 {run}/clone/g3/free-unlexed/ex/main.tf:1\nG3 {run}/clone/g3/free-unlexed/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-multiline/ex",
+   "mode": "laptop",
+   "name": "008 laptop clone g3/loc-multiline/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-multiline/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-multiline/ex/main.tf:6\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-region/ex",
+   "mode": "laptop",
+   "name": "009 laptop clone g3/pol-region/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-region/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-region/ex/main.tf:1\nG3 {run}/clone/g3/pol-region/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-unresolved/ex",
+   "mode": "laptop",
+   "name": "010 laptop clone g3/bus-unresolved/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-unresolved/ex/main.tf",
+    "{run}/clone/g3/bus-unresolved/mod/main.tf",
+    "{run}/clone/g3/bus-unresolved/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-unresolved/mod/main.tf:1\nG3 {run}/clone/g3/bus-unresolved/mod/main.tf:1\nG3 {run}/clone/g3/bus-unresolved/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/mixed/examples/edited",
+   "mode": "laptop",
+   "name": "011 laptop clone {run}/mixed/examples/edited/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/mixed",
+   "scope": "clone",
+   "stdin": [
+    "{run}/mixed/examples/edited/main.tf",
+    "{run}/mixed/main.tf",
+    "{run}/mixed/variables.tf"
+   ],
+   "tree": 5,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/pol-plain/ex",
+   "mode": "laptop",
+   "name": "012 laptop clone g3/pol-plain/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-plain/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-local/ex",
+   "mode": "laptop",
+   "name": "013 laptop clone g3/reg-root-local/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-local/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-root-local/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "014 runner clone rt/role-and-endpoints.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-and-endpoints.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/role-and-endpoints.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-name/ex",
+   "mode": "laptop",
+   "name": "015 laptop clone g3/pol-name/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-name/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-name/ex/main.tf:1\nG3 {run}/clone/g3/pol-name/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "016 laptop downloaded {run}/plan/data/e1/modules/s3/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/plan/data/e1/modules/s3/main.tf"
+   ],
+   "tree": 6,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "017 runner clone rt/role-fixed.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-fixed.tf"
+   ],
+   "tree": 0,
+   "want": "Xrole {run}/clone/rt/role-fixed.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-arn/ex",
+   "mode": "laptop",
+   "name": "018 laptop clone g3/bus-arn/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-arn/ex/main.tf",
+    "{run}/clone/g3/bus-arn/mod/main.tf",
+    "{run}/clone/g3/bus-arn/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-arn/mod/main.tf:1\nG3 {run}/clone/g3/bus-arn/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/same",
+   "mode": "runner",
+   "name": "019 runner clone examples/same/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/same/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 7,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/prov-region-true-s3/ex",
+   "mode": "laptop",
+   "name": "020 laptop clone g3/prov-region-true-s3/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-region-true-s3/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-region-true-s3/ex/main.tf:1\nG3 {run}/clone/g3/prov-region-true-s3/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/denied",
+   "mode": "laptop",
+   "name": "021 laptop clone {run}/base/examples/denied/main.tf",
+   "providers": [],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/denied/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 2,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/bus-defaults/ex",
+   "mode": "laptop",
+   "name": "022 laptop clone g3/bus-defaults/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-defaults/ex/main.tf",
+    "{run}/clone/g3/bus-defaults/mod/main.tf",
+    "{run}/clone/g3/bus-defaults/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-override.tf/ex",
+   "mode": "laptop",
+   "name": "023 laptop clone g3/ban-prov-skip-override.tf/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-override.tf/ex/main.tf",
+    "{run}/clone/g3/ban-prov-skip-override.tf/ex/override.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-override.tf/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-override.tf/ex/main.tf:1\nG0 {run}/clone/g3/ban-prov-skip-override.tf/ex/override.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/examples/same",
+   "mode": "laptop",
+   "name": "024 laptop clone examples/same/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/same/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 8,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/err",
+   "mode": "runner",
+   "name": "025 runner clone examples/err/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/err/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 9,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/edited",
+   "mode": "runner",
+   "name": "026 runner clone examples/edited/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/edited/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 7,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/prov-skip-unknown/ex",
+   "mode": "laptop",
+   "name": "027 laptop clone g3/prov-skip-unknown/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-skip-unknown/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-skip-unknown/ex/main.tf:1\nG3 {run}/clone/g3/prov-skip-unknown/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "028 runner clone rt/backend.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/backend.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/backend.tf:2\nG3 {run}/clone/rt/backend.tf:2\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-x.tf.json/ex",
+   "mode": "laptop",
+   "name": "029 laptop clone g3/ban-bus-defaults-x.tf.json/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-x.tf.json/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.tf.json/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.tf.json/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-x.tf.json/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.tf.json/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.tf.json/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/split",
+   "mode": "laptop",
+   "name": "030 laptop clone examples/split/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/split/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "031 laptop clone rt/sub-underscore.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-underscore.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/denied",
+   "mode": "laptop",
+   "name": "032 laptop clone examples/denied/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/denied/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "033 runner clone rt/endpoints.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/endpoints.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/endpoints.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-x.auto.tfvars.json.bak/ex",
+   "mode": "laptop",
+   "name": "034 laptop clone g3/ban-pol-plain-x.auto.tfvars.json.bak/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-x.auto.tfvars.json.bak/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-x.auto.tfvars.json.bak/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-x.auto.tfvars.json.bak/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-zero/ex",
+   "mode": "laptop",
+   "name": "035 laptop clone g3/reg-mod-zero/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-zero/ex/main.tf",
+    "{run}/clone/g3/reg-mod-zero/mod/main.tf",
+    "{run}/clone/g3/reg-mod-zero/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-zero/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/denied",
+   "mode": "laptop",
+   "name": "036 laptop clone examples/denied/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/denied/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/gate",
+   "mode": "laptop",
+   "name": "037 laptop clone examples/gate/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/gate/main.tf"
+   ],
+   "tree": 6,
+   "want": "G3 {run}/clone/examples/gate/main.tf:1\nG3 {run}/clone/examples/gate/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ff-arg/ex",
+   "mode": "laptop",
+   "name": "038 laptop clone g3/ff-arg/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ff-arg/ex/main.tf",
+    "{run}/clone/g3/ff-arg/mod/main.tf",
+    "{run}/clone/g3/ff-arg/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G0 {run}/clone/g3/ff-arg/ex/main.tf:5\nG3 {run}/clone/g3/ff-arg/mod/main.tf:1\nG3 {run}/clone/g3/ff-arg/mod/main.tf:1\nG3 {run}/clone/g3/ff-arg/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/mention/ex",
+   "mode": "laptop",
+   "name": "039 laptop clone g3/mention/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/mention/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/mention/ex/main.tf:1\nG3 {run}/clone/g3/mention/ex/main.tf:5\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "040 runner clone rt/sub-bad-4294967295.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-4294967295.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-4294967295.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "041 laptop clone rt/sub-bad-921907419.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-921907419.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-921907419.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "042 runner clone rt/sub-bad-921907419.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-921907419.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-921907419.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "043 laptop clone rt/ok.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/ok.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/ok.tf:34\nG0 {run}/clone/rt/ok.tf:21\nG3 {run}/clone/rt/ok.tf:23\nG3 {run}/clone/rt/ok.tf:31\nG3 {run}/clone/rt/ok.tf:46\nG3 {run}/clone/rt/ok.tf:46\nG3 {run}/clone/rt/ok.tf:22\nG3 {run}/clone/rt/ok.tf:27\nG3 {run}/clone/rt/ok.tf:17\nG3 {run}/clone/rt/ok.tf:23\nG3 {run}/clone/rt/ok.tf:31\nG3 {run}/clone/rt/ok.tf:46\nG3 {run}/clone/rt/ok.tf:46\nG3 {run}/clone/rt/ok.tf:22\nG3 {run}/clone/rt/ok.tf:27\nG3 {run}/clone/rt/ok.tf:17\nG1 {run}/clone/rt/ok.tf:2\nG1 {run}/clone/rt/ok.tf:2\nG1 {run}/clone/rt/ok.tf:2\nG2 {run}/clone/rt/ok.tf:37\n"
+  },
+  {
+   "example": "{run}/clone/g3/prov-region-true-literal/ex",
+   "mode": "laptop",
+   "name": "044 laptop clone g3/prov-region-true-literal/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-region-true-literal/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "045 runner clone rt/adj-data.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/adj-data.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/adj-data.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/prov-endpoints/ex",
+   "mode": "laptop",
+   "name": "046 laptop clone g3/prov-endpoints/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-endpoints/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-endpoints/ex/main.tf:1\nG3 {run}/clone/g3/prov-endpoints/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-x.tfvars.json/ex",
+   "mode": "laptop",
+   "name": "047 laptop clone g3/ban-pol-plain-x.tfvars.json/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-x.tfvars.json/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-x.tfvars.json/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-x.tfvars.json/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/nl",
+   "mode": "laptop",
+   "name": "048 laptop clone examples/nl/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/nl/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-s3/ex",
+   "mode": "laptop",
+   "name": "049 laptop clone g3/reg-root-s3/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-s3/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-root-s3/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-slash/ex",
+   "mode": "laptop",
+   "name": "050 laptop clone g3/bus-slash/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-slash/ex/main.tf",
+    "{run}/clone/g3/bus-slash/mod/main.tf",
+    "{run}/clone/g3/bus-slash/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-slash/mod/main.tf:1\nG3 {run}/clone/g3/bus-slash/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "051 laptop clone rt/ff-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/ff-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/ff-heredoc.tf:4\nG3 {run}/clone/rt/ff-heredoc.tf:6\nG3 {run}/clone/rt/ff-heredoc.tf:6\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "052 runner clone rt/docker.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/docker.tf"
+   ],
+   "tree": 0,
+   "want": "Xdocker {run}/clone/rt/docker.tf:2\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-nested/ex",
+   "mode": "laptop",
+   "name": "053 laptop clone g3/bus-nested/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-nested/ex/main.tf",
+    "{run}/clone/g3/bus-nested/mid/main.tf",
+    "{run}/clone/g3/bus-nested/mod/main.tf",
+    "{run}/clone/g3/bus-nested/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-nested/mod/main.tf:1\nG3 {run}/clone/g3/bus-nested/mod/main.tf:1\nG3 {run}/clone/g3/bus-nested/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "054 runner clone rt/sub-underscore.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-underscore.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/ok",
+   "mode": "laptop",
+   "name": "055 laptop clone examples/ok/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/ok/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/loc-nonliteral/ex",
+   "mode": "laptop",
+   "name": "056 laptop clone g3/loc-nonliteral/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-nonliteral/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-nonliteral/ex/main.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-twice/ex",
+   "mode": "laptop",
+   "name": "057 laptop clone g3/reg-root-twice/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-twice/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-root-twice/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/edited",
+   "mode": "laptop",
+   "name": "058 laptop clone {run}/base/examples/edited/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/edited/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 10,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-local/ex",
+   "mode": "laptop",
+   "name": "059 laptop clone g3/reg-mod-local/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-local/ex/main.tf",
+    "{run}/clone/g3/reg-mod-local/mod/main.tf",
+    "{run}/clone/g3/reg-mod-local/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-local/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-absent/ex",
+   "mode": "laptop",
+   "name": "060 laptop clone g3/reg-root-absent/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-absent/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/prov-skip-var/ex",
+   "mode": "laptop",
+   "name": "061 laptop clone g3/prov-skip-var/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-skip-var/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-skip-var/ex/main.tf:1\nG3 {run}/clone/g3/prov-skip-var/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-nested/ex",
+   "mode": "laptop",
+   "name": "062 laptop clone g3/reg-mod-nested/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-nested/ex/main.tf",
+    "{run}/clone/g3/reg-mod-nested/mid/main.tf",
+    "{run}/clone/g3/reg-mod-nested/mod/main.tf",
+    "{run}/clone/g3/reg-mod-nested/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-nested/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "063 runner clone rt/comment-brace.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/comment-brace.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/comment-brace.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/ok",
+   "mode": "laptop",
+   "name": "064 laptop clone examples/ok/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/ok/main.tf"
+   ],
+   "tree": 11,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/bus-root/ex",
+   "mode": "laptop",
+   "name": "065 laptop clone g3/bus-root/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-root/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "066 runner clone rt/cr-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/cr-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/cr-heredoc.tf:4\nG0 {run}/clone/rt/cr-heredoc.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-default/ex",
+   "mode": "laptop",
+   "name": "067 laptop clone g3/reg-mod-default/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-default/ex/main.tf",
+    "{run}/clone/g3/reg-mod-default/mod/main.tf",
+    "{run}/clone/g3/reg-mod-default/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/crlf-arg/ex",
+   "mode": "laptop",
+   "name": "068 laptop clone g3/crlf-arg/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/crlf-arg/ex/main.tf",
+    "{run}/clone/g3/crlf-arg/mod/main.tf",
+    "{run}/clone/g3/crlf-arg/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G0 {run}/clone/g3/crlf-arg/ex/main.tf:5\nG3 {run}/clone/g3/crlf-arg/mod/main.tf:1\nG3 {run}/clone/g3/crlf-arg/mod/main.tf:1\nG3 {run}/clone/g3/crlf-arg/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-nonliteral/ex",
+   "mode": "laptop",
+   "name": "069 laptop clone g3/bus-nonliteral/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-nonliteral/ex/main.tf",
+    "{run}/clone/g3/bus-nonliteral/mod/main.tf",
+    "{run}/clone/g3/bus-nonliteral/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-nonliteral/mod/main.tf:1\nG3 {run}/clone/g3/bus-nonliteral/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "070 runner clone rt/ok.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/ok.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "071 laptop clone rt/sub-bad-2243126020.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-2243126020.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-2243126020.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "072 runner clone rt/git-source.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/git-source.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/git-source.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-x.auto.tfvars/ex",
+   "mode": "laptop",
+   "name": "073 laptop clone g3/ban-pol-plain-x.auto.tfvars/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-x.auto.tfvars/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-x.auto.tfvars/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-x.auto.tfvars/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "074 runner clone rt/sub-bad-2969256285.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-2969256285.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-2969256285.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-loc-other-dir/ex",
+   "mode": "laptop",
+   "name": "075 laptop clone g3/reg-loc-other-dir/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-loc-other-dir/ex/main.tf",
+    "{run}/clone/g3/reg-loc-other-dir/mod/main.tf",
+    "{run}/clone/g3/reg-loc-other-dir/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/reg-loc-other-dir/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/prov-region-true-var/ex",
+   "mode": "laptop",
+   "name": "076 laptop clone g3/prov-region-true-var/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-region-true-var/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-region-true-var/ex/main.tf:1\nG3 {run}/clone/g3/prov-region-true-var/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-null-name/ex",
+   "mode": "laptop",
+   "name": "077 laptop clone g3/bus-null-name/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-null-name/ex/main.tf",
+    "{run}/clone/g3/bus-null-name/mod/main.tf",
+    "{run}/clone/g3/bus-null-name/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-null-name/mod/main.tf:1\nG3 {run}/clone/g3/bus-null-name/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/denied",
+   "mode": "runner",
+   "name": "078 runner clone examples/denied/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/denied/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 9,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-x.auto.tfvars/ex",
+   "mode": "laptop",
+   "name": "079 laptop clone g3/ban-prov-skip-x.auto.tfvars/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-x.auto.tfvars/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-x.auto.tfvars/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-x.auto.tfvars/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/free-arn/ex",
+   "mode": "laptop",
+   "name": "080 laptop clone g3/free-arn/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/free-arn/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "081 laptop clone rt/adj-module.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/adj-module.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/adj-module.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/edited",
+   "mode": "runner",
+   "name": "082 runner clone {run}/base/examples/edited/main.tf",
+   "providers": [],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/edited/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 12,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "083 runner clone rt/build-in-docker-var.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker-var.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "084 laptop clone rt/build-in-docker.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "{run}/base/examples/same",
+   "mode": "runner",
+   "name": "085 runner clone {run}/base/examples/same/main.tf",
+   "providers": [],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/same/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 12,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-ban/ex",
+   "mode": "laptop",
+   "name": "086 laptop clone g3/reg-mod-ban/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-ban/ex/main.tf",
+    "{run}/clone/g3/reg-mod-ban/mod/main.tf",
+    "{run}/clone/g3/reg-mod-ban/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-ban/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-anchor/ex",
+   "mode": "laptop",
+   "name": "087 laptop clone g3/pol-anchor/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-anchor/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-anchor/ex/main.tf:1\nG3 {run}/clone/g3/pol-anchor/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-loc-call/ex",
+   "mode": "laptop",
+   "name": "088 laptop clone g3/reg-loc-call/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-loc-call/ex/main.tf",
+    "{run}/clone/g3/reg-loc-call/mod/main.tf",
+    "{run}/clone/g3/reg-loc-call/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "089 runner clone rt/open-string.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/open-string.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/open-string.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "090 laptop clone rt/cr-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/cr-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/cr-heredoc.tf:4\nG3 {run}/clone/rt/cr-heredoc.tf:6\nG3 {run}/clone/rt/cr-heredoc.tf:6\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-nn-unsafe/ex",
+   "mode": "laptop",
+   "name": "091 laptop clone g3/bus-nn-unsafe/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-nn-unsafe/ex/main.tf",
+    "{run}/clone/g3/bus-nn-unsafe/mod/main.tf",
+    "{run}/clone/g3/bus-nn-unsafe/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-nn-unsafe/mod/main.tf:1\nG3 {run}/clone/g3/bus-nn-unsafe/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-root/ex",
+   "mode": "laptop",
+   "name": "092 laptop clone g3/loc-root/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-root/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/loc-call-wrongdir/ex",
+   "mode": "laptop",
+   "name": "093 laptop clone g3/loc-call-wrongdir/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-call-wrongdir/ex/main.tf",
+    "{run}/clone/g3/loc-call-wrongdir/mod/main.tf",
+    "{run}/clone/g3/loc-call-wrongdir/mod/v.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-call-wrongdir/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/err",
+   "mode": "laptop",
+   "name": "094 laptop clone examples/err/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/err/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/pol-var/ex",
+   "mode": "laptop",
+   "name": "095 laptop clone g3/pol-var/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-var/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-var/ex/main.tf:1\nG3 {run}/clone/g3/pol-var/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-override.tf/ex",
+   "mode": "laptop",
+   "name": "096 laptop clone g3/ban-bus-defaults-override.tf/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-override.tf/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-override.tf/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-override.tf/mod/override.tf",
+    "{run}/clone/g3/ban-bus-defaults-override.tf/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-override.tf/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-override.tf/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-override.tf/mod/main.tf:1\nG0 {run}/clone/g3/ban-bus-defaults-override.tf/mod/override.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "097 runner clone rt/unquoted-label.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/unquoted-label.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/unquoted-label.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "098 laptop clone rt/adj-provider.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/adj-provider.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/adj-provider.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "099 laptop downloaded g3/reg-mod-literal/mod/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-literal/mod/main.tf",
+    "{run}/clone/g3/reg-mod-literal/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-x.tfvars/ex",
+   "mode": "laptop",
+   "name": "100 laptop clone g3/ban-pol-plain-x.tfvars/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-x.tfvars/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-x.tfvars/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-x.tfvars/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/fresh",
+   "mode": "laptop",
+   "name": "101 laptop clone examples/fresh/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/fresh/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 8,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/ok",
+   "mode": "laptop",
+   "name": "102 laptop clone examples/ok/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/ok/main.tf"
+   ],
+   "tree": 13,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/nospace-call/ex",
+   "mode": "laptop",
+   "name": "103 laptop clone g3/nospace-call/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/nospace-call/ex/main.tf",
+    "{run}/clone/g3/nospace-call/mod/main.tf",
+    "{run}/clone/g3/nospace-call/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/nospace-call/ex/main.tf:4\nG3 {run}/clone/g3/nospace-call/mod/main.tf:1\nG3 {run}/clone/g3/nospace-call/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/crlf-call/ex",
+   "mode": "laptop",
+   "name": "104 laptop clone g3/crlf-call/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/crlf-call/ex/main.tf",
+    "{run}/clone/g3/crlf-call/mod/main.tf",
+    "{run}/clone/g3/crlf-call/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G0 {run}/clone/g3/crlf-call/ex/main.tf:8\nG3 {run}/clone/g3/crlf-call/mod/main.tf:1\nG3 {run}/clone/g3/crlf-call/mod/main.tf:1\nG3 {run}/clone/g3/crlf-call/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/same",
+   "mode": "laptop",
+   "name": "105 laptop clone {run}/base/examples/same/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/same/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 10,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/bus-two-calls/ex",
+   "mode": "laptop",
+   "name": "106 laptop clone g3/bus-two-calls/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-two-calls/ex/main.tf",
+    "{run}/clone/g3/bus-two-calls/mod/main.tf",
+    "{run}/clone/g3/bus-two-calls/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-two-calls/mod/main.tf:1\nG3 {run}/clone/g3/bus-two-calls/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "107 runner clone rt/github-lookalike.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/github-lookalike.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/github-lookalike.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-region-true/ex",
+   "mode": "laptop",
+   "name": "108 laptop clone g3/ban-region-true/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-region-true/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-region-true/ex/main.tf:1\nG3 {run}/clone/g3/ban-region-true/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-brace/ex",
+   "mode": "laptop",
+   "name": "109 laptop clone g3/pol-brace/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-brace/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-brace/ex/main.tf:1\nG3 {run}/clone/g3/pol-brace/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-comment/ex",
+   "mode": "laptop",
+   "name": "110 laptop clone g3/pol-comment/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-comment/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-comment/ex/main.tf:1\nG3 {run}/clone/g3/pol-comment/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "111 runner clone rt/adj-module.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/adj-module.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/adj-module.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/ex",
+   "mode": "laptop",
+   "name": "112 laptop clone g3/ban-bus-defaults-x.auto.tfvars.json.bak/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "113 runner clone rt/both-tricks.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/both-tricks.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/both-tricks.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/err",
+   "mode": "laptop",
+   "name": "114 laptop clone {run}/base/examples/err/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/err/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 2,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "115 laptop clone rt/adj-data.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/adj-data.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/adj-data.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars/ex",
+   "mode": "laptop",
+   "name": "116 laptop clone g3/ban-bus-defaults-x.auto.tfvars/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.auto.tfvars/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-x.auto.tfvars/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.auto.tfvars/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.auto.tfvars/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/denied",
+   "mode": "laptop",
+   "name": "117 laptop clone {run}/base/examples/denied/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/denied/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 2,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/rfree-pass/ex",
+   "mode": "laptop",
+   "name": "118 laptop clone g3/rfree-pass/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/rfree-pass/ex/main.tf",
+    "{run}/clone/g3/rfree-pass/mod/main.tf",
+    "{run}/clone/g3/rfree-pass/mod/variables.tf",
+    "{run}/clone/g3/rfree-pass/root/main.tf"
+   ],
+   "tree": 4,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/rfree-az/ex",
+   "mode": "laptop",
+   "name": "119 laptop clone g3/rfree-az/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/rfree-az/ex/main.tf",
+    "{run}/clone/g3/rfree-az/mod/main.tf",
+    "{run}/clone/g3/rfree-az/mod/variables.tf",
+    "{run}/clone/g3/rfree-az/root/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/rfree-az/mod/main.tf:12\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-call-local/ex",
+   "mode": "laptop",
+   "name": "120 laptop clone g3/reg-mod-call-local/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-call-local/ex/main.tf",
+    "{run}/clone/g3/reg-mod-call-local/mod/main.tf",
+    "{run}/clone/g3/reg-mod-call-local/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-call-local/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-interp/ex",
+   "mode": "laptop",
+   "name": "121 laptop clone g3/reg-root-interp/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-interp/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-root-interp/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-x.tfvars.json/ex",
+   "mode": "laptop",
+   "name": "122 laptop clone g3/ban-prov-skip-x.tfvars.json/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-x.tfvars.json/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-x.tfvars.json/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-x.tfvars.json/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/leak",
+   "mode": "laptop",
+   "name": "123 laptop clone examples/leak/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/leak/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 6,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/bus-zero/ex",
+   "mode": "laptop",
+   "name": "124 laptop clone g3/bus-zero/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-zero/ex/main.tf",
+    "{run}/clone/g3/bus-zero/mod/main.tf",
+    "{run}/clone/g3/bus-zero/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-zero/mod/main.tf:1\nG3 {run}/clone/g3/bus-zero/mod/main.tf:1\nG3 {run}/clone/g3/bus-zero/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "125 laptop downloaded {run}/plan/data/e1/modules/s3/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/plan/data/e1/modules/s3/main.tf"
+   ],
+   "tree": 14,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "126 runner clone rt/sub-bad-2243126020.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-2243126020.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-2243126020.tf:1\n"
+  },
+  {
+   "example": "{run}/base/examples/denied",
+   "mode": "runner",
+   "name": "127 runner clone {run}/base/examples/denied/main.tf",
+   "providers": [],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/denied/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 15,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/pol-dot/ex",
+   "mode": "laptop",
+   "name": "128 laptop clone g3/pol-dot/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-dot/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-dot/ex/main.tf:1\nG3 {run}/clone/g3/pol-dot/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-region-fake/ex",
+   "mode": "laptop",
+   "name": "129 laptop clone g3/bus-region-fake/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-region-fake/ex/main.tf",
+    "{run}/clone/g3/bus-region-fake/mod/main.tf",
+    "{run}/clone/g3/bus-region-fake/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "130 runner downloaded rt/build-in-docker.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker.tf"
+   ],
+   "tree": 0,
+   "want": "Xdocker {run}/clone/rt/build-in-docker.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-null-region/ex",
+   "mode": "laptop",
+   "name": "131 laptop clone g3/bus-null-region/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-null-region/ex/main.tf",
+    "{run}/clone/g3/bus-null-region/mod/main.tf",
+    "{run}/clone/g3/bus-null-region/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "132 laptop downloaded {run}/plan/data/e13/modules/s3/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/plan/data/e13/modules/s3/main.tf"
+   ],
+   "tree": 16,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-x.tfvars.json/ex",
+   "mode": "laptop",
+   "name": "133 laptop clone g3/ban-bus-defaults-x.tfvars.json/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-x.tfvars.json/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.tfvars.json/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.tfvars.json/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-x.tfvars.json/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.tfvars.json/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.tfvars.json/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-x_override.tf/ex",
+   "mode": "laptop",
+   "name": "134 laptop clone g3/ban-bus-defaults-x_override.tf/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-x_override.tf/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x_override.tf/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x_override.tf/mod/variables.tf",
+    "{run}/clone/g3/ban-bus-defaults-x_override.tf/mod/x_override.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-x_override.tf/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x_override.tf/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x_override.tf/mod/main.tf:1\nG0 {run}/clone/g3/ban-bus-defaults-x_override.tf/mod/x_override.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-dup/ex",
+   "mode": "laptop",
+   "name": "135 laptop clone g3/loc-dup/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-dup/ex/main.tf",
+    "{run}/clone/g3/loc-dup/ex/other.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-dup/ex/main.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-ban/ex",
+   "mode": "laptop",
+   "name": "136 laptop clone g3/loc-ban/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-ban/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-ban/ex/main.tf:4\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "137 laptop clone rt/sub-bad-4294967295.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-4294967295.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-4294967295.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-provider/ex",
+   "mode": "laptop",
+   "name": "138 laptop clone g3/pol-provider/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-provider/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-provider/ex/main.tf:1\nG3 {run}/clone/g3/pol-provider/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "139 runner clone rt/hash-in-string.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/hash-in-string.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/hash-in-string.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-x.tf.json/ex",
+   "mode": "laptop",
+   "name": "140 laptop clone g3/ban-pol-plain-x.tf.json/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-x.tf.json/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-x.tf.json/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-x.tf.json/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "141 runner clone rt/build-in-docker-nested.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker-nested.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/edited",
+   "mode": "laptop",
+   "name": "142 laptop clone examples/edited/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/edited/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 8,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "143 runner clone rt/open-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/open-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/open-heredoc.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-x_override.tf/ex",
+   "mode": "laptop",
+   "name": "144 laptop clone g3/ban-pol-plain-x_override.tf/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-x_override.tf/ex/main.tf",
+    "{run}/clone/g3/ban-pol-plain-x_override.tf/ex/x_override.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-x_override.tf/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-x_override.tf/ex/main.tf:1\nG0 {run}/clone/g3/ban-pol-plain-x_override.tf/ex/x_override.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/examples/err",
+   "mode": "laptop",
+   "name": "145 laptop clone examples/err/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/err/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 6,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/bus-extra/ex",
+   "mode": "laptop",
+   "name": "146 laptop clone g3/bus-extra/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-extra/ex/main.tf",
+    "{run}/clone/g3/bus-extra/mod/main.tf",
+    "{run}/clone/g3/bus-extra/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-extra/mod/main.tf:1\nG3 {run}/clone/g3/bus-extra/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "147 runner clone rt/role-variable.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-variable.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/role-variable.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "148 runner clone rt/lookalike.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/lookalike.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/lookalike.tf:2\n"
+  },
+  {
+   "example": "{run}/clone/examples/same",
+   "mode": "laptop",
+   "name": "149 laptop clone examples/same/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/same/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 8,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-x.auto.tfvars.json.bak/ex",
+   "mode": "laptop",
+   "name": "150 laptop clone g3/ban-prov-skip-x.auto.tfvars.json.bak/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-x.auto.tfvars.json.bak/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-x.auto.tfvars.json.bak/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-x.auto.tfvars.json.bak/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "151 runner clone rt/nbsp-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/nbsp-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/nbsp-heredoc.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/examples/leak",
+   "mode": "laptop",
+   "name": "152 laptop clone examples/leak/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/leak/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 2,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/pol-partition/ex",
+   "mode": "laptop",
+   "name": "153 laptop clone g3/pol-partition/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-partition/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/prov-split/ex",
+   "mode": "laptop",
+   "name": "154 laptop clone g3/prov-split/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-split/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/prov-split/ex/main.tf:4\nG3 {run}/clone/g3/prov-split/ex/main.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/g3/mention/ex",
+   "mode": "laptop",
+   "name": "155 laptop clone g3/mention/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/mention/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/mention/ex/main.tf:1\nG3 {run}/clone/g3/mention/ex/main.tf:5\n"
+  },
+  {
+   "example": "{run}/clone/g3/prov-region-true/ex",
+   "mode": "laptop",
+   "name": "156 laptop clone g3/prov-region-true/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-region-true/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-region-true/ex/main.tf:1\nG3 {run}/clone/g3/prov-region-true/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-dotfile/ex",
+   "mode": "laptop",
+   "name": "157 laptop clone g3/loc-dotfile/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-dotfile/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-dotfile/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "158 runner clone rt/sub-bad-name.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-name.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-name.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-pol-plain-override.tf/ex",
+   "mode": "laptop",
+   "name": "159 laptop clone g3/ban-pol-plain-override.tf/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-pol-plain-override.tf/ex/main.tf",
+    "{run}/clone/g3/ban-pol-plain-override.tf/ex/override.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-pol-plain-override.tf/ex/main.tf:1\nG3 {run}/clone/g3/ban-pol-plain-override.tf/ex/main.tf:1\nG0 {run}/clone/g3/ban-pol-plain-override.tf/ex/override.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "160 runner clone rt/docker-and-backend.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/docker-and-backend.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/docker-and-backend.tf:7\nG3 {run}/clone/rt/docker-and-backend.tf:7\nXdocker {run}/clone/rt/docker-and-backend.tf:2\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-dup/ex",
+   "mode": "laptop",
+   "name": "161 laptop clone g3/loc-dup/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-dup/ex/main.tf",
+    "{run}/clone/g3/loc-dup/ex/other.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/loc-dup/ex/main.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-root-var/ex",
+   "mode": "laptop",
+   "name": "162 laptop clone g3/bus-root-var/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-root-var/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-root-var/ex/main.tf:1\nG3 {run}/clone/g3/bus-root-var/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-literal/ex",
+   "mode": "laptop",
+   "name": "163 laptop clone g3/reg-root-literal/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-literal/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "164 runner clone rt/role-interpolated.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-interpolated.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/role-interpolated.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-long/ex",
+   "mode": "laptop",
+   "name": "165 laptop clone g3/pol-long/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-long/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-long/ex/main.tf:1\nG3 {run}/clone/g3/pol-long/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "166 laptop clone g3/bus-defaults/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-defaults/ex/main.tf",
+    "{run}/clone/g3/bus-defaults/mod/main.tf",
+    "{run}/clone/g3/bus-defaults/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-defaults/mod/main.tf:1\nG3 {run}/clone/g3/bus-defaults/mod/main.tf:1\nG3 {run}/clone/g3/bus-defaults/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "167 runner clone rt/ls-heredoc.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/ls-heredoc.tf"
+   ],
+   "tree": 0,
+   "want": "G0 {run}/clone/rt/ls-heredoc.tf:0\n"
+  },
+  {
+   "example": "{run}/mixed/examples/edited",
+   "mode": "runner",
+   "name": "168 runner clone {run}/mixed/examples/edited/main.tf",
+   "providers": [],
+   "root": "{run}/mixed",
+   "scope": "clone",
+   "stdin": [
+    "{run}/mixed/examples/edited/main.tf",
+    "{run}/mixed/main.tf",
+    "{run}/mixed/variables.tf"
+   ],
+   "tree": 17,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-call-s3/ex",
+   "mode": "laptop",
+   "name": "169 laptop clone g3/reg-mod-call-s3/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-call-s3/ex/main.tf",
+    "{run}/clone/g3/reg-mod-call-s3/mod/main.tf",
+    "{run}/clone/g3/reg-mod-call-s3/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-mod-call-s3/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-bus-root/ex",
+   "mode": "laptop",
+   "name": "170 laptop clone g3/loc-bus-root/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-bus-root/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "171 runner clone rt/role-twice.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-twice.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/role-twice.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-x.tf.json/ex",
+   "mode": "laptop",
+   "name": "172 laptop clone g3/ban-prov-skip-x.tf.json/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-x.tf.json/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-x.tf.json/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-x.tf.json/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "173 runner clone rt/build-in-docker.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker.tf"
+   ],
+   "tree": 0,
+   "want": "Xdocker {run}/clone/rt/build-in-docker.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-interp/ex",
+   "mode": "laptop",
+   "name": "174 laptop clone g3/pol-interp/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-interp/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-interp/ex/main.tf:1\nG3 {run}/clone/g3/pol-interp/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "175 runner clone rt/role-extra.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/role-extra.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/role-extra.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "176 runner clone rt/dynamic-role.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/dynamic-role.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/dynamic-role.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "177 runner clone rt/build-in-docker-false.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker-false.tf"
+   ],
+   "tree": 0,
+   "want": ""
+  },
+  {
+   "example": "{run}/base/examples/same",
+   "mode": "laptop",
+   "name": "178 laptop clone {run}/base/examples/same/main.tf",
+   "providers": [],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/same/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 10,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/pol-heredoc/ex",
+   "mode": "laptop",
+   "name": "179 laptop clone g3/pol-heredoc/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-heredoc/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-heredoc/ex/main.tf:1\nG3 {run}/clone/g3/pol-heredoc/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/rfree-az/ex",
+   "mode": "laptop",
+   "name": "180 laptop clone g3/rfree-az/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/rfree-az/ex/main.tf",
+    "{run}/clone/g3/rfree-az/mod/main.tf",
+    "{run}/clone/g3/rfree-az/mod/variables.tf",
+    "{run}/clone/g3/rfree-az/root/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/rfree-az/mod/main.tf:12\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "181 laptop clone rt/docker.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/docker.tf"
+   ],
+   "tree": 0,
+   "want": "G1 {run}/clone/rt/docker.tf:2\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-x_override.tf/ex",
+   "mode": "laptop",
+   "name": "182 laptop clone g3/ban-prov-skip-x_override.tf/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-x_override.tf/ex/main.tf",
+    "{run}/clone/g3/ban-prov-skip-x_override.tf/ex/x_override.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-x_override.tf/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-x_override.tf/ex/main.tf:1\nG0 {run}/clone/g3/ban-prov-skip-x_override.tf/ex/x_override.tf:0\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-for-each/ex",
+   "mode": "laptop",
+   "name": "183 laptop clone g3/pol-for-each/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-for-each/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-for-each/ex/main.tf:1\nG3 {run}/clone/g3/pol-for-each/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-unlexed/ex",
+   "mode": "laptop",
+   "name": "184 laptop clone g3/reg-unlexed/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-unlexed/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-unlexed/ex/main.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "185 runner clone rt/cloud.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/cloud.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/cloud.tf:2\nG3 {run}/clone/rt/cloud.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "186 runner clone rt/adj-provider.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/adj-provider.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/adj-provider.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-dotdot/ex",
+   "mode": "laptop",
+   "name": "187 laptop clone g3/pol-dotdot/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-dotdot/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-dotdot/ex/main.tf:1\nG3 {run}/clone/g3/pol-dotdot/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "188 laptop clone rt/sub-bad-name.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-name.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-name.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-nn-safe/ex",
+   "mode": "laptop",
+   "name": "189 laptop clone g3/bus-nn-safe/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-nn-safe/ex/main.tf",
+    "{run}/clone/g3/bus-nn-safe/mod/main.tf",
+    "{run}/clone/g3/bus-nn-safe/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/reg-mod-literal/ex",
+   "mode": "laptop",
+   "name": "190 laptop clone g3/reg-mod-literal/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-mod-literal/ex/main.tf",
+    "{run}/clone/g3/reg-mod-literal/mod/main.tf",
+    "{run}/clone/g3/reg-mod-literal/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/loc-path/ex",
+   "mode": "laptop",
+   "name": "191 laptop clone g3/loc-path/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-path/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-path/ex/main.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-multi-count/ex",
+   "mode": "laptop",
+   "name": "192 laptop clone g3/pol-multi-count/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-multi-count/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-multi-count/ex/main.tf:1\nG3 {run}/clone/g3/pol-multi-count/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/examples/nl",
+   "mode": "laptop",
+   "name": "193 laptop clone examples/nl/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/nl/main.tf",
+    "{run}/clone/main.tf"
+   ],
+   "tree": 3,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/free-file/ex",
+   "mode": "laptop",
+   "name": "194 laptop clone g3/free-file/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/free-file/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/free-file/ex/main.tf:2\nG3 {run}/clone/g3/free-file/ex/main.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "195 runner clone rt/profile.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/profile.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/profile.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "196 laptop downloaded g3/bus-defaults/mod/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "downloaded",
+   "stdin": [
+    "{run}/clone/g3/bus-defaults/mod/main.tf",
+    "{run}/clone/g3/bus-defaults/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-defaults/mod/main.tf:1\nG3 {run}/clone/g3/bus-defaults/mod/main.tf:1\nG3 {run}/clone/g3/bus-defaults/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-region-host/ex",
+   "mode": "laptop",
+   "name": "197 laptop clone g3/bus-region-host/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-region-host/ex/main.tf",
+    "{run}/clone/g3/bus-region-host/mod/main.tf",
+    "{run}/clone/g3/bus-region-host/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-region-host/mod/main.tf:1\nG3 {run}/clone/g3/bus-region-host/mod/main.tf:1\nG3 {run}/clone/g3/bus-region-host/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/bus-nn-var/ex",
+   "mode": "laptop",
+   "name": "198 laptop clone g3/bus-nn-var/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-nn-var/ex/main.tf",
+    "{run}/clone/g3/bus-nn-var/mod/main.tf",
+    "{run}/clone/g3/bus-nn-var/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-nn-var/mod/main.tf:1\nG3 {run}/clone/g3/bus-nn-var/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-bus-defaults-x.tfvars/ex",
+   "mode": "laptop",
+   "name": "199 laptop clone g3/ban-bus-defaults-x.tfvars/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-bus-defaults-x.tfvars/ex/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.tfvars/mod/main.tf",
+    "{run}/clone/g3/ban-bus-defaults-x.tfvars/mod/variables.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-bus-defaults-x.tfvars/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.tfvars/mod/main.tf:1\nG3 {run}/clone/g3/ban-bus-defaults-x.tfvars/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-unlexed/ex",
+   "mode": "laptop",
+   "name": "200 laptop clone g3/loc-unlexed/ex/broken.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-unlexed/ex/broken.tf",
+    "{run}/clone/g3/loc-unlexed/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-unlexed/ex/main.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/g3/prov-region-true-comment/ex",
+   "mode": "laptop",
+   "name": "201 laptop clone g3/prov-region-true-comment/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-region-true-comment/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/prov-region-true-comment/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/free-doc/ex",
+   "mode": "laptop",
+   "name": "202 laptop clone g3/free-doc/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/free-doc/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "203 runner clone rt/renamed.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/renamed.tf"
+   ],
+   "tree": 0,
+   "want": "G1 {run}/clone/rt/renamed.tf:2\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-data/ex",
+   "mode": "laptop",
+   "name": "204 laptop clone g3/reg-root-data/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-data/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/reg-root-data/ex/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "205 laptop clone rt/sub-bad-2969256285.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/sub-bad-2969256285.tf"
+   ],
+   "tree": 0,
+   "want": "G2 {run}/clone/rt/sub-bad-2969256285.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/reg-root-null/ex",
+   "mode": "laptop",
+   "name": "206 laptop clone g3/reg-root-null/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/reg-root-null/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/examples/fresh",
+   "mode": "runner",
+   "name": "207 runner clone examples/fresh/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/fresh/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 7,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/prov-skip/ex",
+   "mode": "laptop",
+   "name": "208 laptop clone g3/prov-skip/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/prov-skip/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": ""
+  },
+  {
+   "example": "{run}/base/examples/edited",
+   "mode": "laptop",
+   "name": "209 laptop clone {run}/base/examples/edited/main.tf",
+   "providers": [],
+   "root": "{run}/base",
+   "scope": "clone",
+   "stdin": [
+    "{run}/base/examples/edited/main.tf",
+    "{run}/base/main.tf"
+   ],
+   "tree": 10,
+   "want": ""
+  },
+  {
+   "example": "{run}/clone/g3/bus-dup-name/ex",
+   "mode": "laptop",
+   "name": "210 laptop clone g3/bus-dup-name/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/bus-dup-name/ex/main.tf",
+    "{run}/clone/g3/bus-dup-name/mod/main.tf",
+    "{run}/clone/g3/bus-dup-name/mod/variables.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/bus-dup-name/mod/main.tf:1\nG3 {run}/clone/g3/bus-dup-name/mod/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/ban-prov-skip-x.tfvars/ex",
+   "mode": "laptop",
+   "name": "211 laptop clone g3/ban-prov-skip-x.tfvars/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/ban-prov-skip-x.tfvars/ex/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/ban-prov-skip-x.tfvars/ex/main.tf:1\nG3 {run}/clone/g3/ban-prov-skip-x.tfvars/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/pol-account/ex",
+   "mode": "laptop",
+   "name": "212 laptop clone g3/pol-account/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/pol-account/ex/main.tf"
+   ],
+   "tree": 1,
+   "want": "G3 {run}/clone/g3/pol-account/ex/main.tf:1\nG3 {run}/clone/g3/pol-account/ex/main.tf:1\n"
+  },
+  {
+   "example": "{run}/clone/g3/loc-data-wrongdir/ex",
+   "mode": "laptop",
+   "name": "213 laptop clone g3/loc-data-wrongdir/ex/main.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/g3/loc-data-wrongdir/ex/main.tf",
+    "{run}/clone/g3/loc-data-wrongdir/mod/main.tf"
+   ],
+   "tree": 4,
+   "want": "G3 {run}/clone/g3/loc-data-wrongdir/mod/main.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "214 runner clone rt/build-in-docker-and-backend.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/rt/build-in-docker-and-backend.tf"
+   ],
+   "tree": 0,
+   "want": "G3 {run}/clone/rt/build-in-docker-and-backend.tf:2\nG3 {run}/clone/rt/build-in-docker-and-backend.tf:2\nXdocker {run}/clone/rt/build-in-docker-and-backend.tf:4\n"
+  },
+  {
+   "example": "{run}/clone/examples/edited",
+   "mode": "laptop",
+   "name": "215 laptop clone examples/edited/main.tf",
+   "providers": [],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/examples/edited/main.tf",
+    "{run}/clone/main.tf",
+    "{run}/clone/variables.tf"
+   ],
+   "tree": 8,
+   "want": ""
+  }
+ ],
+ "dirs": {
+  "00": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "clone/rt"
+  ],
+  "01": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "clone/g3",
+   "clone/g3/ban-bus-defaults-override.tf",
+   "clone/g3/ban-bus-defaults-override.tf/ex",
+   "clone/g3/ban-bus-defaults-override.tf/mod",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/ex",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars/ex",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars/mod",
+   "clone/g3/ban-bus-defaults-x.tf.json",
+   "clone/g3/ban-bus-defaults-x.tf.json/ex",
+   "clone/g3/ban-bus-defaults-x.tf.json/mod",
+   "clone/g3/ban-bus-defaults-x.tfvars",
+   "clone/g3/ban-bus-defaults-x.tfvars.json",
+   "clone/g3/ban-bus-defaults-x.tfvars.json/ex",
+   "clone/g3/ban-bus-defaults-x.tfvars.json/mod",
+   "clone/g3/ban-bus-defaults-x.tfvars/ex",
+   "clone/g3/ban-bus-defaults-x.tfvars/mod",
+   "clone/g3/ban-bus-defaults-x_override.tf",
+   "clone/g3/ban-bus-defaults-x_override.tf/ex",
+   "clone/g3/ban-bus-defaults-x_override.tf/mod",
+   "clone/g3/ban-pol-plain-override.tf",
+   "clone/g3/ban-pol-plain-override.tf/ex",
+   "clone/g3/ban-pol-plain-x.auto.tfvars",
+   "clone/g3/ban-pol-plain-x.auto.tfvars.json.bak",
+   "clone/g3/ban-pol-plain-x.auto.tfvars.json.bak/ex",
+   "clone/g3/ban-pol-plain-x.auto.tfvars/ex",
+   "clone/g3/ban-pol-plain-x.tf.json",
+   "clone/g3/ban-pol-plain-x.tf.json/ex",
+   "clone/g3/ban-pol-plain-x.tfvars",
+   "clone/g3/ban-pol-plain-x.tfvars.json",
+   "clone/g3/ban-pol-plain-x.tfvars.json/ex",
+   "clone/g3/ban-pol-plain-x.tfvars/ex",
+   "clone/g3/ban-pol-plain-x_override.tf",
+   "clone/g3/ban-pol-plain-x_override.tf/ex",
+   "clone/g3/ban-prov-skip-override.tf",
+   "clone/g3/ban-prov-skip-override.tf/ex",
+   "clone/g3/ban-prov-skip-x.auto.tfvars",
+   "clone/g3/ban-prov-skip-x.auto.tfvars.json.bak",
+   "clone/g3/ban-prov-skip-x.auto.tfvars.json.bak/ex",
+   "clone/g3/ban-prov-skip-x.auto.tfvars/ex",
+   "clone/g3/ban-prov-skip-x.tf.json",
+   "clone/g3/ban-prov-skip-x.tf.json/ex",
+   "clone/g3/ban-prov-skip-x.tfvars",
+   "clone/g3/ban-prov-skip-x.tfvars.json",
+   "clone/g3/ban-prov-skip-x.tfvars.json/ex",
+   "clone/g3/ban-prov-skip-x.tfvars/ex",
+   "clone/g3/ban-prov-skip-x_override.tf",
+   "clone/g3/ban-prov-skip-x_override.tf/ex",
+   "clone/g3/bus-arn",
+   "clone/g3/bus-arn/ex",
+   "clone/g3/bus-arn/mod",
+   "clone/g3/bus-defaults",
+   "clone/g3/bus-defaults/ex",
+   "clone/g3/bus-defaults/mod",
+   "clone/g3/bus-dup-name",
+   "clone/g3/bus-dup-name/ex",
+   "clone/g3/bus-dup-name/mod",
+   "clone/g3/bus-extra",
+   "clone/g3/bus-extra/ex",
+   "clone/g3/bus-extra/mod",
+   "clone/g3/bus-nested",
+   "clone/g3/bus-nested/ex",
+   "clone/g3/bus-nested/mid",
+   "clone/g3/bus-nested/mod",
+   "clone/g3/bus-nn-safe",
+   "clone/g3/bus-nn-safe/ex",
+   "clone/g3/bus-nn-safe/mod",
+   "clone/g3/bus-nn-unsafe",
+   "clone/g3/bus-nn-unsafe/ex",
+   "clone/g3/bus-nn-unsafe/mod",
+   "clone/g3/bus-nn-var",
+   "clone/g3/bus-nn-var/ex",
+   "clone/g3/bus-nn-var/mod",
+   "clone/g3/bus-nonliteral",
+   "clone/g3/bus-nonliteral/ex",
+   "clone/g3/bus-nonliteral/mod",
+   "clone/g3/bus-null-name",
+   "clone/g3/bus-null-name/ex",
+   "clone/g3/bus-null-name/mod",
+   "clone/g3/bus-null-region",
+   "clone/g3/bus-null-region/ex",
+   "clone/g3/bus-null-region/mod",
+   "clone/g3/bus-region-fake",
+   "clone/g3/bus-region-fake/ex",
+   "clone/g3/bus-region-fake/mod",
+   "clone/g3/bus-region-host",
+   "clone/g3/bus-region-host/ex",
+   "clone/g3/bus-region-host/mod",
+   "clone/g3/bus-root",
+   "clone/g3/bus-root-var",
+   "clone/g3/bus-root-var/ex",
+   "clone/g3/bus-root/ex",
+   "clone/g3/bus-slash",
+   "clone/g3/bus-slash/ex",
+   "clone/g3/bus-slash/mod",
+   "clone/g3/bus-two-calls",
+   "clone/g3/bus-two-calls/ex",
+   "clone/g3/bus-two-calls/mod",
+   "clone/g3/bus-unresolved",
+   "clone/g3/bus-unresolved/ex",
+   "clone/g3/bus-unresolved/mod",
+   "clone/g3/bus-zero",
+   "clone/g3/bus-zero/ex",
+   "clone/g3/bus-zero/mod",
+   "clone/g3/crlf-arg",
+   "clone/g3/crlf-arg/ex",
+   "clone/g3/crlf-arg/mod",
+   "clone/g3/crlf-call",
+   "clone/g3/crlf-call/ex",
+   "clone/g3/crlf-call/mod",
+   "clone/g3/ff-arg",
+   "clone/g3/ff-arg/ex",
+   "clone/g3/ff-arg/mod",
+   "clone/g3/free-arn",
+   "clone/g3/free-arn/ex",
+   "clone/g3/free-doc",
+   "clone/g3/free-doc/ex",
+   "clone/g3/free-file",
+   "clone/g3/free-file/ex",
+   "clone/g3/free-unlexed",
+   "clone/g3/free-unlexed/ex",
+   "clone/g3/loc-ban",
+   "clone/g3/loc-ban/ex",
+   "clone/g3/loc-bus-root",
+   "clone/g3/loc-bus-root/ex",
+   "clone/g3/loc-call-wrongdir",
+   "clone/g3/loc-call-wrongdir/ex",
+   "clone/g3/loc-call-wrongdir/mod",
+   "clone/g3/loc-data-wrongdir",
+   "clone/g3/loc-data-wrongdir/ex",
+   "clone/g3/loc-data-wrongdir/mod",
+   "clone/g3/loc-dotfile",
+   "clone/g3/loc-dotfile/ex",
+   "clone/g3/loc-dup",
+   "clone/g3/loc-dup/ex",
+   "clone/g3/loc-multiline",
+   "clone/g3/loc-multiline/ex",
+   "clone/g3/loc-nonliteral",
+   "clone/g3/loc-nonliteral/ex",
+   "clone/g3/loc-path",
+   "clone/g3/loc-path/ex",
+   "clone/g3/loc-root",
+   "clone/g3/loc-root/ex",
+   "clone/g3/loc-unlexed",
+   "clone/g3/loc-unlexed/ex",
+   "clone/g3/mention",
+   "clone/g3/mention/ex",
+   "clone/g3/nospace-call",
+   "clone/g3/nospace-call/ex",
+   "clone/g3/nospace-call/mod",
+   "clone/g3/pol-account",
+   "clone/g3/pol-account/ex",
+   "clone/g3/pol-anchor",
+   "clone/g3/pol-anchor/ex",
+   "clone/g3/pol-brace",
+   "clone/g3/pol-brace/ex",
+   "clone/g3/pol-comment",
+   "clone/g3/pol-comment/ex",
+   "clone/g3/pol-dot",
+   "clone/g3/pol-dot/ex",
+   "clone/g3/pol-dotdot",
+   "clone/g3/pol-dotdot/ex",
+   "clone/g3/pol-for-each",
+   "clone/g3/pol-for-each/ex",
+   "clone/g3/pol-heredoc",
+   "clone/g3/pol-heredoc/ex",
+   "clone/g3/pol-interp",
+   "clone/g3/pol-interp/ex",
+   "clone/g3/pol-long",
+   "clone/g3/pol-long/ex",
+   "clone/g3/pol-multi-count",
+   "clone/g3/pol-multi-count/ex",
+   "clone/g3/pol-name",
+   "clone/g3/pol-name/ex",
+   "clone/g3/pol-partition",
+   "clone/g3/pol-partition/ex",
+   "clone/g3/pol-plain",
+   "clone/g3/pol-plain/ex",
+   "clone/g3/pol-provider",
+   "clone/g3/pol-provider/ex",
+   "clone/g3/pol-region",
+   "clone/g3/pol-region/ex",
+   "clone/g3/pol-var",
+   "clone/g3/pol-var/ex",
+   "clone/g3/prov-endpoints",
+   "clone/g3/prov-endpoints/ex",
+   "clone/g3/prov-region-true",
+   "clone/g3/prov-region-true-comment",
+   "clone/g3/prov-region-true-comment/ex",
+   "clone/g3/prov-region-true-literal",
+   "clone/g3/prov-region-true-literal/ex",
+   "clone/g3/prov-region-true-s3",
+   "clone/g3/prov-region-true-s3/ex",
+   "clone/g3/prov-region-true-var",
+   "clone/g3/prov-region-true-var/ex",
+   "clone/g3/prov-region-true/ex",
+   "clone/g3/prov-skip",
+   "clone/g3/prov-skip-unknown",
+   "clone/g3/prov-skip-unknown/ex",
+   "clone/g3/prov-skip-var",
+   "clone/g3/prov-skip-var/ex",
+   "clone/g3/prov-skip/ex",
+   "clone/g3/prov-split",
+   "clone/g3/prov-split/ex",
+   "clone/g3/reg-loc-call",
+   "clone/g3/reg-loc-call/ex",
+   "clone/g3/reg-loc-call/mod",
+   "clone/g3/reg-loc-other-dir",
+   "clone/g3/reg-loc-other-dir/ex",
+   "clone/g3/reg-loc-other-dir/mod",
+   "clone/g3/reg-mod-ban",
+   "clone/g3/reg-mod-ban/ex",
+   "clone/g3/reg-mod-ban/mod",
+   "clone/g3/reg-mod-call-literal",
+   "clone/g3/reg-mod-call-literal/ex",
+   "clone/g3/reg-mod-call-literal/mod",
+   "clone/g3/reg-mod-call-local",
+   "clone/g3/reg-mod-call-local/ex",
+   "clone/g3/reg-mod-call-local/mod",
+   "clone/g3/reg-mod-call-s3",
+   "clone/g3/reg-mod-call-s3/ex",
+   "clone/g3/reg-mod-call-s3/mod",
+   "clone/g3/reg-mod-default",
+   "clone/g3/reg-mod-default/ex",
+   "clone/g3/reg-mod-default/mod",
+   "clone/g3/reg-mod-literal",
+   "clone/g3/reg-mod-literal/ex",
+   "clone/g3/reg-mod-literal/mod",
+   "clone/g3/reg-mod-local",
+   "clone/g3/reg-mod-local/ex",
+   "clone/g3/reg-mod-local/mod",
+   "clone/g3/reg-mod-nested",
+   "clone/g3/reg-mod-nested/ex",
+   "clone/g3/reg-mod-nested/mid",
+   "clone/g3/reg-mod-nested/mod",
+   "clone/g3/reg-mod-zero",
+   "clone/g3/reg-mod-zero/ex",
+   "clone/g3/reg-mod-zero/mod",
+   "clone/g3/reg-root-absent",
+   "clone/g3/reg-root-absent/ex",
+   "clone/g3/reg-root-data",
+   "clone/g3/reg-root-data/ex",
+   "clone/g3/reg-root-interp",
+   "clone/g3/reg-root-interp/ex",
+   "clone/g3/reg-root-literal",
+   "clone/g3/reg-root-literal/ex",
+   "clone/g3/reg-root-local",
+   "clone/g3/reg-root-local/ex",
+   "clone/g3/reg-root-null",
+   "clone/g3/reg-root-null/ex",
+   "clone/g3/reg-root-s3",
+   "clone/g3/reg-root-s3/ex",
+   "clone/g3/reg-root-twice",
+   "clone/g3/reg-root-twice/ex",
+   "clone/g3/reg-root-var",
+   "clone/g3/reg-root-var/ex",
+   "clone/g3/reg-unlexed",
+   "clone/g3/reg-unlexed/ex",
+   "clone/g3/rfree-az",
+   "clone/g3/rfree-az/ex",
+   "clone/g3/rfree-az/mod",
+   "clone/g3/rfree-az/root",
+   "clone/g3/rfree-pass",
+   "clone/g3/rfree-pass/ex",
+   "clone/g3/rfree-pass/mod",
+   "clone/g3/rfree-pass/root"
+  ],
+  "02": [
+   "base",
+   "base/examples",
+   "base/examples/denied",
+   "base/examples/deniedx",
+   "base/examples/err",
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "03": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "04": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "clone/g3",
+   "clone/g3/ban-bus-defaults-override.tf",
+   "clone/g3/ban-bus-defaults-override.tf/ex",
+   "clone/g3/ban-bus-defaults-override.tf/mod",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/ex",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars.json.bak/mod",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars/ex",
+   "clone/g3/ban-bus-defaults-x.auto.tfvars/mod",
+   "clone/g3/ban-bus-defaults-x.tf.json",
+   "clone/g3/ban-bus-defaults-x.tf.json/ex",
+   "clone/g3/ban-bus-defaults-x.tf.json/mod",
+   "clone/g3/ban-bus-defaults-x.tfvars",
+   "clone/g3/ban-bus-defaults-x.tfvars.json",
+   "clone/g3/ban-bus-defaults-x.tfvars.json/ex",
+   "clone/g3/ban-bus-defaults-x.tfvars.json/mod",
+   "clone/g3/ban-bus-defaults-x.tfvars/ex",
+   "clone/g3/ban-bus-defaults-x.tfvars/mod",
+   "clone/g3/ban-bus-defaults-x_override.tf",
+   "clone/g3/ban-bus-defaults-x_override.tf/ex",
+   "clone/g3/ban-bus-defaults-x_override.tf/mod",
+   "clone/g3/ban-pol-plain-override.tf",
+   "clone/g3/ban-pol-plain-override.tf/ex",
+   "clone/g3/ban-pol-plain-x.auto.tfvars",
+   "clone/g3/ban-pol-plain-x.auto.tfvars.json.bak",
+   "clone/g3/ban-pol-plain-x.auto.tfvars.json.bak/ex",
+   "clone/g3/ban-pol-plain-x.auto.tfvars/ex",
+   "clone/g3/ban-pol-plain-x.tf.json",
+   "clone/g3/ban-pol-plain-x.tf.json/ex",
+   "clone/g3/ban-pol-plain-x.tfvars",
+   "clone/g3/ban-pol-plain-x.tfvars.json",
+   "clone/g3/ban-pol-plain-x.tfvars.json/ex",
+   "clone/g3/ban-pol-plain-x.tfvars/ex",
+   "clone/g3/ban-pol-plain-x_override.tf",
+   "clone/g3/ban-pol-plain-x_override.tf/ex",
+   "clone/g3/ban-prov-skip-override.tf",
+   "clone/g3/ban-prov-skip-override.tf/ex",
+   "clone/g3/ban-prov-skip-x.auto.tfvars",
+   "clone/g3/ban-prov-skip-x.auto.tfvars.json.bak",
+   "clone/g3/ban-prov-skip-x.auto.tfvars.json.bak/ex",
+   "clone/g3/ban-prov-skip-x.auto.tfvars/ex",
+   "clone/g3/ban-prov-skip-x.tf.json",
+   "clone/g3/ban-prov-skip-x.tf.json/ex",
+   "clone/g3/ban-prov-skip-x.tfvars",
+   "clone/g3/ban-prov-skip-x.tfvars.json",
+   "clone/g3/ban-prov-skip-x.tfvars.json/ex",
+   "clone/g3/ban-prov-skip-x.tfvars/ex",
+   "clone/g3/ban-prov-skip-x_override.tf",
+   "clone/g3/ban-prov-skip-x_override.tf/ex",
+   "clone/g3/ban-region-true",
+   "clone/g3/ban-region-true/ex",
+   "clone/g3/bus-arn",
+   "clone/g3/bus-arn/ex",
+   "clone/g3/bus-arn/mod",
+   "clone/g3/bus-defaults",
+   "clone/g3/bus-defaults/ex",
+   "clone/g3/bus-defaults/mod",
+   "clone/g3/bus-dup-name",
+   "clone/g3/bus-dup-name/ex",
+   "clone/g3/bus-dup-name/mod",
+   "clone/g3/bus-extra",
+   "clone/g3/bus-extra/ex",
+   "clone/g3/bus-extra/mod",
+   "clone/g3/bus-nested",
+   "clone/g3/bus-nested/ex",
+   "clone/g3/bus-nested/mid",
+   "clone/g3/bus-nested/mod",
+   "clone/g3/bus-nn-safe",
+   "clone/g3/bus-nn-safe/ex",
+   "clone/g3/bus-nn-safe/mod",
+   "clone/g3/bus-nn-unsafe",
+   "clone/g3/bus-nn-unsafe/ex",
+   "clone/g3/bus-nn-unsafe/mod",
+   "clone/g3/bus-nn-var",
+   "clone/g3/bus-nn-var/ex",
+   "clone/g3/bus-nn-var/mod",
+   "clone/g3/bus-nonliteral",
+   "clone/g3/bus-nonliteral/ex",
+   "clone/g3/bus-nonliteral/mod",
+   "clone/g3/bus-null-name",
+   "clone/g3/bus-null-name/ex",
+   "clone/g3/bus-null-name/mod",
+   "clone/g3/bus-null-region",
+   "clone/g3/bus-null-region/ex",
+   "clone/g3/bus-null-region/mod",
+   "clone/g3/bus-region-fake",
+   "clone/g3/bus-region-fake/ex",
+   "clone/g3/bus-region-fake/mod",
+   "clone/g3/bus-region-host",
+   "clone/g3/bus-region-host/ex",
+   "clone/g3/bus-region-host/mod",
+   "clone/g3/bus-root",
+   "clone/g3/bus-root-var",
+   "clone/g3/bus-root-var/ex",
+   "clone/g3/bus-root/ex",
+   "clone/g3/bus-slash",
+   "clone/g3/bus-slash/ex",
+   "clone/g3/bus-slash/mod",
+   "clone/g3/bus-two-calls",
+   "clone/g3/bus-two-calls/ex",
+   "clone/g3/bus-two-calls/mod",
+   "clone/g3/bus-unresolved",
+   "clone/g3/bus-unresolved/ex",
+   "clone/g3/bus-unresolved/mod",
+   "clone/g3/bus-zero",
+   "clone/g3/bus-zero/ex",
+   "clone/g3/bus-zero/mod",
+   "clone/g3/crlf-arg",
+   "clone/g3/crlf-arg/ex",
+   "clone/g3/crlf-arg/mod",
+   "clone/g3/crlf-call",
+   "clone/g3/crlf-call/ex",
+   "clone/g3/crlf-call/mod",
+   "clone/g3/ff-arg",
+   "clone/g3/ff-arg/ex",
+   "clone/g3/ff-arg/mod",
+   "clone/g3/free-arn",
+   "clone/g3/free-arn/ex",
+   "clone/g3/free-doc",
+   "clone/g3/free-doc/ex",
+   "clone/g3/free-file",
+   "clone/g3/free-file/ex",
+   "clone/g3/free-unlexed",
+   "clone/g3/free-unlexed/ex",
+   "clone/g3/loc-ban",
+   "clone/g3/loc-ban/ex",
+   "clone/g3/loc-bus-root",
+   "clone/g3/loc-bus-root/ex",
+   "clone/g3/loc-call-wrongdir",
+   "clone/g3/loc-call-wrongdir/ex",
+   "clone/g3/loc-call-wrongdir/mod",
+   "clone/g3/loc-data-wrongdir",
+   "clone/g3/loc-data-wrongdir/ex",
+   "clone/g3/loc-data-wrongdir/mod",
+   "clone/g3/loc-dotfile",
+   "clone/g3/loc-dotfile/ex",
+   "clone/g3/loc-dup",
+   "clone/g3/loc-dup/ex",
+   "clone/g3/loc-multiline",
+   "clone/g3/loc-multiline/ex",
+   "clone/g3/loc-nonliteral",
+   "clone/g3/loc-nonliteral/ex",
+   "clone/g3/loc-path",
+   "clone/g3/loc-path/ex",
+   "clone/g3/loc-root",
+   "clone/g3/loc-root/ex",
+   "clone/g3/loc-unlexed",
+   "clone/g3/loc-unlexed/ex",
+   "clone/g3/mention",
+   "clone/g3/mention/ex",
+   "clone/g3/nospace-call",
+   "clone/g3/nospace-call/ex",
+   "clone/g3/nospace-call/mod",
+   "clone/g3/pol-account",
+   "clone/g3/pol-account/ex",
+   "clone/g3/pol-anchor",
+   "clone/g3/pol-anchor/ex",
+   "clone/g3/pol-brace",
+   "clone/g3/pol-brace/ex",
+   "clone/g3/pol-comment",
+   "clone/g3/pol-comment/ex",
+   "clone/g3/pol-dot",
+   "clone/g3/pol-dot/ex",
+   "clone/g3/pol-dotdot",
+   "clone/g3/pol-dotdot/ex",
+   "clone/g3/pol-for-each",
+   "clone/g3/pol-for-each/ex",
+   "clone/g3/pol-heredoc",
+   "clone/g3/pol-heredoc/ex",
+   "clone/g3/pol-interp",
+   "clone/g3/pol-interp/ex",
+   "clone/g3/pol-long",
+   "clone/g3/pol-long/ex",
+   "clone/g3/pol-multi-count",
+   "clone/g3/pol-multi-count/ex",
+   "clone/g3/pol-name",
+   "clone/g3/pol-name/ex",
+   "clone/g3/pol-partition",
+   "clone/g3/pol-partition/ex",
+   "clone/g3/pol-plain",
+   "clone/g3/pol-plain/ex",
+   "clone/g3/pol-provider",
+   "clone/g3/pol-provider/ex",
+   "clone/g3/pol-region",
+   "clone/g3/pol-region/ex",
+   "clone/g3/pol-var",
+   "clone/g3/pol-var/ex",
+   "clone/g3/prov-endpoints",
+   "clone/g3/prov-endpoints/ex",
+   "clone/g3/prov-region-true",
+   "clone/g3/prov-region-true-comment",
+   "clone/g3/prov-region-true-comment/ex",
+   "clone/g3/prov-region-true-literal",
+   "clone/g3/prov-region-true-literal/ex",
+   "clone/g3/prov-region-true-s3",
+   "clone/g3/prov-region-true-s3/ex",
+   "clone/g3/prov-region-true-var",
+   "clone/g3/prov-region-true-var/ex",
+   "clone/g3/prov-region-true/ex",
+   "clone/g3/prov-skip",
+   "clone/g3/prov-skip-unknown",
+   "clone/g3/prov-skip-unknown/ex",
+   "clone/g3/prov-skip-var",
+   "clone/g3/prov-skip-var/ex",
+   "clone/g3/prov-skip/ex",
+   "clone/g3/prov-split",
+   "clone/g3/prov-split/ex",
+   "clone/g3/reg-loc-call",
+   "clone/g3/reg-loc-call/ex",
+   "clone/g3/reg-loc-call/mod",
+   "clone/g3/reg-loc-other-dir",
+   "clone/g3/reg-loc-other-dir/ex",
+   "clone/g3/reg-loc-other-dir/mod",
+   "clone/g3/reg-mod-ban",
+   "clone/g3/reg-mod-ban/ex",
+   "clone/g3/reg-mod-ban/mod",
+   "clone/g3/reg-mod-call-literal",
+   "clone/g3/reg-mod-call-literal/ex",
+   "clone/g3/reg-mod-call-literal/mod",
+   "clone/g3/reg-mod-call-local",
+   "clone/g3/reg-mod-call-local/ex",
+   "clone/g3/reg-mod-call-local/mod",
+   "clone/g3/reg-mod-call-s3",
+   "clone/g3/reg-mod-call-s3/ex",
+   "clone/g3/reg-mod-call-s3/mod",
+   "clone/g3/reg-mod-default",
+   "clone/g3/reg-mod-default/ex",
+   "clone/g3/reg-mod-default/mod",
+   "clone/g3/reg-mod-literal",
+   "clone/g3/reg-mod-literal/ex",
+   "clone/g3/reg-mod-literal/mod",
+   "clone/g3/reg-mod-local",
+   "clone/g3/reg-mod-local/ex",
+   "clone/g3/reg-mod-local/mod",
+   "clone/g3/reg-mod-nested",
+   "clone/g3/reg-mod-nested/ex",
+   "clone/g3/reg-mod-nested/mid",
+   "clone/g3/reg-mod-nested/mod",
+   "clone/g3/reg-mod-zero",
+   "clone/g3/reg-mod-zero/ex",
+   "clone/g3/reg-mod-zero/mod",
+   "clone/g3/reg-root-absent",
+   "clone/g3/reg-root-absent/ex",
+   "clone/g3/reg-root-data",
+   "clone/g3/reg-root-data/ex",
+   "clone/g3/reg-root-interp",
+   "clone/g3/reg-root-interp/ex",
+   "clone/g3/reg-root-literal",
+   "clone/g3/reg-root-literal/ex",
+   "clone/g3/reg-root-local",
+   "clone/g3/reg-root-local/ex",
+   "clone/g3/reg-root-null",
+   "clone/g3/reg-root-null/ex",
+   "clone/g3/reg-root-s3",
+   "clone/g3/reg-root-s3/ex",
+   "clone/g3/reg-root-twice",
+   "clone/g3/reg-root-twice/ex",
+   "clone/g3/reg-root-var",
+   "clone/g3/reg-root-var/ex",
+   "clone/g3/reg-unlexed",
+   "clone/g3/reg-unlexed/ex",
+   "clone/g3/rfree-az",
+   "clone/g3/rfree-az/ex",
+   "clone/g3/rfree-az/mod",
+   "clone/g3/rfree-az/root",
+   "clone/g3/rfree-pass",
+   "clone/g3/rfree-pass/ex",
+   "clone/g3/rfree-pass/mod",
+   "clone/g3/rfree-pass/root"
+  ],
+  "05": [
+   "base",
+   "base/examples",
+   "base/examples/edited",
+   "base/examples/same",
+   "clone",
+   "clone/examples",
+   "clone/examples/edited",
+   "clone/examples/fresh",
+   "clone/examples/same",
+   "mixed",
+   "mixed/examples",
+   "mixed/examples/edited",
+   "mixed/examples/fresh",
+   "mixed/examples/same",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "06": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/data/e1",
+   "plan/data/e1/modules",
+   "plan/data/e1/modules/s3",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "07": [
+   "clone",
+   "clone/examples",
+   "clone/examples/edited",
+   "clone/examples/fresh",
+   "clone/examples/same",
+   "plan",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "08": [
+   "clone",
+   "clone/examples",
+   "clone/examples/edited",
+   "clone/examples/fresh",
+   "clone/examples/same",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "09": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "plan",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "10": [
+   "base",
+   "base/examples",
+   "base/examples/edited",
+   "base/examples/same",
+   "clone",
+   "clone/examples",
+   "clone/examples/edited",
+   "clone/examples/fresh",
+   "clone/examples/same",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "11": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/ok/.terraform",
+   "clone/examples/split",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "12": [
+   "base",
+   "base/examples",
+   "base/examples/edited",
+   "base/examples/same",
+   "clone",
+   "clone/examples",
+   "clone/examples/edited",
+   "clone/examples/fresh",
+   "clone/examples/same",
+   "plan",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "13": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "clone/rt",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "14": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "clone/rt",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/data/e1",
+   "plan/data/e1/modules",
+   "plan/data/e1/modules/s3",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "15": [
+   "base",
+   "base/examples",
+   "base/examples/denied",
+   "base/examples/deniedx",
+   "base/examples/err",
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "plan",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "16": [
+   "clone",
+   "clone/examples",
+   "clone/examples/denied",
+   "clone/examples/deniedx",
+   "clone/examples/err",
+   "clone/examples/gate",
+   "clone/examples/leak",
+   "clone/examples/nl",
+   "clone/examples/ok",
+   "clone/examples/split",
+   "plan",
+   "plan-addresses",
+   "plan/cache",
+   "plan/data",
+   "plan/data/e13",
+   "plan/data/e13/modules",
+   "plan/data/e13/modules/s3",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ],
+  "17": [
+   "base",
+   "base/examples",
+   "base/examples/edited",
+   "base/examples/same",
+   "clone",
+   "clone/examples",
+   "clone/examples/edited",
+   "clone/examples/fresh",
+   "clone/examples/same",
+   "mixed",
+   "mixed/examples",
+   "mixed/examples/edited",
+   "mixed/examples/fresh",
+   "mixed/examples/same",
+   "plan",
+   "plan/cache",
+   "plan/data",
+   "plan/home",
+   "plan/out",
+   "plan/saved",
+   "plan/state",
+   "plan/tmp"
+  ]
+ },
+ "links": {}
+}

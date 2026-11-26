@@ -1,0 +1,4 @@
+locals {
+  x = <<EOT
+  y
+}

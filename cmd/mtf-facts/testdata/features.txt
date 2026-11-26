@@ -17,6 +17,7 @@ cmd:merge
 cmd:merge.check
 cmd:merge.counts
 cmd:merge.final
+cmd:plan-gates
 cmd:pre-commit
 cmd:pre-commit.derive
 cmd:pre-commit.docs
@@ -114,6 +115,12 @@ flag:merge.final:registry
 flag:merge.final:report
 flag:merge.final:templates
 flag:merge.final:timeout
+flag:plan-gates:example
+flag:plan-gates:mode
+flag:plan-gates:provider
+flag:plan-gates:root
+flag:plan-gates:scope
+flag:plan-gates:timeout
 flag:pre-commit.derive:timeout
 flag:pre-commit.docs:config
 flag:pre-commit.docs:timeout

@@ -436,6 +436,7 @@ Review pipeline (run by hosts):
   pre-commit        Read what pre-commit-terraform's hooks write and pin
   fixture-build     Build the fixture pair a ladder level runs for one trigger
   fixture-check     Check a ladder scratch tree against its allowlist
+  plan-gates        Run the plan pass gates over .tf files before Terraform runs
   behaviour         Classify a change into triggers and the verification levels each needs
   claims-eval       Validate review claims and evaluate them and the triggers against a ladder record
   profile-check     Check a module profile and print its options, gates and downgrade rules
