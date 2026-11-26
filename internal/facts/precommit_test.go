@@ -99,6 +99,18 @@ func TestPreCommitConfirmation(t *testing.T) {
 	if pinConfirmed([]byte(pin), "v1.105.0") {
 		t.Error("a rev other than the line reader's is confirmed")
 	}
+	// The backup checks the line readers already cover, called directly.
+	twice := pin + strings.TrimPrefix(pin, "repos:\n")
+	if pinConfirmed([]byte(twice), "v1.106.0") {
+		t.Error("two pre-commit-terraform entries are confirmed")
+	}
+	extra := strings.Replace(docs, "        args:\n", "        files: x\n        args:\n", 1)
+	if docsConfirmed([]byte(extra)) {
+		t.Error("a terraform_docs hook with a third key is confirmed")
+	}
+	if _, ok := WrapperDerive([]byte(strings.Repeat("#", MaxWrapperFileBytes) + "\n")); ok {
+		t.Error("derive is defined over MaxWrapperFileBytes")
+	}
 }
 
 // TestWrapperResultModes checks the modes WrapperResult does not decide by
