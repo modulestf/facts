@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -82,5 +83,24 @@ func TestPlanGatesCLI(t *testing.T) {
 		if code != exitError || out != "" || !strings.Contains(errOut, c.want) {
 			t.Errorf("%v: exit %d, %q, %q", c.args, code, out, errOut)
 		}
+	}
+}
+
+// failWriter fails every write, as a full disk or a read-only descriptor
+// does.
+type failWriter struct{}
+
+func (failWriter) Write([]byte) (int, error) { return 0, errors.New("write failed") }
+
+// TestPlanGatesWriteFailure checks hits that cannot be written exit 2, not
+// 1. A closed standard output is no such case: the Go runtime opens
+// /dev/null on a closed descriptor 0 to 2 before main runs, so the hits are
+// written and discarded, as with >/dev/null, and the exit is the result's.
+func TestPlanGatesWriteFailure(t *testing.T) {
+	root := planGatesTree(t)
+	var errb strings.Builder
+	code := run([]string{"plan-gates", "--scope", "clone", "--mode", "laptop", "--root", root}, failWriter{}, &errb)
+	if code != exitError {
+		t.Errorf("exit %d, want %d; stderr %q", code, exitError, errb.String())
 	}
 }

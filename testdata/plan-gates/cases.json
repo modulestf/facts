@@ -5579,6 +5579,198 @@
    ],
    "tree": 18,
    "want": "G0 {run}/clone/extra/vertical-tab.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "342 laptop clone extra/code-utf8.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/code-utf8.tf"
+   ],
+   "tree": 19,
+   "want": "G0 {run}/clone/extra/code-utf8.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "343 laptop clone extra/label-byte-partition.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/label-byte-partition.tf"
+   ],
+   "tree": 19,
+   "want": "G0 {run}/clone/extra/label-byte-partition.tf:2\nG3 {run}/clone/extra/label-byte-partition.tf:2\nG3 {run}/clone/extra/label-byte-partition.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "344 laptop clone extra/label-utf8.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/label-utf8.tf"
+   ],
+   "tree": 19,
+   "want": "G0 {run}/clone/extra/label-utf8.tf:2\nG3 {run}/clone/extra/label-utf8.tf:2\nG3 {run}/clone/extra/label-utf8.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "345 laptop clone extra/source-inside.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/source-inside.tf"
+   ],
+   "tree": 19,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "346 laptop clone extra/source-outside.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/source-outside.tf"
+   ],
+   "tree": 19,
+   "want": "G2 {run}/clone/extra/source-outside.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "laptop",
+   "name": "347 laptop clone extra/source-sibling-prefix.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/source-sibling-prefix.tf"
+   ],
+   "tree": 19,
+   "want": "G2 {run}/clone/extra/source-sibling-prefix.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "348 runner clone extra/code-utf8.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/code-utf8.tf"
+   ],
+   "tree": 19,
+   "want": "G0 {run}/clone/extra/code-utf8.tf:2\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "349 runner clone extra/label-byte-partition.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/label-byte-partition.tf"
+   ],
+   "tree": 19,
+   "want": "G0 {run}/clone/extra/label-byte-partition.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "350 runner clone extra/label-utf8.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/label-utf8.tf"
+   ],
+   "tree": 19,
+   "want": "G0 {run}/clone/extra/label-utf8.tf:0\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "351 runner clone extra/source-inside.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/source-inside.tf"
+   ],
+   "tree": 19,
+   "want": ""
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "352 runner clone extra/source-outside.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/source-outside.tf"
+   ],
+   "tree": 19,
+   "want": "G2 {run}/clone/extra/source-outside.tf:1\n"
+  },
+  {
+   "example": "",
+   "mode": "runner",
+   "name": "353 runner clone extra/source-sibling-prefix.tf",
+   "providers": [
+    "hashicorp/*",
+    "compliancetf/*"
+   ],
+   "root": "{run}/clone",
+   "scope": "clone",
+   "stdin": [
+    "{run}/clone/extra/source-sibling-prefix.tf"
+   ],
+   "tree": 19,
+   "want": "G2 {run}/clone/extra/source-sibling-prefix.tf:1\n"
   }
  ],
  "dirs": {
@@ -6497,6 +6689,11 @@
    "clone/chain/n33/t",
    "clone/chain/n34",
    "clone/chain/n34/t"
+  ],
+  "19": [
+   "clone",
+   "clone/extra",
+   "clone/inside"
   ]
  },
  "links": {
@@ -6941,6 +7138,7 @@
     "clone/chain/n34/l33",
     "t"
    ]
-  ]
+  ],
+  "19": []
  }
 }
