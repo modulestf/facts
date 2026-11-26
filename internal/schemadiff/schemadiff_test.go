@@ -4,11 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
 
@@ -233,5 +235,21 @@ func TestDiffEdges(t *testing.T) {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestRunDeadlineInSchemaLoad passes the deadline with an empty module, whose
+// tree read has nothing to stop at: only the schema load can return it.
+func TestRunDeadlineInSchemaLoad(t *testing.T) {
+	lim := facts.DefaultLimits
+	lim.Deadline = time.Now().Add(-time.Second)
+	_, err := Run(Options{
+		From:      filepath.Join(testdata, "from.json"),
+		To:        filepath.Join(testdata, "to.json"),
+		TypesFrom: t.TempDir(),
+		Limits:    lim,
+	})
+	if !errors.Is(err, facts.ErrDeadline) {
+		t.Errorf("error %v, want ErrDeadline", err)
 	}
 }

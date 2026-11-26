@@ -1,11 +1,13 @@
 package ledger
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 )
@@ -212,5 +214,16 @@ func TestKeepTypesCoversLookups(t *testing.T) {
 	}
 	if keep(false, "aws_not_in_the_module") || keepTypes(nil)(false, m.Resources[0].Type) {
 		t.Error("a type the module does not use is kept")
+	}
+}
+
+// TestBuildDeadlineInSchemaLoad passes the deadline with an empty module,
+// whose tree read has nothing to stop at: only the schema load can return it.
+func TestBuildDeadlineInSchemaLoad(t *testing.T) {
+	t.Parallel()
+	lim := facts.DefaultLimits
+	lim.Deadline = time.Now().Add(-time.Second)
+	if _, err := Build(t.TempDir(), []string{testSchema}, lim); !errors.Is(err, facts.ErrDeadline) {
+		t.Errorf("error %v, want ErrDeadline", err)
 	}
 }

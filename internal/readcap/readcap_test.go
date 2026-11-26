@@ -1,6 +1,7 @@
 package readcap
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,5 +54,25 @@ func TestFile(t *testing.T) {
 	// Prefix gives a file over the cap as limit+1 bytes, no error.
 	if data, err := Prefix(file, 3); err != nil || string(data) != "1234" {
 		t.Errorf("prefix: %q, %v", data, err)
+	}
+}
+
+// TestFileSocket checks a unix socket reads as not a regular file, whatever
+// error the platform's open gives for it, and that the path is not printed.
+func TestFileSocket(t *testing.T) {
+	dir, err := os.MkdirTemp("", "rc") // short: a socket path has a low length limit
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "s")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("no unix socket: %v", err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	_, err = File(sock, 5)
+	if err == nil || err.Error() != "not a regular file" {
+		t.Errorf("socket: %v, want not a regular file", err)
 	}
 }

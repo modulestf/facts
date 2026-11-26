@@ -648,3 +648,37 @@ func TestLoadDeadlineBetweenFiles(t *testing.T) {
 		t.Errorf("error %v after %d clock reads, want ErrDeadline after 2", err, calls)
 	}
 }
+
+// TestLoadDeadlineAfterLastFile passes the deadline while the only raw file
+// is read: the check after the loop stops Load, which would return the set
+// without it.
+func TestLoadDeadlineAfterLastFile(t *testing.T) {
+	file := writeFile(t, "aws.json", []byte(rawSchema))
+	start := time.Now()
+	deadline := start.Add(time.Minute)
+	calls := 0
+	now = func() time.Time {
+		calls++
+		if calls == 1 { // the check before the file
+			return start
+		}
+		return deadline.Add(time.Second)
+	}
+	t.Cleanup(func() { now = time.Now })
+	if _, err := Load("", []string{file}, deadline); !errors.Is(err, ErrDeadline) || calls != 2 {
+		t.Errorf("error %v after %d clock reads, want ErrDeadline after 2", err, calls)
+	}
+}
+
+// TestLoadTypesDeadline checks LoadTypes, the typed load of the ledger and
+// schema-diff, stops at a passed deadline and loads with one ahead.
+func TestLoadTypesDeadline(t *testing.T) {
+	file := writeFile(t, "aws.json", []byte(rawSchema))
+	keep := func(bool, string) bool { return true }
+	if _, err := LoadTypes([]string{file}, keep, time.Now().Add(-time.Second)); !errors.Is(err, ErrDeadline) {
+		t.Errorf("past the deadline: %v", err)
+	}
+	if _, err := LoadTypes([]string{file}, keep, time.Now().Add(time.Minute)); err != nil {
+		t.Errorf("before the deadline: %v", err)
+	}
+}

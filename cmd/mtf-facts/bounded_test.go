@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/spf13/cobra"
 )
 
 // boundedCase is one run of a command that succeeds on its fixture, and the
@@ -118,5 +122,30 @@ func TestEveryCommandCapsOutput(t *testing.T) {
 				t.Errorf("bundle wrote its file past the cap: %v", err)
 			}
 		}
+	}
+}
+
+// TestRunBoundedSetsDeadline checks runBounded gives the engine a deadline
+// of now plus the timeout, and that the engine's own deadline error reads as
+// the timeout: exit 2, the timeout message, no stdout.
+func TestRunBoundedSetsDeadline(t *testing.T) {
+	const timeout = time.Hour
+	var lim facts.Limits
+	before := time.Now()
+	var seen time.Time
+	var cmd cobra.Command
+	var out, errb bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errb)
+	code := runBounded(&cmd, timeout, &lim, func() workResult {
+		seen = lim.Deadline
+		return workResult{err: fmt.Errorf("read: %w", facts.ErrDeadline), out: []byte("late")}
+	}, nil)
+	after := time.Now()
+	if seen.Before(before.Add(timeout)) || seen.After(after.Add(timeout)) {
+		t.Errorf("deadline %v, want within [%v, %v]", seen, before.Add(timeout), after.Add(timeout))
+	}
+	if code != exitError || out.Len() != 0 || errb.String() != "mtf-facts: timeout\n" {
+		t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
 	}
 }
