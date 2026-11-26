@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -57,7 +58,7 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 			t.Errorf("%s: Load accepted", name)
 		}
 		// A bad type is named, with its provider.
-		if want := "provider " + aws + ": resource aws_unused_thing: "; !strings.HasPrefix(name, "provider ") &&
+		if want := "provider " + aws + `: resource "aws_unused_thing": `; !strings.HasPrefix(name, "provider ") &&
 			!strings.HasPrefix(name, "functions") && (err == nil || !strings.Contains(err.Error(), want)) {
 			t.Errorf("%s: error %v does not name %q", name, err, want)
 		}
@@ -72,6 +73,24 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 	p := writeFile(t, "aws.json", []byte(unusedDoc(`"provider": {"version": 0},`, ok)))
 	if _, err := Load("", []string{p}, time.Time{}); err != nil {
 		t.Errorf("good file: %v", err)
+	}
+}
+
+// TestRawErrorQuotesTypeName: a refused type is named with its name quoted,
+// so a name with a line break or a control character cannot forge a line of
+// the message.
+func TestRawErrorQuotesTypeName(t *testing.T) {
+	hostile := "aws_x\nforged: line\x1b[0m"
+	doc := strings.Replace(unusedDoc("", `{"block": {"attributes": 5}}`), "aws_unused_thing", `aws_x\nforged: line\u001b[0m`, 1)
+	_, err := Load("", []string{writeFile(t, "aws.json", []byte(doc))}, time.Time{})
+	if err == nil {
+		t.Fatal("Load accepted a bad type")
+	}
+	if want := fmt.Sprintf("%q", hostile); !strings.Contains(err.Error(), want) {
+		t.Errorf("error %q does not hold the quoted name %s", err, want)
+	}
+	if strings.ContainsAny(err.Error(), "\n\x1b") {
+		t.Errorf("error holds a raw line break or control character: %q", err)
 	}
 }
 

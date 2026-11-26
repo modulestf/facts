@@ -327,6 +327,11 @@ func TestAffectedReadSites(t *testing.T) {
 			change:   readme,
 			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
 		},
+		"an IAM path of path.module and / stays a read site": {
+			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"${path.module}/\"\n}\n"},
+			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
 		"a / inside a function call stays a read site": {
 			hcl:      map[string]string{"modules/sub/main.tf": "resource \"aws_s3_object\" \"o\" {\n  source = join(\"/\", [path.module, var.f])\n}\n"},
 			change:   map[string]string{"modules/sub/README.md": "# changed\n"},
