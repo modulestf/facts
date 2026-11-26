@@ -162,7 +162,7 @@ var reportSchemas = map[string]string{
 }
 
 // noJSON are the commands with no JSON output.
-var noJSON = []string{"completion", "help", "merge"}
+var noJSON = []string{"completion", "help", "merge", "pre-commit", "pre-commit derive", "pre-commit docs", "pre-commit wrapper"}
 
 // TestEveryJSONCommandHasSchema checks that each command of the CLI is
 // either mapped to a schema with a valid example, which tests/schemas-test.sh
