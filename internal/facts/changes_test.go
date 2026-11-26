@@ -17,13 +17,6 @@ import (
 
 const changesFixtures = "../../testdata/changes"
 
-// changesExpected is the oracle of one fixture: the report's files and
-// data sources, which hold no hash.
-type changesExpected struct {
-	Files       []ChangedFile    `json:"files"`
-	DataSources []DirDataSources `json:"data_sources"`
-}
-
 // copyChangesFixture copies a fixture to a temp dir and creates the links
 // its symlinks.txt lists, each "<link> <target>" with the link under head/
 // or base/ and the target relative to the link's directory.
@@ -57,6 +50,7 @@ func copyChangesFixture(t *testing.T, name string) string {
 // TestChangesOracle runs changes on each fixture under testdata/changes
 // and compares the files and data sources with expected.json.
 func TestChangesOracle(t *testing.T) {
+	set := loadSchemas(t)
 	ents, err := os.ReadDir(changesFixtures)
 	if err != nil {
 		t.Fatal(err)
@@ -71,18 +65,24 @@ func TestChangesOracle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := changesExpected{Files: r.Files, DataSources: r.DataSources}
+			// The whole report as the binary writes it, held to its schema, and
+			// its files and data sources to the raw oracle: a key the report
+			// drops or renames fails, whatever the Go types say.
+			data, err := json.Marshal(r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc := decodeJSON(t, data).(map[string]any)
+			if errs := set.validate("changes.schema.json", doc); len(errs) > 0 {
+				t.Errorf("changes schema: %v", errs)
+			}
+			got := map[string]any{"files": doc["files"], "data_sources": doc["data_sources"]}
 			gotJSON, _ := json.MarshalIndent(got, "", "  ")
-			data, err := os.ReadFile(filepath.Join(changesFixtures, e.Name(), "expected.json"))
+			raw, err := os.ReadFile(filepath.Join(changesFixtures, e.Name(), "expected.json"))
 			if err != nil {
 				t.Fatalf("%v\ngot:\n%s", err, gotJSON)
 			}
-			var want changesExpected
-			if err := json.Unmarshal(data, &want); err != nil {
-				t.Fatal(err)
-			}
-			wantJSON, _ := json.MarshalIndent(want, "", "  ") // JSON, so unexported fields do not count
-			if string(gotJSON) != string(wantJSON) {
+			if want := decodeJSON(t, raw); !reflect.DeepEqual(got, want) {
 				t.Errorf("report differs from expected.json\ngot:\n%s", gotJSON)
 			}
 		})

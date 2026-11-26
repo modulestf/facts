@@ -31,7 +31,7 @@ var schemaKeywords = map[string]bool{
 	"oneOf": true, "allOf": true, "$ref": true,
 	// Used by the facts-bundle, finding and schema-handoff schemas the oracle
 	// fixtures are checked against.
-	"const": true, "not": true, "if": true, "then": true, "minItems": true, "uniqueItems": true,
+	"const": true, "not": true, "if": true, "then": true, "else": true, "minItems": true, "uniqueItems": true,
 	"propertyNames": true, "dependentRequired": true, "unevaluatedProperties": true,
 }
 
@@ -269,6 +269,9 @@ func (set schemaSet) check(doc string, s map[string]any, v any, at string, errs 
 		set.check(doc, cond, v, at, &e)
 		if then, ok := s["then"].(map[string]any); ok && len(e) == 0 {
 			set.check(doc, then, v, at, errs)
+		}
+		if els, ok := s["else"].(map[string]any); ok && len(e) > 0 {
+			set.check(doc, els, v, at, errs)
 		}
 	}
 	if all, ok := s["allOf"].([]any); ok {
@@ -592,6 +595,14 @@ func TestSchemaValidatorKeywords(t *testing.T) {
 	// A value the if schema does not match skips then.
 	if errs := set.validate("t.json", decodeJSON(t, []byte(`{"c":"no"}`))); len(errs) > 0 {
 		t.Errorf("then applied without if: %v", errs)
+	}
+	// else applies only when if does not match.
+	els := schemaSet{"e.json": {"if": map[string]any{"required": []any{"a"}}, "else": map[string]any{"required": []any{"b"}}}}
+	if errs := els.validate("e.json", decodeJSON(t, []byte(`{"a":1}`))); len(errs) > 0 {
+		t.Errorf("else applied with if: %v", errs)
+	}
+	if errs := els.validate("e.json", decodeJSON(t, []byte(`{"c":1}`))); len(errs) == 0 {
+		t.Error("else not applied without if")
 	}
 }
 
