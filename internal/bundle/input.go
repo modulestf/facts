@@ -99,14 +99,14 @@ func readCapped(f interface {
 	Stat() (os.FileInfo, error)
 }, name string, limit int64) ([]byte, error) {
 	if st, err := f.Stat(); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", name)
+		return nil, fmt.Errorf("%q is not a regular file", name)
 	}
 	data, err := io.ReadAll(io.LimitReader(f, limit+1))
 	if err != nil {
 		return nil, err
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%s is over %d bytes", name, limit)
+		return nil, fmt.Errorf("%q is over %d bytes", name, limit)
 	}
 	return data, nil
 }

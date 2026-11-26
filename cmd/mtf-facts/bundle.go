@@ -156,7 +156,7 @@ func buildBundle(a bundleArgs, lim facts.Limits) (*fb.Result, error) {
 func writeOutputs(out, injection string, b, inj []byte) error {
 	for _, p := range []string{out, injection} {
 		if _, err := os.Lstat(p); !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("%s exists or cannot be checked", p)
+			return fmt.Errorf("%q exists or cannot be checked", p)
 		}
 	}
 	if err := writeNew(out, b); err != nil {

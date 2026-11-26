@@ -148,3 +148,48 @@ func TestReadReportRefusesAI(t *testing.T) {
 		t.Errorf("AI report gives %v", err)
 	}
 }
+
+// TestInputErrorsQuoteNames checks that the errors naming a profile
+// directory or a file read for the bundle quote the name, so a line break in
+// it stays out of the message.
+func TestInputErrorsQuoteNames(t *testing.T) {
+	t.Parallel()
+	hostile := "a\nb"
+	_, err := ProfileSHA256(filepath.Join(t.TempDir(), hostile))
+	noBreak := func(what string, err error) {
+		t.Helper()
+		if err == nil || strings.ContainsAny(err.Error(), "\n\r") {
+			t.Errorf("%s: error %q is missing or holds a line break", what, err)
+		}
+	}
+	noBreak("ProfileSHA256", err)
+
+	dir := t.TempDir()
+	f, err := os.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	_, err = readCapped(f, hostile, 1)
+	noBreak("readCapped directory", err)
+
+	big := filepath.Join(dir, "big")
+	if err := os.WriteFile(big, []byte("xx"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	g, err := os.Open(big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer g.Close()
+	_, err = readCapped(g, hostile, 1)
+	noBreak("readCapped over the limit", err)
+
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	_, err = readRootFile(root, hostile)
+	noBreak("readRootFile", err)
+}

@@ -495,3 +495,27 @@ func TestWriteFilesCleansUp(t *testing.T) {
 		t.Errorf("%d entries left: %v", len(ents), err)
 	}
 }
+
+// TestCheckOutQuotesPath checks that the refusals of an --out directory
+// quote its path, so a line break in the name stays out of the message.
+func TestCheckOutQuotesPath(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "a\nb")
+	full := filepath.Join(tmp, "c\nd")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(full, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(full, "x"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, dir := range map[string]string{"not a directory": file, "not empty": full} {
+		err := CheckOut(dir)
+		if err == nil || !strings.Contains(err.Error(), name) || strings.ContainsAny(err.Error(), "\n\r") {
+			t.Errorf("%s: error %q is missing, off its reason or holds a line break", name, err)
+		}
+	}
+}
