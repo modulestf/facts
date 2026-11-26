@@ -606,7 +606,7 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 			// known-atoms are known or unknown alike, so the deferral cannot
 			// differ; the L4 trigger above still needs the plan.
 			if (!isLiteral(bx) || !isLiteral(hx)) &&
-				(bx == nil || hx == nil || !maps.Equal(knownAtoms(bx), knownAtoms(hx))) {
+				(bx == nil || hx == nil || !sameKnown(bx, hx)) {
 				s.cat, s.reason, s.levels = CatUnknownPropagation, reasonDataRead, []string{LevelL1}
 				d.add(s)
 			}

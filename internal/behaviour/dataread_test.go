@@ -52,7 +52,7 @@ func TestDataReadL1Recorded(t *testing.T) {
 // sides have the same set of subexpressions that decide what is known.
 func TestDataReadL1Atoms(t *testing.T) {
 	data := func(v string) map[string]string {
-		return map[string]string{"main.tf": "locals {\n  p = \"aws\"\n  m = {}\n}\n" + varX +
+		return map[string]string{"main.tf": "locals {\n  p = \"aws\"\n  m = {}\n  k = \"k\"\n  l = []\n}\n" + varX +
 			"data \"aws_look\" \"l\" {\n  name = " + v + "\n}\n"}
 	}
 	cases := []struct {
@@ -71,6 +71,17 @@ func TestDataReadL1Atoms(t *testing.T) {
 		{"index key literal", `local.m["a"]`, `local.m["b"]`, true},
 		{"conditional added", `"${local.p}-a"`, `"${var.x ? local.p : "a"}-a"`, true},
 		{"for added", `[local.p]`, `[for s in [local.p] : s]`, true},
+		{"interpolation wrap", `"${local.p}"`, `["${local.p}", "x"]`, false},
+		{"parentheses", `"${(local.p)}-a"`, `"${local.p}-b"`, false},
+		{"splat changed", `local.l[*].a`, `local.l[*].b`, true},
+		{"splat in tuple", `[local.l[*].a, "x"]`, `[local.l[*].a, "y"]`, false},
+		{"directive gains a hidden reference", `"%{if var.x}ok%{endif}"`, `"%{if var.x}ok /* ${local.p} */%{endif}"`, true},
+		{"for directive gains a hidden reference", `"%{for s in local.l}${s}%{endfor}"`, `"%{for s in local.l}${s} /* ${var.x} */%{endfor}"`, true},
+		{"directive unchanged but literal", `"%{if var.x}a%{endif}"`, `"%{if var.x}b%{endif}"`, true},
+		{"computed key reordered", `{ a = var.x, (local.k) = "b" }`, `{ (local.k) = "b", a = var.x }`, true},
+		{"literal key to computed key", `{ k = "a" }`, `{ (local.p) = "a" }`, true},
+		{"duplicate key removed", `{ a = var.x, a = "lit" }`, `{ a = var.x }`, true},
+		{"quoted key literal value", `{ "a" = local.p, b = "x" }`, `{ "a" = local.p, b = "y" }`, false},
 	}
 	for _, c := range cases {
 		r := runPair(t, data(c.base), data(c.head), "")
