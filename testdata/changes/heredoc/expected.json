@@ -1,0 +1,57 @@
+{
+  "files": [
+    {
+      "path": "bucket.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "aws_s3_bucket_policy.this",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "policy",
+              "plain": {
+                "head": false,
+                "base": false
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_s3_bucket_policy.odd",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "acl",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [],
+      "complete": true
+    }
+  ]
+}

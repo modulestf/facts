@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "changes.schema.json",
+  "title": "mtf-facts changes",
+  "description": "What a change does to the HCL of a module tree: per changed configuration file its added, removed and edited top-level blocks and their changed direct attributes, whether the module reads each changed attribute of a resource or data block, and the data source types of each head directory.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "head_tree_sha256", "base", "files", "data_sources"],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "path": {"type": "string", "minLength": 1, "not": {"pattern": "^/"}},
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "kind", "status", "structural", "attributes"],
+      "properties": {
+        "address": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "minLength": 1, "description": "The block type keyword: resource, data, module, variable, output, locals or any other."},
+        "status": {"enum": ["added", "removed", "edited"]},
+        "structural": {"type": "boolean", "description": "Edited besides the values of its direct attributes: header, comment, attribute added, removed or moved, any nested block, or in a resource or data block a change of count, for_each, provider or depends_on."},
+        "attributes": {"type": "array", "items": {"$ref": "#/$defs/attribute"}}
+      },
+      "if": {"type": "object", "properties": {"status": {"enum": ["added", "removed"]}}},
+      "then": {"type": "object", "properties": {"structural": {"const": false}, "attributes": {"type": "array", "maxItems": 0}}}
+    },
+    "attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "plain", "read", "readers", "readers_truncated"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "plain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["head", "base"],
+          "properties": {"head": {"type": "boolean"}, "base": {"type": "boolean"}}
+        },
+        "read": {"enum": ["read", "unread", "unknown"], "description": "Whether an expression of the module reads the attribute at head, by its name (also through resource.<type>.<name>, tags_all for tags and self) or as the whole object. A read of a derived attribute such as id or arn, or an ignore_changes entry, does not count."},
+        "readers": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/reader"}},
+        "readers_truncated": {"type": "boolean"}
+      },
+      "if": {"type": "object", "properties": {"read": {"const": "unread"}}},
+      "then": {"type": "object", "properties": {"readers": {"type": "array", "maxItems": 0}}}
+    },
+    "reader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line", "how"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "line": {"type": "integer", "minimum": 0},
+        "how": {"enum": ["name", "object", "self", "tags_all", "unknown"]}
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {"const": 1},
+    "head_tree_sha256": {"$ref": "#/$defs/sha256"},
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tree_sha256", "diff"],
+      "properties": {
+        "kind": {"enum": ["tree", "diff"]},
+        "tree_sha256": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/sha256"}]},
+        "diff": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["format", "sha256"],
+              "properties": {"format": {"enum": ["github-files", "unified"]}, "sha256": {"$ref": "#/$defs/sha256"}}
+            }
+          ]
+        }
+      },
+      "if": {"type": "object", "properties": {"kind": {"const": "tree"}}},
+      "then": {"type": "object", "properties": {"tree_sha256": {"type": "string"}, "diff": {"type": "null"}}},
+      "else": {"type": "object", "properties": {"tree_sha256": {"type": "null"}, "diff": {"type": "object"}}}
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "dir", "status", "parsed", "reason", "outside", "blocks"],
+        "properties": {
+          "path": {"$ref": "#/$defs/path"},
+          "dir": {"$ref": "#/$defs/path"},
+          "status": {"enum": ["added", "removed", "modified"]},
+          "parsed": {"type": "boolean"},
+          "reason": {"enum": [null, "json", "tofu", "override", "parse-error", "limit", "duplicate-address", "symlink", "special", "unreadable", "oversize", "no_patch"]},
+          "outside": {"type": "boolean", "description": "Anything changed besides the values of direct attributes of blocks present at both sides."},
+          "blocks": {"type": "array", "items": {"$ref": "#/$defs/block"}}
+        },
+        "if": {"type": "object", "properties": {"parsed": {"const": false}}},
+        "then": {"type": "object", "properties": {"reason": {"type": "string"}, "outside": {"const": true}, "blocks": {"type": "array", "maxItems": 0}}},
+        "else": {"type": "object", "properties": {"reason": {"type": "null"}}}
+      }
+    },
+    "data_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dir", "types", "complete"],
+        "properties": {
+          "dir": {"$ref": "#/$defs/path"},
+          "types": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "complete": {"type": "boolean", "description": "False when a file there is a .tf.json, .tofu or .tofu.json file, is not a regular file or does not parse, or a data block does not have two labels."}
+        }
+      }
+    }
+  }
+}

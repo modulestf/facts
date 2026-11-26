@@ -117,6 +117,33 @@ mtf-facts affected <dir> [--base <dir> | --diff <file>] [--module-root <dir>] [-
 
 It exits 0 with the list, or 2 on bad input, a limit, an example directory whose name is outside `[A-Za-z0-9._-]`, a module root it refuses, or the timeout, with nothing on stdout. Without `--json` it prints one `<reason> <dir>` line per example, with ` unresolved` after an unresolved one, and a summary line.
 
+## changes
+
+`mtf-facts changes` reports what a change does to the HCL of a module tree, read with the HCL parser: the changed direct attributes of each top-level block, whether the module reads each of them, and the data source types of each directory. A host uses it to decide whether a change is only a value change of resource or data arguments, and whether anything else depends on those values.
+
+```sh
+mtf-facts changes <dir> (--base <dir> | --diff <file>) [--json] [--timeout <duration>]
+```
+
+One of `--base` and `--diff` is required; they read the change as `lint` does (see [Change as a diff](#change-as-a-diff)). With `--json` it writes one JSON document in the shape of [changes.schema.json](../schema/changes.schema.json):
+
+```json
+{"schema_version": 1, "head_tree_sha256": "<64 hex>", "base": {"kind": "tree", "tree_sha256": "<64 hex>", "diff": null},
+ "files": [{"path": "main.tf", "dir": ".", "status": "modified", "parsed": true, "reason": null, "outside": false,
+   "blocks": [{"address": "aws_lb.this", "kind": "resource", "status": "edited", "structural": false,
+     "attributes": [{"name": "subnets", "plain": {"head": true, "base": true}, "read": "read",
+       "readers": [{"path": "data.tf", "line": 3, "how": "name"}], "readers_truncated": false}]}]}],
+ "data_sources": [{"dir": "examples/sso", "types": ["aws_ssoadmin_instances"], "complete": true}]}
+```
+
+- `files` lists every `.tf`, `.tf.json`, `.tofu` and `.tofu.json` file whose entry differs, in path order. `parsed` is false for a `.tf.json` file, a `.tofu` or `.tofu.json` file, an override file, a file that does not parse or is over a parser limit, a file with two `resource`, `data`, `module`, `variable` or `output` blocks of one address, and an entry that is not a regular file; `reason` names which. Blocks of a type that may repeat, such as `locals`, `moved` or `terraform`, are matched in order. No other changed file is listed, so a template or `.tfvars` change gives `files: []`: the host classifies every other changed file itself. `outside` is set when anything changed besides the values of direct attributes of blocks present at both sides: a comment or blank line between blocks, a block added, removed or moved, or the file added, removed or not parsed.
+- `blocks` lists each top-level block that was added, removed or edited. `structural` is set for an edit besides the values of its direct attributes: its header, a comment or blank line, a trailing comment, an attribute added, removed or moved, or any nested block, `dynamic` and `lifecycle` included, and in a `resource` or `data` block a change of `count`, `for_each`, `provider` or `depends_on`, which changes which instances exist or in what order rather than one value; such a change is never listed as a changed attribute. `attributes` lists the direct attributes present at both sides whose value bytes changed, so two changed attributes on adjacent lines are two entries.
+- `plain` says, per side, whether a value is a plain expression: numbers, strings whose interpolations are plain and with no template directive, `true`, `false`, `null`, references with attribute, index and splat steps not rooted at `each`, `count` or `self`, tuples, objects with name or literal string keys, a negative number, and calls of only `concat`, `compact`, `flatten`, `distinct`, `join`, `format`, `length`, `toset`, `tolist`, `tomap`, `element`, `keys` and `values`. An operator, `?:`, `for`, `...`, parentheses, a heredoc and every other function are not plain.
+- `read` is `read`, `unread` or `unknown` for an attribute of a resource or data block: whether an expression in a configuration file directly in the block's directory reads it at head. An address resolves only inside its module, so other directories are not read, and comments and string text are no reads. A reference reads the attribute it names after the address, past one index or splat that selects instances of a block with `count` or `for_each`. An index with a literal string key names an attribute. The whole object, a `for` expression over it, and any other index or splat read every attribute. `tags_all` reads `tags`, `self.<name>` inside the block reads `<name>`, and `resource.<type>.<name>`, Terraform's long form of an address, is read as `<type>.<name>`. Reads are by name or by the whole object only: a read of a derived (computed) attribute such as `id` or `arn`, known only after apply, or a `lifecycle` `ignore_changes` entry, does not mark the attribute it names or any other attribute read. A `.tf.json`, `.tofu`, `.tofu.json`, override, unparsed or non-regular file in that directory makes the state `unknown`, with that file as a reader of `how` `unknown` and line 0. Attributes of other blocks, a `resource` or `data` block without two labels among them, are `unknown`. Only `.tf` configuration files are scanned: the expressions of `.tftest.hcl` files, `assert` conditions among them, are not. `readers` lists at most 32 reads, each whole-object read of the block counted once for all its attributes; `readers_truncated` says when there were more, and the state does not depend on the cap.
+- `data_sources` lists each head directory with a configuration file and the data source types its files declare, from the parsed blocks, inside `check` blocks too, so a type named only in a comment or a heredoc is not declared. `complete` is false when a file there is a `.tf.json`, `.tofu` or `.tofu.json` file, is not a regular file or does not parse, or a data block does not have two labels. A directory reached through a link is not listed.
+
+It exits 0 with the report, or 2 on bad input, a limit or the timeout, with nothing on stdout. Without `--json` it prints one line per file, block, attribute and directory with data sources.
+
 ## depth
 
 `mtf-facts depth` decides how deep a review of a change must go: `light`, `focused` or `deep`. It reads the head tree and the merge base tree, the pull request files list, and the `behaviour --json` and `affected --json` reports of the same change, and never runs Terraform. Every rule fails closed: anything it cannot prove makes the change deep.

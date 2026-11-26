@@ -170,6 +170,7 @@ func TestReportVersions(t *testing.T) {
 		schema   string
 	}{
 		"affected":      {[]string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, false, "affected.schema.json"},
+		"changes":       {[]string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base", "--json"}, false, "changes.schema.json"},
 		"behaviour":     {[]string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, false, "behaviour.schema.json"},
 		"claims-eval":   {append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"}, shas...), false, "claims-eval.schema.json"},
 		"fixture-check": {[]string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, false, "fixture-check.schema.json"},

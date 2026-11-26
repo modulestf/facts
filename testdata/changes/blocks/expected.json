@@ -1,0 +1,156 @@
+{
+  "files": [
+    {
+      "path": "gap.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "main.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": true,
+      "blocks": [
+        {
+          "address": "var.name",
+          "kind": "variable",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "default",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "locals",
+          "kind": "locals",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "module.listener",
+          "kind": "module",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "port",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.main",
+          "kind": "resource",
+          "status": "added",
+          "structural": false,
+          "attributes": []
+        },
+        {
+          "address": "output.arn",
+          "kind": "output",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "value",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.this",
+          "kind": "resource",
+          "status": "removed",
+          "structural": false,
+          "attributes": []
+        },
+        {
+          "address": "data.aws_iam_policy_document.this",
+          "kind": "data",
+          "status": "removed",
+          "structural": false,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "path": "moved.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": true,
+      "blocks": []
+    },
+    {
+      "path": "rename.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": true,
+      "blocks": [
+        {
+          "address": "aws_sns_topic.new",
+          "kind": "resource",
+          "status": "added",
+          "structural": false,
+          "attributes": []
+        },
+        {
+          "address": "aws_sns_topic.old",
+          "kind": "resource",
+          "status": "removed",
+          "structural": false,
+          "attributes": []
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [],
+      "complete": true
+    }
+  ]
+}

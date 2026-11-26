@@ -42,6 +42,7 @@ func reportVersions() map[string]int {
 	return map[string]int{
 		"affected":      facts.AffectedSchemaVersion,
 		"behaviour":     behaviour.SchemaVersion,
+		"changes":       facts.ChangesSchemaVersion,
 		"claims-eval":   behaviour.SchemaVersion,
 		"fixture-check": fixture.SchemaVersion,
 		"lint":          facts.SchemaVersion,

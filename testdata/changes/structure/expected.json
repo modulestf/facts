@@ -1,0 +1,153 @@
+{
+  "files": [
+    {
+      "path": "main.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "aws_lb.nested",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.dynamic",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.added_attr",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.comment",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.block_comment",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.lifecycle",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.meta",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.two",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            },
+            {
+              "name": "security_groups",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        },
+        {
+          "address": "aws_lb.trailing",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.meta_count",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.meta_for_each",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "aws_lb.meta_provider",
+          "kind": "resource",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "data.aws_ami.meta_depends_on",
+          "kind": "data",
+          "status": "edited",
+          "structural": true,
+          "attributes": []
+        },
+        {
+          "address": "module.meta_module",
+          "kind": "module",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "count",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unknown",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [
+        "aws_ami"
+      ],
+      "complete": true
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "files": [
+    {
+      "path": "main.tf",
+      "dir": ".",
+      "status": "modified",
+      "parsed": true,
+      "reason": null,
+      "outside": false,
+      "blocks": [
+        {
+          "address": "aws_sns_topic.t",
+          "kind": "resource",
+          "status": "edited",
+          "structural": false,
+          "attributes": [
+            {
+              "name": "name",
+              "plain": {
+                "head": true,
+                "base": true
+              },
+              "read": "unread",
+              "readers": [],
+              "readers_truncated": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "data_sources": [
+    {
+      "dir": ".",
+      "types": [],
+      "complete": true
+    },
+    {
+      "dir": "examples/check",
+      "types": [
+        "aws_ssoadmin_instances"
+      ],
+      "complete": true
+    },
+    {
+      "dir": "examples/comment",
+      "types": [],
+      "complete": true
+    },
+    {
+      "dir": "examples/heredoc",
+      "types": [],
+      "complete": true
+    },
+    {
+      "dir": "examples/json",
+      "types": [],
+      "complete": false
+    },
+    {
+      "dir": "examples/onelabel",
+      "types": [],
+      "complete": false
+    },
+    {
+      "dir": "examples/open",
+      "types": [],
+      "complete": false
+    },
+    {
+      "dir": "examples/real",
+      "types": [
+        "aws_identitystore_group",
+        "aws_ssoadmin_instances"
+      ],
+      "complete": true
+    },
+    {
+      "dir": "examples/tofu",
+      "types": [
+        "aws_ssoadmin_instances"
+      ],
+      "complete": false
+    },
+    {
+      "dir": "shared/linked",
+      "types": [
+        "aws_ssoadmin_instances"
+      ],
+      "complete": true
+    }
+  ]
+}
