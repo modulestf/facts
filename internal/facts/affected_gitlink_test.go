@@ -825,3 +825,143 @@ func TestAffectedModuleCallThroughChangedLink(t *testing.T) {
 		t.Errorf("inert %v changed %q, want not inert with vendor/lnk", r.Inert, r.Changed)
 	}
 }
+
+// TestDiffGitlinkRenameBase: a gitlink renamed or copied has nothing at its
+// new path at the base, and its old path is a changed gitlink.
+func TestDiffGitlinkRenameBase(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"files list, renamed": `[{"filename":"docs/theme2","previous_filename":"docs/theme","status":"renamed","additions":0,"deletions":0}]`,
+		"unified, renamed":    "diff --git a/docs/theme b/docs/theme2\nsimilarity index 100%\nrename from docs/theme\nrename to docs/theme2\n",
+		"unified, copied":     "diff --git a/docs/theme b/docs/theme2\nsimilarity index 100%\ncopy from docs/theme\ncopy to docs/theme2\n",
+	}
+	for name, diff := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head := mustTree(t, writeGitlinkTree(t, gitlinkBase, []string{"docs/theme2"}, false))
+			f := filepath.Join(t.TempDir(), "change")
+			if err := os.WriteFile(f, []byte(diff), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			base, _, err := ReadDiffBase(head, f, DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if e := base.Entries["docs/theme2"]; e != nil {
+				t.Errorf("base entry at the new path: %+v, want none", e)
+			}
+			if !base.IsGitlink("docs/theme") || !base.IsGitlink("docs/theme2") {
+				t.Errorf("gitlinks of the base: theme %v theme2 %v", base.IsGitlink("docs/theme"), base.IsGitlink("docs/theme2"))
+			}
+		})
+	}
+}
+
+// TestDiffGitlinkMergedFlags: two entries of one path merge when either shows
+// a gitlink, whichever side shows it first, even for a head that holds none.
+func TestDiffGitlinkMergedFlags(t *testing.T) {
+	t.Parallel()
+	sub := "Subproject commit " + gitSHA
+	plainDel := "diff --git a/docs/sub b/docs/sub\ndeleted file mode 100644\n--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-text\n"
+	plainAdd := "diff --git a/docs/sub b/docs/sub\nnew file mode 100644\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+text\n"
+	gitDel := "diff --git a/docs/sub b/docs/sub\ndeleted file mode 160000\n--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n"
+	gitAdd := "diff --git a/docs/sub b/docs/sub\nnew file mode 160000\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+" + sub + "\n"
+	cases := map[string]struct {
+		diff     string
+		want     string // the kind of the base entry, "" for none
+		headFile bool   // the head holds a file there, not nothing
+	}{
+		"the first shows a gitlink at the head":     {gitAdd + plainDel, KindNoPatch, false},
+		"the second shows a gitlink at the base":    {plainAdd + gitDel, "", true},
+		"the second shows a gitlink at the head":    {plainDel + gitAdd, KindNoPatch, false},
+		"the first shows a gitlink at the base":     {gitDel + plainAdd, "", true},
+		"three entries, the first shows a gitlink":  {gitAdd + plainDel + plainDel, KindNoPatch, false},
+		"three entries, the second shows a gitlink": {plainDel + gitAdd + plainDel, KindNoPatch, false},
+		"three entries, a base gitlink then two":    {gitDel + plainAdd + plainAdd, "", true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			files := gitlinkBase
+			if c.headFile {
+				files = with(files, map[string]string{"docs/sub": "text\n"})
+			}
+			head := mustTree(t, writeGitlinkTree(t, files, nil, false)) // the head holds no gitlink there
+			f := filepath.Join(t.TempDir(), "change")
+			if err := os.WriteFile(f, []byte(c.diff), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			base, _, err := ReadDiffBase(head, f, DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := ""
+			if e := base.Entries["docs/sub"]; e != nil {
+				got = e.Kind
+			}
+			if got != c.want {
+				t.Errorf("base entry kind %q, want %q", got, c.want)
+			}
+			if gl := ChangedGitlinks(head, base); !slices.Equal(gl, []string{"docs/sub"}) {
+				t.Errorf("changed gitlinks %q", gl)
+			}
+		})
+	}
+}
+
+// TestGitlinkCallSources: only a local source names a gitlink; a registry
+// address that spells the path does not, and a call in a tree with no change,
+// to a gitlink only the head or only the base holds, is not read either.
+func TestGitlinkCallSources(t *testing.T) {
+	t.Parallel()
+	status := func(t *testing.T, r *Report) string {
+		t.Helper()
+		return statusOf(r.Manifest, "coverage.unknown-argument", ".")
+	}
+	t.Run("a registry address is no local path", func(t *testing.T) {
+		t.Parallel()
+		files := map[string]string{"main.tf": "module \"s\" {\n  source = \"hashicorp/consul/aws\"\n  foo = 1\n}\n"}
+		r := lintGitlink(t, files, "hashicorp/consul/aws", false)
+		if s := status(t, r); strings.HasPrefix(s, StatusNotEvaluated) && strings.Contains(s, "commit pointer") {
+			t.Errorf("status %q", s)
+		}
+	})
+	files := map[string]string{"main.tf": "module \"s\" {\n  source = \"./sub\"\n  foo = 1\n}\n"}
+	t.Run("no change given", func(t *testing.T) {
+		t.Parallel()
+		r, err := Run(Options{Head: writeGitlinkTree(t, files, []string{"sub"}, false), ProfileDir: testProfile, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := status(t, r); !strings.HasPrefix(s, StatusNotEvaluated) {
+			t.Errorf("status %q, want not_evaluated", s)
+		}
+	})
+	t.Run("a gitlink the diff removes", func(t *testing.T) {
+		t.Parallel()
+		f := filepath.Join(t.TempDir(), "change")
+		patch := "@@ -1 +0,0 @@\\n-Subproject commit " + gitSHA
+		if err := os.WriteFile(f, []byte(filesList("removed", "sub", patch)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		r, err := Run(Options{Head: writeGitlinkTree(t, files, nil, false), Diff: f, ProfileDir: testProfile, Limits: DefaultLimits})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s := status(t, r); !strings.HasPrefix(s, StatusNotEvaluated) {
+			t.Errorf("status %q, want not_evaluated", s)
+		}
+	})
+	t.Run("a rule on paths is still evaluated", func(t *testing.T) {
+		t.Parallel()
+		r := lintGitlink(t, files, "sub", false)
+		for _, rule := range Rules {
+			if rule.Class == ClassConfig || !slices.Contains(rule.Kinds, AreaRoot) || rule.CrossArea {
+				continue
+			}
+			if s := statusOf(r.Manifest, rule.ID, "."); strings.Contains(s, "commit pointer") {
+				t.Errorf("%s: %s", rule.ID, s)
+			}
+		}
+	})
+}

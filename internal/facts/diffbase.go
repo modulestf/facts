@@ -370,10 +370,11 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	entries := maps.Clone(head.Entries)
 	seenHead, seenBase := map[string]bool{}, map[string]bool{}
 	gitDiff := map[string]bool{} // the gitlinks the diff changes
-	// seenGit holds, for each path of the diff, whether a change of it showed
-	// a gitlink at the base and at the head; skipRebuild holds the paths a
-	// merge of two changes of one path rebuilds no content for.
-	seenGit, skipRebuild := map[string][2]bool{}, map[string]bool{}
+	// involved holds the paths of the diff that a change shows as a gitlink,
+	// at either side; wasGit those it shows as a gitlink at the base;
+	// skipRebuild those a merge of two changes of one path rebuilds no
+	// content for.
+	involved, wasGit, skipRebuild := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	type rebuild struct {
 		at string
 		c  fileChange
@@ -397,21 +398,19 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			// a removal and an addition of one path. Merge them into one
 			// change of a gitlink, whose base content is unknown unless the
 			// base held the gitlink.
-			prev := seenGit[c.path]
-			if !prev[0] && !prev[1] && !c.oldGit && !c.newGit {
+			if !involved[c.path] && !c.oldGit && !c.newGit {
 				return nil, fmt.Errorf("%q is in the diff more than once", c.path)
 			}
-			old := prev[0] || c.oldGit
-			seenGit[c.path] = [2]bool{old, prev[1] || c.newGit}
+			involved[c.path], wasGit[c.path] = true, wasGit[c.path] || c.oldGit
 			gitDiff[c.path], skipRebuild[c.path] = true, true
 			delete(entries, c.path)
-			if !old {
+			if !wasGit[c.path] {
 				entries[c.path] = &Entry{Path: c.path, Kind: KindNoPatch}
 			}
 			continue
 		}
 		seenHead[c.path] = true
-		seenGit[c.path] = [2]bool{c.oldGit, c.newGit}
+		involved[c.path], wasGit[c.path] = c.oldGit || c.newGit, c.oldGit
 		if c.oldGit || c.newGit {
 			// A gitlink holds no content to reverse, and a diff shows its
 			// commit as a file of one line. The path is changed whatever
