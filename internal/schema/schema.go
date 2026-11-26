@@ -10,7 +10,10 @@
 package schema
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"sync"
 
 	tfjson "github.com/hashicorp/terraform-json"
 )
@@ -52,14 +55,43 @@ type Set struct {
 
 	bound   bool
 	dirs    map[string]map[string]*Provider // directory, local name
-	schemas map[string]*tfjson.ProviderSchema
-	raw     map[string]*tfjson.ProviderSchema // source
+	schemas map[string]*types               // handoff, by schemaKey
+	raw     map[string]*types               // source
+
+	mu      sync.Mutex
+	decoded map[decodedKey]*tfjson.SchemaBlock
+}
+
+// types are the resource and data source types of one provider schema, as
+// JSON that decoded without error at load, and the decoder of one type.
+type types struct {
+	resources, dataSources map[string]json.RawMessage
+	decode                 func(json.RawMessage) (*tfjson.SchemaBlock, error)
+}
+
+// decodedKey names one decoded type of one provider schema.
+type decodedKey struct {
+	types      *types
+	dataSource bool
+	name       string
 }
 
 // Load reads the handoff at handoffPath, if not empty, and the raw schema
 // files. Any read, cap or shape failure is an error: a caller must stop, not
 // fall back. The handoff is unbound until Bind.
 func Load(handoffPath string, files []string) (*Set, error) {
+	return load(handoffPath, files, nil)
+}
+
+// LoadTypes is Load of raw schema files alone that keeps only the types keep
+// keeps. Every type is still checked, so a file Load refuses is refused
+// here too. A lookup of a type keep did not keep is schema_unavailable: a
+// caller must keep every type it looks up.
+func LoadTypes(files []string, keep Keep) (*Set, error) {
+	return load("", files, keep)
+}
+
+func load(handoffPath string, files []string, keep Keep) (*Set, error) {
 	s := &Set{Mismatch: "not bound"}
 	if handoffPath != "" {
 		h, sum, err := loadHandoff(handoffPath)
@@ -69,7 +101,7 @@ func Load(handoffPath string, files []string) (*Set, error) {
 		s.Handoff, s.HandoffSHA256 = h, sum
 		s.index()
 	}
-	raw, hashes, err := loadRaw(files)
+	raw, hashes, err := loadRaw(files, keep)
 	if err != nil {
 		return nil, err
 	}
@@ -153,26 +185,89 @@ type Field struct {
 // schema of that provider version lacks the type or a name on the path, and
 // schema_unavailable when there is no such schema or the handoff is unbound.
 func (s *Set) Lookup(q Query) (Outcome, Field) {
-	ps := s.provider(q.Source, q.Version)
-	if ps == nil {
+	ts := s.provider(q.Source, q.Version)
+	if ts == nil {
 		return Unavailable, Field{}
 	}
-	types := ps.ResourceSchemas
-	if q.DataSource {
-		types = ps.DataSourceSchemas
+	b, err := s.block(ts, q.DataSource, q.Type)
+	if err != nil {
+		// A type LoadTypes did not keep. Each type decoded at load, so
+		// the same bytes do not fail now.
+		return Unavailable, Field{}
 	}
-	ts := types[q.Type]
-	if ts == nil || ts.Block == nil {
+	if b == nil {
 		return AbsentFromSchema, Field{}
 	}
-	f, ok := walk(ts.Block, q.Path)
+	f, ok := walk(b, q.Path)
 	if !ok {
 		return AbsentFromSchema, Field{}
 	}
 	return Present, f
 }
 
-func (s *Set) provider(source, version string) *tfjson.ProviderSchema {
+// block decodes the type name of ts on its first lookup and keeps it. It is
+// nil when ts lacks the type or the type has no block.
+func (s *Set) block(ts *types, dataSource bool, name string) (*tfjson.SchemaBlock, error) {
+	m := ts.resources
+	if dataSource {
+		m = ts.dataSources
+	}
+	raw, ok := m[name]
+	switch {
+	case !ok:
+		return nil, nil
+	case raw == nil:
+		return nil, errDropped
+	}
+	k := decodedKey{types: ts, dataSource: dataSource, name: name}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if b, ok := s.decoded[k]; ok {
+		return b, nil
+	}
+	b, err := ts.decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	if s.decoded == nil {
+		s.decoded = map[decodedKey]*tfjson.SchemaBlock{}
+	}
+	s.decoded[k] = b
+	return b, nil
+}
+
+// rawMessages returns the types of a handoff provider schema as JSON.
+func rawMessages(m map[string]HandoffType) map[string]json.RawMessage {
+	out := make(map[string]json.RawMessage, len(m))
+	for name, t := range m {
+		out[name] = json.RawMessage(t)
+	}
+	return out
+}
+
+// errDropped is the lookup of a type LoadTypes did not keep.
+var errDropped = errors.New("type not kept")
+
+// rawBlock decodes one type of a raw schema file.
+func rawBlock(raw json.RawMessage) (*tfjson.SchemaBlock, error) {
+	t, err := decodeRawType(raw)
+	if err != nil {
+		return nil, err
+	}
+	return t.Block, nil
+}
+
+// handoffBlock decodes one type of the handoff to the terraform-json type
+// lookups walk.
+func handoffBlock(raw json.RawMessage) (*tfjson.SchemaBlock, error) {
+	t, err := decodeHandoffType(raw)
+	if err != nil {
+		return nil, err
+	}
+	return t.Block.toTF(), nil
+}
+
+func (s *Set) provider(source, version string) *types {
 	switch {
 	case s == nil:
 		return nil
@@ -221,19 +316,10 @@ func (s *Set) index() {
 		}
 		s.dirs[d.Path] = m
 	}
-	s.schemas = map[string]*tfjson.ProviderSchema{}
+	s.schemas = map[string]*types{}
 	for _, p := range s.Handoff.ProviderSchemas {
-		s.schemas[schemaKey(p.Source, p.Version)] = &tfjson.ProviderSchema{
-			ResourceSchemas:   toSchemas(p.ResourceSchemas),
-			DataSourceSchemas: toSchemas(p.DataSourceSchemas),
+		s.schemas[schemaKey(p.Source, p.Version)] = &types{
+			resources: rawMessages(p.ResourceSchemas), dataSources: rawMessages(p.DataSourceSchemas), decode: handoffBlock,
 		}
 	}
-}
-
-func toSchemas(in map[string]*TypeSchema) map[string]*tfjson.Schema {
-	out := make(map[string]*tfjson.Schema, len(in))
-	for name, t := range in {
-		out[name] = &tfjson.Schema{Block: t.Block.toTF()}
-	}
-	return out
 }
