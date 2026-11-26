@@ -601,7 +601,7 @@ func TestMainErr(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"1 mutants on the changed lines: 1 survived.",
+		"1 mutant on the changed lines: 1 survived.",
 		"| `m.go:11` | guard never fires |",
 		"- `ign.go` not built on this platform",
 		"- `bad/bad.go` not parsed:",
@@ -635,6 +635,42 @@ func TestRunMutantTimesOut(t *testing.T) {
 	res := run(context.Background(), dir, ms, runOptions{workers: 1, budget: 5 * time.Minute, floor: 2 * time.Second})
 	if len(res) != 1 || res[0].Status != statusTimedOut {
 		t.Fatalf("results %+v, want one timed out mutant", res)
+	}
+}
+
+// A mutant whose test binary never reaches the test timeout, because it
+// sleeps in init before the timer starts, is ended by the mutant's own
+// deadline and is timed out, not killed.
+func TestRunMutantOutlivesDeadline(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	test := "package m\n\nimport \"testing\"\n\nfunc TestPos(t *testing.T) {\n\tif Pos(-1) != 0 {\n\t\tt.Fatal(\"neg\")\n\t}\n}\n"
+	writeModule(t, dir, map[string]string{"m.go": slowSrc, "m_test.go": test})
+	hung := "package m\n\nimport \"time\"\n\nfunc init() { time.Sleep(10 * time.Minute) }\n\nfunc Pos(n int) int { return n }\n"
+	ms := []Mutant{{File: "m.go", Line: 4, Kind: kindGuard, Code: "x", Src: []byte(hung)}}
+	res := run(context.Background(), dir, ms, runOptions{workers: 1, budget: 5 * time.Minute, floor: time.Second})
+	if len(res) != 1 || res[0].Status != statusTimedOut {
+		t.Fatalf("results %+v, want one timed out mutant", res)
+	}
+}
+
+// builtHere reads nothing from the disk: the file's bytes are all it needs.
+func TestBuiltHereOpensNothing(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "no", "such")
+	for _, tc := range []struct {
+		name, src string
+		want      bool
+	}{
+		{"a.go", "package m\n", true},
+		{"a.go", "//go:build ignore\n\npackage m\n", false},
+		{"a_plan9_arm.go", "package m\n", false},
+	} {
+		got, err := builtHere(missing, tc.name, []byte(tc.src))
+		if err != nil || got != tc.want {
+			t.Errorf("%s %q: got %v, %v; want %v", tc.name, tc.src, got, err, tc.want)
+		}
 	}
 }
 
@@ -738,6 +774,31 @@ func TestReportFileNamesInert(t *testing.T) {
 	}
 }
 
+// A line break in a name or code must not split a table row or a list item.
+func TestReportLineBreaksInert(t *testing.T) {
+	var b strings.Builder
+	report(&b, []result{
+		{File: "a\nINJECT1.go", Line: 3, Kind: kindGuard, Code: "x\r\nINJECT2", Status: statusSurvived},
+		{File: "b\rINJECT3.go", Line: 4, Kind: kindGuard, Code: "x", Status: statusNotRun},
+	})
+	out := b.String()
+	if strings.Contains(out, "\r") {
+		t.Errorf("a carriage return reaches the report: %q", out)
+	}
+	for line := range strings.SplitSeq(out, "\n") {
+		for _, frag := range []string{"INJECT1", "INJECT2", "INJECT3"} {
+			if strings.HasPrefix(line, frag) {
+				t.Errorf("%s starts a line of its own: %q", frag, line)
+			}
+		}
+	}
+	for _, want := range []string{"| `a INJECT1.go:3` |", "`x  INJECT2` |", "- `b INJECT3.go:4`"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("report lacks %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestCollectNotesInert(t *testing.T) {
 	root := t.TempDir()
 	hostile := "a`[x](evil.invalid)`b|c.go"
@@ -747,10 +808,18 @@ func TestCollectNotesInert(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "bad`x`.go"), []byte("package m\nfunc {"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	notes := strings.Join(mustNotes(t, root, hostile, "bad`x`.go", "gone`y`.go"), "\n")
+	notes := strings.Join(mustNotes(t, root, hostile, "bad`x`.go", "gone`y`.go", "gone\nINJECT.go", "gone\rINJECT2.go"), "\n")
 	for _, raw := range []string{"`[x]", "`x`", "`y`", "b|c"} {
 		if strings.Contains(strings.ReplaceAll(notes, `\|`, ""), raw) {
 			t.Errorf("notes hold %q raw:\n%s", raw, notes)
+		}
+	}
+	if strings.Contains(notes, "\r") {
+		t.Errorf("a carriage return reaches the notes: %q", notes)
+	}
+	for line := range strings.SplitSeq(notes, "\n") {
+		if !strings.HasPrefix(line, "- ") {
+			t.Errorf("a line break split a note: %q", line)
 		}
 	}
 	for _, want := range []string{"not built on this platform", "not parsed", "not read"} {

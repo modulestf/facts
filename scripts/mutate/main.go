@@ -120,18 +120,18 @@ func collect(root string, changed map[string]map[int]bool) ([]Mutant, []string) 
 	var notes []string
 	for _, n := range names {
 		dir := filepath.Join(root, filepath.FromSlash(path.Dir(n)))
-		built, err := build.Default.MatchFile(dir, path.Base(n))
+		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(n)))
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("- `%s` not read: %s", plain(n), plain(err.Error())))
+			continue
+		}
+		built, err := builtHere(dir, path.Base(n), src)
 		if err != nil {
 			notes = append(notes, fmt.Sprintf("- `%s` not read: %s", plain(n), plain(err.Error())))
 			continue
 		}
 		if !built {
 			notes = append(notes, fmt.Sprintf("- `%s` not built on this platform", plain(n)))
-			continue
-		}
-		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(n)))
-		if err != nil {
-			notes = append(notes, fmt.Sprintf("- `%s` not read: %s", plain(n), plain(err.Error())))
 			continue
 		}
 		got, err := mutants(n, src, changed[n])
@@ -142,6 +142,15 @@ func collect(root string, changed map[string]map[int]bool) ([]Mutant, []string) 
 		ms = append(ms, got...)
 	}
 	return ms, notes
+}
+
+// builtHere reports whether the Go tool would build the file on this
+// platform. The file's bytes are already read, so the check takes them and
+// opens nothing: the file is read once.
+func builtHere(dir, name string, src []byte) (bool, error) {
+	ctxt := build.Default
+	ctxt.OpenFile = func(string) (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(src)), nil }
+	return ctxt.MatchFile(dir, name)
 }
 
 func git(ctx context.Context, dir string, args ...string) (string, error) {
