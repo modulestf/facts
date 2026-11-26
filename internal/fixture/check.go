@@ -146,7 +146,7 @@ func Check(o Options) (*Result, error) {
 		return nil, err
 	}
 	if !st.IsDir() {
-		return nil, fmt.Errorf("%s: not a directory", o.Dir)
+		return nil, fmt.Errorf("%q: not a directory", o.Dir)
 	}
 	r, err := os.OpenRoot(o.Dir)
 	if err != nil {

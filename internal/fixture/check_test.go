@@ -814,3 +814,17 @@ func TestSchemaRules(t *testing.T) {
 		t.Errorf("schema rules %v, want %v", got, want)
 	}
 }
+
+func TestCheckNotDirQuotesPath(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "a\nb")
+	if err := os.WriteFile(f, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Check(Options{Dir: f})
+	if err == nil {
+		t.Fatal("want error for a file")
+	}
+	if want := fmt.Sprintf("%q: not a directory", f); err.Error() != want {
+		t.Fatalf("got %q, want %q", err.Error(), want)
+	}
+}
