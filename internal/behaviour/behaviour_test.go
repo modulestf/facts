@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -174,6 +175,83 @@ const rds = `resource "aws_rds_cluster" "this" {
 }
 `
 
+// iamPath returns a tree whose example sets the IAM path "/" on a role, a
+// policy and a roles data source and reads other attributes of them, with
+// readme as the text of every README.
+func iamPath(main, readme string) map[string]string {
+	return map[string]string{
+		"main.tf": main,
+		"examples/postgres/main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n" +
+			"resource \"aws_iam_policy\" \"p\" {\n  path = \"/\"\n}\n" +
+			"data \"aws_iam_roles\" \"all\" {\n  path_prefix = \"/\"\n}\n" +
+			"resource \"aws_iam_role_policy_attachment\" \"a\" {\n  role       = aws_iam_role.r.name\n  policy_arn = aws_iam_policy.p.arn\n}\n" +
+			"output \"arns\" {\n  value = data.aws_iam_roles.all.arns\n}\n",
+		"README.md":                   readme,
+		"examples/postgres/README.md": readme,
+		"examples/mysql/README.md":    readme,
+		"examples/mysql/main.tf":      "module \"db\" {\n  source = \"../../\"\n}\n",
+	}
+}
+
+// sepRead returns a tree where "/" reaches code that may join it to
+// path.module: the only read site is the "/" itself.
+func sepRead(files map[string]string, readme string) map[string]string {
+	out := map[string]string{"README.md": readme, "modules/sub/README.md": readme}
+	maps.Copy(out, files)
+	return out
+}
+
+// fooRead is sepRead with a README in modules/foo as well.
+func fooRead(files map[string]string, readme string) map[string]string {
+	out := sepRead(files, readme)
+	out["modules/foo/README.md"] = readme
+	return out
+}
+
+var (
+	sepVars    = "variable \"sep\" {\n  type    = string\n  default = \"/\"\n}\nvariable \"doc\" {\n  type = string\n}\n"
+	sepDefault = map[string]string{"main.tf": sepVars + "locals {\n  dir = path.module\n}\n" +
+		"resource \"aws_s3_object\" \"o\" {\n  source = \"${local.dir}${var.sep}${var.doc}\"\n}\n"}
+	sepJoin = map[string]string{"main.tf": sepVars +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(var.sep, [path.module, var.doc])\n}\n"}
+	sepFormat = map[string]string{"main.tf": sepVars +
+		"resource \"aws_s3_object\" \"o\" {\n  source = format(\"%s%s%s\", path.module, var.sep, var.doc)\n}\n"}
+	sepModule = map[string]string{
+		"modules/sub/main.tf": "variable \"sep\" {\n  type = string\n}\nvariable \"doc\" {\n  type = string\n}\n" +
+			"resource \"aws_s3_object\" \"o\" {\n  source = join(var.sep, [path.module, var.doc])\n}\n",
+		"examples/a/main.tf": "module \"sub\" {\n  source = \"../../modules/sub\"\n  sep    = \"/\"\n  doc    = var.doc\n}\n",
+	}
+	sepChild = map[string]string{
+		"main.tf": "module \"child\" {\n  source = \"./modules/sub\"\n  base   = path.module\n}\n",
+		"modules/sub/main.tf": "variable \"base\" {\n  type    = string\n  default = \"/\"\n}\n" +
+			"resource \"aws_s3_object\" \"o\" {\n  source = \"${var.base}/README.md\"\n}\n",
+	}
+	notIAMModule = map[string]string{"main.tf": "module \"aws_iam_policy\" {\n  source = \"./modules/sub\"\n  path   = \"/\"\n}\n"}
+	notIAMType   = map[string]string{"main.tf": "resource \"aws_demo_widget\" \"w\" {\n  path = \"/\"\n}\n"}
+	notIAMPath   = map[string]string{"main.tf": "resource \"aws_iam_role\" \"r\" {\n  name = \"/\"\n}\n"}
+	iamRole      = "resource \"aws_iam_role\" \"r\" {\n  path = \"/\"\n}\n"
+	// the "/" of each tree below is the only literal that reaches modules/sub/README.md
+	iamPathJoined = map[string]string{"modules/sub/main.tf": iamRole +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, aws_iam_role.r.path, \"README.md\"])\n}\n"}
+	iamWholeJoined = map[string]string{"modules/sub/main.tf": iamRole + "locals {\n  role = aws_iam_role.r\n}\n" +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, local.role.path, \"README.md\"])\n}\n"}
+	iamCounted = "resource \"aws_iam_role\" \"r\" {\n  count = 1\n  path  = \"/\"\n}\n"
+	iamIndexed = map[string]string{"modules/sub/main.tf": iamCounted +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, aws_iam_role.r[0].path, \"README.md\"])\n}\n"}
+	iamSplat = map[string]string{"modules/sub/main.tf": iamCounted +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, one(aws_iam_role.r[*].path), \"README.md\"])\n}\n"}
+	iamDataRead = map[string]string{"modules/sub/main.tf": "data \"aws_iam_roles\" \"all\" {\n  path_prefix = \"/\"\n}\n" +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(\"\", [path.module, data.aws_iam_roles.all.path_prefix, \"README.md\"])\n}\n"}
+	ssmPath    = map[string]string{"main.tf": "resource \"aws_ssm_parameter\" \"p\" {\n  path = \"/\"\n}\n"}
+	iamDocPath = map[string]string{"main.tf": "resource \"aws_iam_role\" \"r\" {\n  path = \"README.md\"\n}\n"}
+	iamPolicy  = "resource \"aws_iam_policy\" \"p\" {\n  path = \"/\"\n}\n"
+	iamFormat  = map[string]string{"modules/foo/main.tf": iamPolicy +
+		"resource \"aws_s3_object\" \"o\" {\n  source = format(\"%s%s%s\", path.module, aws_iam_policy.p.path, \"README.md\")\n}\n"}
+	iamSep = map[string]string{"modules/foo/main.tf": iamPolicy +
+		"resource \"aws_s3_object\" \"o\" {\n  source = join(aws_iam_policy.p.path, [path.module, \"README.md\"])\n}\n"}
+	iamModule = map[string]string{"examples/a/main.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"}
+)
+
 func TestInert(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -214,6 +292,35 @@ func TestInert(t *testing.T) {
 			map[string]string{"main.tf": rds, ".terraform.lock.hcl": "b"}, false, []string{CatNonHCL}},
 		{"script", map[string]string{"main.tf": rds, "scripts/x.sh": "a"},
 			map[string]string{"main.tf": rds, "scripts/x.sh": "b"}, false, []string{CatNonHCL}},
+		{"iam path of / reads no file", iamPath(rds, "a"), iamPath(rds, "b"), true, nil},
+		{"iam path of / beside a file read", iamPath(rds+`output "r" { value = file("${path.module}/README.md") }`+"\n", "a"),
+			iamPath(rds+`output "r" { value = file("${path.module}/README.md") }`+"\n", "b"), false, []string{CatNonHCL}},
+		{"slash in a variable default joined in a template",
+			sepRead(sepDefault, "a"), sepRead(sepDefault, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash in a variable default as a join separator",
+			sepRead(sepJoin, "a"), sepRead(sepJoin, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash in a variable default in a format call",
+			sepRead(sepFormat, "a"), sepRead(sepFormat, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash passed to a submodule as a module argument",
+			sepRead(sepModule, "a"), sepRead(sepModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash as a child variable default beside path.module passed in",
+			sepRead(sepChild, "a"), sepRead(sepChild, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash path of a module named like an iam type", sepRead(notIAMModule, "a"), sepRead(notIAMModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash path of a resource that is not iam", sepRead(notIAMType, "a"), sepRead(notIAMType, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash name of an iam resource", sepRead(notIAMPath, "a"), sepRead(notIAMPath, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam path read by path and joined", sepRead(iamPathJoined, "a"), sepRead(iamPathJoined, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam role read whole and joined", sepRead(iamWholeJoined, "a"), sepRead(iamWholeJoined, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam role read by index", sepRead(iamIndexed, "a"), sepRead(iamIndexed, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam role read by splat", sepRead(iamSplat, "a"), sepRead(iamSplat, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam data source read by path_prefix", sepRead(iamDataRead, "a"), sepRead(iamDataRead, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"slash path of an ssm parameter", sepRead(ssmPath, "a"), sepRead(ssmPath, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam path that is not / alone", sepRead(iamDocPath, "a"), sepRead(iamDocPath, "b"), false, []string{CatNonHCL}},
+		{"iam policy path in a format call", fooRead(iamFormat, "a"), fooRead(iamFormat, "b"), false, []string{CatNonHCL, CatNonHCL, CatNonHCL}},
+		{"iam policy path as a join separator", fooRead(iamSep, "a"), fooRead(iamSep, "b"), false, []string{CatNonHCL, CatNonHCL, CatNonHCL}},
+		{"iam path module argument is still a read site",
+			sepRead(iamModule, "a"), sepRead(iamModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam path with a dynamic part is still a read site", map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "a"},
+			map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "b"}, false, []string{CatNonHCL}},
 		{"no change", map[string]string{"main.tf": rds}, map[string]string{"main.tf": rds}, true, nil},
 		{"comment in a tf file a read site hashes", map[string]string{"main.tf": rds + `locals { h = filemd5("${path.module}/main.tf") }` + "\n"},
 			map[string]string{"main.tf": "# c\n" + rds + `locals { h = filemd5("${path.module}/main.tf") }` + "\n"}, false, []string{CatNonHCL}},

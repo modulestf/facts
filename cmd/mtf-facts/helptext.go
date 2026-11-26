@@ -326,8 +326,10 @@ path, such as a Markdown file or one under .github/, that no HCL read site
 reaches, and whose exec bit did not change. Read sites are file function
 arguments, file calls inside the templates templatefile reads, local_file,
 archive_file and external attributes, provisioner scripts, and any string
-that is a path. A shell command, a dynamic path, a template that does not
-parse and a path that leaves the tree reach every file.
+that is a path, except the IAM path "/" of an aws_iam_* resource or data
+block that no expression reads whole or by path or path_prefix. A shell
+command, a dynamic path, a template that does not parse and a path that
+leaves the tree reach every file.
 
 When the examples cannot be ranked, fallback says why and every example has
 reason all: unparsed when an HCL file cannot be parsed, dynamic-source when

@@ -16,8 +16,11 @@ for every diff context size.
 
 Every changed tree entry is listed. A documentation or metadata path is inert
 when no read site in either revision's configuration can reach it and every
-.tf file parsed; a .tf file is inert when its change is only comments, layout
-or blocks moved between files of one directory. Every other change is
+.tf file parsed. Read sites are as affected lists them, so any string that is
+a path is one, except the IAM path "/" of an aws_iam_* resource or data block
+that no expression reads whole or by path or path_prefix. A .tf file is inert
+when its change is only comments, layout or blocks moved between files of one
+directory. Every other change is
 decomposed into triggers, one per AST-level change with one category, and
 each trigger selects its levels: L1 offline expression evaluation, L3 curated
 provider fixtures, L4 the example plans, or compat for a version floor. A

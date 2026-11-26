@@ -63,8 +63,9 @@ func InertDocPath(p string) bool {
 // argument of a file function, an attribute a resource, data source or
 // provisioner reads a file or runs a program from, or any other string that
 // is a path, anchored at path.module, path.root or path.cwd, or a plain
-// literal. Text is the static part of the path after its anchor; Exact is
-// set when the path has no dynamic part.
+// literal other than an IAM path of "/" alone (see iamPathRoot). Text is
+// the static part of the path after its anchor; Exact is set when the path
+// has no dynamic part.
 type ReadSite struct {
 	File   string // tree path of the .tf file
 	Line   int
@@ -110,6 +111,8 @@ func (l Limits) readSitesCap() int { return cmp.Or(l.maxReadSites, defaultMaxRea
 // so a path no site reaches may still be read. It stops with ErrDeadline
 // when lim's deadline passes.
 func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error) {
+	var held []heldSite
+	refs := map[string]bool{}
 	for _, p := range t.Paths {
 		if err := lim.expired(); err != nil {
 			return nil, false, err
@@ -126,10 +129,16 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 		if err != nil {
 			return nil, false, nil
 		}
-		s := siteScan{dir: path.Dir(p), file: p}
-		s.body(body, "", "")
+		s := siteScan{dir: path.Dir(p), file: p, refs: refs}
+		s.body(body, "", "", "")
+		held = append(held, s.held...)
 		if sites = append(sites, s.sites...); len(sites) > lim.readSitesCap() {
 			return nil, false, nil
+		}
+	}
+	for _, h := range held {
+		if refs[h.block] {
+			sites = append(sites, h.sites...)
 		}
 	}
 	sites, err = templateSites(t, sites, lim)
@@ -224,31 +233,109 @@ func holdsTF(t *Tree, d string) bool {
 type siteScan struct {
 	dir, file string
 	sites     []ReadSite
+	held      []heldSite      // the sites of IAM paths, kept only if refs names their block
+	refs      map[string]bool // the aws_iam_* blocks some expression reads whole or by path; see iamRef
 }
 
-// body scans a body; kind is the type of the block that holds it, and label
-// its first label, the resource or provisioner type.
-func (s *siteScan) body(b *hclsyntax.Body, kind, label string) {
-	for name, a := range b.Attributes {
-		if kind == "module" && (name == "source" || name == "version") {
+// heldSite holds the read sites of the IAM path "/" of one aws_iam_* block,
+// its address the key of refs.
+type heldSite struct {
+	block string
+	sites []ReadSite
+}
+
+// body scans a body; kind is the type of the block that holds it, label its
+// first label, the resource or provisioner type, and name its second.
+func (s *siteScan) body(b *hclsyntax.Body, kind, label, name string) {
+	for attr, a := range b.Attributes {
+		if kind == "module" && (attr == "source" || attr == "version") {
 			continue // a local source is an edge of the call graph, not a file read
 		}
-		if how := readAttrs[label][name]; how != 0 && (kind == "resource" || kind == "data" || kind == "provisioner") {
+		if how := readAttrs[label][attr]; how != 0 && (kind == "resource" || kind == "data" || kind == "provisioner") {
 			if how == readsShell {
-				s.sites = append(s.sites, ReadSite{File: s.file, Line: a.Expr.Range().Start.Line, Kind: name, Anchor: AnchorNone, Dir: s.dir})
+				s.sites = append(s.sites, ReadSite{File: s.file, Line: a.Expr.Range().Start.Line, Kind: attr, Anchor: AnchorNone, Dir: s.dir})
 			} else {
-				s.add(name, a.Expr, true)
+				s.add(attr, a.Expr, true)
 			}
 		}
-		s.expr(a.Expr)
+		if !iamPathRoot(kind, label, attr, a.Expr) {
+			s.expr(a.Expr)
+			continue
+		}
+		h := siteScan{dir: s.dir, file: s.file, refs: map[string]bool{}}
+		h.expr(a.Expr)
+		block := label + "." + name
+		if kind == "data" {
+			block = "data." + block
+		}
+		s.held = append(s.held, heldSite{block: block, sites: h.sites})
 	}
 	for _, blk := range b.Blocks {
-		label := ""
+		label, name := "", ""
 		if len(blk.Labels) > 0 {
 			label = blk.Labels[0]
 		}
-		s.body(blk.Body, blk.Type, label)
+		if len(blk.Labels) > 1 {
+			name = blk.Labels[1]
+		}
+		s.body(blk.Body, blk.Type, label, name)
 	}
+}
+
+// iamPathRoot reports whether name is the path or path_prefix argument of an
+// aws_iam_* resource or data block and its whole value is the string "/".
+// That is an IAM path, not a file path: joined to the root module it would
+// name the whole tree. A "/" anywhere else stays a read site, a variable
+// default, module argument, local or output included, since other code may
+// join it to path.module. So does this one when an expression of the tree
+// reads its block whole or by that argument (see iamRef): the IAM path may
+// then be joined to path.module the same way.
+func iamPathRoot(kind, label, name string, e hclsyntax.Expression) bool {
+	if kind != "resource" && kind != "data" || !strings.HasPrefix(label, "aws_iam_") || name != "path" && name != "path_prefix" {
+		return false
+	}
+	anchor, text, exact := staticPath(e)
+	return anchor == AnchorRoot && exact && text == "/"
+}
+
+// iamRef returns the address of the aws_iam_* resource or data block that t
+// names, as heldSite keys it, and whether t reads the block whole or its
+// path or path_prefix. Index and splat steps after the address stay on the
+// block, so aws_iam_role.r["k"].path and resource.aws_iam_role.r.path read
+// it; an attribute other than path
+// or path_prefix does not. A reference the traversal does not finish, as in
+// aws_iam_role.r[*].path or aws_iam_role.r[each.key].arn, names the block
+// whole, so it counts.
+func iamRef(t hcl.Traversal) (string, bool) {
+	var names []string
+	want := 2
+	switch root := t.RootName(); root {
+	case "resource": // resource.<type>.<name> is the address <type>.<name>
+	case "data":
+		names, want = []string{root}, 3
+	default:
+		names = []string{root}
+	}
+	steps := t[1:]
+	for len(names) < want {
+		if len(steps) == 0 {
+			return "", false
+		}
+		a, ok := steps[0].(hcl.TraverseAttr)
+		if !ok {
+			return "", false
+		}
+		names, steps = append(names, a.Name), steps[1:]
+	}
+	if !strings.HasPrefix(names[want-2], "aws_iam_") {
+		return "", false
+	}
+	for _, st := range steps {
+		if a, ok := st.(hcl.TraverseAttr); ok {
+			return strings.Join(names, "."), a.Name == "path" || a.Name == "path_prefix"
+		}
+	}
+	return strings.Join(names, "."), true
 }
 
 // funcs adds the read function calls inside e, a template.
@@ -261,11 +348,16 @@ func (s *siteScan) funcs(e hclsyntax.Expression) {
 	})
 }
 
-// expr adds the read function calls and the path strings inside e.
+// expr adds the read function calls and the path strings inside e, and
+// records in refs the aws_iam_* blocks it reads.
 func (s *siteScan) expr(e hclsyntax.Expression) {
 	parts := map[hclsyntax.Node]bool{}                                 // literal parts of a template, judged with it
 	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics { // the walker returns no diagnostics
 		switch x := n.(type) {
+		case *hclsyntax.ScopeTraversalExpr:
+			if block, ok := iamRef(x.Traversal); ok {
+				s.refs[block] = true
+			}
 		case *hclsyntax.FunctionCallExpr:
 			if readFuncs[x.Name] && len(x.Args) > 0 {
 				s.add(x.Name, x.Args[0], true)
