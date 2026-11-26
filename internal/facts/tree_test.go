@@ -16,14 +16,16 @@ import (
 
 func TestReadTreeKinds(t *testing.T) {
 	root := writeTree(t, map[string]string{
-		"main.tf":         "# ok\n",
-		"link.tf":         "->main.tf",
-		"outside.tf":      "->../../etc/passwd",
-		"examples/a/x.tf": "",
-		"examples/b":      "->a",
-		".git/config":     "secret",
-		".terraform/x":    "state",
-		"big.txt":         strings.Repeat("x", 100),
+		"main.tf":            "# ok\n",
+		"link.tf":            "->main.tf",
+		"outside.tf":         "->../../etc/passwd",
+		"examples/a/x.tf":    "",
+		"examples/b":         "->a",
+		".git/config":        "secret",
+		".terraform/x":       "state",
+		".terraform-x/y":     "sibling",
+		".terraform/modules": "->../real",
+		"big.txt":            strings.Repeat("x", 100),
 	})
 	if err := unix.Mkfifo(filepath.Join(root, "pipe.tf"), 0o644); err != nil {
 		t.Fatal(err)
@@ -38,6 +40,7 @@ func TestReadTreeKinds(t *testing.T) {
 		"main.tf": KindFile, "link.tf": KindSymlink, "outside.tf": KindSymlink,
 		"examples/a/x.tf": KindFile, "examples/b": KindSymlink,
 		"pipe.tf": KindSpecial, "big.txt": KindOversize,
+		".terraform/x": KindFile, ".terraform-x/y": KindFile, ".terraform/modules": KindSymlink,
 	}
 	if len(tr.Entries) != len(want) {
 		t.Errorf("entries %v, want %d", tr.Paths, len(want))
@@ -361,5 +364,29 @@ func TestDirErrorsQuotePath(t *testing.T) {
 	_, err = Run(Options{Head: profileCase, Limits: DefaultLimits, ProfileDir: filepath.Join(root, name)})
 	if err == nil || !strings.Contains(err.Error(), "is not a directory") || strings.ContainsAny(err.Error(), "\n\r") {
 		t.Errorf("Run: error %q is missing, off its reason or holds a line break", err)
+	}
+}
+
+// A directory named .GIT is not the repository's .git and is read as
+// content, so a change under it is never hidden. Skipped on a file system
+// that folds case, where .GIT is .git.
+func TestReadTreeReadsUpperGit(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".GIT", "config")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		t.Skip("case-insensitive file system")
+	}
+	tr, err := ReadTree(dir, DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := tr.Entries[".GIT/config"]; e == nil || e.Kind != KindFile {
+		t.Errorf("got %+v, want kind %s", e, KindFile)
 	}
 }

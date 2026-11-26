@@ -339,12 +339,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	var todo []rebuild
 	for _, c := range changes {
 		for _, p := range []string{c.path, c.prev} {
-			if p != "" && !safeDiffPath(p) {
+			if p != "" && (!safeDiffPath(p) || gitPath(p)) {
 				return nil, fmt.Errorf("unsafe path %q", p)
 			}
-		}
-		if skippedPath(c.path) || c.prev != "" && skippedPath(c.prev) {
-			continue
 		}
 		if seenHead[c.path] {
 			return nil, fmt.Errorf("%q is in the diff more than once", c.path)
@@ -434,9 +431,11 @@ func safeDiffPath(p string) bool {
 	return !strings.ContainsFunc(p, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
-// skippedPath reports a path under a directory ReadTree never reads.
-func skippedPath(p string) bool {
-	return slices.ContainsFunc(strings.Split(p, "/"), skipDir)
+// gitPath reports a path with a .git element, in any letter case. Git never
+// tracks one, so a change that lists one is refused, on either side of a
+// rename; every other path of the change is the change's own.
+func gitPath(p string) bool {
+	return slices.ContainsFunc(strings.Split(p, "/"), func(e string) bool { return strings.EqualFold(e, ".git") })
 }
 
 // rebuildEntry returns the base entry at path at for one change, from the head
