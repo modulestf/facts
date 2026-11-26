@@ -338,9 +338,9 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		return out
 	}
 	newBlocks := map[string]Body{} // head blocks with no base block
-	shared := func(key string, h Body, top, track bool) {
+	shared := func(key string, h Body, top bool) {
 		bs := bases(key)
-		if len(bs) == 0 && track {
+		if len(bs) == 0 {
 			newBlocks[key] = h
 		}
 		for _, b := range bs {
@@ -350,16 +350,16 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 	}
 	for _, x := range a.Head.Resources {
-		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, true)
+		shared(addr(x.Mode, x.Type, x.Name), x.Body, true)
 	}
 	for _, m := range a.Head.ModuleCalls {
-		shared("module."+m.Name, m.Body, true, true)
+		shared("module."+m.Name, m.Body, true)
 	}
 	for _, p := range a.Head.Providers {
-		shared("provider."+p.Name+"."+p.Alias, p.Body, false, false)
+		shared("provider."+p.Name+"."+p.Alias, p.Body, false)
 	}
 	for _, o := range a.Head.Outputs {
-		shared("output."+o.Name, o.Body, false, false)
+		shared("output."+o.Name, o.Body, false)
 	}
 	// Blocks with no label to pair them by (import) are read as one body per
 	// type and labels; when the counts differ every argument counts.
