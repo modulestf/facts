@@ -287,7 +287,8 @@ Exit codes:
 
 const (
 	rulesShort       = "List the implemented rules and their tier"
-	rulesLong        = "List the implemented rules, one per line with its tier (tool or candidate),\nsorted by id."
+	rulesLong        = "List the implemented rules, one per line with its tier (tool or candidate),\nsorted by id. With --json, one object: schema_version and the rules, each\nwith its tier, class, scope, area kinds and flags (schema/rules.schema.json)."
+	rulesJSONUsage   = "write the rules as one JSON object"
 	versionShort     = "Print the binary version"
 	versionLong      = "Print the binary version. With --json, print one line of JSON instead: the\nversion, the commit, the schema_version of each report and the feature names,\nso a script can check what this binary supports (schema/version.schema.json)."
 	versionJSONUsage = "print the version, the commit, the report schema versions and the features as JSON"

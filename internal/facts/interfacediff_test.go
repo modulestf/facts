@@ -94,14 +94,14 @@ func diffDoc(t *testing.T, set schemaSet, r *Report) map[string]any {
 		t.Fatal(err)
 	}
 	v := decodeJSON(t, data)
-	if errs := set.validate("lint.schema.json", v); len(errs) > 0 {
+	if errs := set.Validate("lint.schema.json", v); len(errs) > 0 {
 		t.Errorf("lint schema: %v", errs)
 	}
 	doc, _ := v.(map[string]any)["interface_diff"].(map[string]any)
 	if doc == nil {
 		t.Fatal("no interface_diff in the report")
 	}
-	if errs := set.validate(interfaceDiffID, doc); len(errs) > 0 {
+	if errs := set.Validate(interfaceDiffID, doc); len(errs) > 0 {
 		t.Errorf("interface diff schema: %v\n%s", errs, data)
 	}
 	return doc
@@ -164,7 +164,7 @@ func TestInterfaceDiffSchemaMutations(t *testing.T) {
 	}
 	fresh := func() map[string]any {
 		doc := decodeJSON(t, data).(map[string]any)
-		if errs := set.validate(interfaceDiffID, doc); len(errs) > 0 {
+		if errs := set.Validate(interfaceDiffID, doc); len(errs) > 0 {
 			t.Fatalf("unmutated document: %v", errs)
 		}
 		return doc
@@ -240,7 +240,7 @@ func TestInterfaceDiffSchemaMutations(t *testing.T) {
 		t.Run(m.name, func(t *testing.T) {
 			doc := fresh()
 			m.mutate(doc)
-			if errs := set.validate(interfaceDiffID, doc); len(errs) == 0 {
+			if errs := set.Validate(interfaceDiffID, doc); len(errs) == 0 {
 				t.Error("mutated document accepted")
 			}
 		})

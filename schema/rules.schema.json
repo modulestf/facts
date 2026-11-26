@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/rules.schema.json",
+  "title": "mtf-facts rules report",
+  "description": "The JSON document that mtf-facts rules --json writes: every rule the binary implements, sorted by id, with every field always written. tier is the binary's word for the registry's engine column, which also has llm; the binary implements tool and candidate rules only. class, scope, cross_area and area_kinds carry the registry's values; area_kinds is sorted. needs_base is set for a rule that is not_evaluated without the base tree, reads_unread_config for one that also judges files no area reads (a test helper module under tests/, a directory more than one level under modules/<m>/).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "rules"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tier",
+          "class",
+          "scope",
+          "area_kinds",
+          "cross_area",
+          "needs_base",
+          "reads_unread_config"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9.-]*$"
+          },
+          "tier": {
+            "enum": [
+              "tool",
+              "candidate"
+            ]
+          },
+          "class": {
+            "enum": [
+              "config-semantic",
+              "path"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "touched-block",
+              "touched-expression",
+              "newly-introduced",
+              "any-file-in-area"
+            ]
+          },
+          "area_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "example",
+                "module",
+                "root",
+                "submodule"
+              ]
+            }
+          },
+          "cross_area": {
+            "type": "boolean"
+          },
+          "needs_base": {
+            "type": "boolean"
+          },
+          "reads_unread_config": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

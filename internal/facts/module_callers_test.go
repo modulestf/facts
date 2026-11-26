@@ -1,6 +1,7 @@
 package facts
 
 import (
+	"encoding/json"
 	"errors"
 	"maps"
 	"os"
@@ -333,5 +334,29 @@ func TestModuleCallersTerragruntBlocksDowngrade(t *testing.T) {
 	}
 	if len(r.InRepoDowngrade) != 0 {
 		t.Errorf("in_repo_downgrade %q, want []", r.InRepoDowngrade)
+	}
+}
+
+// TestInRepoDowngradeJSONKey pins the JSON key of the lint report the
+// lint.in-repo-downgrade feature names: in_repo_downgrade, written as an
+// array even when empty, beside module_callers.
+func TestInRepoDowngradeJSONKey(t *testing.T) {
+	for name, r := range map[string]*Report{
+		"empty":    {InRepoDowngrade: []string{}, ModuleCallers: []ModuleCallers{}},
+		"one area": {InRepoDowngrade: []string{netModule}, ModuleCallers: []ModuleCallers{}},
+		"monorepo": runMono(t, monoHead(), monoBase(), writeProfile(t, "format: 1", "consumers: in-repo", "partitions: portable", "examples: required", "release: registry"), false),
+	} {
+		data, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		if raw, ok := m["in_repo_downgrade"]; !ok || json.Unmarshal(raw, &got) != nil || got == nil || !slices.Equal(got, r.InRepoDowngrade) {
+			t.Errorf("%s: in_repo_downgrade %s, want %q", name, m["in_repo_downgrade"], r.InRepoDowngrade)
+		}
 	}
 }

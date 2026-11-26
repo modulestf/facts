@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "claims.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/claims.schema.json",
   "title": "Review claims",
   "description": "The claims a reviewing model extracts from a pull request description, each a closed predicate over a behaviour trigger. Expressions and attributes are named by trigger id, never by HCL text. mtf-facts claims-eval discards a claim that does not validate, with a reason.",
   "type": "object",

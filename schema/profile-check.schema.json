@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/profile-check.schema.json",
+  "title": "mtf-facts profile-check report",
+  "description": "The JSON document that mtf-facts profile-check writes. options is set for a valid profile only. gates, the gate table, and gated_rules, the rules the profile's options gate, are written with --gates; gated_rules is left out with --gates when the profile cannot be read as one, and when no rule is gated. downgrade_ids is written with --downgrade-ids.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "valid",
+    "problems",
+    "relaxing"
+  ],
+  "properties": {
+    "valid": {
+      "type": "boolean"
+    },
+    "problems": {
+      "description": "Empty for a valid profile.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "consumers",
+        "partitions",
+        "examples",
+        "release"
+      ],
+      "properties": {
+        "format": {
+          "const": 1
+        },
+        "consumers": {
+          "enum": [
+            "public",
+            "in-repo"
+          ]
+        },
+        "partitions": {
+          "enum": [
+            "portable",
+            "fixed"
+          ]
+        },
+        "examples": {
+          "enum": [
+            "required",
+            "none"
+          ]
+        },
+        "release": {
+          "enum": [
+            "registry",
+            "none"
+          ]
+        }
+      }
+    },
+    "relaxing": {
+      "description": "True when an option is not its default; false for an invalid profile.",
+      "type": "boolean"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "option",
+          "value",
+          "rules"
+        ],
+        "properties": {
+          "option": {
+            "enum": [
+              "consumers",
+              "partitions",
+              "examples",
+              "release"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9.-]*$"
+            }
+          }
+        }
+      }
+    },
+    "gated_rules": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9.-]*$"
+      }
+    },
+    "downgrade_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*\\.[a-z0-9][a-z0-9.-]*$"
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "valid": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "required": [
+      "options"
+    ],
+    "properties": {
+      "problems": {
+        "type": "array",
+        "maxItems": 0
+      },
+      "options": true
+    }
+  }
+}

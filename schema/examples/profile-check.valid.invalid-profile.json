@@ -1,0 +1,1 @@
+{"valid":false,"problems":["profile-options: release: maybe is not one of registry, none"],"relaxing":false,"gates":[{"option":"partitions","value":"fixed","rules":["structure.arn-partition-hardcoded"]}]}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "behaviour.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/behaviour.schema.json",
   "title": "mtf-facts behaviour",
   "description": "Every changed tree entry, and the triggers the change decomposes into: one per AST-level change with one category, each with the verification levels it selects. At most 40 triggers; capped counts the rest.",
   "type": "object",

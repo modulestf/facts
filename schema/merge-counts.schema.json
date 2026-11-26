@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/merge-counts.schema.json",
+  "title": "mtf-facts merge counts result",
+  "description": "The one-line JSON document that mtf-facts merge counts writes: the counts of the reply merge final reads (model-output.schema.json), or null when that reply has none. A host never reads a null as zero counts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "counts"
+  ],
+  "properties": {
+    "counts": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "instruction-like-text-from-others",
+            "conversation-claims-unread",
+            "review.quoted-claim-unverifiable"
+          ],
+          "properties": {
+            "instruction-like-text-from-others": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "conversation-claims-unread": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "review.quoted-claim-unverifiable": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    }
+  }
+}

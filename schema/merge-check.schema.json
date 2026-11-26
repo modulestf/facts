@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/merge-check.schema.json",
+  "title": "mtf-facts merge check result",
+  "description": "The one-line JSON document that mtf-facts merge check writes: valid with exit 0, or repair with exit 1 and the reasons the host puts in the repair turn.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "const": "valid"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "reasons"
+      ],
+      "properties": {
+        "result": {
+          "const": "repair"
+        },
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}

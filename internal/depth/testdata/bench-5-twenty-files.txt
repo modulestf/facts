@@ -176,6 +176,7 @@ terraform {
 -- want.json --
 {
   "format": 1,
+  "schema_version": 1,
   "depth": "deep",
   "reasons": [
     "deep-terraform-block",

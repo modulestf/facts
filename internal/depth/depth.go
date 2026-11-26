@@ -40,6 +40,7 @@ type Report struct {
 	notes []string // why some reasons were given; written to stderr, never in the report
 
 	Format             int      `json:"format"`
+	SchemaVersion      int      `json:"schema_version"`
 	Depth              string   `json:"depth"`
 	Reasons            []string `json:"reasons"`
 	ChecksOutOfScope   []string `json:"checks_out_of_scope"`
@@ -309,7 +310,7 @@ func (r *run) evaluate(head, base *facts.Tree, list []fileEntry) (*Report, error
 func (r *run) report(depth string, sel, out, touched []string, walk Walk, counts Counts) *Report {
 	reasons := slices.Collect(maps.Keys(r.reasons))
 	slices.SortFunc(reasons, func(a, b string) int { return reasonRank(a) - reasonRank(b) })
-	return &Report{notes: r.notes, Format: Format, Depth: depth, Reasons: reasons, ChecksOutOfScope: []string{},
+	return &Report{notes: r.notes, Format: Format, SchemaVersion: SchemaVersion, Depth: depth, Reasons: reasons, ChecksOutOfScope: []string{},
 		ExamplesSelected: sortedUnique(slices.Clone(sel)), ExamplesOutOfScope: sortedUnique(slices.Clone(out)),
 		TouchedTypes: sortedUnique(slices.Clone(touched)), Walk: walk, Limits: counts,
 		SchemaProviders: []string{}, SchemaTypes: []string{}, SchemaLocks: []string{}}

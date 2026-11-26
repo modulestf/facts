@@ -153,10 +153,10 @@ It exits 0 with the report, or 2 on bad input, a limit or the timeout, with noth
 mtf-facts depth --head <dir> --base <dir> --files <files.json> [--classify <behaviour.json>] [--affected <affected.json>] [--examples <dir,dir>] [--timeout <duration>]
 ```
 
-`--files` is GitHub's `pulls/<n>/files` list (`filename`, `status`, `previous_filename`, `additions`, `deletions`). `--examples` names example directories the host knows of besides those of the affected report; each is selected unless proven out of scope. It prints one JSON object:
+`--files` is GitHub's `pulls/<n>/files` list (`filename`, `status`, `previous_filename`, `additions`, `deletions`). `--examples` names example directories the host knows of besides those of the affected report; each is selected unless proven out of scope. It prints one JSON object in the shape of [depth.schema.json](../schema/depth.schema.json). `format` and `schema_version` hold the same version; `schema_version` is the field the other reports use, and `format` stays for hosts that read it:
 
 ```json
-{"format": 1, "depth": "focused", "reasons": ["focused-within-limits"],
+{"format": 1, "schema_version": 1, "depth": "focused", "reasons": ["focused-within-limits"],
  "checks_out_of_scope": [], "examples_selected": ["examples/complete"], "examples_out_of_scope": [],
  "touched_types": ["aws_rds_cluster"], "walk": {"complete": true, "unwalked": 0},
  "limits": {"tf_files": 1, "changed_lines": 2, "changed_blocks": 1, "selected_examples": 1},
@@ -332,7 +332,7 @@ mtf-facts merge counts bundle.txt reply.json [repair.json] [--timeout <duration>
 
 The reply is one JSON object with the arrays `candidate_decisions` and `findings` and, optionally, a `counts` object, in the shape of [model-output.schema.json](../schema/model-output.schema.json). `counts` holds the three counts a reviewer's summary line carries: `instruction-like-text-from-others`, `conversation-claims-unread` and `review.quoted-claim-unverifiable`. When present, it has exactly those three keys, each a natural number written as decimal digits, 0 included and at most 9007199254740991; anything else makes the reply invalid.
 
-`merge check` prints `{"result":"valid"}` and exits 0, or `{"result":"repair","reasons":[...]}` and exits 1 when the reply needs the repair turn. Its reasons are fixed text and quote nothing from the reply.
+`merge check` prints, in the shape of [merge-check.schema.json](../schema/merge-check.schema.json), `{"result":"valid"}` and exits 0, or `{"result":"repair","reasons":[...]}` and exits 1 when the reply needs the repair turn. Its reasons are fixed text and quote nothing from the reply.
 
 `merge final` prints the merged findings, in the shape of [merged-findings.schema.json](../schema/merged-findings.schema.json), and exits 0. It merges the first reply when that one is valid, and otherwise the repair reply, which must then be given: an empty file when the repair turn returned nothing. A repair reply that is still invalid keeps only its valid entries; a candidate it leaves undecided becomes `review.check-not-run`. `--report` takes a `lint --json` report, whose index derives the subject a lead finding dedups by. `--templates` takes the per-rule host text for confirmed entries the model gave no text for. A tool finding keeps the `predates_change` its bundle entry carries, which the host copies from the confirmed candidate; an `llm` or `host` finding never has it. A lead finding of `compat.expression-behaviour-changed` or a `claim.*` rule may carry `explains`, up to 256 difference ids as claims-eval lists them in `outstanding`, and `evidence_digest`; on any other rule, or malformed, they make the finding invalid. Lead findings that dedup into one and carry the same digest explain the union of their ids.
 
@@ -340,7 +340,7 @@ A lead finding on a rule that is not an `llm` rule is kept only where the bundle
 
 A model severity off its rule's list is clamped to the nearest permitted one, as before, with one exception: exactly `MEDIUM` on `compat.variable-removed`, `compat.variable-now-required`, `compat.type-narrowed`, `compat.default-changed` or `compat.generated-policy-narrowed`, in an area of the bundle's `in_repo_downgrade`, is kept. `merge final` writes the number of clamped severities to stderr when there are any.
 
-`merge counts` takes the replies as `merge final` does, picks the same reply, and prints its counts as `{"counts":{...}}`, or `{"counts":null}` when that reply has none, and exits 0. A reply without counts has none: no count is ever read as 0 for its absence. A repair reply that is still invalid keeps its counts when they are well formed. `merge counts` does not load the registry, the report or the templates, so it can succeed where `merge final` fails: a host reads the counts only after `merge final` succeeds.
+`merge counts` takes the replies as `merge final` does, picks the same reply, and prints its counts as `{"counts":{...}}`, or `{"counts":null}` when that reply has none, in the shape of [merge-counts.schema.json](../schema/merge-counts.schema.json), and exits 0. A reply without counts has none: no count is ever read as 0 for its absence. A repair reply that is still invalid keeps its counts when they are well formed. `merge counts` does not load the registry, the report or the templates, so it can succeed where `merge final` fails: a host reads the counts only after `merge final` succeeds.
 
 ## profile-check
 
@@ -348,7 +348,7 @@ A model severity off its rule's list is clamped to the nearest permitted one, as
 mtf-facts profile-check --profile-dir <dir> [--gates] [--downgrade-ids] [--timeout <duration>]
 ```
 
-First reads the directory with the walker `profile-snapshot` uses and exits 2 on anything it refuses (a link, a special file, a bad name, another device or a bound), so a profile cannot pass the check and then fail the snapshot. Hosts run it on the snapshot directory. It then reads the profile as `lint --profile-dir` does and checks it, options included. It prints one JSON object: `valid`, `problems`, and for a valid profile `options` and `relaxing`. `--gates` adds `gates`, the gate table, and `gated_rules`, the rules this profile gates; `--downgrade-ids` adds `downgrade_ids`. Exit 0 for a valid profile, 1 for an invalid one, 2 when the directory is missing, a link or cannot be read.
+First reads the directory with the walker `profile-snapshot` uses and exits 2 on anything it refuses (a link, a special file, a bad name, another device or a bound), so a profile cannot pass the check and then fail the snapshot. Hosts run it on the snapshot directory. It then reads the profile as `lint --profile-dir` does and checks it, options included. It prints one JSON object, in the shape of [profile-check.schema.json](../schema/profile-check.schema.json): `valid`, `problems`, and for a valid profile `options` and `relaxing`. `--gates` adds `gates`, the gate table, and `gated_rules`, the rules this profile gates; `--downgrade-ids` adds `downgrade_ids`. Exit 0 for a valid profile, 1 for an invalid one, 2 when the directory is missing, a link or cannot be read.
 
 ## profile-snapshot
 
@@ -356,7 +356,7 @@ First reads the directory with the walker `profile-snapshot` uses and exits 2 on
 mtf-facts profile-snapshot --profile-dir <dir>
 ```
 
-Copies the profile directory into a new 0700 temporary directory and prints `{"dir", "tree_sha256", "profile_sha256"}` for the host. Each directory is opened relative to its parent and each file with `O_NOFOLLOW|O_NONBLOCK`, checked with `fstat` as the regular file the listing saw and on the source's `st_dev`, and copied from that descriptor. A link, a special file, another device, a name that is not UTF-8 or holds a control character or DEL, more than 256 entries, more than 8 MiB or a path more than 8 levels deep exits 2, and so does a copy that does not read back the same. The host reads options and gates only from the copy and removes it when done. `profile_sha256` is `null` when the copy is not a valid profile.
+Copies the profile directory into a new 0700 temporary directory and prints `{"dir", "tree_sha256", "profile_sha256"}` for the host, in the shape of [profile-snapshot.schema.json](../schema/profile-snapshot.schema.json). Each directory is opened relative to its parent and each file with `O_NOFOLLOW|O_NONBLOCK`, checked with `fstat` as the regular file the listing saw and on the source's `st_dev`, and copied from that descriptor. A link, a special file, another device, a name that is not UTF-8 or holds a control character or DEL, more than 256 entries, more than 8 MiB or a path more than 8 levels deep exits 2, and so does a copy that does not read back the same. The host reads options and gates only from the copy and removes it when done. `profile_sha256` is `null` when the copy is not a valid profile.
 
 ## ledger
 
@@ -375,7 +375,7 @@ It reads only that directory, not `modules/*` or `examples/*`. At least one `--s
 - a block is an ephemeral resource;
 - a file is one the parser cannot model.
 
-The JSON output has an `envelope`, the `types` and their fields, and `problems`. The envelope holds the tool, `registry_sha256` (`null` without `--registry`), and the hash of each schema file and of the ledger, each named by its base name.
+The JSON output, in the shape of [ledger-report.schema.json](../schema/ledger-report.schema.json), has an `envelope`, the `types` and their fields, and `problems`. The envelope holds the tool, `registry_sha256` (`null` without `--registry`), and the hash of each schema file and of the ledger, each named by its base name.
 
 `--check` reads the author's coverage ledger, in the shape of [ledger.schema.json](../schema/ledger.schema.json), and lists each problem it finds:
 
@@ -526,18 +526,18 @@ It prints one line per hit, `<gate> <path>:<line>`, with line 0 for a whole file
 ## rules, version and completion
 
 ```sh
-mtf-facts rules
+mtf-facts rules [--json]
 mtf-facts version
 mtf-facts completion bash
 ```
 
-`rules` lists the implemented rules, one per line with its tier (`tool` or `candidate`), sorted by id. `version` prints the binary version, as does `mtf-facts --version`. `completion` prints a shell completion script for `bash`, `zsh`, `fish` or `powershell` to stdout.
+`rules` lists the implemented rules, one per line with its tier (`tool` or `candidate`), sorted by id. `rules --json` prints one object in the shape of [rules.schema.json](../schema/rules.schema.json): `schema_version` and `rules`, each rule with its `id`, `tier`, `class`, `scope`, `area_kinds` (sorted), `cross_area`, `needs_base` and `reads_unread_config`, every field always written. `tier` is the registry's `engine` for the two values the binary implements; `class`, `scope`, `cross_area` and `area_kinds` carry the registry's values. `version` prints the binary version, as does `mtf-facts --version`. `completion` prints a shell completion script for `bash`, `zsh`, `fish` or `powershell` to stdout.
 
 `version --json` prints one line of JSON, [version.schema.json](../schema/version.schema.json), for a script that needs to know what the binary supports. Read it once instead of parsing `--help` or reading exit 2 as "flag not supported":
 
 ```json
 {"schema_version": 1, "name": "mtf-facts", "version": "v0.9.0", "commit": "<40 hex>", "modified": false, "go": "go1.27.3",
- "reports": {"affected": 1, "behaviour": 1, "claims-eval": 1, "fixture-check": 1, "lint": 2, "schema-diff": 1},
+ "reports": {"affected": 1, "behaviour": 1, "claims-eval": 1, "depth": 1, "fixture-check": 1, "lint": 2, "rules": 1, "schema-diff": 1},
  "features": ["behaviour.l2-count-for-each", "behaviour.null-sides", "cmd:affected", "...", "flag:fixture-check:expect", "..."]}
 ```
 

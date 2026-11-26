@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "version.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/version.schema.json",
   "title": "mtf-facts version --json",
   "description": "What this binary is and what it supports, so a script checks a minimum version and the features it needs once, with no --help parsing. A feature name, once shipped, keeps its meaning and is never removed; a script tests for membership. A binary older than this report rejects --json with exit 2.",
   "type": "object",

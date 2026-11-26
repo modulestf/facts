@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "fixture-build.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/fixture-build.schema.json",
   "title": "mtf-facts fixture-build result",
   "description": "The result of building the fixture pair of one trigger for a verification ladder level. ok true: the files are written; wrap is the context the expression runs in, sides the sides with an expression, canaries the output names fixture-check and the plan read, and cases each case of the classifier with its inputs as given, the inputs it makes unknown and, in a count or for_each context, the subject instance address. ok false: the trigger is refused with a fixed reason, and no file is written.",
   "type": "object",

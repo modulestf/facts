@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "fixture-manifest.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/fixture-manifest.schema.json",
   "title": "mtf-facts fixture-check --expect manifest",
   "description": "Written by the trusted template: the exact top-level block set of each file of a ladder scratch tree, and per file at most one attribute holding a spliced expression, which must be the last item of the last block of its file with no comment from its start on.",
   "type": "object",

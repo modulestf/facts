@@ -109,7 +109,7 @@ func checkOracleSchemas(t *testing.T, set schemaSet, root string) []string {
 			if set[schema] == nil {
 				t.Fatalf("schema %s not loaded", schema)
 			}
-			for _, e := range set.validate(schema, decodeJSON(t, data)) {
+			for _, e := range set.Validate(schema, decodeJSON(t, data)) {
 				bad = append(bad, fmt.Sprintf("%s/%s: %s", name, file, e))
 			}
 		}
@@ -208,12 +208,12 @@ func readOracleFixture(dir string) (*oracleFixture, error) {
 }
 
 func exists(p string) bool {
-	_, err := os.Lstat(p)
+	_, err := os.Lstat(p) //nolint:gosec // G703: a path under an oracle fixture of this repository
 	return err == nil
 }
 
 func isDir(p string) bool {
-	st, err := os.Stat(p)
+	st, err := os.Stat(p) //nolint:gosec // G703: a path under an oracle fixture of this repository
 	return err == nil && st.IsDir()
 }
 

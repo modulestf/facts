@@ -4,7 +4,12 @@
 #
 #   bash scripts/check-features-kept.sh <base-revision>
 #
-# CI runs it on a pull request with the merge base of the base branch.
+# CI compares the pull request's merge commit with the tip of the base
+# branch. For a local run, pass the merge base:
+#
+#   bash scripts/check-features-kept.sh "$(git merge-base HEAD origin/master)"
+#
+# Exit 1 when a name was removed, 2 when the base revision does not resolve.
 set -euo pipefail
 
 base=${1:?usage: check-features-kept.sh <base-revision>}
@@ -12,6 +17,7 @@ file=cmd/mtf-facts/testdata/features.txt
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
+git rev-parse --verify --quiet "$base^{commit}" >/dev/null || { echo "FAIL base revision $base not found"; exit 2; }
 if ! git cat-file -e "$base:$file" 2>/dev/null; then
   echo "ok   $file is new against $base"
   exit 0

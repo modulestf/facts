@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/profile-snapshot.schema.json",
+  "title": "mtf-facts profile-snapshot report",
+  "description": "The JSON document that mtf-facts profile-snapshot writes: the private temporary directory it copied the profile into, the tree hash of every file (the envelope's profile_tree_sha256), and the profile's own hash, null when the copy is not a valid profile.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dir",
+    "tree_sha256",
+    "profile_sha256"
+  ],
+  "properties": {
+    "dir": {
+      "description": "An absolute path the caller removes when done.",
+      "type": "string",
+      "minLength": 2
+    },
+    "tree_sha256": {
+      "$ref": "https://github.com/modulestf/facts/schema/envelope.schema.json#/$defs/sha256"
+    },
+    "profile_sha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "https://github.com/modulestf/facts/schema/envelope.schema.json#/$defs/sha256"
+        }
+      ]
+    }
+  }
+}

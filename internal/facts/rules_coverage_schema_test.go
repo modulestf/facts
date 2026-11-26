@@ -252,7 +252,7 @@ func TestCoverageSchemaReportsMatchLintSchema(t *testing.T) {
 		if len(r.Candidates) == 0 && filepath.Base(dir) != "coverage-schema-negative" {
 			t.Errorf("%s: no candidates", dir)
 		}
-		if errs := set.validate("lint.schema.json", decodeJSON(t, mustJSON(t, r))); len(errs) > 0 {
+		if errs := set.Validate("lint.schema.json", decodeJSON(t, mustJSON(t, r))); len(errs) > 0 {
 			t.Errorf("%s: lint schema: %v", dir, errs)
 		}
 	}
