@@ -398,3 +398,31 @@ func readStats(t *testing.T, p string) stats.Record {
 	}
 	return r
 }
+
+// TestStatsRefusesCaseAlias names a file of the input tree through a
+// lower-cased directory name, which is the same directory on a
+// case-insensitive file system: it is refused and the file is unchanged.
+func TestStatsRefusesCaseAlias(t *testing.T) {
+	dir := t.TempDir()
+	tree := filepath.Join(dir, "T")
+	if err := os.CopyFS(tree, os.DirFS("../../testdata/variable-untyped-base/head")); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(dir, "t")
+	if _, err := os.Stat(alias); err != nil {
+		t.Skip("the temp file system is case-sensitive")
+	}
+	target := filepath.Join(tree, "variables.tf")
+	before, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := runCLI([]string{"lint", tree, "--json"})
+	code2, out2, errOut2 := runCLI([]string{"lint", tree, "--json", "--stats-file", filepath.Join(alias, "variables.tf")})
+	if code2 != code || out2 != out || !strings.HasPrefix(strings.TrimPrefix(errOut2, errOut), "mtf-facts: stats: ") {
+		t.Errorf("exit %d, stderr %q", code2, errOut2)
+	}
+	if after, _ := os.ReadFile(target); !bytes.Equal(after, before) {
+		t.Errorf("%s changed", target)
+	}
+}

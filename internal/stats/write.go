@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // MaxRecordBytes bounds the record a command writes. A record is a few
@@ -42,10 +41,23 @@ func (g Guard) sameFile(fi os.FileInfo) string {
 	return ""
 }
 
-// inTree refuses p when its resolved parent directory is an input tree root
-// or lies inside one. A parent or root that does not resolve is left to
-// the open, which then fails or creates a file no tree holds.
+// inTree refuses p when its parent directory is an input tree root or lies
+// inside one. Directories are compared by identity, not by path, so a
+// differently cased name on a case-insensitive file system, a firmlink or a
+// bind mount of a root is still the root. The parent is resolved first, so
+// each step up is its physical parent; each step is compared with every
+// root, stat'ed once. A parent or root that does not resolve is left to the
+// open, which then fails or creates a file no tree holds.
 func (g Guard) inTree(p string) error {
+	var roots []os.FileInfo
+	for _, t := range g.Trees {
+		if fi, err := os.Stat(t); err == nil {
+			roots = append(roots, fi)
+		}
+	}
+	if len(roots) == 0 {
+		return nil
+	}
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return nil
@@ -54,20 +66,20 @@ func (g Guard) inTree(p string) error {
 	if err != nil {
 		return nil
 	}
-	for _, t := range g.Trees {
-		at, err := filepath.Abs(t)
-		if err != nil {
-			continue
+	for {
+		if fi, err := os.Stat(dir); err == nil {
+			for _, r := range roots {
+				if os.SameFile(fi, r) {
+					return fmt.Errorf("%s: is inside an input tree of this run", p)
+				}
+			}
 		}
-		root, err := filepath.EvalSymlinks(at)
-		if err != nil {
-			continue
+		up := filepath.Dir(dir)
+		if up == dir {
+			return nil
 		}
-		if rel, err := filepath.Rel(root, dir); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return fmt.Errorf("%s: is inside an input tree of this run", p)
-		}
+		dir = up
 	}
-	return nil
 }
 
 // checkSize refuses data over MaxRecordBytes.

@@ -269,3 +269,45 @@ func TestWriteFileDevice(t *testing.T) {
 		t.Errorf("err %v, want the refusal of a file that is no regular file", err)
 	}
 }
+
+// TestWriteFileTreeAlias names the input tree through another spelling of
+// the same directory, in a lower-cased name on a case-insensitive file
+// system and through a link into a directory of the tree: both are the
+// tree and are refused.
+func TestWriteFileTreeAlias(t *testing.T) {
+	dir := t.TempDir()
+	tree := filepath.Join(dir, "Tree")
+	if err := os.MkdirAll(filepath.Join(tree, "modules", "a"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(tree, "main.tf")
+	if err := os.WriteFile(target, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	g := Guard{Trees: []string{tree}}
+	t.Run("link into a subdirectory", func(t *testing.T) {
+		link := filepath.Join(dir, "link")
+		if err := os.Symlink(filepath.Join(tree, "modules"), link); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(link, "new.json")
+		if err := WriteFile(p, []byte("{}\n"), g); err == nil {
+			t.Error("a path in the tree reached through a link was written")
+		}
+		if _, err := os.Lstat(filepath.Join(tree, "modules", "new.json")); err == nil {
+			t.Error("a file was created in the input tree")
+		}
+	})
+	t.Run("case alias", func(t *testing.T) {
+		alias := filepath.Join(dir, "tree")
+		if _, err := os.Stat(alias); err != nil {
+			t.Skip("the temp file system is case-sensitive")
+		}
+		if err := WriteFile(filepath.Join(alias, "main.tf"), []byte("{}\n"), g); err == nil {
+			t.Error("the tree named in another case was written")
+		}
+		if got, _ := os.ReadFile(target); string(got) != "keep" {
+			t.Errorf("%s changed to %q", target, got)
+		}
+	})
+}
