@@ -162,9 +162,19 @@ jobs:
           # Off for the same reason as the fuzz jobs: this job would save
           # under the test job's cache key first.
           cache: false
+      # The same pinned registry as the test job: with CI set, the tests of
+      # internal/facts, internal/merge, internal/registry and cmd/mtf-facts
+      # fail without it, and every mutant there would read "baseline failed".
+      - name: Fetch rule registry
+        run: |
+          curl -fsSL --proto '=https' --tlsv1.2 --retry 2 --max-time 30 \
+            -o "$RUNNER_TEMP/rule-facts.md" \
+            "https://raw.githubusercontent.com/modulestf/modulestf/${SKILLS_COMMIT}/.agents/skills/terraform-module-reviewer/references/rule-facts.md"
+          echo "${REGISTRY_SHA256}  ${RUNNER_TEMP}/rule-facts.md" | sha256sum -c -
       - name: Mutants on changed lines
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MTF_FACTS_REGISTRY: ${{ runner.temp }}/rule-facts.md
         run: go run ./scripts/mutate -base "$BASE_SHA" -budget 9m -summary "$GITHUB_STEP_SUMMARY"
 
   # Releases ship darwin binaries, and the tree reader and the read caps are

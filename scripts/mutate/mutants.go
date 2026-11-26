@@ -51,8 +51,11 @@ func mutants(name string, src []byte, changed map[int]bool) ([]Mutant, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The file's own lines: a //line directive must not move them, since the
+	// diff counts the lines of the file as it is on disk.
+	pos := func(p token.Pos) token.Position { return fset.PositionFor(p, false) }
 	touched := func(n ast.Node) bool {
-		for l := fset.Position(n.Pos()).Line; l <= fset.Position(n.End()).Line; l++ {
+		for l := pos(n.Pos()).Line; l <= pos(n.End()).Line; l++ {
 			if changed[l] {
 				return true
 			}
@@ -63,8 +66,8 @@ func mutants(name string, src []byte, changed map[int]bool) ([]Mutant, error) {
 	add := func(n ast.Node, open, shut, kind string) {
 		if touched(n) {
 			edits = append(edits, edit{
-				start: fset.Position(n.Pos()).Offset, end: fset.Position(n.End()).Offset,
-				open: open, shut: shut, line: fset.Position(n.Pos()).Line, kind: kind,
+				start: pos(n.Pos()).Offset, end: pos(n.End()).Offset,
+				open: open, shut: shut, line: pos(n.Pos()).Line, kind: kind,
 			})
 		}
 	}
@@ -160,6 +163,9 @@ func changedLines(r io.Reader) (map[string]map[int]bool, error) {
 		case strings.HasPrefix(line, "+++ "):
 			cur = nil
 			name, ok := strings.CutPrefix(line[4:], "b/")
+			// git ends the name with a tab when it holds a space, so a
+			// reader that splits on whitespace can tell it from a date.
+			name = strings.TrimSuffix(name, "\t")
 			if !ok || !wanted(name) {
 				continue
 			}

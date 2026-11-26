@@ -25,6 +25,7 @@ const (
 	statusTimedOut    = "timed out"
 	statusNotRun      = "not run"
 	statusBaseline    = "baseline failed"
+	statusNoTests     = "no test files"
 )
 
 // minTimeout is the least time a mutant's tests get; a mutant gets three
@@ -45,13 +46,16 @@ type baseline struct {
 	took time.Duration
 	ok   bool
 	ran  bool
+	// noTests: the package has no test file, so a pass proves nothing.
+	noTests bool
 }
 
 // run tests each mutant against the tests of its own package, through a
 // go test -overlay that swaps the mutated file in, so the checkout is never
 // written and mutants run side by side. Each package first runs once
 // unmutated; a package whose tests fail then has no mutant run. A mutant
-// not started before the budget ends, or stopped by it, is not run.
+// not started before the budget ends, or stopped by it, is not run. A
+// package with no test file has no verdict.
 func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []result {
 	ctx, cancel := context.WithTimeout(ctx, opts.budget)
 	defer cancel()
@@ -75,8 +79,13 @@ func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []resul
 			return
 		}
 		start := time.Now()
-		_, err := goTest(ctx, root, pkgs[i], "", 0)
-		b := baseline{took: time.Since(start), ok: err == nil, ran: ctx.Err() == nil}
+		// The rest of the budget is the test timeout, so a hung baseline
+		// test binary ends itself even if the process group is not killed.
+		out, err := goTest(ctx, root, pkgs[i], "", remaining(ctx))
+		b := baseline{
+			took: time.Since(start), ok: err == nil, ran: ctx.Err() == nil,
+			noTests: err == nil && bytes.Contains(out, []byte("[no test files]")),
+		}
 		mu.Lock()
 		base[pkgs[i]] = b
 		mu.Unlock()
@@ -93,6 +102,8 @@ func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []resul
 			case !b.ran:
 			case !b.ok:
 				res[i].Status = statusBaseline
+			case b.noTests:
+				res[i].Status = statusNoTests
 			default:
 				order = append(order, i)
 			}
@@ -140,8 +151,18 @@ func runOne(ctx context.Context, root, tmp string, n int, m Mutant, timeout time
 	return statusKilled
 }
 
+// remaining is the time left before ctx's deadline, or 0 with no deadline.
+func remaining(ctx context.Context) time.Duration {
+	d, ok := ctx.Deadline()
+	if !ok {
+		return 0
+	}
+	return max(time.Until(d), time.Millisecond)
+}
+
 // goTest runs the tests of one package directory, failing fast, with no
-// vet and no cached result.
+// vet and no cached result. The go command and the test binary it starts
+// are one process group, ended together when ctx ends.
 func goTest(ctx context.Context, root, dir, overlay string, timeout time.Duration) ([]byte, error) {
 	args := []string{"test", "-count=1", "-failfast", "-vet=off"}
 	if overlay != "" {
@@ -157,6 +178,7 @@ func goTest(ctx context.Context, root, dir, overlay string, timeout time.Duratio
 	cmd := exec.CommandContext(ctx, "go", append(args, pkg)...) //nolint:gosec // G204: go test of a package directory of this checkout
 	cmd.Dir = root
 	cmd.WaitDelay = 10 * time.Second
+	ownProcessGroup(cmd)
 	return cmd.CombinedOutput()
 }
 
@@ -195,7 +217,7 @@ func report(w io.Writer, res []result) {
 		counts[r.Status]++
 	}
 	var parts []string
-	for _, s := range []string{statusSurvived, statusKilled, statusNotCompiled, statusTimedOut, statusNotRun, statusBaseline} {
+	for _, s := range []string{statusSurvived, statusKilled, statusNotCompiled, statusTimedOut, statusNotRun, statusBaseline, statusNoTests} {
 		if counts[s] > 0 {
 			parts = append(parts, fmt.Sprintf("%d %s", counts[s], s))
 		}

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -217,13 +218,19 @@ diff --git "a/sp ace.go" "b/sp ace.go"
 @@ -1 +1 @@
 -x
 +y
+diff --git a/my pkg/c.go b/my pkg/c.go
+--- a/my pkg/c.go	
++++ b/my pkg/c.go	
+@@ -1 +3 @@
+-x
++y
 `
 	got, err := changedLines(strings.NewReader(diff))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("files %v, want only a.go", got)
+	if len(got) != 2 || !got["my pkg/c.go"][3] {
+		t.Fatalf("files %v, want a.go and line 3 of the file whose name holds a space", got)
 	}
 	want := map[int]bool{4: true, 5: true, 12: true}
 	if len(got["a.go"]) != len(want) {
@@ -360,14 +367,16 @@ func TestReport(t *testing.T) {
 		{File: "a.go", Line: 1, Kind: kindOperand, Code: "z", Status: statusKilled},
 		{File: "b.go", Line: 9, Kind: kindGuard, Code: "w", Status: statusNotRun},
 		{File: "c.go", Line: 2, Kind: kindGuard, Code: "v", Status: statusNotCompiled},
+		{File: "d.go", Line: 4, Kind: kindGuard, Code: "u", Status: statusNoTests},
 	}
 	var b strings.Builder
 	report(&b, res)
 	out := b.String()
 	for _, want := range []string{
-		"4 mutants on the changed lines: 1 survived, 1 killed, 1 not compiled, 1 not run.",
+		"5 mutants on the changed lines: 1 survived, 1 killed, 1 not compiled, 1 not run, 1 no test files.",
 		"| `a.go:3` | guard never fires | `x \\| 'y'` |",
 		"- `b.go:9` guard never fires: not run",
+		"- `d.go:4` guard never fires: no test files",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("report lacks %q:\n%s", want, out)
@@ -404,5 +413,208 @@ func TestUsage(t *testing.T) {
 func TestMutantsParseError(t *testing.T) {
 	if _, err := mutants("p/bad.go", []byte("package p\nfunc {"), map[int]bool{2: true}); err == nil {
 		t.Fatal("a file that does not parse gave no error")
+	}
+}
+
+// A //line directive moves the position a parser reports, not the line of the
+// file the diff counts.
+func TestMutantsIgnoreLineDirective(t *testing.T) {
+	src := "package p\n\nfunc f(n int) int {\n//line x.go:500\n\tif n < 0 {\n\t\treturn 0\n\t}\n\treturn n\n}\n"
+	got, err := mutants("p/f.go", []byte(src), map[int]bool{5: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Line != 5 {
+		t.Fatalf("mutants %+v, want the guard at line 5 of the file", got)
+	}
+}
+
+// A package with no test file passes go test, which proves nothing: it has
+// no verdict.
+func TestRunNoTestFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	src := "package m\n\nfunc F(n int) int {\n\tif n < 0 {\n\t\treturn 0\n\t}\n\treturn n\n}\n"
+	writeModule(t, dir, map[string]string{"m.go": src})
+	ms, err := mutants("m.go", []byte(src), allLines(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := run(context.Background(), dir, ms, runOptions{workers: 1, budget: time.Minute})
+	if len(res) != 1 || res[0].Status != statusNoTests {
+		t.Fatalf("results %+v, want one mutant with no test files", res)
+	}
+}
+
+const slowSrc = "package m\n\nfunc Pos(n int) int {\n\tif n < 0 {\n\t\treturn 0\n\t}\n\treturn n\n}\n"
+
+// The unmutated code passes at once; the mutant never fires its guard, so
+// the test records its process id and then sleeps.
+const slowTest = `package m
+
+import (
+	"os"
+	"strconv"
+	"testing"
+	"time"
+)
+
+func TestPos(t *testing.T) {
+	if Pos(-1) != 0 {
+		_ = os.WriteFile(os.Getenv("MUTATE_PIDFILE"), []byte(strconv.Itoa(os.Getpid())), 0o600)
+		time.Sleep(10 * time.Minute)
+	}
+}
+`
+
+// The budget ends while a mutant's tests run: the mutant is not run, and the
+// test binary is gone, not left behind by the go command that started it.
+func TestRunBudgetEndsMidMutant(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	writeModule(t, dir, map[string]string{"m.go": slowSrc, "m_test.go": slowTest})
+	ms, err := mutants("m.go", []byte(slowSrc), allLines(slowSrc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	t.Setenv("MUTATE_PIDFILE", pidFile)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan []result, 1)
+	go func() { done <- run(ctx, dir, ms, runOptions{workers: 1, budget: 10 * time.Minute}) }()
+
+	pid := waitForPID(t, pidFile)
+	t.Cleanup(func() {
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Kill()
+		}
+	})
+	cancel() // the budget's end, as run sees it
+	select {
+	case res := <-done:
+		if len(res) != 1 || res[0].Status != statusNotRun {
+			t.Fatalf("results %+v, want one mutant not run", res)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("run did not return after its context ended")
+	}
+	assertGone(t, pid)
+}
+
+func waitForPID(t *testing.T, file string) int {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Minute)
+	for time.Now().Before(deadline) {
+		if b, err := os.ReadFile(file); err == nil {
+			if pid, err := strconv.Atoi(string(b)); err == nil {
+				return pid
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("the mutant's test never started")
+	return 0
+}
+
+// goTest ends a test that outlives the timeout it is given; the baseline run
+// gets the rest of the budget as that timeout.
+func TestGoTestTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	writeModule(t, dir, map[string]string{
+		"m.go":      "package m\n",
+		"m_test.go": "package m\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nfunc TestSlow(t *testing.T) { time.Sleep(time.Minute) }\n",
+	})
+	out, err := goTest(context.Background(), dir, ".", "", 2*time.Second)
+	if err == nil || !strings.Contains(string(out), "panic: test timed out") {
+		t.Fatalf("err %v, output %s; want a timed out test", err, out)
+	}
+}
+
+func TestRemaining(t *testing.T) {
+	if d := remaining(context.Background()); d != 0 {
+		t.Errorf("no deadline: %v, want 0", d)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	if d := remaining(ctx); d < 59*time.Minute || d > time.Hour {
+		t.Errorf("an hour left: %v", d)
+	}
+	past, cancelPast := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelPast()
+	if d := remaining(past); d <= 0 {
+		t.Errorf("a spent deadline gave %v, want a positive timeout", d)
+	}
+}
+
+// mainErr end to end on a throwaway repository: a survivor in the report, a
+// file behind a build constraint and one that does not parse in the skipped
+// list, and the summary file appended to, not replaced.
+func TestMainErr(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	writeModule(t, dir, map[string]string{
+		"m.go":       slowSrc,
+		"m_test.go":  "package m\n\nimport \"testing\"\n\nfunc TestPos(t *testing.T) {\n\tif Pos(-1) != 0 {\n\t\tt.Fatal(\"neg\")\n\t}\n}\n",
+		"ign.go":     "//go:build ignore\n\npackage m\n\nfunc ign() {}\n",
+		"bad/bad.go": "package bad\n\nfunc bad() {}\n",
+	})
+	gitIn := func(args ...string) {
+		t.Helper()
+		//nolint:gosec // G204: fixed git arguments of a throwaway repository
+		cmd := exec.Command("git", append([]string{"-c", "commit.gpgsign=false", "-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	gitIn("init", "-q")
+	gitIn("add", ".")
+	gitIn("commit", "-q", "-m", "base")
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("m.go", slowSrc+"\nfunc Clean(s string) string {\n\tif s == \"\" {\n\t\treturn \"-\"\n\t}\n\treturn s\n}\n")
+	write("ign.go", "//go:build ignore\n\npackage m\n\nfunc ign(n int) int {\n\tif n < 0 {\n\t\treturn 0\n\t}\n\treturn n\n}\n")
+	write("bad/bad.go", "package bad\n\nfunc bad( {\n")
+	t.Chdir(dir)
+
+	summary := filepath.Join(t.TempDir(), "summary.md")
+	if err := os.WriteFile(summary, []byte("earlier\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	if err := mainErr(context.Background(), []string{"-base", "HEAD", "-budget", "3m", "-workers", "1", "-summary", summary}, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"1 mutants on the changed lines: 1 survived.",
+		"| `m.go:11` | guard never fires |",
+		"- `ign.go` not built on this platform",
+		"- `bad/bad.go` not parsed:",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("report lacks %q:\n%s", want, out.String())
+		}
+	}
+	got, err := os.ReadFile(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "earlier\n"+out.String() {
+		t.Errorf("summary file:\n%s\nwant the earlier text, then the report:\n%s", got, out.String())
 	}
 }

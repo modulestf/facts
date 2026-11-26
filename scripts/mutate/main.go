@@ -20,9 +20,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/build"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -31,7 +34,12 @@ import (
 )
 
 func main() {
-	if err := mainErr(context.Background(), os.Args[1:], os.Stdout); err != nil {
+	// An interrupt ends the test processes with the run: each go test is in
+	// a process group of its own, which the terminal's signal does not reach.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	err := mainErr(ctx, os.Args[1:], os.Stdout)
+	stop()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "mutate:", err)
 		os.Exit(1)
 	}
@@ -71,26 +79,7 @@ func mainErr(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	names := make([]string, 0, len(changed))
-	for n := range changed {
-		names = append(names, n)
-	}
-	slices.Sort(names)
-	var ms []Mutant
-	var notes []string
-	for _, n := range names {
-		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(n)))
-		if err != nil {
-			notes = append(notes, fmt.Sprintf("- `%s` not read: %v", n, err))
-			continue
-		}
-		got, err := mutants(n, src, changed[n])
-		if err != nil {
-			notes = append(notes, fmt.Sprintf("- `%s` not parsed: %v", n, err))
-			continue
-		}
-		ms = append(ms, got...)
-	}
+	ms, notes := collect(root, changed)
 
 	var out bytes.Buffer
 	report(&out, run(ctx, root, ms, runOptions{workers: *workers, budget: *budget}))
@@ -109,6 +98,48 @@ func mainErr(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	_, werr := f.Write(out.Bytes())
 	return errors.Join(werr, f.Close())
+}
+
+// collect makes the mutants of every changed file. A file the Go tool would
+// not build on this platform (a build constraint, a GOOS or GOARCH suffix)
+// has no test that could reach it, so it is skipped with a note, as is one
+// that cannot be read or parsed.
+//
+// shortcut: -tags in GOFLAGS is not applied to that check, so a file behind
+// a custom tag is skipped; pass the tag through build.Default.BuildTags if a
+// project needs it.
+func collect(root string, changed map[string]map[int]bool) ([]Mutant, []string) {
+	names := make([]string, 0, len(changed))
+	for n := range changed {
+		names = append(names, n)
+	}
+	slices.Sort(names)
+	var ms []Mutant
+	var notes []string
+	for _, n := range names {
+		dir := filepath.Join(root, filepath.FromSlash(path.Dir(n)))
+		built, err := build.Default.MatchFile(dir, path.Base(n))
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("- `%s` not read: %v", n, err))
+			continue
+		}
+		if !built {
+			notes = append(notes, fmt.Sprintf("- `%s` not built on this platform", n))
+			continue
+		}
+		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(n)))
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("- `%s` not read: %v", n, err))
+			continue
+		}
+		got, err := mutants(n, src, changed[n])
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("- `%s` not parsed: %v", n, err))
+			continue
+		}
+		ms = append(ms, got...)
+	}
+	return ms, notes
 }
 
 func git(ctx context.Context, dir string, args ...string) (string, error) {
