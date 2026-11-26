@@ -33,11 +33,14 @@ func TestReportsMatchSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 	const diffBase = "../../testdata/diff-base"
+	statsFile := filepath.Join(t.TempDir(), "stats.json")
 	for _, tc := range []struct {
 		name, schema string
 		args         []string
 		code         int
 	}{
+		{"changes", "changes.schema.json", []string{"changes", changesHeredoc + "/head", "--base", changesHeredoc + "/base", "--json"}, exitClean},
+		{"lint stats", "stats.schema.json", []string{"lint", "../../testdata/variable-untyped-base/head", "--json", "--stats-file", statsFile}, exitFindings},
 		{"depth", "depth.schema.json", []string{"depth", "--head", diffBase + "/head", "--base", diffBase + "/base", "--files", diffBase + "/files.json"}, exitClean},
 		{"depth odd example names", "depth.schema.json", []string{"depth", "--head", diffBase + "/head", "--base", diffBase + "/base", "--files", diffBase + "/files.json", "--examples", "examples/a b,examples/v1+x,examples/.hidden,examples/..."}, exitClean},
 		{"ledger inventory", "ledger-report.schema.json", []string{"ledger", ledgerModule, "--schema-files", ledgerSchema}, exitClean},
@@ -57,6 +60,13 @@ func TestReportsMatchSchemas(t *testing.T) {
 			code, out, errOut := runCLI(tc.args)
 			if code != tc.code {
 				t.Fatalf("exit %d, want %d: %s", code, tc.code, errOut)
+			}
+			if tc.name == "lint stats" {
+				b, err := os.ReadFile(statsFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				out = string(b)
 			}
 			if tc.name == "profile-snapshot" {
 				var s snapOut
@@ -135,6 +145,7 @@ var reportSchemas = map[string]string{
 	"affected":         "affected.schema.json",
 	"behaviour":        "behaviour.schema.json",
 	"bundle":           "facts-bundle.schema.json",
+	"changes":          "changes.schema.json",
 	"claims-eval":      "claims-eval.schema.json",
 	"depth":            "depth.schema.json",
 	"fixture-check":    "fixture-check.schema.json",

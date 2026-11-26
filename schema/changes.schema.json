@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "changes.schema.json",
+  "$id": "https://github.com/modulestf/facts/schema/changes.schema.json",
   "title": "mtf-facts changes",
   "description": "What a change does to the HCL of a module tree: per changed configuration file its added, removed and edited top-level blocks and their changed direct attributes, whether the module reads each changed attribute of a resource or data block, and the data source types of each head directory.",
   "type": "object",

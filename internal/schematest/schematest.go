@@ -34,7 +34,7 @@ var schemaKeywords = map[string]bool{
 	"oneOf": true, "allOf": true, "$ref": true,
 	// Used by the facts-bundle, finding and schema-handoff schemas the oracle
 	// fixtures are checked against.
-	"const": true, "not": true, "if": true, "then": true, "minItems": true, "uniqueItems": true,
+	"const": true, "not": true, "if": true, "then": true, "else": true, "minItems": true, "uniqueItems": true,
 	"propertyNames": true, "dependentRequired": true, "unevaluatedProperties": true,
 }
 
@@ -282,6 +282,9 @@ func (set Set) check(doc string, s map[string]any, v any, at string, errs *[]str
 		set.check(doc, cond, v, at, &e)
 		if then, ok := s["then"].(map[string]any); ok && len(e) == 0 {
 			set.check(doc, then, v, at, errs)
+		}
+		if els, ok := s["else"].(map[string]any); ok && len(e) > 0 {
+			set.check(doc, els, v, at, errs)
 		}
 	}
 	if all, ok := s["allOf"].([]any); ok {

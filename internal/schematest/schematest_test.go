@@ -50,6 +50,14 @@ func TestSchemaValidatorKeywords(t *testing.T) {
 	if errs := set.Validate("t.json", DecodeJSON(t, []byte(`{"c":"no"}`))); len(errs) > 0 {
 		t.Errorf("then applied without if: %v", errs)
 	}
+	// else applies only when if does not match.
+	els := Set{"e.json": {"if": map[string]any{"required": []any{"a"}}, "else": map[string]any{"required": []any{"b"}}}}
+	if errs := els.Validate("e.json", DecodeJSON(t, []byte(`{"a":1}`))); len(errs) > 0 {
+		t.Errorf("else applied with if: %v", errs)
+	}
+	if errs := els.Validate("e.json", DecodeJSON(t, []byte(`{"c":1}`))); len(errs) == 0 {
+		t.Error("else not applied without if")
+	}
 }
 
 // TestLookaheadPatterns checks each hand-written path check against the
