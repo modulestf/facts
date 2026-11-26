@@ -171,11 +171,14 @@ jobs:
             -o "$RUNNER_TEMP/rule-facts.md" \
             "https://raw.githubusercontent.com/modulestf/modulestf/${SKILLS_COMMIT}/.agents/skills/terraform-module-reviewer/references/rule-facts.md"
           echo "${REGISTRY_SHA256}  ${RUNNER_TEMP}/rule-facts.md" | sha256sum -c -
+      # The checkout is the pull request's merge ref, on the base branch's
+      # current tip, so HEAD^1 is that tip. github.event.pull_request.base.sha
+      # is where the branch was cut and does not follow the base branch: a
+      # diff from it would also mutate the base branch's later commits.
       - name: Mutants on changed lines
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           MTF_FACTS_REGISTRY: ${{ runner.temp }}/rule-facts.md
-        run: go run ./scripts/mutate -base "$BASE_SHA" -budget 9m -summary "$GITHUB_STEP_SUMMARY"
+        run: go run ./scripts/mutate -base HEAD^1 -budget 9m -summary "$GITHUB_STEP_SUMMARY"
 
   # Releases ship darwin binaries, and the tree reader and the read caps are
   # built only for unix, so the suite runs on macOS too.

@@ -618,3 +618,157 @@ func TestMainErr(t *testing.T) {
 		t.Errorf("summary file:\n%s\nwant the earlier text, then the report:\n%s", got, out.String())
 	}
 }
+
+// A mutant whose tests run past their timeout is timed out, not killed: the
+// test binary's own "test timed out" panic is what says so.
+func TestRunMutantTimesOut(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	test := "package m\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nfunc TestPos(t *testing.T) {\n\tif Pos(-1) != 0 {\n\t\ttime.Sleep(time.Minute)\n\t}\n}\n"
+	writeModule(t, dir, map[string]string{"m.go": slowSrc, "m_test.go": test})
+	ms, err := mutants("m.go", []byte(slowSrc), allLines(slowSrc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := run(context.Background(), dir, ms, runOptions{workers: 1, budget: 5 * time.Minute, floor: 2 * time.Second})
+	if len(res) != 1 || res[0].Status != statusTimedOut {
+		t.Fatalf("results %+v, want one timed out mutant", res)
+	}
+}
+
+// A mutant that does not build, or whose package cannot be set up, is not compiled, not killed: no
+// test failed, none ran.
+func TestRunMutantNotCompiled(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	test := "package m\n\nimport \"testing\"\n\nfunc TestPos(t *testing.T) {\n\tif Pos(-1) != 0 {\n\t\tt.Fatal(\"neg\")\n\t}\n}\n"
+	writeModule(t, dir, map[string]string{"m.go": slowSrc, "m_test.go": test})
+	broken := map[int]string{
+		4: strings.Replace(slowSrc, "return n", "return undefined", 1),                           // [build failed]
+		7: "package m\n\nimport _ \"example.com/nothere\"\n\nfunc Pos(n int) int { return n }\n", // [setup failed]
+	}
+	var ms []Mutant
+	for line, src := range broken {
+		ms = append(ms, Mutant{File: "m.go", Line: line, Kind: kindGuard, Code: "x", Src: []byte(src)})
+	}
+	res := run(context.Background(), dir, ms, runOptions{workers: 2, budget: 5 * time.Minute})
+	if len(res) != 2 {
+		t.Fatalf("results %+v", res)
+	}
+	for _, r := range res {
+		if r.Status != statusNotCompiled {
+			t.Errorf("line %d: %s, want %s", r.Line, r.Status, statusNotCompiled)
+		}
+	}
+}
+
+const baselineSlowTest = `package m
+
+import (
+	"os"
+	"strconv"
+	"testing"
+	"time"
+)
+
+func TestPos(t *testing.T) {
+	_ = os.WriteFile(os.Getenv("MUTATE_PIDFILE"), []byte(strconv.Itoa(os.Getpid())), 0o600)
+	time.Sleep(10 * time.Minute)
+}
+`
+
+// The budget ends while a package's unmutated run is going: its mutants are
+// not run, and the unfinished run is not a failed baseline.
+func TestRunBudgetEndsDuringBaseline(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs go test")
+	}
+	dir := t.TempDir()
+	writeModule(t, dir, map[string]string{"m.go": slowSrc, "m_test.go": baselineSlowTest})
+	ms, err := mutants("m.go", []byte(slowSrc), allLines(slowSrc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pidFile := filepath.Join(t.TempDir(), "pid")
+	t.Setenv("MUTATE_PIDFILE", pidFile)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan []result, 1)
+	go func() { done <- run(ctx, dir, ms, runOptions{workers: 1, budget: 10 * time.Minute}) }()
+
+	pid := waitForPID(t, pidFile)
+	t.Cleanup(func() {
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Kill()
+		}
+	})
+	cancel()
+	select {
+	case res := <-done:
+		if len(res) != 1 || res[0].Status != statusNotRun {
+			t.Fatalf("results %+v, want one mutant not run", res)
+		}
+	case <-time.After(time.Minute):
+		t.Fatal("run did not return after its context ended")
+	}
+	assertGone(t, pid)
+}
+
+// File names and error messages are text a change controls: none may close
+// a code span, split a table cell or start a link in the report.
+func TestReportFileNamesInert(t *testing.T) {
+	name := "a`[x](evil.invalid)`b|c.go"
+	var b strings.Builder
+	report(&b, []result{
+		{File: name, Line: 3, Kind: kindGuard, Code: "x", Status: statusSurvived},
+		{File: name, Line: 4, Kind: kindGuard, Code: "x", Status: statusNotRun},
+	})
+	for line := range strings.SplitSeq(b.String(), "\n") {
+		if strings.Contains(line, name) || strings.Contains(line, "`[x]") || strings.Contains(strings.ReplaceAll(line, `\|`, ""), "b|c") {
+			t.Errorf("a file name reaches the report raw: %q", line)
+		}
+	}
+	if !strings.Contains(b.String(), "a'[x](evil.invalid)'b\\|c.go:3") {
+		t.Errorf("the survivor's name is not in the table:\n%s", b.String())
+	}
+}
+
+func TestCollectNotesInert(t *testing.T) {
+	root := t.TempDir()
+	hostile := "a`[x](evil.invalid)`b|c.go"
+	if err := os.WriteFile(filepath.Join(root, hostile), []byte("//go:build ignore\n\npackage m\n"), 0o600); err != nil {
+		t.Skipf("the file system takes no such name: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "bad`x`.go"), []byte("package m\nfunc {"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	notes := strings.Join(mustNotes(t, root, hostile, "bad`x`.go", "gone`y`.go"), "\n")
+	for _, raw := range []string{"`[x]", "`x`", "`y`", "b|c"} {
+		if strings.Contains(strings.ReplaceAll(notes, `\|`, ""), raw) {
+			t.Errorf("notes hold %q raw:\n%s", raw, notes)
+		}
+	}
+	for _, want := range []string{"not built on this platform", "not parsed", "not read"} {
+		if !strings.Contains(notes, want) {
+			t.Errorf("notes lack %q:\n%s", want, notes)
+		}
+	}
+}
+
+func mustNotes(t *testing.T, root string, names ...string) []string {
+	t.Helper()
+	changed := map[string]map[int]bool{}
+	for _, n := range names {
+		changed[n] = map[int]bool{1: true, 2: true}
+	}
+	ms, notes := collect(root, changed)
+	if len(ms) != 0 || len(notes) != len(names) {
+		t.Fatalf("mutants %d, notes %q; want no mutant and a note per file", len(ms), notes)
+	}
+	return notes
+}

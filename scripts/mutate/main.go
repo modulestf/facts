@@ -30,13 +30,15 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
 func main() {
-	// An interrupt ends the test processes with the run: each go test is in
-	// a process group of its own, which the terminal's signal does not reach.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// An interrupt or a terminate (a CI runner cancelling the job) ends the
+	// test processes with the run: each go test is in a process group of its
+	// own, which the signal sent to this process does not reach.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	err := mainErr(ctx, os.Args[1:], os.Stdout)
 	stop()
 	if err != nil {
@@ -120,21 +122,21 @@ func collect(root string, changed map[string]map[int]bool) ([]Mutant, []string) 
 		dir := filepath.Join(root, filepath.FromSlash(path.Dir(n)))
 		built, err := build.Default.MatchFile(dir, path.Base(n))
 		if err != nil {
-			notes = append(notes, fmt.Sprintf("- `%s` not read: %v", n, err))
+			notes = append(notes, fmt.Sprintf("- `%s` not read: %s", plain(n), plain(err.Error())))
 			continue
 		}
 		if !built {
-			notes = append(notes, fmt.Sprintf("- `%s` not built on this platform", n))
+			notes = append(notes, fmt.Sprintf("- `%s` not built on this platform", plain(n)))
 			continue
 		}
 		src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(n)))
 		if err != nil {
-			notes = append(notes, fmt.Sprintf("- `%s` not read: %v", n, err))
+			notes = append(notes, fmt.Sprintf("- `%s` not read: %s", plain(n), plain(err.Error())))
 			continue
 		}
 		got, err := mutants(n, src, changed[n])
 		if err != nil {
-			notes = append(notes, fmt.Sprintf("- `%s` not parsed: %v", n, err))
+			notes = append(notes, fmt.Sprintf("- `%s` not parsed: %s", plain(n), plain(err.Error())))
 			continue
 		}
 		ms = append(ms, got...)

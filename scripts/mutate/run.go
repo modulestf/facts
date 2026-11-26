@@ -35,6 +35,9 @@ const minTimeout = 30 * time.Second
 type runOptions struct {
 	workers int
 	budget  time.Duration
+	// floor replaces minTimeout when set; tests use it to make a timeout
+	// short.
+	floor time.Duration
 }
 
 type result struct {
@@ -60,6 +63,7 @@ func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []resul
 	ctx, cancel := context.WithTimeout(ctx, opts.budget)
 	defer cancel()
 	workers := max(opts.workers, 1)
+	floor := cmp.Or(opts.floor, minTimeout)
 
 	byPkg := map[string][]int{}
 	for i, m := range ms {
@@ -121,12 +125,12 @@ func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []resul
 			return
 		}
 		p := path.Dir(ms[i].File)
-		res[i].Status = runOne(ctx, root, tmp, j, ms[i], max(3*base[p].took, minTimeout))
+		res[i].Status = runOne(ctx, root, tmp, j, ms[i], max(3*base[p].took, floor), floor)
 	})
 	return res
 }
 
-func runOne(ctx context.Context, root, tmp string, n int, m Mutant, timeout time.Duration) string {
+func runOne(ctx context.Context, root, tmp string, n int, m Mutant, timeout, grace time.Duration) string {
 	src := filepath.Join(tmp, fmt.Sprintf("m%d.go", n))
 	ov := filepath.Join(tmp, fmt.Sprintf("m%d.json", n))
 	data, err := json.Marshal(map[string]map[string]string{
@@ -135,7 +139,7 @@ func runOne(ctx context.Context, root, tmp string, n int, m Mutant, timeout time
 	if err != nil || os.WriteFile(src, m.Src, 0o600) != nil || os.WriteFile(ov, data, 0o600) != nil {
 		return statusNotRun
 	}
-	mctx, cancel := context.WithTimeout(ctx, timeout+minTimeout)
+	mctx, cancel := context.WithTimeout(ctx, timeout+grace)
 	defer cancel()
 	out, err := goTest(mctx, root, path.Dir(m.File), ov, timeout)
 	switch {
@@ -230,7 +234,7 @@ func report(w io.Writer, res []result) {
 		fmt.Fprintln(w, "| --- | --- | --- |")
 		for _, r := range res {
 			if r.Status == statusSurvived {
-				fmt.Fprintf(w, "| `%s:%d` | %s | `%s` |\n", r.File, r.Line, r.Kind, cell(r.Code))
+				fmt.Fprintf(w, "| `%s:%d` | %s | `%s` |\n", plain(r.File), r.Line, r.Kind, cell(r.Code))
 			}
 		}
 	}
@@ -245,18 +249,25 @@ func report(w io.Writer, res []result) {
 			fmt.Fprintln(w)
 			first = false
 		}
-		fmt.Fprintf(w, "- `%s:%d` %s: %s\n", r.File, r.Line, r.Kind, r.Status)
+		fmt.Fprintf(w, "- `%s:%d` %s: %s\n", plain(r.File), r.Line, r.Kind, r.Status)
 	}
 }
 
-// cell makes code safe in a table cell inside a code span: a backtick
-// would close the span and a bar would split the cell.
+// plain makes text safe in a code span in a table cell or a list item: a
+// backtick would close the span, a bar would split the cell and a line break
+// would end the item. File names and error messages hold text a change
+// controls, so they pass through here before they reach the report.
+func plain(s string) string {
+	return strings.NewReplacer("`", "'", "|", `\|`, "\n", " ", "\r", " ").Replace(s)
+}
+
+// cell is plain, cut to a length a table cell can hold.
 func cell(s string) string {
 	const limit = 100
 	if len(s) > limit {
 		s = s[:limit] + "..."
 	}
-	return strings.NewReplacer("`", "'", "|", `\|`).Replace(s)
+	return plain(s)
 }
 
 var errUsage = errors.New("usage: go run ./scripts/mutate -base <revision> [-budget 8m] [-workers n] [-summary file]")
