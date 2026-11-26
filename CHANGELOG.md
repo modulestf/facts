@@ -1,3 +1,12 @@
+# [0.17.0](https://github.com/modulestf/facts/compare/v0.16.0...v0.17.0) (2026-11-26)
+
+
+### Features
+
+* Add plan-gates, the plan pass gates G0 to G3 as an engine command ([#98](https://github.com/modulestf/facts/issues/98)) ([1a14c6a](https://github.com/modulestf/facts/commit/1a14c6af494a8bf56bf220f70693dc647a738cb9))
+
+
+
 # [0.16.0](https://github.com/modulestf/facts/compare/v0.15.1...v0.16.0) (2026-11-26)
 
 
