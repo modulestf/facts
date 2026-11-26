@@ -228,6 +228,14 @@ func TestAffectedReadSites(t *testing.T) {
 			change:   readme,
 			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
 		},
+		"binary template is not kept and reaches every file": {
+			hcl: map[string]string{
+				"modules/sub/main.tf":      "locals {\n  u = templatefile(\"${path.module}/tpl/user.tpl\", {})\n}\n",
+				"modules/sub/tpl/user.tpl": "\x00x ${name}\n",
+			},
+			change:   readme,
+			examples: []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"},
+		},
 		"template with no file call": {
 			hcl: map[string]string{
 				"modules/sub/main.tf":      "locals {\n  u = templatefile(\"${path.module}/tpl/user.tpl\", {})\n}\n",

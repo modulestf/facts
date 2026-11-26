@@ -112,7 +112,7 @@ func treeLine(t *Tree, p string, n int) (string, bool) {
 		return "", false
 	}
 	e := t.Entries[p]
-	if e == nil || e.Kind != KindFile {
+	if e == nil || e.Kind != KindFile || e.opaque {
 		return "", false
 	}
 	ls := splitLines(e.Data)

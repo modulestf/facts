@@ -485,7 +485,7 @@ func rebuildEntry(at string, h *Entry, c fileChange, lim Limits) (*Entry, error)
 func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, error) {
 	noPatch := &Entry{Path: at, Kind: KindNoPatch}
 	if c.status == statusModeOnly {
-		if h.Kind != KindFile || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
+		if h.Kind != KindFile || h.opaque || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
 			return noPatch, nil // a binary file shows no line, changed or not
 		}
 		e := *h
@@ -493,7 +493,7 @@ func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, erro
 		return &e, nil
 	}
 	if c.status == statusPureRename {
-		if h.Kind != KindFile || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
+		if h.Kind != KindFile || h.opaque || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
 			return noPatch, nil // a binary rename shows no line either, changed or not
 		}
 		c.patch = []byte{}
@@ -514,8 +514,8 @@ func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, erro
 	}
 	var cur []byte
 	if h != nil {
-		if h.Kind != KindFile {
-			return noPatch, nil // the head content was not read, so no hunk can be reversed
+		if h.Kind != KindFile || h.opaque {
+			return noPatch, nil // the head content was not read or kept, so no hunk can be reversed
 		}
 		cur = h.Data
 	}

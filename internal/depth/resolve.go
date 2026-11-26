@@ -324,7 +324,7 @@ func (s *scanner) template(p string, c ctx, l loc) {
 	switch {
 	case e == nil:
 		return // Terraform fails on a missing template; validate reports it
-	case e.Kind != facts.KindFile:
+	case e.Kind != facts.KindFile, e.Opaque():
 		s.unresolved = append(s.unresolved, l)
 		return
 	}

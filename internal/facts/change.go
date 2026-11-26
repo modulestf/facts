@@ -81,6 +81,10 @@ func BuildChangeMap(head, base *Tree, areas []*Area, lim Limits) (*ChangeMap, er
 		if h.Kind != KindFile {
 			continue
 		}
+		if h.opaque || (b != nil && b.opaque) {
+			ch.overLimit[p] = true // a binary file whose bytes were not kept: which lines changed is unknown
+			continue
+		}
 		var old []byte
 		if b != nil && b.Kind == KindFile {
 			old = b.Data
