@@ -666,7 +666,7 @@ func TestAffectedDotTerraform(t *testing.T) {
 	all := []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"}
 	callers := append([]string{"caller examples/dot"}, all...)
 
-	patch := func(t *testing.T, path, oldS, newS string) ghFile {
+	patch := func(_ *testing.T, path, oldS, newS string) ghFile {
 		return ghFile{Filename: path, Status: "modified", Additions: 1, Deletions: 1,
 			Patch: new("@@ -1 +1 @@\n-" + strings.TrimSuffix(oldS, "\n") + "\n+" + strings.TrimSuffix(newS, "\n"))}
 	}
