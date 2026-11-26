@@ -1,3 +1,12 @@
+## [0.12.4](https://github.com/modulestf/facts/compare/v0.12.3...v0.12.4) (2026-11-26)
+
+
+### Bug Fixes
+
+* Lint a working copy that holds large build files ([#73](https://github.com/modulestf/facts/issues/73)) ([d8e7a6f](https://github.com/modulestf/facts/commit/d8e7a6feb7d325eb3fbe59130fdf9d568b764de3))
+
+
+
 ## [0.12.3](https://github.com/modulestf/facts/compare/v0.12.2...v0.12.3) (2026-11-26)
 
 
