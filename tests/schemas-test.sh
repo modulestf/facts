@@ -93,6 +93,10 @@ if [ -x "$bin" ]; then
   live_case ledger-report "ledger --check with problems" "0 1" ledger $l/module --schema-files $l/aws.json --check $l/unmapped.json
   live_case schema-diff "schema-diff" "0" schema-diff --from testdata/schema-diff/from.json --to testdata/schema-diff/to.json \
     --types-from testdata/schema-diff/module
+  fb=testdata/fixture-build
+  mkdir -p "$tmp/fb1" "$tmp/fb2"
+  live_case fixture-build "fixture-build" "0" fixture-build $fb/ladder-pass-01/trigger.json --template $fb/templates/l1.tf.tmpl --out "$tmp/fb1" --level L1
+  live_case fixture-build "fixture-build with a refused trigger" "1" fixture-build $fb/crafted-01-expr-not-string/trigger.json --template $fb/templates/l1.tf.tmpl --out "$tmp/fb2" --level L1
   live_case fixture-check "fixture-check --json" "0" fixture-check testdata/fixture-check/l1 --json
   live_case profile-check "profile-check" "0" profile-check --profile-dir testdata/profile
   live_case profile-snapshot "profile-snapshot" "0" profile-snapshot --profile-dir testdata/profile

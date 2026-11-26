@@ -40,6 +40,8 @@ func TestReportsMatchSchemas(t *testing.T) {
 		code         int
 	}{
 		{"changes", "changes.schema.json", []string{"changes", changesHeredoc + "/head", "--base", changesHeredoc + "/base", "--json"}, exitClean},
+		{"fixture-build", "fixture-build.schema.json", fixtureBuildArgs(t, "ladder-pass-01"), exitClean},
+		{"fixture-build refused", "fixture-build.schema.json", fixtureBuildArgs(t, "crafted-01-expr-not-string"), exitFindings},
 		{"lint stats", "stats.schema.json", []string{"lint", "../../testdata/variable-untyped-base/head", "--json", "--stats-file", statsFile}, exitFindings},
 		{"depth", "depth.schema.json", []string{"depth", "--head", diffBase + "/head", "--base", diffBase + "/base", "--files", diffBase + "/files.json"}, exitClean},
 		{"depth odd example names", "depth.schema.json", []string{"depth", "--head", diffBase + "/head", "--base", diffBase + "/base", "--files", diffBase + "/files.json", "--examples", "examples/a b,examples/v1+x,examples/.hidden,examples/..."}, exitClean},
@@ -148,6 +150,7 @@ var reportSchemas = map[string]string{
 	"changes":          "changes.schema.json",
 	"claims-eval":      "claims-eval.schema.json",
 	"depth":            "depth.schema.json",
+	"fixture-build":    "fixture-build.schema.json",
 	"fixture-check":    "fixture-check.schema.json",
 	"ledger":           "ledger-report.schema.json",
 	"lint":             "lint.schema.json",
