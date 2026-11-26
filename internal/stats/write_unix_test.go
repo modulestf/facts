@@ -351,3 +351,119 @@ func TestWriteFileTreeAlias(t *testing.T) {
 		}
 	})
 }
+
+// TestWriteFileLongPath writes a record at a valid path of about 1000 bytes
+// outside every tree: the walk must not grow the path past the system's
+// limit.
+func TestWriteFileLongPath(t *testing.T) {
+	dir := t.TempDir()
+	tree := filepath.Join(dir, "tree")
+	if err := os.Mkdir(tree, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	deep := filepath.Join(dir, "out")
+	for len(deep) < 950 {
+		deep = filepath.Join(deep, strings.Repeat("d", 40))
+	}
+	if err := os.MkdirAll(deep, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(deep, "stats.json")
+	if err := WriteFile(p, []byte("{}\n"), Guard{Trees: []string{tree}}); err != nil {
+		t.Fatalf("a %d-byte path outside every tree was refused: %v", len(p), err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != "{}\n" {
+		t.Errorf("content %q", got)
+	}
+}
+
+// TestWriteFileUncheckable runs from a working directory whose parent
+// cannot be searched: the file could be created relative to it, but the
+// walk cannot stat the directories above, so the path is refused and
+// nothing is created.
+func TestWriteFileUncheckable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root searches any directory")
+	}
+	dir := t.TempDir()
+	tree := filepath.Join(dir, "tree")
+	locked := filepath.Join(dir, "locked")
+	work := filepath.Join(locked, "work")
+	for _, d := range []string{tree, work} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(work)
+	t.Setenv("PWD", work)
+	if err := os.Chmod(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+	err := WriteFile("stats.json", []byte("{}\n"), Guard{Trees: []string{tree}})
+	if err == nil || !strings.Contains(err.Error(), "cannot check it against the input trees") {
+		t.Errorf("err %v, want the refusal of a path whose directories cannot be checked", err)
+	}
+	if err := os.Chmod(locked, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(filepath.Join(work, "stats.json")); err == nil {
+		t.Error("a file was created")
+	}
+}
+
+// TestWriteFileParentRace swaps the parent directory of the path between a
+// directory outside the trees and one inside, in a loop, while records are
+// written: no record may ever land in the tree.
+func TestWriteFileParentRace(t *testing.T) {
+	if testing.Short() {
+		t.Skip("races for a few seconds")
+	}
+	dir := t.TempDir()
+	tree := filepath.Join(dir, "tree")
+	out := filepath.Join(dir, "out")
+	for _, d := range []string{tree, out} {
+		if err := os.Mkdir(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(dir, "p")
+	if err := os.Symlink(out, link); err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		tmp := filepath.Join(dir, "p.tmp")
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			target := out
+			if i%2 == 1 {
+				target = tree
+			}
+			_ = os.Remove(tmp)
+			if err := os.Symlink(target, tmp); err == nil {
+				_ = os.Rename(tmp, link)
+			}
+		}
+	}()
+	g := Guard{Trees: []string{tree}}
+	landed := filepath.Join(tree, "stats.json")
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = WriteFile(filepath.Join(link, "stats.json"), []byte("{}\n"), g)
+		if _, err := os.Lstat(landed); err == nil {
+			break
+		}
+	}
+	close(stop)
+	<-done
+	if _, err := os.Lstat(landed); err == nil {
+		t.Error("a record landed in the input tree")
+	}
+}
