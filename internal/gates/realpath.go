@@ -8,7 +8,6 @@ import (
 	"syscall"
 )
 
-
 // realpath resolves p as the BSD realpath of Perl's Cwd does: every link is
 // followed, "." and ".." are read on the resolved path, and a missing last
 // component is no error, so the path it would have is returned. A missing
