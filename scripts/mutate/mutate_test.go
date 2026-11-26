@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,8 @@ import (
 )
 
 const guardSrc = `package p
+
+import "fmt"
 
 func f(xs []string, n int) int {
 	for _, x := range xs {
@@ -40,6 +44,41 @@ func f(xs []string, n int) int {
 }
 
 func ignored(s string) bool { return s == "x" }
+
+// None of these is a guard: an else, a body that does not leave, a switch
+// with a tag, a case of two expressions, an empty body, a body ending in an
+// expression that is no call, in a call through a selector, or in a call
+// of another function.
+func notGuards(n int) int {
+	if n > 5 {
+		return 5
+	} else {
+		n++
+	}
+	if n == 7 {
+		n++
+	}
+	switch n {
+	case 9:
+		return 9
+	}
+	switch {
+	case n == 10, n == 11:
+		return 0
+	}
+	if n == 12 {
+	}
+	if n == 13 {
+		<-make(chan int)
+	}
+	if n == 14 {
+		fmt.Println()
+	}
+	if n == 15 {
+		println()
+	}
+	return n
+}
 `
 
 func allLines(src string) map[int]bool {
@@ -99,8 +138,8 @@ func TestMutantsCompile(t *testing.T) {
 }
 
 func TestMutantsOnlyChangedLines(t *testing.T) {
-	// Line 8 holds the && chain; only it is changed.
-	got, err := mutants("p/f.go", []byte(guardSrc), map[int]bool{8: true})
+	// Line 10 holds the && chain; only it is changed.
+	got, err := mutants("p/f.go", []byte(guardSrc), map[int]bool{10: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,11 +147,11 @@ func TestMutantsOnlyChangedLines(t *testing.T) {
 		t.Fatalf("got %d mutants, want the guard and its three operands", len(got))
 	}
 	for _, m := range got {
-		if m.Line != 8 {
+		if m.Line != 10 {
 			t.Errorf("mutant at line %d outside the change", m.Line)
 		}
 	}
-	none, err := mutants("p/f.go", []byte(guardSrc), map[int]bool{9: true})
+	none, err := mutants("p/f.go", []byte(guardSrc), map[int]bool{11: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,6 +199,12 @@ diff --git a/old.go b/old.go
 +++ /dev/null
 @@ -1 +0,0 @@
 -x
+diff --git a/notes.txt b/notes.txt
+--- a/notes.txt
++++ b/notes.txt
+@@ -1 +1 @@
+-x
++y
 diff --git a/testdata/t.go b/testdata/t.go
 --- a/testdata/t.go
 +++ b/testdata/t.go
@@ -314,12 +359,13 @@ func TestReport(t *testing.T) {
 		{File: "a.go", Line: 3, Kind: kindGuard, Code: "x | `y`", Status: statusSurvived},
 		{File: "a.go", Line: 1, Kind: kindOperand, Code: "z", Status: statusKilled},
 		{File: "b.go", Line: 9, Kind: kindGuard, Code: "w", Status: statusNotRun},
+		{File: "c.go", Line: 2, Kind: kindGuard, Code: "v", Status: statusNotCompiled},
 	}
 	var b strings.Builder
 	report(&b, res)
 	out := b.String()
 	for _, want := range []string{
-		"3 mutants on the changed lines: 1 survived, 1 killed, 1 not run.",
+		"4 mutants on the changed lines: 1 survived, 1 killed, 1 not compiled, 1 not run.",
 		"| `a.go:3` | guard never fires | `x \\| 'y'` |",
 		"- `b.go:9` guard never fires: not run",
 	} {
@@ -327,12 +373,27 @@ func TestReport(t *testing.T) {
 			t.Errorf("report lacks %q:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "a.go:1") {
-		t.Errorf("report lists a killed mutant:\n%s", out)
+	for _, gone := range []string{"a.go:1", "c.go:2"} {
+		if strings.Contains(out, gone) {
+			t.Errorf("report lists %s, which has a verdict:\n%s", gone, out)
+		}
 	}
 	b.Reset()
 	report(&b, nil)
 	if !strings.Contains(b.String(), "No guard or condition operand on the changed lines.") {
 		t.Errorf("empty report: %s", b.String())
+	}
+}
+
+func TestUsage(t *testing.T) {
+	for _, args := range [][]string{
+		nil,
+		{"-base", "x", "extra"},
+		{"-base", "x", "-workers", "0"},
+		{"-base", "x", "-budget", "0s"},
+	} {
+		if err := mainErr(context.Background(), args, io.Discard); !errors.Is(err, errUsage) {
+			t.Errorf("%q: got %v, want the usage error", args, err)
+		}
 	}
 }
