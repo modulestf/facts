@@ -1,3 +1,12 @@
+## [0.15.1](https://github.com/modulestf/facts/compare/v0.15.0...v0.15.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* Keep untrusted text from adding lines to error output ([#96](https://github.com/modulestf/facts/issues/96)) ([5cfff93](https://github.com/modulestf/facts/commit/5cfff93f31fdfad5010e459859ee085f60c28982))
+
+
+
 # [0.15.0](https://github.com/modulestf/facts/compare/v0.14.4...v0.15.0) (2026-11-26)
 
 
