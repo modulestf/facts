@@ -56,7 +56,7 @@ func TestPlanGatesCLI(t *testing.T) {
 		t.Errorf("unreadable: exit %d, %q", code, out)
 	}
 	big := filepath.Join(root, "big.tf")
-	if err := os.WriteFile(big, []byte(strings.Repeat("#\n", 1<<19+1)), 0o600); err != nil {
+	if err := os.WriteFile(big, []byte(strings.Repeat("#\n", 4<<20+1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	setStdin(t, big)

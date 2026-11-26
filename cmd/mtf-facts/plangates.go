@@ -13,8 +13,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// planGatesStdinBytes caps the file list read from standard input.
-const planGatesStdinBytes = 8 << 20
+// planGatesStdinBytes caps the file list read from standard input, and
+// planGatesFileBytes each file: generated modules hold .tf files of over
+// 1 MiB, and the gates must read them.
+const (
+	planGatesStdinBytes = 8 << 20
+	planGatesFileBytes  = 8 << 20
+)
 
 // planGatesOptions are the flags of plan-gates.
 type planGatesOptions struct {
@@ -86,7 +91,7 @@ func planGates(cmd *cobra.Command, o planGatesOptions, timeout time.Duration, re
 			Root:       o.root,
 			Example:    o.example,
 			Providers:  o.providers,
-			FileBytes:  lim.MaxFileBytes,
+			FileBytes:  planGatesFileBytes,
 			TotalBytes: lim.MaxTotalBytes,
 			Deadline:   lim.Deadline,
 		})

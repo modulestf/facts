@@ -8,7 +8,7 @@ credentials, and print one line per hit: "<gate> <path>:<line>", line 0 for
 the whole file. The line UNREADABLE stands for a file the caller could not
 list, and is a G0 hit.
 
-G0 is a file the gates cannot read as text: unreadable or over 1 MiB, an
+G0 is a file the gates cannot read as text: unreadable or over 8 MiB, an
 override file, a carriage return, form feed or vertical tab, a byte over
 0x7f in code or a label, a block comment, or in runner mode a string,
 comment or heredoc that does not end. G1 is a required provider outside the
