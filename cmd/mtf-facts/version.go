@@ -98,6 +98,11 @@ var behaviourFeatures = []string{
 	// whose module_root is unsafe is refused
 	// (internal/depth TestFixtures module-root-*).
 	"depth.module-root",
+	// plan-gates also reads each module block's source as Terraform does
+	// and adds a G2 hit where that read differs from the text read, which a
+	// comment, a nested object or a heredoc before the source could fool
+	// (internal/gates TestStructuralSource).
+	"plan-gates.structural-source",
 }
 
 // marshalVersion encodes the version report; tests replace it to reach the

@@ -146,3 +146,4 @@ flag:schema-diff:types-from
 flag:version:json
 lint.in-repo-downgrade
 lint.no-change-not-applicable
+plan-gates.structural-source

@@ -17,6 +17,14 @@ import (
 // directory.
 const oracleDir = "../../testdata/plan-gates"
 
+// structuralExtra are the lines the structural source read adds after the
+// Perl's own output (structural.go): a module block the text read never
+// saw, whose source fails the G2 rule. cases.json stays the Perl's output.
+var structuralExtra = map[string]string{
+	"081 laptop clone rt/adj-module.tf": "G2 {run}/clone/rt/adj-module.tf:1\n",
+	"111 runner clone rt/adj-module.tf": "G2 {run}/clone/rt/adj-module.tf:1\n",
+}
+
 type oracleCase struct {
 	Name      string   `json:"name"`
 	Tree      int      `json:"tree"`
@@ -88,7 +96,11 @@ func TestOracle(t *testing.T) {
 	}
 	runs := map[int]string{}
 	ran := 0
+	extra := 0
 	for _, c := range o.Cases {
+		if _, ok := structuralExtra[c.Name]; ok {
+			extra++
+		}
 		if c.GOOS != "" && c.GOOS != runtime.GOOS {
 			continue
 		}
@@ -116,9 +128,12 @@ func TestOracle(t *testing.T) {
 			t.Errorf("%s: %v", c.Name, err)
 			continue
 		}
-		if want := sub(c.Want); string(got) != want {
+		if want := sub(c.Want + structuralExtra[c.Name]); string(got) != want {
 			t.Errorf("%s:\n got %q\nwant %q", c.Name, got, want)
 		}
+	}
+	if extra != len(structuralExtra) {
+		t.Errorf("%d of %d structuralExtra names are cases", extra, len(structuralExtra))
 	}
 	if ran < 330 {
 		t.Errorf("%d cases ran on %s, want every case of the platform", ran, runtime.GOOS)
