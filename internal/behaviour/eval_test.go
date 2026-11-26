@@ -49,6 +49,7 @@ func claimsDoc(claims ...string) string {
 }
 
 func TestClaimsValidation(t *testing.T) {
+	t.Parallel()
 	b := pr556TwoTriggers(t)
 	cases := []struct {
 		name, claim, why string
@@ -278,6 +279,7 @@ func withCases(t *testing.T, b *Report, id string, obs ...string) {
 }
 
 func TestSweep(t *testing.T) {
+	t.Parallel()
 	b := pr556TwoTriggers(t)
 	withCases(t, b, "T-001", caseUnknownBase, caseIDsBase)
 	run := sweepRun("T-001", "L1", caseUnknownBase+","+caseIDsBase, caseUnknownHead+","+caseIDsHead)
@@ -418,6 +420,7 @@ func simulate(c Case, compact bool) string {
 // TestSweepPR556Required: one case is not enough; the full required sweep,
 // with the real compact and concat behaviour, lists the differences.
 func TestSweepPR556Required(t *testing.T) {
+	t.Parallel()
 	b := pr556TwoTriggers(t)
 	cases := b.Triggers[0].Cases
 	one := sweepRun("T-001", "L1", simulate(cases[0], true), simulate(cases[0], false))
@@ -641,6 +644,7 @@ func TestReadLadderRefuses(t *testing.T) {
 // TestSweepContract checks the observation rules case by case: one
 // required case "c" (plus "t" with output) at each revision.
 func TestSweepContract(t *testing.T) {
+	t.Parallel()
 	b := pr556TwoTriggers(t)
 	known := `{"case":"t","known":true,"value":1,"unknown_mask":false}`
 	cases := []struct {
@@ -765,6 +769,7 @@ func pr556Claims(node string, first int) []string {
 // elements a known security group list sits next to, which only exact
 // claims on those cases explain.
 func TestSweepPR556Explained(t *testing.T) {
+	t.Parallel()
 	b := pr556TwoTriggers(t)
 	var base, head []string
 	for _, c := range b.Triggers[0].Cases {

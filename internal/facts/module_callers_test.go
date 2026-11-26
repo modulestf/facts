@@ -123,6 +123,7 @@ func TestModuleCallersMonorepo(t *testing.T) {
 // TestInRepoDowngradeConditions checks every condition of the downgrade:
 // the profile, the change, full_tree, complete and every caller changed.
 func TestInRepoDowngradeConditions(t *testing.T) {
+	t.Parallel()
 	inRepo := writeProfile(t, "format: 1", "consumers: in-repo", "partitions: portable", "examples: required", "release: registry")
 	for name, c := range map[string]struct {
 		head, base map[string]string
@@ -174,6 +175,7 @@ func TestModuleCallersNoModuleAreas(t *testing.T) {
 
 // TestModuleCallersResolution covers how a caller's source resolves.
 func TestModuleCallersResolution(t *testing.T) {
+	t.Parallel()
 	call := func(src string) string { return "module \"x\" {\n  source = " + src + "\n}\n" }
 	for name, c := range map[string]struct {
 		extra    map[string]string
@@ -302,6 +304,7 @@ func TestModuleCallersFileChangedByDiff(t *testing.T) {
 }
 
 func TestModuleCallersCap(t *testing.T) {
+	t.Parallel()
 	var b strings.Builder
 	for i := range maxModuleCallers + 1 {
 		b.WriteString("module \"n" + strconv.Itoa(i) + "\" {\n  source = \"../../infra/modules/network\"\n}\n")

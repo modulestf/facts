@@ -77,7 +77,10 @@ func lint(cmd *cobra.Command, o facts.Options, view textView, asJSON, ai bool, t
 	o.Limits.Deadline = time.Now().Add(timeout)
 
 	done := make(chan lintResult, 1) // buffered: a late worker never blocks
-	go func() { done <- lintWork(o, view, asJSON, ai) }()
+	// Read the engine here: a worker the timer abandons outlives this call
+	// and must not read runFacts after it returns.
+	engine := runFacts
+	go func() { done <- lintWork(engine, o, view, asJSON, ai) }()
 	timer := time.NewTimer(timeout)
 	var res lintResult
 	select {
@@ -113,16 +116,16 @@ type lintResult struct {
 	err  error
 }
 
-// lintWork runs the engine and renders the report, the AI form of the
-// JSON report when ai is set, or the text report view shapes. It writes
+// lintWork runs engine and renders the report, the AI form of the JSON
+// report when ai is set, or the text report view shapes. It writes
 // nothing.
-func lintWork(o facts.Options, view textView, asJSON, ai bool) lintResult {
+func lintWork(engine func(facts.Options) (*facts.Report, error), o facts.Options, view textView, asJSON, ai bool) lintResult {
 	sum, err := binarySHA256()
 	if err != nil {
 		return lintResult{err: err}
 	}
 	o.BinarySHA256 = sum
-	r, err := runFacts(o)
+	r, err := engine(o)
 	if err != nil {
 		return lintResult{err: err}
 	}

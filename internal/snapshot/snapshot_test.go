@@ -141,6 +141,7 @@ func TestTakeRefuses(t *testing.T) {
 }
 
 func TestTakeDepthLimitEdge(t *testing.T) {
+	t.Parallel()
 	src := copyProfile(t)
 	must(t, os.MkdirAll(filepath.Join(src, "a", "b", "c", "d", "e", "f", "g"), 0o755))
 	must(t, os.WriteFile(filepath.Join(src, "a", "b", "c", "d", "e", "f", "g", "x"), []byte("x"), 0o644))

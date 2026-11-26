@@ -240,6 +240,7 @@ func TestFollowsCloudwatchReplay(t *testing.T) {
 // TestRuleAAccepts: the variable follows the triggers that hold its reads,
 // wherever they are, and nothing when no expression of its module reads it.
 func TestRuleAAccepts(t *testing.T) {
+	t.Parallel()
 	unused := with(asgHead(asgLine), "main.tf", asgMain)
 	cases := map[string]struct {
 		head    map[string]string
@@ -320,6 +321,7 @@ func TestRuleASameNameElsewhere(t *testing.T) {
 // TestRuleADeclines: each gate, failed, leaves the variable at L4 and its
 // wrapper line with it.
 func TestRuleADeclines(t *testing.T) {
+	t.Parallel()
 	newVar := func(body string) map[string]string {
 		return with(asgHead(asgLine), "variables.tf", asgVars+"\nvariable \"alarm_specification\" {\n"+body+"}\n")
 	}
@@ -409,6 +411,7 @@ func TestRuleAExistingVariable(t *testing.T) {
 // TestRuleBDeclines: every wrapper line but the generated form, and every
 // wrapper the rule does not name, stays L4 while the variable follows.
 func TestRuleBDeclines(t *testing.T) {
+	t.Parallel()
 	n := "alarm_specification"
 	lines := map[string]string{
 		"no default form":   "  " + n + " = try(each.value." + n + ", var.defaults." + n + ")\n",

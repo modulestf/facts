@@ -30,6 +30,7 @@ func runDiffFixture(t *testing.T, o Options) *Report {
 // TestRunDiffMatchesBase checks that a run with the change as a diff, in
 // either format, reports what a run with the real base tree does.
 func TestRunDiffMatchesBase(t *testing.T) {
+	t.Parallel()
 	want := runDiffFixture(t, Options{Base: filepath.Join(diffFixture, "base")})
 	if want.Scope.Change != ChangeBase {
 		t.Fatalf("scope %+v", want.Scope)
@@ -64,6 +65,7 @@ func TestRunDiffMatchesBase(t *testing.T) {
 // TestRunDiffEvaluatesCompat checks that the base-dependent rules evaluate
 // with a diff, where without a change they are not_applicable(no_change_given).
 func TestRunDiffEvaluatesCompat(t *testing.T) {
+	t.Parallel()
 	noChange := runDiffFixture(t, Options{})
 	diff := runDiffFixture(t, Options{Diff: filepath.Join(diffFixture, "files.json")})
 	for _, tc := range []struct {
@@ -166,6 +168,7 @@ func TestRunDiffModeOnly(t *testing.T) {
 // callers of a changed module, and which it leaves out; --full-tree checks
 // every area; without a change every area is checked.
 func TestRunScope(t *testing.T) {
+	t.Parallel()
 	all := []string{".", "examples/a", "examples/b", "examples/c", "examples/old", "modules/log", "modules/other"}
 	for _, tc := range []struct {
 		name string
@@ -202,6 +205,7 @@ func TestRunScope(t *testing.T) {
 // of a raised module land on each caller's own floor, and the manifest files
 // each under its caller's area, the root's under ".".
 func TestRunCrossAreaFiling(t *testing.T) {
+	t.Parallel()
 	r := runDiffFixture(t, Options{Diff: filepath.Join(diffFixture, "files.json")})
 	var got []string
 	for _, c := range r.Candidates {

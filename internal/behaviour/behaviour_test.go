@@ -24,6 +24,7 @@ const pr556 = "testdata/pr556"
 // propagation candidate for L1 then L3. The report is the same for a base
 // tree and for every diff form and context size.
 func TestPR556(t *testing.T) {
+	t.Parallel()
 	head := filepath.Join(pr556, "head")
 	inputs := map[string]Options{
 		"base":       {Base: filepath.Join(pr556, "base")},
@@ -136,6 +137,7 @@ func TestPR556Schema(t *testing.T) {
 // TestSchemaFailsClosed: a schema without the provider, the type or the
 // attribute keeps the unknown propagation trigger.
 func TestSchemaFailsClosed(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	write := func(name, doc string) string {
 		p := filepath.Join(dir, name)
@@ -172,6 +174,7 @@ const rds = `resource "aws_rds_cluster" "this" {
 `
 
 func TestInert(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		base, head map[string]string
@@ -262,6 +265,7 @@ func TestRename(t *testing.T) {
 
 // TestCategories checks one change per category.
 func TestCategories(t *testing.T) {
+	t.Parallel()
 	vars := "variable \"a\" {\n  type    = string\n  default = \"x\"\n}\nvariable \"n\" {\n  type = number\n  default = 1\n}\n"
 	cases := []struct {
 		name        string
@@ -349,6 +353,7 @@ func TestCap(t *testing.T) {
 }
 
 func TestDeterministic(t *testing.T) {
+	t.Parallel()
 	base := map[string]string{"main.tf": "locals {\n  a = 1\n  b = 2\n  c = 3\n}\n", "x/main.tf": `locals { a = 1 }` + "\n", "z.sh": "a"}
 	head := map[string]string{"main.tf": "locals {\n  a = 2\n  b = 3\n  c = 4\n}\n", "x/main.tf": `locals { a = 2 }` + "\n", "z.sh": "b"}
 	first := mustJSON(t, runPair(t, base, head, ""))
@@ -385,6 +390,7 @@ func TestDiffUnchangedOversizeFile(t *testing.T) {
 
 // TestCases: an L1 trigger carries its required input sweep.
 func TestCases(t *testing.T) {
+	t.Parallel()
 	r := pr556Report(t)
 	for _, tr := range r.Triggers {
 		ids := map[string]bool{}
@@ -461,6 +467,7 @@ func TestCases(t *testing.T) {
 // TestCasesFromLiterals: a literal of either expression is a state of the
 // inputs of its type.
 func TestCasesFromLiterals(t *testing.T) {
+	t.Parallel()
 	v := "variable \"cidr\" {\n  type = string\n}\n"
 	r := runPair(t, map[string]string{"main.tf": v + "locals { x = var.cidr }\n"},
 		map[string]string{"main.tf": v + `locals { x = var.cidr == "evil" ? "0.0.0.0/0" : var.cidr }` + "\n"}, "")
@@ -543,6 +550,7 @@ func TestCasesResourceIDNeverNull(t *testing.T) {
 // TestBaseIdenticalOversizeFile: with --base, a large file identical in
 // both trees is no entry.
 func TestBaseIdenticalOversizeFile(t *testing.T) {
+	t.Parallel()
 	big := strings.Repeat("z", int(facts.DefaultLimits.MaxFileBytes)+1)
 	r := runPair(t, map[string]string{"main.tf": rds, "README.md": "a\n", "examples/s3-import/backup.zip": big},
 		map[string]string{"main.tf": rds, "README.md": "b\n", "examples/s3-import/backup.zip": big}, "")
@@ -670,6 +678,7 @@ func TestTypeChangeNoKeywordRefs(t *testing.T) {
 // TestNestedDynamicNarrowed: a change inside nested dynamic blocks is placed
 // at the innermost dynamic block that holds all of it.
 func TestNestedDynamicNarrowed(t *testing.T) {
+	t.Parallel()
 	block := func(inner string) string {
 		return "resource \"aws_cloudfront_distribution\" \"this\" {\n" +
 			"  dynamic \"origin\" {\n    for_each = var.origin\n    content {\n      domain_name = origin.value.domain_name\n" +

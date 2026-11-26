@@ -12,6 +12,7 @@ import (
 // TestAffected runs affected with the change as a files list, a unified diff
 // and a base tree: each lists the touched example, then its callers.
 func TestAffected(t *testing.T) {
+	t.Parallel()
 	const dir = "../../testdata/diff-base"
 	want := []facts.AffectedExample{{Dir: "examples/c", Reason: "touched"}, {Dir: "examples/a", Reason: "caller"}, {Dir: "examples/b", Reason: "caller"}}
 	for _, change := range [][]string{

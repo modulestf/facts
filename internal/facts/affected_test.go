@@ -89,6 +89,7 @@ func wantAffected(t *testing.T, r *AffectedReport, inert bool, fallback string, 
 }
 
 func TestAffectedSelection(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		set      map[string]string // head changes against affectedHead as base
 		inert    bool
@@ -152,6 +153,7 @@ func TestAffectedSelection(t *testing.T) {
 // TestAffectedReadSites checks that a docs file some HCL read site reaches
 // is not inert, and counts as a change of the module that reads it.
 func TestAffectedReadSites(t *testing.T) {
+	t.Parallel()
 	readme := map[string]string{"README.md": "# changed\n"}
 	cases := map[string]struct {
 		hcl      map[string]string // set in both trees
@@ -257,6 +259,7 @@ func TestAffectedReadSites(t *testing.T) {
 }
 
 func TestAffectedFallback(t *testing.T) {
+	t.Parallel()
 	all := []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"}
 	cases := map[string]struct {
 		hcl      map[string]string
@@ -289,6 +292,7 @@ func TestAffectedNoChange(t *testing.T) {
 }
 
 func TestAffectedExampleDirs(t *testing.T) {
+	t.Parallel()
 	t.Run("only first level dirs holding a .tf file", func(t *testing.T) {
 		head := with(affectedHead, map[string]string{"examples/notes/README.md": "x\n", "examples/README.md": "x\n"})
 		r := runAffected(t, head, head)
@@ -313,6 +317,7 @@ func TestAffectedExampleDirs(t *testing.T) {
 // TestAffectedDiff gives the change as a GitHub files list and as a unified
 // diff: both rebuild the base and select as --base does.
 func TestAffectedDiff(t *testing.T) {
+	t.Parallel()
 	head := with(affectedHead, map[string]string{"modules/sub/main.tf": "resource \"null_resource\" \"sub2\" {}\n"})
 	want := []string{"caller examples/sub", "all examples/chain", "all examples/complete", "all examples/registry"}
 	diffs := map[string]string{
@@ -372,11 +377,16 @@ func TestInertDocPath(t *testing.T) {
 // TestAffectedReadSiteCap treats a tree with more read sites than the cap as
 // one that does not parse, so no docs change is inert there.
 func TestAffectedReadSiteCap(t *testing.T) {
-	old := maxReadSites
-	maxReadSites = 1
-	t.Cleanup(func() { maxReadSites = old })
+	t.Parallel()
+	lim := DefaultLimits
+	lim.maxReadSites = 1
 	base := with(affectedHead, map[string]string{"main.tf": "locals {\n  a = \"x.json\"\n  b = \"y.json\"\n}\n"})
-	r := runAffected(t, with(base, map[string]string{"README.md": "# changed\n"}), base)
+	head := with(base, map[string]string{"README.md": "# changed\n"})
+	r, err := Affected(AffectedOptions{Head: writeTree(t, head), Base: writeTree(t, base), Limits: lim})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkAffectedSchema(t, r)
 	wantAffected(t, r, false, FallbackUnparsed, "all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub")
 }
 
@@ -391,6 +401,7 @@ func TestAffectedBackslashSource(t *testing.T) {
 // TestAffectedModeChange: a change of the exec bit alone is a change, and
 // never inert, whether the change is a base tree or a diff.
 func TestAffectedModeChange(t *testing.T) {
+	t.Parallel()
 	all := []string{"all examples/chain", "all examples/complete", "all examples/registry", "all examples/sub"}
 	chmod := func(t *testing.T, root, p string, mode os.FileMode) {
 		t.Helper()
@@ -467,6 +478,7 @@ func TestAffectedModeChange(t *testing.T) {
 // unchanged, its base being the head's own entry; one the diff lists is
 // changed and never inert.
 func TestAffectedOversize(t *testing.T) {
+	t.Parallel()
 	big := strings.Repeat("x", int(DefaultLimits.MaxFileBytes)+1)
 	head := writeTree(t, with(affectedHead, map[string]string{
 		"README.md": "# changed\n", "examples/complete/backup.zip": big, "docs/big.md": big,

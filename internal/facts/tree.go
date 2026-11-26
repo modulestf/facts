@@ -3,6 +3,7 @@
 package facts
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -30,6 +31,12 @@ type Limits struct {
 	MaxAreas       int   // discovered module areas; zero means no limit
 	// Deadline stops a run that takes too long. Zero means no deadline.
 	Deadline time.Time
+
+	// Test seams, unset in production. A zero cap is its default.
+	readDirHook        func(dir string, n int) // sees every ReadDir batch: the directory and the entries returned
+	oversizeHashCap    int64                   // see defaultOversizeHashCap
+	oversizeHashBudget int64                   // see defaultOversizeHashBudget
+	maxReadSites       int                     // see defaultMaxReadSites
 }
 
 // ErrDeadline is returned when a run passes Limits.Deadline.
@@ -77,7 +84,7 @@ type Entry struct {
 	linkSHA256 string
 	// oversizeSHA256 hashes an oversize regular file's bytes, read in a
 	// stream and never kept, so an unchanged large file is the same entry.
-	// Empty when the file is over oversizeHashCap or the tree's hash budget.
+	// Empty when the file is over the hash cap or the tree's hash budget.
 	// TreeSHA256 does not include it.
 	oversizeSHA256 string
 	// exec is set for a regular file with any execute bit. sameEntry
@@ -104,20 +111,19 @@ type Tree struct {
 // Terraform working state, neither of which is module source.
 func skipDir(name string) bool { return name == ".git" || name == ".terraform" }
 
-// Bounds of hashing oversize files: a file over oversizeHashCap, or past
-// oversizeHashBudget hashed bytes in one tree, keeps no hash and so stays
-// changed. Variables so a test can lower them.
-var (
-	oversizeHashCap    int64 = 64 << 20
-	oversizeHashBudget int64 = 256 << 20
+// Bounds of hashing oversize files: a file over the cap, or past the budget
+// of hashed bytes in one tree, keeps no hash and so stays changed. A test
+// lowers them through Limits.
+const (
+	defaultOversizeHashCap    int64 = 64 << 20
+	defaultOversizeHashBudget int64 = 256 << 20
 )
+
+func (l Limits) hashCap() int64    { return cmp.Or(l.oversizeHashCap, defaultOversizeHashCap) }
+func (l Limits) hashBudget() int64 { return cmp.Or(l.oversizeHashBudget, defaultOversizeHashBudget) }
 
 // readDirBatch is how many directory entries one ReadDir call returns at most.
 const readDirBatch = 256
-
-// readDirHook, when set, sees every ReadDir batch: the directory and the
-// number of entries returned. Tests use it; it is nil in production.
-var readDirHook func(dir string, n int)
 
 // ReadTree reads every regular file under root. It never follows a symbolic
 // link: links and special files are recorded by kind and not opened.
@@ -156,7 +162,7 @@ type treeReader struct {
 	t      *Tree
 	count  int   // directory entries seen, the MaxFiles budget
 	total  int64 // bytes read, the MaxTotalBytes budget
-	hashed int64 // oversize bytes hashed, the oversizeHashBudget
+	hashed int64 // oversize bytes hashed, the Limits.hashBudget budget
 }
 
 // walk reads dir and everything below it. Only the root failing to list is
@@ -208,8 +214,8 @@ func (w *treeReader) list(dir string) (ents []fs.DirEntry, readErr, err error) {
 	defer f.Close()
 	for {
 		batch, rerr := f.ReadDir(readDirBatch)
-		if readDirHook != nil {
-			readDirHook(dir, len(batch))
+		if w.lim.readDirHook != nil {
+			w.lim.readDirHook(dir, len(batch))
 		}
 		w.count += len(batch)
 		if w.count > w.lim.MaxFiles {
@@ -295,7 +301,7 @@ func (w *treeReader) addEntry(p string, typ fs.FileMode) error {
 // per-file cap and the tree's budget. It opens the file as readFile does.
 func (w *treeReader) hashOversize(e *Entry) {
 	before, err := w.root.Lstat(e.Path)
-	if err != nil || !before.Mode().IsRegular() || before.Size() > oversizeHashCap || w.hashed+before.Size() > oversizeHashBudget {
+	if err != nil || !before.Mode().IsRegular() || before.Size() > w.lim.hashCap() || w.hashed+before.Size() > w.lim.hashBudget() {
 		return
 	}
 	f, _, err := openUnchanged(w.root, e.Path, before, 0)
@@ -304,7 +310,7 @@ func (w *treeReader) hashOversize(e *Entry) {
 	}
 	defer f.Close()
 	h := sha256.New()
-	n, err := io.Copy(h, io.LimitReader(f, oversizeHashCap+1))
+	n, err := io.Copy(h, io.LimitReader(f, w.lim.hashCap()+1))
 	w.hashed += n
 	if err != nil || n != before.Size() {
 		return

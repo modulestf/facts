@@ -213,6 +213,7 @@ func TestBuildIndexSkipsUntouched(t *testing.T) {
 // The blocks are found by a walk of the parser's own syntax tree, apart from
 // the model the index is built from.
 func TestIndexResolvesTestTrees(t *testing.T) {
+	t.Parallel()
 	var roots []string
 	for _, pattern := range []string{"../../testdata/*/head", "../../testdata/*/base", "../../testdata/oracle/*/head", "../../testdata/oracle/*/base"} {
 		m, err := filepath.Glob(pattern)

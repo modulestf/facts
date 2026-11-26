@@ -235,6 +235,7 @@ func TestCoverageSchemaHandoffWinsOverRawFiles(t *testing.T) {
 // The reports of the coverage-schema golden cases, flag facts included,
 // validate against the lint schema, whose candidate evidence is the bundle's.
 func TestCoverageSchemaReportsMatchLintSchema(t *testing.T) {
+	t.Parallel()
 	set := loadSchemas(t)
 	dirs, err := filepath.Glob("../../testdata/coverage-schema-*")
 	if err != nil || len(dirs) == 0 {

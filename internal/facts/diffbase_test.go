@@ -72,6 +72,7 @@ const noPatch = "<no patch>"
 // TestBaseFromDiff covers each status, the patch-less cases and every
 // refusal, in both input formats.
 func TestBaseFromDiff(t *testing.T) {
+	t.Parallel()
 	const v1 = "a = 1\nb = 2\nc = 3\n"
 	const v2 = "a = 1\nb = 20\nc = 3\n"
 	edit := "@@ -1,3 +1,3 @@\n a = 1\n-b = 2\n+b = 20\n c = 3"
@@ -312,6 +313,7 @@ func TestBaseFromDiff(t *testing.T) {
 // TestReadDiffBaseRefusesInput checks the file checks: a link, a missing
 // file and a file over the cap all fail.
 func TestReadDiffBaseRefusesInput(t *testing.T) {
+	t.Parallel()
 	head := mustTree(t, writeTree(t, map[string]string{"main.tf": "a\n"}))
 	dir := writeTree(t, map[string]string{"real.json": "[]", "link.json": "->real.json"})
 	big := filepath.Join(dir, "big.json")

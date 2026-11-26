@@ -96,6 +96,7 @@ func TestProfileCheckInvalid(t *testing.T) {
 // on a tree profile-snapshot would refuse, so a check cannot pass where the
 // snapshot later fails.
 func TestProfileCheckRefusesWhatSnapshotRefuses(t *testing.T) {
+	t.Parallel()
 	for name, setup := range map[string]func(dir string) error{
 		"symlink":  func(dir string) error { return os.Symlink("PROFILE.md", filepath.Join(dir, "x.md")) },
 		"fifo":     func(dir string) error { return syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },
@@ -142,6 +143,7 @@ type snapOut struct {
 }
 
 func TestProfileSnapshot(t *testing.T) {
+	t.Parallel()
 	src := relaxedProfile(t)
 	code, out, errOut := runCLI([]string{"profile-snapshot", "--profile-dir", src})
 	if code != 0 {
@@ -186,6 +188,7 @@ func TestProfileSnapshot(t *testing.T) {
 }
 
 func TestProfileSnapshotRefuses(t *testing.T) {
+	t.Parallel()
 	for name, setup := range map[string]func(dir string) error{
 		"symlink": func(dir string) error { return os.Symlink("PROFILE.md", filepath.Join(dir, "x.md")) },
 		"fifo":    func(dir string) error { return syscall.Mkfifo(filepath.Join(dir, "pipe"), 0o644) },

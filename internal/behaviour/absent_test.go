@@ -137,6 +137,7 @@ func TestAbsentIsNull(t *testing.T) {
 // TestAbsentNotNull: each condition of the null side, broken one at a
 // time, leaves the side absent.
 func TestAbsentNotNull(t *testing.T) {
+	t.Parallel()
 	sch := writeJSON(t, "schema.json", absentSchema)
 	res := func(body string) string { return varX + "resource \"aws_thing\" \"t\" {\n" + body + "}\n" }
 	acme := `terraform {
@@ -213,6 +214,7 @@ func caseLabels(tr Trigger) []string {
 // TestDefaultCase: a variable the change adds gives the triggers that read
 // it a default case only when its default is a bare literal.
 func TestDefaultCase(t *testing.T) {
+	t.Parallel()
 	sch := writeJSON(t, "schema.json", absentSchema)
 	run := func(base, def string) Trigger {
 		t.Helper()
@@ -297,6 +299,7 @@ func TestDataSourceL1Only(t *testing.T) {
 // the sweep pairs the base null with the head, verified where the default
 // equals it and outstanding elsewhere.
 func TestAbsentClaimsAndSweep(t *testing.T) {
+	t.Parallel()
 	sch := writeJSON(t, "schema.json", absentSchema)
 	b := runPair(t, map[string]string{"main.tf": varX + "resource \"aws_thing\" \"t\" {}\n"},
 		map[string]string{"main.tf": varX + "resource \"aws_thing\" \"t\" {\n  oc = var.x\n}\n"}, sch)

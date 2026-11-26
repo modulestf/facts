@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -109,6 +110,7 @@ func diffDoc(t *testing.T, set schemaSet, r *Report) map[string]any {
 const interfaceDiffID = "https://github.com/modulestf/facts/schema/interface-diff.schema.json"
 
 func TestBuildInterfaceDiffAllSections(t *testing.T) {
+	t.Parallel()
 	set := loadSchemas(t)
 	dir := filepath.Join(interfaceDiffRoot, "all-sections")
 	r := runInterfaceDiff(t, dir)
@@ -153,6 +155,7 @@ func TestBuildInterfaceDiffAllSections(t *testing.T) {
 // TestInterfaceDiffSchemaMutations changes one part of a valid document per
 // section and checks the schema refuses it, so each section is validated.
 func TestInterfaceDiffSchemaMutations(t *testing.T) {
+	t.Parallel()
 	set := loadSchemas(t)
 	r := runInterfaceDiff(t, filepath.Join(interfaceDiffRoot, "all-sections"))
 	data, err := json.Marshal(r.InterfaceDiff)
@@ -247,31 +250,37 @@ func TestInterfaceDiffSchemaMutations(t *testing.T) {
 // TestInterfaceDiffOracle validates the interface diff of every oracle
 // fixture and compares the compat fixtures with their hand-written lists.
 func TestInterfaceDiffOracle(t *testing.T) {
+	t.Parallel()
 	set := loadSchemas(t)
-	compat := 0
-	for _, src := range oracleFixtures(t) {
-		name := filepath.Base(src)
-		t.Run(name, func(t *testing.T) {
-			dir := setupOracle(t, src)
-			r := runInterfaceDiff(t, dir)
-			if _, err := os.Stat(filepath.Join(dir, "base")); err != nil {
-				if r.InterfaceDiff != nil {
-					t.Error("interface diff with no base tree")
+	// The fixtures run in parallel inside one group, which returns when all
+	// of them are done.
+	var compat atomic.Int32
+	t.Run("fixture", func(t *testing.T) {
+		for _, src := range oracleFixtures(t) {
+			name := filepath.Base(src)
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				dir := setupOracle(t, src)
+				r := runInterfaceDiff(t, dir)
+				if _, err := os.Stat(filepath.Join(dir, "base")); err != nil {
+					if r.InterfaceDiff != nil {
+						t.Error("interface diff with no base tree")
+					}
+					return
 				}
-				return
-			}
-			diffDoc(t, set, r)
-			if !strings.HasPrefix(name, "compat-") {
-				return
-			}
-			compat++
-			want := readKeys(t, filepath.Join(interfaceDiffRoot, name+".txt"))
-			if got := diffKeys(r.InterfaceDiff); !slices.Equal(got, want) {
-				t.Errorf("elements:\n got %q\nwant %q", got, want)
-			}
-		})
-	}
-	if compat == 0 {
+				diffDoc(t, set, r)
+				if !strings.HasPrefix(name, "compat-") {
+					return
+				}
+				compat.Add(1)
+				want := readKeys(t, filepath.Join(interfaceDiffRoot, name+".txt"))
+				if got := diffKeys(r.InterfaceDiff); !slices.Equal(got, want) {
+					t.Errorf("elements:\n got %q\nwant %q", got, want)
+				}
+			})
+		}
+	})
+	if compat.Load() == 0 {
 		t.Error("no compat fixture")
 	}
 }
@@ -303,6 +312,7 @@ func TestBuildInterfaceDiffNeedsBaseAndCommits(t *testing.T) {
 }
 
 func TestBuildInterfaceDiffUnchanged(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		base, head string

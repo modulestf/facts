@@ -11,6 +11,7 @@ import (
 // through ParseReply: the valid ones parse in shape with no bad counts, and
 // the counts examples the schema refuses set countsBad.
 func TestModelOutputExamples(t *testing.T) {
+	t.Parallel()
 	paths, err := filepath.Glob("../../schema/examples/model-output.*.json")
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("no model-output examples: %v", err)

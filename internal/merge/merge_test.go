@@ -303,6 +303,7 @@ func TestFinalRefusesBadInputs(t *testing.T) {
 }
 
 func TestParseBundleRefuses(t *testing.T) {
+	t.Parallel()
 	ev := `"evidence":{},"evidence_complete":true`
 	tests := map[string]string{
 		"not an object":       `[]`,

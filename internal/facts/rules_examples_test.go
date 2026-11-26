@@ -19,6 +19,7 @@ func runBase(t *testing.T, base, head map[string]string) *Report {
 const disabledRule = "examples.disabled-call-missing"
 
 func TestDisabledCallShapes(t *testing.T) {
+	t.Parallel()
 	const call = "module \"this\" {\n  source = \"../../\"\n}\n"
 	for name, tc := range map[string]struct {
 		files map[string]string
@@ -83,6 +84,7 @@ func TestDisabledCallEvidenceCap(t *testing.T) {
 const submoduleRule = "examples.submodule-missing"
 
 func TestSubmoduleMissingCases(t *testing.T) {
+	t.Parallel()
 	const sub = "variable \"x\" {\n  type = string\n}\n"
 	base := map[string]string{"main.tf": "", "modules/old/main.tf": ""}
 	for name, tc := range map[string]struct {
@@ -171,6 +173,7 @@ func TestReferencesPath(t *testing.T) {
 const staleRule = "examples.stale-reference"
 
 func TestStaleReferenceCases(t *testing.T) {
+	t.Parallel()
 	const out = "output \"gone\" {\n  value = \"g\"\n}\n"
 	base := map[string]string{"main.tf": "", "outputs.tf": out, "modules/sub/outputs.tf": out,
 		"examples/e/main.tf": "module \"this\" {\n  source = \"../../\"\n}\nmodule \"sub\" {\n  source = \"../../modules/sub\"\n}\n"}
