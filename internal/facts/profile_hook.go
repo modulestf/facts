@@ -12,7 +12,7 @@ import (
 
 // profileLimits bound the read of a profile directory. A profile is a few
 // markdown files and templates, far below these.
-var profileLimits = Limits{MaxFiles: 1000, MaxFileBytes: 256 << 10, MaxTotalBytes: 4 << 20}
+var profileLimits = Limits{MaxFiles: 1000, MaxFileBytes: 256 << 10, MaxTotalBytes: 4 << 20, keepBinary: true}
 
 // ProfileLimits returns the limits a profile directory is read with. It is a
 // copy: no other package can change them.

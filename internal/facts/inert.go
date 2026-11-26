@@ -161,7 +161,7 @@ func templateSites(t *Tree, sites []ReadSite, lim Limits) ([]ReadSite, error) {
 				continue
 			}
 			s := siteScan{dir: call.Dir, file: p}
-			if e.Kind != KindFile {
+			if e.Kind != KindFile || e.opaque {
 				s.sites = append(s.sites, ReadSite{File: p, Line: 1, Kind: "template", Anchor: AnchorNone, Dir: call.Dir})
 			} else if expr, err := parseTemplate(p, e.Data, lim); err != nil {
 				s.sites = append(s.sites, ReadSite{File: p, Line: 1, Kind: "template", Anchor: AnchorNone, Dir: call.Dir})

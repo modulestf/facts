@@ -3,6 +3,7 @@
 package facts
 
 import (
+	"bytes"
 	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
@@ -36,7 +37,12 @@ type Limits struct {
 	readDirHook        func(dir string, n int) // sees every ReadDir batch: the directory and the entries returned
 	oversizeHashCap    int64                   // see defaultOversizeHashCap
 	oversizeHashBudget int64                   // see defaultOversizeHashBudget
+	opaqueBudget       int64                   // see defaultOpaqueBudget
 	maxReadSites       int                     // see defaultMaxReadSites
+
+	// keepBinary keeps the bytes of every regular file, as a profile
+	// directory needs: its tree hash covers every file's bytes.
+	keepBinary bool
 }
 
 // ErrDeadline is returned when a run passes Limits.Deadline.
@@ -87,11 +93,20 @@ type Entry struct {
 	// Empty when the file is over the hash cap or the tree's hash budget.
 	// TreeSHA256 does not include it.
 	oversizeSHA256 string
+	// opaque is set for a binary file of a name no rule reads; see
+	// opaqueFile. It is KindFile with the hash of its full content, but its
+	// bytes are not kept, so Data is nil.
+	opaque bool
 	// exec is set for a regular file with any execute bit. sameEntry
 	// compares it; TreeSHA256 does not hash it, so a tree hash a report or a
 	// schema handoff recorded stays what it was.
 	exec bool
 }
+
+// Opaque reports whether e is a regular file whose bytes were hashed and not
+// kept, because it is binary and no rule reads a file of its name. A content
+// reader treats it as a binary file it cannot see.
+func (e *Entry) Opaque() bool { return e.opaque }
 
 // Executable reports whether e is a regular file with an execute bit.
 func (e *Entry) Executable() bool { return e.exec }
@@ -121,6 +136,34 @@ const (
 
 func (l Limits) hashCap() int64    { return cmp.Or(l.oversizeHashCap, defaultOversizeHashCap) }
 func (l Limits) hashBudget() int64 { return cmp.Or(l.oversizeHashBudget, defaultOversizeHashBudget) }
+
+// defaultOpaqueBudget bounds the bytes of opaque files read in one tree. They
+// are hashed and dropped, so they do not count toward MaxTotalBytes; past
+// this budget the read stops, as it does past MaxTotalBytes.
+const defaultOpaqueBudget int64 = 256 << 20
+
+func (l Limits) opaqueCap() int64 { return cmp.Or(l.opaqueBudget, defaultOpaqueBudget) }
+
+// readNames are the name suffixes, compared in lower case, of the files a
+// rule or parser reads by name: Terraform, OpenTofu, test, variable, lock and
+// CLI configuration, JSON, YAML and Markdown. A file with one of them is kept
+// whatever its content.
+var readNames = []string{
+	".tf", ".tf.json", ".tofu", ".tofu.json", ".tfvars", ".tfvars.json", ".hcl", ".tfrc",
+	".json", ".yml", ".yaml", ".md", ".gitattributes", ".terraformrc", "terraform.rc", ".releaserc",
+}
+
+// opaqueFile reports whether a regular file of name with content data is
+// opaque: git's binary test (a NUL byte in the first binaryProbe bytes) holds
+// and its name is none a rule reads. A text file of any name is kept, since
+// templatefile can read any name.
+func opaqueFile(name string, data []byte) bool {
+	if bytes.IndexByte(data[:min(len(data), binaryProbe)], 0) < 0 {
+		return false
+	}
+	base := strings.ToLower(path.Base(name))
+	return !slices.ContainsFunc(readNames, func(s string) bool { return strings.HasSuffix(base, s) })
+}
 
 // readDirBatch is how many directory entries one ReadDir call returns at most.
 const readDirBatch = 256
@@ -163,6 +206,7 @@ type treeReader struct {
 	count  int   // directory entries seen, the MaxFiles budget
 	total  int64 // bytes read, the MaxTotalBytes budget
 	hashed int64 // oversize bytes hashed, the Limits.hashBudget budget
+	opaque int64 // opaque bytes read, the Limits.opaqueCap budget
 }
 
 // walk reads dir and everything below it. Only the root failing to list is
@@ -286,6 +330,13 @@ func (w *treeReader) addEntry(p string, typ fs.FileMode) error {
 		if e.Kind == KindOversize {
 			w.hashOversize(e)
 		}
+	}
+	if e.Kind == KindFile && !w.lim.keepBinary && opaqueFile(p, e.Data) {
+		w.opaque += int64(len(e.Data))
+		if w.opaque > w.lim.opaqueCap() {
+			return fmt.Errorf("more than %d bytes of binary files", w.lim.opaqueCap())
+		}
+		e.Data, e.opaque = nil, true
 	}
 	if e.Kind == KindFile {
 		w.total += int64(len(e.Data))
