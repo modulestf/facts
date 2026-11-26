@@ -3,9 +3,10 @@ package gates
 import (
 	"maps"
 	"slices"
+	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/facts"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -39,11 +40,13 @@ func newSrcReads() *srcReads {
 // the error included when the parser recovers, so there every block the text
 // read passed and every block of the partial body it did not see is a hit.
 func (r *run) structuralSources(f, raw string, sr *srcReads) {
-	file, diags := hclsyntax.ParseConfig([]byte(raw), f, hcl.InitialPos)
-	body, ok := file.Body.(*hclsyntax.Body)
-	if diags.HasErrors() || !ok {
+	body, err := facts.ParsePartial(f, []byte(raw), facts.DefaultLimits)
+	if err != nil || body == nil {
 		hits := maps.Clone(sr.pass)
-		if ok {
+		// A file over a token, nesting or unary operator limit is never
+		// handed to the parser, which overflows its stack on one: it has no
+		// body, so every block the text read passed is a hit.
+		if body != nil {
 			for _, b := range body.Blocks {
 				if at := b.TypeRange.Start.Byte; b.Type == "module" && !sr.refused[at] {
 					hits[at] = ""
@@ -52,6 +55,13 @@ func (r *run) structuralSources(f, raw string, sr *srcReads) {
 		}
 		for _, at := range slices.Sorted(maps.Keys(hits)) {
 			r.hit("G2", f, raw, at)
+		}
+		// With no body the blocks Terraform would read are unknown, and the
+		// text read may not have seen one (module"x"{ or module x {): a
+		// file that names module and has no G2 hit yet gets one for the
+		// whole file.
+		if body == nil && len(hits) == 0 && len(sr.refused) == 0 && strings.Contains(raw, "module") {
+			r.hitFile("G2", f)
 		}
 		return
 	}

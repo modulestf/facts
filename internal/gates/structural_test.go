@@ -3,8 +3,11 @@ package gates
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // g2Lines runs one file in clone scope and returns its G2 lines, the path
@@ -113,6 +116,55 @@ func TestStructuralSourceDownloaded(t *testing.T) {
 	for _, runner := range []bool{false, true} {
 		if got := g2Lines(t, src, runner, true); len(got) != 0 {
 			t.Errorf("runner %v: got %q, want none", runner, got)
+		}
+	}
+}
+
+// A file over a parse limit is never handed to the HCL parser, which
+// overflows its stack on deep nesting. Each is a G2 hit on the module block
+// the text read passed, in both modes, and the run ends without error. The
+// files stay small enough that a parser run on them (as a revert to
+// hclsyntax.ParseConfig would do) returns normally, so the test fails
+// rather than crashing the test binary.
+func TestStructuralSourceOverLimit(t *testing.T) {
+	mod := "module \"m\" {\n  source = \"./mod\"\n}\n"
+	limits := facts.DefaultLimits
+	cases := map[string]string{
+		"deep parentheses": "locals {\n  x = " + strings.Repeat("(", limits.MaxDepth+1) + "1" + strings.Repeat(")", limits.MaxDepth+1) + "\n}\n",
+		"unary chain":      "locals {\n  x = " + strings.Repeat("!", limits.MaxPrefixOps+1) + "true\n}\n",
+		"token cap":        "locals {\n  x = [" + strings.Repeat("1,", limits.MaxTokens) + "]\n}\n",
+	}
+	if got := g2Lines(t, mod, false, false); len(got) != 0 {
+		t.Fatalf("control: got %q, want none", got)
+	}
+	for name, extra := range cases {
+		for _, runner := range []bool{false, true} {
+			got := g2Lines(t, mod+extra, runner, false)
+			if len(got) != 1 || got[0] != "G2 main.tf:1" {
+				t.Errorf("%s, runner %v: got %q, want [G2 main.tf:1]", name, runner, got)
+			}
+		}
+	}
+}
+
+// In an over-limit file there is no body, so a module block the text read
+// never saw (module"x"{ or an unquoted label) has no hit of its own: the
+// file gets one G2 hit, and a file that never names module gets none.
+func TestStructuralSourceOverLimitUnseenBlock(t *testing.T) {
+	deep := "\nlocals {\n  x = " + strings.Repeat("(", facts.DefaultLimits.MaxDepth+1) + "1" + strings.Repeat(")", facts.DefaultLimits.MaxDepth+1) + "\n}\n"
+	cases := []struct {
+		name, src string
+		want      []string
+	}{
+		{"no space quoted", "module\"x\"{ source = \"evil/thing/aws\" }" + deep, []string{"G2 main.tf:0"}},
+		{"unquoted label", "module m {\n  source = \"evil/thing/aws\"\n}" + deep, []string{"G2 main.tf:0"}},
+		{"no module", "variable \"v\" {}" + deep, nil},
+	}
+	for _, c := range cases {
+		for _, runner := range []bool{false, true} {
+			if got := g2Lines(t, c.src, runner, false); !slices.Equal(got, c.want) {
+				t.Errorf("%s, runner %v: got %q, want %q", c.name, runner, got, c.want)
+			}
 		}
 	}
 }
