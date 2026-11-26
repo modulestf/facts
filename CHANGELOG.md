@@ -1,3 +1,12 @@
+## [0.14.1](https://github.com/modulestf/facts/compare/v0.14.0...v0.14.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* Do not report an example with only a linked directory as clean ([#85](https://github.com/modulestf/facts/issues/85)) ([782e329](https://github.com/modulestf/facts/commit/782e329cfbe37ca95037056951da99547f72ac5b))
+
+
+
 # [0.14.0](https://github.com/modulestf/facts/compare/v0.13.0...v0.14.0) (2026-11-26)
 
 
