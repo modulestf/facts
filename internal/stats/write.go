@@ -50,53 +50,6 @@ func hasDotDot(p string) bool {
 	return slices.Contains(strings.Split(p, string(filepath.Separator)), "..")
 }
 
-// inTree refuses p when its parent directory is an input tree root or lies
-// inside one. The walk is physical, with no step on the path's text: it
-// starts at the raw parent of p (p made absolute by prefixing the working
-// directory, cut at its last separator) and stats it, then its "..", then
-// that one's "..", up to the file system root, where ".." stops changing.
-// Each directory is compared with every root, stat'ed once, by identity, so
-// a link, a differently cased name on a case-insensitive file system, a
-// firmlink or a bind mount of a root is the root. A directory on the way
-// that cannot be stat'ed refuses p: the check fails closed.
-func (g Guard) inTree(p string) error {
-	var roots []os.FileInfo
-	for _, t := range g.Trees {
-		if fi, err := os.Stat(t); err == nil {
-			roots = append(roots, fi)
-		}
-	}
-	if len(roots) == 0 {
-		return nil
-	}
-	raw := p
-	if !filepath.IsAbs(raw) {
-		wd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("%s: cannot check it against the input trees: %w", p, err)
-		}
-		raw = wd + string(filepath.Separator) + raw
-	}
-	dir := raw[:strings.LastIndexByte(raw, filepath.Separator)+1] // keeps the separator, so "/" stays "/"
-	var prev os.FileInfo
-	for {
-		fi, err := os.Stat(dir)
-		if err != nil {
-			return fmt.Errorf("%s: cannot check it against the input trees: %w", p, err)
-		}
-		if prev != nil && os.SameFile(fi, prev) {
-			return nil // the root: its ".." is itself
-		}
-		for _, r := range roots {
-			if os.SameFile(fi, r) {
-				return fmt.Errorf("%s: is inside an input tree of this run", p)
-			}
-		}
-		prev = fi
-		dir += ".." + string(filepath.Separator)
-	}
-}
-
 // checkSize refuses data over MaxRecordBytes.
 func checkSize(data []byte) error {
 	if len(data) > MaxRecordBytes {
