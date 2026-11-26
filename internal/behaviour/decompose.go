@@ -95,8 +95,9 @@ type viewFile struct {
 }
 
 // buildView parses the .tf files directly in dir. why is set when the
-// directory cannot be decomposed: a file that is not a regular file, does
-// not parse, or is an override file, or two units with one key.
+// directory cannot be decomposed: a file that is not a regular file (a link,
+// a special file or one over the size limit), does not parse or is over a
+// parser limit, or is an override file, or two units with one key.
 func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string) {
 	v = &view{items: map[string]*item{}, vars: map[string]string{}, providers: map[string]string{}, defaults: map[string]CaseInput{}}
 	if t == nil {
@@ -114,10 +115,13 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 			return nil, e.Path + " is an override file, which merges into other blocks"
 		}
 		if e.Kind != facts.KindFile {
-			return nil, e.Path + " is not a regular file with known content"
+			return nil, e.Path + " is " + facts.KindText(e.Kind)
 		}
 		body, _, err := facts.ParseBody(e.Path, e.Data, lim)
 		if err != nil {
+			if facts.IsLimitError(err) {
+				return nil, e.Path + " is over a parser limit: " + err.Error()
+			}
 			return nil, e.Path + " does not parse"
 		}
 		v.files = append(v.files, viewFile{e.Path, body})

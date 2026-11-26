@@ -47,8 +47,11 @@ func applySchema(o Options, head, base *Tree, areas []*Area) (*SchemaInputs, err
 // "<sha256>  <path>\n" line per regular .tf file, sorted by path bytes.
 // Both sides leave symbolic links out and count only regular .tf files: the
 // gate keeps only blobs of mode 100644 or 100755, and the hosted extraction
-// never writes a link. An oversize file is left out, as the gate leaves out a
-// blob over 1 MiB; an unreadable one has no hash, so its tree does not match.
+// never writes a link. The hash covers every regular .tf file up to
+// MaxFileBytes (2 MiB); a file over that is oversize and left out. A host whose
+// gate leaves out blobs over a lower size, such as 1 MiB, builds a different
+// hash for a tree with a .tf file between the two sizes, so the handoff does
+// not match. An unreadable file has no hash, so its tree does not match.
 func tfTreeHash(t *Tree) string {
 	h := sha256.New()
 	for _, p := range t.Paths { // sorted by bytes
