@@ -1,3 +1,12 @@
+## [0.12.3](https://github.com/modulestf/facts/compare/v0.12.2...v0.12.3) (2026-11-26)
+
+
+### Performance Improvements
+
+* Decode only the provider schema types a module uses ([#67](https://github.com/modulestf/facts/issues/67)) ([f06e622](https://github.com/modulestf/facts/commit/f06e62225791a8931236d646c06fb3bace5b5ec3))
+
+
+
 ## [0.12.2](https://github.com/modulestf/facts/compare/v0.12.1...v0.12.2) (2026-11-26)
 
 
