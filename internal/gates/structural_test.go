@@ -3,6 +3,7 @@ package gates
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -141,6 +142,28 @@ func TestStructuralSourceOverLimit(t *testing.T) {
 			got := g2Lines(t, mod+extra, runner, false)
 			if len(got) != 1 || got[0] != "G2 main.tf:1" {
 				t.Errorf("%s, runner %v: got %q, want [G2 main.tf:1]", name, runner, got)
+			}
+		}
+	}
+}
+
+// In an over-limit file there is no body, so a module block the text read
+// never saw (module"x"{ or an unquoted label) has no hit of its own: the
+// file gets one G2 hit, and a file that never names module gets none.
+func TestStructuralSourceOverLimitUnseenBlock(t *testing.T) {
+	deep := "\nlocals {\n  x = " + strings.Repeat("(", facts.DefaultLimits.MaxDepth+1) + "1" + strings.Repeat(")", facts.DefaultLimits.MaxDepth+1) + "\n}\n"
+	cases := []struct {
+		name, src string
+		want      []string
+	}{
+		{"no space quoted", "module\"x\"{ source = \"evil/thing/aws\" }" + deep, []string{"G2 main.tf:0"}},
+		{"unquoted label", "module m {\n  source = \"evil/thing/aws\"\n}" + deep, []string{"G2 main.tf:0"}},
+		{"no module", "variable \"v\" {}" + deep, nil},
+	}
+	for _, c := range cases {
+		for _, runner := range []bool{false, true} {
+			if got := g2Lines(t, c.src, runner, false); !slices.Equal(got, c.want) {
+				t.Errorf("%s, runner %v: got %q, want %q", c.name, runner, got, c.want)
 			}
 		}
 	}

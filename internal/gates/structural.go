@@ -3,6 +3,7 @@ package gates
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/facts"
@@ -54,6 +55,13 @@ func (r *run) structuralSources(f, raw string, sr *srcReads) {
 		}
 		for _, at := range slices.Sorted(maps.Keys(hits)) {
 			r.hit("G2", f, raw, at)
+		}
+		// With no body the blocks Terraform would read are unknown, and the
+		// text read may not have seen one (module"x"{ or module x {): a
+		// file that names module and has no G2 hit yet gets one for the
+		// whole file.
+		if body == nil && len(hits) == 0 && len(sr.refused) == 0 && strings.Contains(raw, "module") {
+			r.hitFile("G2", f)
 		}
 		return
 	}

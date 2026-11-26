@@ -197,6 +197,7 @@ func TestParsePartial(t *testing.T) {
 	for name, src := range map[string]string{
 		"nesting":     "x = " + strings.Repeat("(", lim.MaxDepth+1) + "1" + strings.Repeat(")", lim.MaxDepth+1) + "\n",
 		"unary":       "x = " + strings.Repeat("!", lim.MaxPrefixOps+1) + "true\n",
+		"tokens":      "x = [" + strings.Repeat("1,", lim.MaxTokens) + "]\n",
 		"lexer error": "x = " + strings.Repeat("(", lim.MaxDepth+1) + "\x00\n",
 	} {
 		body, err := ParsePartial("a.tf", []byte(src), lim)

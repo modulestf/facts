@@ -447,6 +447,11 @@ func ParsePartial(name string, src []byte, lim Limits) (body *hclsyntax.Body, er
 			body, err = nil, fmt.Errorf("internal error while parsing")
 		}
 	}()
+	// scanLimits gives the nesting depth exactly, so a file over it is
+	// refused before the lexer builds a token list for it.
+	if depth, _, ok := scanLimits(src); ok && depth > lim.MaxDepth {
+		return nil, limitError(fmt.Sprintf("nesting depth %d over the limit %d", depth, lim.MaxDepth))
+	}
 	// A lexer error still yields the tokens the parser will see.
 	tokens, _ := hclsyntax.LexConfig(src, name, hcl.InitialPos)
 	if err := checkLimits(tokens, lim); err != nil {
@@ -970,5 +975,6 @@ func ParseBody(name string, src []byte, lim Limits) (*hclsyntax.Body, hclsyntax.
 	return parseSyntax(name, src, lim)
 }
 
-// IsLimitError reports whether err is ParseBody refusing a file over a limit.
+// IsLimitError reports whether err is ParseBody or ParsePartial refusing a
+// file over a limit.
 func IsLimitError(err error) bool { return errors.As(err, new(limitError)) }
