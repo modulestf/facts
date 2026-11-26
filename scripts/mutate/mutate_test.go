@@ -373,6 +373,9 @@ func TestReport(t *testing.T) {
 			t.Errorf("report lacks %q:\n%s", want, out)
 		}
 	}
+	if n := strings.Count(out, "a.go:3"); n != 1 {
+		t.Errorf("the survivor appears %d times, want once in the table:\n%s", n, out)
+	}
 	for _, gone := range []string{"a.go:1", "c.go:2"} {
 		if strings.Contains(out, gone) {
 			t.Errorf("report lists %s, which has a verdict:\n%s", gone, out)
@@ -395,5 +398,11 @@ func TestUsage(t *testing.T) {
 		if err := mainErr(context.Background(), args, io.Discard); !errors.Is(err, errUsage) {
 			t.Errorf("%q: got %v, want the usage error", args, err)
 		}
+	}
+}
+
+func TestMutantsParseError(t *testing.T) {
+	if _, err := mutants("p/bad.go", []byte("package p\nfunc {"), map[int]bool{2: true}); err == nil {
+		t.Fatal("a file that does not parse gave no error")
 	}
 }
