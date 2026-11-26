@@ -1,3 +1,12 @@
+## [0.12.1](https://github.com/modulestf/facts/compare/v0.12.0...v0.12.1) (2026-11-26)
+
+
+### Performance Improvements
+
+* Lex each file once and speed up three slow rules ([#68](https://github.com/modulestf/facts/issues/68)) ([dbdc83d](https://github.com/modulestf/facts/commit/dbdc83d2ab9cf1eb905c0cc35dfe256a79298570)), closes [facts#62](https://github.com/facts/issues/62) [#62](https://github.com/modulestf/facts/issues/62) [#61](https://github.com/modulestf/facts/issues/61)
+
+
+
 # [0.12.0](https://github.com/modulestf/facts/compare/v0.11.1...v0.12.0) (2026-11-26)
 
 
