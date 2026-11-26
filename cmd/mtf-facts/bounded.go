@@ -63,6 +63,7 @@ func runBounded(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, wo
 	case res = <-done:
 		timer.Stop()
 	case <-timer.C:
+		lim.Stats.Timeout()
 		if late == nil {
 			fmt.Fprint(stderr, "mtf-facts: timeout\n")
 			return exitError
@@ -71,6 +72,7 @@ func runBounded(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, wo
 	}
 	switch {
 	case errors.Is(res.err, facts.ErrDeadline):
+		lim.Stats.Timeout()
 		fmt.Fprint(stderr, "mtf-facts: timeout\n")
 		return exitError
 	case res.err != nil:

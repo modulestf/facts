@@ -114,15 +114,21 @@ func Run(o Options) (*Report, error) {
 		}
 	}
 	r := &run{o: o, reasons: map[string]bool{}}
+	o.Limits.Stats.Phase("read_head")
 	head, err := facts.ReadTree(o.Head, o.Limits)
 	if err == nil {
 		var base *facts.Tree
+		o.Limits.Stats.Phase("read_base")
 		if base, err = facts.ReadTree(o.Base, o.Limits); err == nil {
+			o.Limits.Stats.Phase("evaluate")
 			return r.evaluate(head, base, list)
 		}
 	}
 	// A tree over a read limit or the deadline cannot be walked: deep,
-	// with nothing proven.
+	// with nothing proven. Only the deadline is a timeout.
+	if errors.Is(err, facts.ErrDeadline) {
+		o.Limits.Stats.Timeout()
+	}
 	return Unwalked(), nil
 }
 
@@ -199,6 +205,7 @@ func (r *run) evaluate(head, base *facts.Tree, list []fileEntry) (*Report, error
 	sc := newScanner(hm, links, r.o.Limits, changed)
 	sc.run()
 	if timeUp(r.o.Limits) {
+		r.o.Limits.Stats.Timeout()
 		return Unwalked(), nil
 	}
 	an := newAnalysis(hm, bm, links)

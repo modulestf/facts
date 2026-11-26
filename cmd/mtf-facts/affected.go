@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +17,7 @@ func newAffectedCmd() *cobra.Command {
 		o       = facts.AffectedOptions{Limits: facts.DefaultLimits}
 		asJSON  bool
 		timeout time.Duration
+		statsTo string
 	)
 	cmd := &cobra.Command{
 		Use:     "affected <dir>",
@@ -26,10 +28,13 @@ func newAffectedCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Head = args[0]
-			if cmd.Flags().Changed("module-root") && o.ModuleRoot == "" {
-				return status(usageError(cmd, "--module-root names no module root"))
-			}
-			return status(affected(cmd, o, asJSON, timeout))
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				if cmd.Flags().Changed("module-root") && o.ModuleRoot == "" {
+					return usageError(cmd, "--module-root names no module root")
+				}
+				o.Limits.Stats = rec
+				return affected(cmd, o, asJSON, timeout)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -39,6 +44,7 @@ func newAffectedCmd() *cobra.Command {
 	f.StringVar(&o.ModuleRoot, "module-root", "", affectedModuleRootUsage)
 	f.BoolVar(&asJSON, "json", false, affectedJSONUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	cmd.MarkFlagsMutuallyExclusive("base", "diff")
 	return cmd
 }
@@ -53,6 +59,7 @@ func affectedWork(o facts.AffectedOptions, asJSON bool) workResult {
 	if err != nil {
 		return workResult{err: err}
 	}
+	o.Limits.Stats.Phase("render")
 	if asJSON {
 		return jsonResult(r, exitClean)
 	}

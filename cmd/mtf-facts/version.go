@@ -15,6 +15,7 @@ import (
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/fixture"
 	"github.com/modulestf/facts/internal/schemadiff"
+	"github.com/modulestf/facts/internal/stats"
 )
 
 // versionSchemaVersion is the schema_version of the version --json report,
@@ -36,8 +37,9 @@ type versionReport struct {
 
 // reportVersions is the schema_version of each JSON report a command writes
 // at its top level, keyed by the command that writes it; lint's is the
-// envelope's. bundle is not listed: its schema_version versions only the
-// optional ownership unit, not the bundle.
+// envelope's. stats is the record --stats-file writes, whatever the command.
+// bundle is not listed: its schema_version versions only the optional
+// ownership unit, not the bundle.
 func reportVersions() map[string]int {
 	return map[string]int{
 		"affected":      facts.AffectedSchemaVersion,
@@ -47,6 +49,7 @@ func reportVersions() map[string]int {
 		"fixture-check": fixture.SchemaVersion,
 		"lint":          facts.SchemaVersion,
 		"schema-diff":   schemadiff.SchemaVersion,
+		"stats":         stats.SchemaVersion,
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/modulestf/facts/internal/depth"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +16,7 @@ func newDepthCmd() *cobra.Command {
 		o        = depth.Options{Limits: facts.DefaultLimits}
 		examples string
 		timeout  time.Duration
+		statsTo  string
 	)
 	cmd := &cobra.Command{
 		Use:     "depth",
@@ -23,14 +25,17 @@ func newDepthCmd() *cobra.Command {
 		Example: depthExample,
 		GroupID: groupPipeline,
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if o.Head == "" || o.Base == "" || o.Files == "" {
-				return status(usageError(cmd, depthRequired))
-			}
-			if examples != "" {
-				o.Examples = strings.Split(examples, ",")
-			}
-			return status(depthRun(cmd, o, timeout))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				if o.Head == "" || o.Base == "" || o.Files == "" {
+					return usageError(cmd, depthRequired)
+				}
+				if examples != "" {
+					o.Examples = strings.Split(examples, ",")
+				}
+				o.Limits.Stats = rec
+				return depthRun(cmd, o, timeout)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -42,6 +47,7 @@ func newDepthCmd() *cobra.Command {
 	f.StringVar(&o.Affected, "affected", "", depthAffectedUsage)
 	f.StringVar(&examples, "examples", "", depthExamplesUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	return cmd
 }
 
@@ -53,6 +59,7 @@ func depthRun(cmd *cobra.Command, o depth.Options, timeout time.Duration) int {
 		if err != nil {
 			return workResult{err: err}
 		}
+		o.Limits.Stats.Phase("render")
 		return depthResult(rep)
 	}, func() workResult { return depthResult(depth.Unwalked()) })
 }

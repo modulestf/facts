@@ -5,6 +5,7 @@ import (
 
 	"github.com/modulestf/facts/internal/behaviour"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,7 @@ func newBehaviourCmd() *cobra.Command {
 		o       = behaviour.Options{Limits: facts.DefaultLimits}
 		asJSON  bool
 		timeout time.Duration
+		statsTo string
 	)
 	cmd := &cobra.Command{
 		Use:     "behaviour <dir>",
@@ -24,13 +26,16 @@ func newBehaviourCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Head = args[0]
-			if !asJSON {
-				return status(usageError(cmd, jsonRequired))
-			}
-			if (o.Base == "") == (o.Diff == "") {
-				return status(usageError(cmd, behaviourChangeRequired))
-			}
-			return status(withTimeout(cmd, timeout, &o.Limits, func() (any, error) { return behaviour.Run(o) }))
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				if !asJSON {
+					return usageError(cmd, jsonRequired)
+				}
+				if (o.Base == "") == (o.Diff == "") {
+					return usageError(cmd, behaviourChangeRequired)
+				}
+				o.Limits.Stats = rec
+				return withTimeout(cmd, timeout, &o.Limits, func() (any, error) { return behaviour.Run(o) })
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -40,6 +45,7 @@ func newBehaviourCmd() *cobra.Command {
 	f.StringVar(&o.Schema, "schema", "", behaviourSchemaUsage)
 	f.BoolVar(&asJSON, "json", false, jsonUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	cmd.MarkFlagsMutuallyExclusive("base", "diff")
 	return cmd
 }
@@ -52,6 +58,7 @@ func newClaimsEvalCmd() *cobra.Command {
 		headSHA, baseSHA                      string
 		asJSON                                bool
 		timeout                               time.Duration
+		statsTo                               string
 	)
 	cmd := &cobra.Command{
 		Use:     "claims-eval",
@@ -60,17 +67,20 @@ func newClaimsEvalCmd() *cobra.Command {
 		Example: claimsEvalExample,
 		GroupID: groupPipeline,
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !asJSON {
-				return status(usageError(cmd, jsonRequired))
-			}
-			if behaviourFile == "" || ladderFile == "" {
-				return status(usageError(cmd, claimsEvalRequired))
-			}
-			lim := facts.DefaultLimits
-			return status(withTimeout(cmd, timeout, &lim, func() (any, error) {
-				return claimsEval(behaviourFile, ladderFile, claimsFile, headSHA, baseSHA)
-			}))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				if !asJSON {
+					return usageError(cmd, jsonRequired)
+				}
+				if behaviourFile == "" || ladderFile == "" {
+					return usageError(cmd, claimsEvalRequired)
+				}
+				lim := facts.DefaultLimits
+				lim.Stats = rec
+				return withTimeout(cmd, timeout, &lim, func() (any, error) {
+					return claimsEval(rec, behaviourFile, ladderFile, claimsFile, headSHA, baseSHA)
+				})
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -82,10 +92,12 @@ func newClaimsEvalCmd() *cobra.Command {
 	f.StringVar(&baseSHA, "base-sha", "", claimsEvalBaseSHAUsage)
 	f.BoolVar(&asJSON, "json", false, jsonUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	return cmd
 }
 
-func claimsEval(behaviourFile, ladderFile, claimsFile, headSHA, baseSHA string) (*behaviour.EvalReport, error) {
+func claimsEval(rec *stats.Recorder, behaviourFile, ladderFile, claimsFile, headSHA, baseSHA string) (*behaviour.EvalReport, error) {
+	rec.Phase("read_inputs")
 	b, err := behaviour.ReadBehaviour(behaviourFile)
 	if err != nil {
 		return nil, err
@@ -106,6 +118,7 @@ func claimsEval(behaviourFile, ladderFile, claimsFile, headSHA, baseSHA string) 
 			return nil, err
 		}
 	}
+	rec.Phase("evaluate")
 	return behaviour.Evaluate(b, l, claims, discarded), nil
 }
 
@@ -117,6 +130,7 @@ func withTimeout(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, w
 		if err != nil {
 			return workResult{err: err}
 		}
+		lim.Stats.Phase("render")
 		return jsonResult(v, exitClean)
 	}, nil)
 }

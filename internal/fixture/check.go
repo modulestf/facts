@@ -24,6 +24,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/stats"
 )
 
 // SchemaVersion is the schema_version of a Result.
@@ -97,6 +98,9 @@ type Options struct {
 	// Schemas, at L2, are the provider schemas the host acquired: mock
 	// values must cover every computed attribute they list.
 	Schemas Schemas
+	// Stats, when set, records where the check spends its time; nil
+	// records nothing.
+	Stats *stats.Recorder
 }
 
 // Result is the report of one check.
@@ -152,10 +156,17 @@ func Check(o Options) (*Result, error) {
 
 	c := newChecker(lv, o.Resource, o.Pins)
 	c.schemas = o.Schemas
+	o.Stats.Phase("read_tree")
 	files, sum, err := c.readTree(r)
 	if err != nil {
 		return nil, err
 	}
+	var read int64
+	for _, e := range files {
+		read += int64(len(e.Data))
+	}
+	o.Stats.Read(len(files), read)
+	o.Stats.Phase("check")
 	for _, e := range files {
 		c.file(e.Path, e.Data)
 	}

@@ -8,7 +8,8 @@
 # of which must fail with an error whose keyword is <keyword> (for example
 # additionalProperties, oneOf, required) in ajv's --all-errors JSON output.
 #
-# With a built binary it also checks the live output of version --json.
+# With a built binary it also checks the live output of version --json and
+# the stats record lint --stats-file writes.
 #
 # Validator: ajv 8.20.0 as ajv-cli 5.0.0 installs it, draft 2020-12, strict
 # mode. tests/ajv/validate.js checks every schema and example in one Node.js
@@ -41,8 +42,9 @@ else
   modules=$tmp/node_modules
 fi
 
-# The live output of version --json must pass its schema too, so the schema
-# cannot drift from the binary. It needs a built binary, MTF_FACTS or
+# The live output of version --json, and the record lint --stats-file
+# writes, must pass their schemas too, so the schemas cannot drift from the
+# binary. It needs a built binary, MTF_FACTS or
 # bin/mtf-facts (CI builds it first); without one it is skipped, except in CI.
 # validate.js checks it after the examples; a failure to run the binary, or
 # no binary in CI, reaches it as a note.
@@ -54,6 +56,15 @@ if [ -x "$bin" ]; then
   else
     { echo "FAIL $bin version --json exited non-zero:"; sed 's/^/     /' "$tmp/version.err"; } >"$tmp/note"
     live=(--note fail "$tmp/note")
+  fi
+  # The stats record lint --stats-file writes must pass its schema too.
+  "$bin" lint "$root/testdata/variable-untyped-base/head" --json --stats-file "$tmp/stats.json" \
+    >/dev/null 2>"$tmp/stats.err" || true
+  if [ -f "$tmp/stats.json" ]; then
+    live+=(--live stats "$tmp/stats.json" "lint --stats-file record of $bin")
+  else
+    { echo "FAIL $bin lint --stats-file wrote no record:"; sed 's/^/     /' "$tmp/stats.err"; } >"$tmp/stats-note"
+    live+=(--note fail "$tmp/stats-note")
   fi
 elif [ -n "${CI:-}" ]; then
   echo "FAIL no built binary at $bin to check version --json against its schema" >"$tmp/note"

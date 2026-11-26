@@ -259,6 +259,10 @@ func ignoredName(name string) bool {
 // ParseDir parses the *.tf files directly in dir.
 func ParseDir(t *Tree, dir string, lim Limits) (*Module, error) {
 	m := &Module{Dir: dir, varNames: map[string]bool{}, outNames: map[string]bool{}}
+	var files int
+	var bytes int64
+	stop := lim.Stats.Parse()
+	defer func() { stop(files, bytes) }()
 	for _, e := range t.DirEntries(dir) {
 		if err := lim.expired(); err != nil {
 			return nil, err
@@ -278,6 +282,7 @@ func ParseDir(t *Tree, dir string, lim Limits) (*Module, error) {
 			m.unsupported(kindCode(e.Kind), fmt.Sprintf("%s is %s", name, kindText(e.Kind)))
 			continue
 		}
+		files, bytes = files+1, bytes+int64(len(e.Data))
 		if err := parseFile(m, name, e.Data, lim); err != nil {
 			code := ReasonParseError
 			if errors.As(err, new(limitError)) {

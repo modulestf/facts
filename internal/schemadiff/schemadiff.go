@@ -131,8 +131,10 @@ type Options struct {
 func Run(o Options) (*Report, error) {
 	// The tree is read first so each file keeps only the types it uses, and
 	// its error is returned after the files' errors, as before.
+	o.Limits.Stats.Phase("module_types")
 	types, typesErr := ModuleTypes(o.TypesFrom, o.Limits)
 	keep := keepTypes(types)
+	o.Limits.Stats.Phase("read_schemas")
 	from, err := load("--from", o.From, keep, o.Limits.Deadline)
 	if err != nil {
 		return nil, err
@@ -152,6 +154,7 @@ func Run(o Options) (*Report, error) {
 		Types:         types,
 		Changes:       []Entry{},
 	}
+	o.Limits.Stats.Phase("diff")
 	for _, t := range types {
 		fb, err := block(from, r.From.Path, t.Type)
 		if err != nil {

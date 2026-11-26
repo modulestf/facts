@@ -169,11 +169,14 @@ func run(o Options, rules []Rule) (*Report, error) {
 		}
 		env.RegistrySHA256 = &sum
 	}
+	rec := o.Limits.Stats
+	rec.Phase("read_head")
 	head, err := ReadTree(o.Head, o.Limits)
 	if err != nil {
 		return nil, fmt.Errorf("head tree: %w", err)
 	}
 	env.Inputs.Head = treeInput(head)
+	rec.Phase("read_base")
 	var base *Tree
 	change := ChangeNone
 	switch {
@@ -196,6 +199,7 @@ func run(o Options, rules []Rule) (*Report, error) {
 	}
 	// With a change, the untouched areas are read too: the cross-area pass
 	// and the callers of a changed module need them.
+	rec.Phase("areas")
 	areas, err := FindAreas(head, base, o.Limits, true)
 	if err != nil {
 		return nil, err
@@ -207,20 +211,25 @@ func run(o Options, rules []Rule) (*Report, error) {
 			a.Untouched = false
 		}
 	}
+	rec.Phase("schema")
 	if env.SchemaInputs, err = applySchema(o, head, base, areas); err != nil {
 		return nil, err
 	}
+	rec.Phase("profile")
 	if env.ProfileSHA256, env.ProfileTreeSHA256, err = applyProfile(o, areas); err != nil {
 		return nil, err
 	}
+	rec.Phase("change_map")
 	ch, err := BuildChangeMap(head, base, areas, o.Limits)
 	if err != nil {
 		return nil, err
 	}
+	rec.Phase("rules")
 	manifest, findings, candidates := Evaluate(areas, rules, ch)
 	if err := CheckManifest(manifest, rules, areas); err != nil {
 		return nil, err
 	}
+	rec.Phase("callers")
 	var callers *[]ChangedModule
 	if base != nil {
 		cs := BuildCallers(areas, ch, candidates)
@@ -230,6 +239,7 @@ func run(o Options, rules []Rule) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	rec.Phase("report")
 	scope := buildScope(change, o.FullTree, areas, touched, callers)
 	var prof *profile.Profile
 	if len(areas) > 0 {

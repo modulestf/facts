@@ -17,13 +17,21 @@ import (
 	"github.com/modulestf/facts/internal/facts"
 )
 
-const hangEnv = "MTF_FACTS_TEST_HANG"
+const (
+	hangEnv = "MTF_FACTS_TEST_HANG"
+	cliEnv  = "MTF_FACTS_TEST_CLI"
+)
 
 // TestMain doubles as a helper process: with hangEnv set it runs the CLI
-// with an engine that never returns, so the timeout path can be tested.
+// with an engine that never returns, so the timeout path can be tested;
+// with cliEnv set it runs the CLI as it is, so a test can redirect its
+// streams.
 func TestMain(m *testing.M) {
 	if os.Getenv(hangEnv) == "1" {
 		runFacts = func(facts.Options) (*facts.Report, error) { select {} }
+		os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	}
+	if os.Getenv(cliEnv) == "1" {
 		os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 	}
 	os.Exit(m.Run())

@@ -77,17 +77,21 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	if o.Base != "" && o.Diff != "" {
 		return nil, errors.New("a base tree and a diff cannot be given together")
 	}
+	rec := o.Limits.Stats
+	rec.Phase("read_head")
 	head, err := ReadTree(o.Head, o.Limits)
 	if err != nil {
 		return nil, fmt.Errorf("head tree: %w", err)
 	}
 	if o.ModuleRoot != "" {
+		rec.Phase("module_root")
 		return affectedModuleRoot(o, head)
 	}
 	examples, err := exampleDirs(head)
 	if err != nil {
 		return nil, err
 	}
+	rec.Phase("read_base")
 	r := &AffectedReport{SchemaVersion: AffectedSchemaVersion, Changed: []string{}}
 	var base *Tree
 	switch {
@@ -104,6 +108,7 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	}
 	r.Changed = changedPaths(head, base)
 
+	rec.Phase("call_graph")
 	edges, fb, err := callGraph(head, o.Limits)
 	if err != nil {
 		return nil, err
@@ -111,6 +116,7 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	if fb != "" {
 		return r.fallback(fb, examples), nil
 	}
+	rec.Phase("read_sites")
 	sites, complete, err := ReadSites(head, o.Limits)
 	if err != nil {
 		return nil, err
@@ -119,6 +125,7 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 		return r.fallback(FallbackUnparsed, examples), nil
 	}
 
+	rec.Phase("walk")
 	roots := append([]string{"."}, examples...)
 	changedDirs := map[string]bool{}
 	// readers marks the modules whose read sites reach p as changed.

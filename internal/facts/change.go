@@ -5,6 +5,8 @@ import (
 	"path"
 	"sort"
 	"strings"
+
+	"github.com/modulestf/facts/internal/stats"
 )
 
 // Block statuses: how the change treats one block address of an area.
@@ -34,6 +36,7 @@ type lineRange struct{ Start, End int }
 // block per area. With no base tree every head path is added, every head
 // line is changed and every block is added.
 type ChangeMap struct {
+	stats *stats.Recorder // times each rule in Evaluate; nil records nothing
 	base  *Tree           // nil with no base tree
 	paths map[string]bool // added, changed or removed paths
 	// lines are the changed head line ranges of each head file in the change,
@@ -61,7 +64,7 @@ type blockSpan struct {
 // base modules of the areas. base is nil when there is no base tree. It
 // stops with ErrDeadline when lim's deadline passes.
 func BuildChangeMap(head, base *Tree, areas []*Area, lim Limits) (*ChangeMap, error) {
-	ch := &ChangeMap{base: base, paths: map[string]bool{}, lines: map[string][]lineRange{},
+	ch := &ChangeMap{stats: lim.Stats, base: base, paths: map[string]bool{}, lines: map[string][]lineRange{},
 		overLimit: map[string]bool{}, blocks: map[string]map[string]string{}, spans: map[string][]blockSpan{},
 		index: argIndex(BuildIndex(areas), areas)}
 	budget := maxDiffTotalCells

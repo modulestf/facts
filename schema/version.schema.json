@@ -25,7 +25,7 @@
     "go": {"type": "string", "pattern": "^go[0-9]", "description": "The Go toolchain that built the binary."},
     "reports": {
       "type": "object",
-      "description": "The schema_version of each JSON report that carries one, keyed by the command that writes it. A report with no schema_version is not listed.",
+      "description": "The schema_version of each JSON report that carries one, keyed by the command that writes it; stats is the record --stats-file writes, whatever the command. A report with no schema_version is not listed.",
       "propertyNames": {"pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$"},
       "additionalProperties": {"type": "integer", "minimum": 1}
     },
