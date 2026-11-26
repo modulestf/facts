@@ -333,6 +333,10 @@ func (r *run) changes(head, base *facts.Tree, list []fileEntry) []string {
 			}
 		}
 	}
+	// A gitlink holds no content, so only its path says it changed.
+	for _, p := range facts.ChangedGitlinks(head, base) {
+		tree[p] = true
+	}
 	named := map[string]bool{}
 	for _, f := range list {
 		named[f.Filename] = true

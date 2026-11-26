@@ -106,7 +106,10 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	default:
 		return r.fallback(FallbackNoChangeInput, examples), nil
 	}
-	r.Changed = changedPaths(head, base)
+	r.Changed = withGitlinks(changedPaths(head, base), head, base)
+	if len(ChangedGitlinks(head, base)) > 0 {
+		return r.fallback(FallbackUnparsed, examples), nil
+	}
 
 	rec.Phase("call_graph")
 	edges, fb, err := callGraph(head, o.Limits)
@@ -232,6 +235,17 @@ func changedPaths(head, base *Tree) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// withGitlinks adds the gitlinks of ChangedGitlinks to the changed paths. A
+// gitlink holds no content to compare, so no other test of a path can clear
+// it.
+func withGitlinks(changed []string, head, base *Tree) []string {
+	gl := ChangedGitlinks(head, base)
+	if len(gl) == 0 {
+		return changed
+	}
+	return slices.Compact(slices.Sorted(slices.Values(slices.Concat(changed, gl))))
 }
 
 // inertEntry reports whether an entry can be an inert documentation file:

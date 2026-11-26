@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"slices"
@@ -159,6 +160,42 @@ type Tree struct {
 	Paths   []string        // sorted entry paths
 	Dirs    map[string]bool // directories, "." included
 	byDir   map[string][]*Entry
+
+	// gitlinks holds the directories that stand for a submodule's commit
+	// pointer. Git tracks no empty directory, so a materialized tree holds a
+	// gitlink as an empty directory, or one with only a .git file, and the
+	// commit it points at is nowhere in the tree. A gitlink is no entry, so
+	// no reader sees it as content; see ChangedGitlinks.
+	gitlinks map[string]bool
+	// gitlinksOfHead is set on a base rebuilt from a diff, which takes the
+	// head's gitlinks: a diff that does not list one leaves it alone.
+	gitlinksOfHead bool
+}
+
+// IsGitlink reports whether p is a directory that stands for a submodule's
+// commit pointer.
+func (t *Tree) IsGitlink(p string) bool { return t.gitlinks[p] }
+
+// ChangedGitlinks lists, in path order, the gitlinks of either tree. Two
+// trees read from directories cannot tell a moved commit pointer from an
+// unmoved one, so every gitlink counts as changed there. A base rebuilt from
+// a diff shares the head's gitlinks, and none is changed.
+func ChangedGitlinks(head, base *Tree) []string {
+	if base.gitlinksOfHead {
+		return nil
+	}
+	set := map[string]bool{}
+	for _, t := range []*Tree{head, base} {
+		maps.Copy(set, t.gitlinks)
+	}
+	return slices.Sorted(maps.Keys(set))
+}
+
+// gitlinkDir reports whether a directory with these entries stands for a
+// gitlink: it holds nothing, or only the .git file of an initialized
+// submodule, which the read skips.
+func gitlinkDir(ents []fs.DirEntry) bool {
+	return !slices.ContainsFunc(ents, func(d fs.DirEntry) bool { return d.Name() != ".git" })
 }
 
 // skipDir names directories that are never read: git metadata, which git
@@ -226,7 +263,7 @@ func ReadTree(root string, lim Limits) (*Tree, error) {
 		return nil, err
 	}
 	defer r.Close()
-	w := &treeReader{root: r, lim: lim, t: &Tree{Entries: map[string]*Entry{}, Dirs: map[string]bool{".": true}}}
+	w := &treeReader{root: r, lim: lim, t: &Tree{Entries: map[string]*Entry{}, Dirs: map[string]bool{".": true}, gitlinks: map[string]bool{}}}
 	if err := w.walk("."); err != nil {
 		return nil, err
 	}
@@ -282,6 +319,9 @@ func (w *treeReader) walk(dir string) error {
 		}
 		w.t.add(&Entry{Path: dir, Kind: KindUnreadable})
 		return nil
+	}
+	if dir != "." && gitlinkDir(ents) {
+		w.t.gitlinks[dir] = true
 	}
 	for _, d := range ents {
 		if err := w.lim.expired(); err != nil {

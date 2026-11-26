@@ -197,7 +197,7 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	default:
 		return fallback(FallbackNoChangeInput, []string{}), nil
 	}
-	all := changedPaths(head, base)
+	all := withGitlinks(changedPaths(head, base), head, base)
 
 	g := newLazyGraph(head, o.Limits)
 	scope, problem, err := g.closure(slices.Concat([]string{m}, own)...)
@@ -255,6 +255,7 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 	}
 
 	changedDirs := map[string]bool{}
+	scopeDirs := slices.Collect(maps.Keys(scope))
 	r.Inert = true
 	for i, p := range all {
 		if i%256 == 0 {
@@ -263,10 +264,16 @@ func affectedModuleRoot(o AffectedOptions, head *Tree) (*AffectedReport, error) 
 			}
 		}
 		readers := reachedBy(p)
+		gitlink := head.IsGitlink(p) || base.IsGitlink(p)
 		inScope := inDir(p, m) || scope[path.Dir(p)] || len(readers) > 0 ||
-			slices.ContainsFunc(listed, func(ex rootExample) bool { return inDir(p, ex.dir) })
+			slices.ContainsFunc(listed, func(ex rootExample) bool { return inDir(p, ex.dir) }) ||
+			gitlink && slices.ContainsFunc(scopeDirs, func(d string) bool { return inDir(d, p) })
 		if !inScope {
 			continue
+		}
+		if gitlink {
+			// Its commit is not in the tree, so nothing says what it changed.
+			return fallback(FallbackUnparsed, all), nil
 		}
 		r.Changed = append(r.Changed, p)
 		h, b := head.Entries[p], base.Entries[p]

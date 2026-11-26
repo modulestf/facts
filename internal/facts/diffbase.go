@@ -619,7 +619,7 @@ func splitKeep(b []byte) []string {
 // indexTree builds a Tree from entries. Its directories are those that hold
 // an entry, and those of like the head that hold nothing at all.
 func indexTree(entries map[string]*Entry, head *Tree) *Tree {
-	t := &Tree{Entries: entries, Dirs: map[string]bool{".": true}}
+	t := &Tree{Entries: entries, Dirs: map[string]bool{".": true}, gitlinks: head.gitlinks, gitlinksOfHead: true}
 	for p := range entries {
 		t.Paths = append(t.Paths, p)
 		if head.Dirs[p] {
