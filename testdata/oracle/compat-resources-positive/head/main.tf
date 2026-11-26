@@ -21,6 +21,24 @@ data "aws_iam_policy_document" "this" {
     actions   = ["demo:GetWidget"]
     resources = ["*"]
   }
+
+  dynamic "statement" {
+    for_each = var.log ? [1] : []
+
+    content {
+      actions   = ["demo:PutLog"]
+      resources = ["${trimsuffix(var.log_arn, ":*")}:*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.log ? [1] : []
+
+    content {
+      actions   = ["demo:DescribeLog"]
+      resources = [trimsuffix(var.log_arn, ":*")]
+    }
+  }
 }
 
 resource "aws_demo_widget_policy" "this" {

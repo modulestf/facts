@@ -394,6 +394,29 @@ func cdn(inner string) string {
 func TestPolicyCases(t *testing.T) {
 	t.Parallel()
 	allow := "  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n  }\n"
+	put := strings.Replace(allow, "a:Get", "a:Put", 1)
+	del := strings.Replace(allow, "a:Get", "a:Delete", 1)
+	getPut := strings.Replace(allow, `"a:Get"`, `"a:Get", "a:Put"`, 1)
+	dyn := func(actions string) string {
+		return "  dynamic \"statement\" {\n    for_each = var.on ? [1] : []\n    content {\n      actions   = " + actions + "\n      resources = [\"*\"]\n    }\n  }\n"
+	}
+	cond := func(test, values string) string {
+		return strings.Replace(allow, "  }\n", "    condition {\n      test     = "+test+"\n      variable = \"a:x\"\n      values   = "+values+"\n    }\n  }\n", 1)
+	}
+	princ := func(typ string) string {
+		return "  statement {\n    actions = [\"a:Get\"]\n    principals {\n      type        = " + typ + "\n      identifiers = [\"a\"]\n    }\n  }\n"
+	}
+	deny := func(actions string) string {
+		return "  statement {\n    effect    = \"Deny\"\n    actions   = " + actions + "\n    resources = [\"*\"]\n  }\n"
+	}
+	src := func(stmts string) string {
+		return "data \"aws_iam_policy_document\" \"p\" {\n  source_policy_documents = [var.doc]\n" + stmts + "}\n"
+	}
+	sid := func(stmt, id string) string {
+		return strings.Replace(stmt, "statement {\n", "statement {\n    sid       = \""+id+"\"\n", 1)
+	}
+	staticCond := "    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"z\"]\n    }\n"
+	dynCond := "  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    dynamic \"condition\" {\n      for_each = var.c\n      content {\n        test     = \"StringEquals\"\n        variable = \"a:x\"\n        values   = [\"v\"]\n      }\n    }\n"
 	for name, tc := range map[string]struct {
 		base, head string
 		want       []string
@@ -401,14 +424,54 @@ func TestPolicyCases(t *testing.T) {
 		"allow statement added": {doc(allow), doc(allow + allow), nil},
 		"deny statement added": {doc(allow), doc(allow + "  statement {\n    effect  = \"Deny\"\n    actions = [\"a:Put\"]\n  }\n"),
 			[]string{"main.tf:6 .:data.aws_iam_policy_document.p.statement[1]"}},
-		"statement removed": {doc(allow + allow), doc(allow), []string{"main.tf:1 .:data.aws_iam_policy_document.p.statement[1]"}},
+		"statement removed": {doc(allow + put), doc(allow), []string{"main.tf:1 .:data.aws_iam_policy_document.p.statement[1]"}},
+		// Statements are compared by content: a duplicate removed, a
+		// statement inserted before others, an action added to a dynamic
+		// statement and a new dynamic allow statement only widen.
+		"duplicate statement removed":         {doc(allow + allow), doc(allow), nil},
+		"statement inserted first":            {doc(allow + put), doc(del + allow + put), nil},
+		"action added to a dynamic statement": {doc(dyn(`["a:Get"]`)), doc(dyn(`["a:Get", "a:List"]`)), nil},
+		"dynamic allow statement added":       {doc(allow), doc(allow + dyn(`["a:Put"]`)), nil},
+		"statement split by action":           {doc(getPut), doc(allow + put), nil},
+		"statement split, an action dropped": {doc(getPut + del), doc(del + allow),
+			[]string{"main.tf:7 .:data.aws_iam_policy_document.p.statement[1].actions"}},
+		"action dropped after an inserted statement": {doc(getPut), doc(del + allow),
+			[]string{"main.tf:7 .:data.aws_iam_policy_document.p.statement[1].actions"}},
+		"resources rewritten": {doc(allow), doc(strings.Replace(allow, `["*"]`, `[var.arn]`, 1)),
+			[]string{"main.tf:4 .:data.aws_iam_policy_document.p.statement[0].resources"}},
+		"not_actions in place of actions": {doc(allow), doc(strings.Replace(allow, "actions  ", "not_actions", 1)),
+			[]string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].actions", "main.tf:3 .:data.aws_iam_policy_document.p.statement[0].not_actions"}},
+		"not_actions shrink": {doc(strings.Replace(getPut, "actions  ", "not_actions", 1)), doc(strings.Replace(allow, "actions  ", "not_actions", 1)), nil},
+		"condition removed":  {doc(cond(`"StringEquals"`, `["y"]`)), doc(allow), nil},
+		"principals type changed": {doc(princ(`"AWS"`)), doc(princ(`"Service"`)),
+			[]string{"main.tf:5 .:data.aws_iam_policy_document.p.statement[0].principals[0].type"}},
+		"deny grows": {doc(deny(`["a:Put"]`)), doc(deny(`["a:Put", "a:Delete"]`)),
+			[]string{"main.tf:4 .:data.aws_iam_policy_document.p.statement[0].actions"}},
+		"deny shrinks": {doc(deny(`["a:Put", "a:Delete"]`)), doc(deny(`["a:Put"]`)), nil},
+		"deny removed": {doc(allow + deny(`["a:Put"]`)), doc(allow), nil},
+		"effect from a variable removed": {doc(allow + strings.Replace(deny(`["a:Put"]`), `"Deny"`, "var.effect", 1)), doc(allow),
+			[]string{"main.tf:1 .:data.aws_iam_policy_document.p.statement[1]"}},
+		"dynamic condition values grow": {doc(dynCond + "  }\n"), doc(strings.Replace(dynCond, `["v"]`, `["v", "b"]`, 1) + "  }\n"), nil},
+		"dynamic condition kept, static condition on its key dropped": {doc(dynCond + staticCond + "  }\n"), doc(dynCond + "  }\n"),
+			[]string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].condition[0]"}},
+		// A head statement without the dimension a union reads adds nothing to it.
+		"union partner without actions":            {doc(getPut), doc("  statement {\n    resources = [\"*\"]\n  }\n" + allow), []string{"main.tf:6 .:data.aws_iam_policy_document.p.statement[1].actions"}},
+		"union partner without resources":          {doc(allow + put), doc("  statement {\n    actions = [\"a:Get\"]\n  }\n" + put), []string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].resources"}},
+		"static statement turned dynamic":          {doc(allow), doc(dyn(`["a:Get"]`)), []string{"main.tf:1 .:data.aws_iam_policy_document.p.statement[0]"}},
+		"two conditions on one key reduced to one": {doc(strings.TrimSuffix(cond(`"StringEquals"`, `["y"]`), "  }\n") + staticCond + "  }\n"), doc(cond(`"StringEquals"`, `["y"]`)), []string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].condition[1]"}},
+		"sids swapped with a source document":      {src(sid(allow, "A") + sid(put, "B")), src(sid(allow, "B") + sid(put, "A")), []string{"main.tf:5 .:data.aws_iam_policy_document.p.statement[0].actions", "main.tf:10 .:data.aws_iam_policy_document.p.statement[1].actions"}},
+		"principals added":                         {doc("  statement {\n    actions = [\"a:Get\"]\n  }\n"), doc(princ(`"AWS"`)), []string{"main.tf:4 .:data.aws_iam_policy_document.p.statement[0].principals[0]"}},
+		"principals removed":                       {doc(princ(`"AWS"`)), doc("  statement {\n    actions = [\"a:Get\"]\n  }\n"), []string{"main.tf:2 .:data.aws_iam_policy_document.p.statement[0].principals[0]"}},
+		"new sid with a source document": {"data \"aws_iam_policy_document\" \"p\" {\n  source_policy_documents = [var.doc]\n" + allow + "}\n",
+			"data \"aws_iam_policy_document\" \"p\" {\n  source_policy_documents = [var.doc]\n" + allow + strings.Replace(put, "statement {\n", "statement {\n    sid = \"Base\"\n", 1) + "}\n",
+			[]string{"main.tf:7 .:data.aws_iam_policy_document.p.statement[1]"}},
 		"condition added": {doc(allow), doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"y\"]\n    }\n  }\n"),
 			[]string{"main.tf:5 .:data.aws_iam_policy_document.p.statement[0].condition[0]"}},
 		"effect changed": {doc(allow), doc("  statement {\n    effect    = \"Deny\"\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n  }\n"),
 			[]string{"main.tf:3 .:data.aws_iam_policy_document.p.statement[0].effect"}},
 		"dynamic statement edited": {doc("  dynamic \"statement\" {\n    for_each = var.s\n    content {\n      actions = statement.value\n    }\n  }\n"),
 			doc("  dynamic \"statement\" {\n    for_each = var.t\n    content {\n      actions = statement.value\n    }\n  }\n"),
-			[]string{"main.tf:2 .:data.aws_iam_policy_document.p.statement"}},
+			[]string{"main.tf:2 .:data.aws_iam_policy_document.p.dynamic.statement[0]"}},
 		"condition values grow": {doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"y\"]\n    }\n  }\n"), doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringEquals\"\n      variable = \"a:x\"\n      values   = [\"y\", \"z\"]\n    }\n  }\n"), nil},
 		"negated condition values grow": {doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringNotEquals\"\n      variable = \"a:x\"\n      values   = [\"y\"]\n    }\n  }\n"), doc("  statement {\n    actions   = [\"a:Get\"]\n    resources = [\"*\"]\n    condition {\n      test     = \"StringNotEquals\"\n      variable = \"a:x\"\n      values   = [\"y\", \"z\"]\n    }\n  }\n"),
 			[]string{"main.tf:8 .:data.aws_iam_policy_document.p.statement[0].condition[0].values"}},
@@ -443,6 +506,9 @@ func TestPolicyCases(t *testing.T) {
 			[]string{"main.tf:3 .:local.b"}},
 	} {
 		t.Run(name, func(t *testing.T) {
+			if tc.base == tc.head {
+				t.Fatal("the case changes nothing")
+			}
 			r := runChange(t, map[string]string{"main.tf": tc.base}, map[string]string{"main.tf": tc.head})
 			if got := cands(r, policyRule); !slices.Equal(got, tc.want) {
 				t.Errorf("got %q, want %q", got, tc.want)
@@ -474,6 +540,40 @@ func TestCompatResNewModule(t *testing.T) {
 	for _, e := range r.Manifest {
 		if e.Status != StatusClean {
 			t.Errorf("%+v", e)
+		}
+	}
+}
+
+// Past maxPolicyPairs statement pairs, statements match only by their exact
+// text: an unchanged statement still matches, and an action added to one is
+// a candidate, which can only raise more than the content comparison.
+func TestPolicyPairCap(t *testing.T) {
+	stmts := func(n int, grown int) string {
+		var b strings.Builder
+		for i := range n {
+			actions := fmt.Sprintf("[\"a:Get%d\"]", i)
+			if i == grown {
+				actions = fmt.Sprintf("[\"a:Get%d\", \"a:List%d\"]", i, i)
+			}
+			fmt.Fprintf(&b, "  statement {\n    actions   = %s\n    resources = [\"*\"]\n  }\n", actions)
+		}
+		return b.String()
+	}
+	n := 101 // n*n is past maxPolicyPairs
+	if n*n <= maxPolicyPairs {
+		t.Fatalf("%d statements do not pass the cap", n)
+	}
+	base := doc(stmts(n, -1))
+	for name, c := range map[string]struct {
+		head string
+		want int
+	}{
+		"unchanged statements, one inserted first": {doc("  statement {\n    actions = [\"a:New\"]\n  }\n" + stmts(n, -1)), 0},
+		"an action added":                          {doc(stmts(n, 7)), 1},
+	} {
+		r := runChange(t, map[string]string{"main.tf": base}, map[string]string{"main.tf": c.head})
+		if got := len(cands(r, policyRule)); got != c.want {
+			t.Errorf("%s: %d candidates, want %d", name, got, c.want)
 		}
 	}
 }
