@@ -4,8 +4,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/facts"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -39,11 +39,13 @@ func newSrcReads() *srcReads {
 // the error included when the parser recovers, so there every block the text
 // read passed and every block of the partial body it did not see is a hit.
 func (r *run) structuralSources(f, raw string, sr *srcReads) {
-	file, diags := hclsyntax.ParseConfig([]byte(raw), f, hcl.InitialPos)
-	body, ok := file.Body.(*hclsyntax.Body)
-	if diags.HasErrors() || !ok {
+	body, err := facts.ParsePartial(f, []byte(raw), facts.DefaultLimits)
+	if err != nil || body == nil {
 		hits := maps.Clone(sr.pass)
-		if ok {
+		// A file over a token, nesting or unary operator limit is never
+		// handed to the parser, which overflows its stack on one: it has no
+		// body, so every block the text read passed is a hit.
+		if body != nil {
 			for _, b := range body.Blocks {
 				if at := b.TypeRange.Start.Byte; b.Type == "module" && !sr.refused[at] {
 					hits[at] = ""

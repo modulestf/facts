@@ -410,22 +410,57 @@ func parseSyntax(name string, src []byte, lim Limits) (body *hclsyntax.Body, tok
 	if diags.HasErrors() {
 		return nil, nil, fmt.Errorf("parse error")
 	}
-	// The parser recurses on nesting and on unary operators, and a stack
-	// overflow is fatal, so both are bounded before it runs.
-	if len(tokens) > lim.MaxTokens {
-		return nil, nil, limitError(fmt.Sprintf("%d tokens over the limit %d", len(tokens), lim.MaxTokens))
-	}
-	if d := nestingDepth(tokens); d > lim.MaxDepth {
-		return nil, nil, limitError(fmt.Sprintf("nesting depth %d over the limit %d", d, lim.MaxDepth))
-	}
-	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
-		return nil, nil, limitError(fmt.Sprintf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps))
+	if err := checkLimits(tokens, lim); err != nil {
+		return nil, nil, err
 	}
 	body, err = parseConfig(name, src)
 	if err != nil {
 		return nil, nil, err
 	}
 	return body, tokens, nil
+}
+
+// checkLimits refuses a token list over the token, nesting or unary operator
+// limit. The parser recurses on nesting and on unary operators, and a stack
+// overflow is fatal, so both are bounded before it runs.
+func checkLimits(tokens hclsyntax.Tokens, lim Limits) error {
+	if len(tokens) > lim.MaxTokens {
+		return limitError(fmt.Sprintf("%d tokens over the limit %d", len(tokens), lim.MaxTokens))
+	}
+	if d := nestingDepth(tokens); d > lim.MaxDepth {
+		return limitError(fmt.Sprintf("nesting depth %d over the limit %d", d, lim.MaxDepth))
+	}
+	if n := prefixRun(tokens); n > lim.MaxPrefixOps {
+		return limitError(fmt.Sprintf("%d consecutive unary operators over the limit %d", n, lim.MaxPrefixOps))
+	}
+	return nil
+}
+
+// ParsePartial parses one HCL file under the same limits as ParseBody, but
+// keeps the partial body the parser recovers from a file with syntax errors,
+// as terraform init reads it. The body is nil when the file is over a limit
+// (IsLimitError tells) or the parser fails outright; err is non-nil for any
+// syntax error. A panic in the parser is recovered and returned as an error.
+func ParsePartial(name string, src []byte, lim Limits) (body *hclsyntax.Body, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			body, err = nil, fmt.Errorf("internal error while parsing")
+		}
+	}()
+	// A lexer error still yields the tokens the parser will see.
+	tokens, _ := hclsyntax.LexConfig(src, name, hcl.InitialPos)
+	if err := checkLimits(tokens, lim); err != nil {
+		return nil, err
+	}
+	f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
+	body, _ = f.Body.(*hclsyntax.Body)
+	if diags.HasErrors() {
+		return body, fmt.Errorf("parse error")
+	}
+	if body == nil {
+		return nil, fmt.Errorf("parse error: unexpected body type %T", f.Body)
+	}
+	return body, nil
 }
 
 // parseConfig runs the parser on a file already within the limits. A panic

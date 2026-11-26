@@ -181,3 +181,27 @@ func errText(err error) string {
 	}
 	return err.Error()
 }
+
+// ParsePartial keeps the partial body of a file with a syntax error and
+// refuses a file over a limit without running the parser, a lexer error
+// included.
+func TestParsePartial(t *testing.T) {
+	lim := DefaultLimits
+	body, err := ParsePartial("a.tf", []byte("module \"a\" {\n}\nmodule \"b\" {\n  x = \n"), lim)
+	if err == nil || IsLimitError(err) || body == nil || len(body.Blocks) == 0 {
+		t.Errorf("syntax error: body %v err %v, want a partial body and a parse error", body, err)
+	}
+	if body, err := ParsePartial("a.tf", []byte("module \"a\" {\n}\n"), lim); err != nil || len(body.Blocks) != 1 {
+		t.Errorf("valid: body %v err %v", body, err)
+	}
+	for name, src := range map[string]string{
+		"nesting":     "x = " + strings.Repeat("(", lim.MaxDepth+1) + "1" + strings.Repeat(")", lim.MaxDepth+1) + "\n",
+		"unary":       "x = " + strings.Repeat("!", lim.MaxPrefixOps+1) + "true\n",
+		"lexer error": "x = " + strings.Repeat("(", lim.MaxDepth+1) + "\x00\n",
+	} {
+		body, err := ParsePartial("a.tf", []byte(src), lim)
+		if body != nil || !IsLimitError(err) {
+			t.Errorf("%s: body %v err %v, want a limit error and no body", name, body, err)
+		}
+	}
+}
