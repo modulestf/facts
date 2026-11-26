@@ -7,6 +7,7 @@ import (
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/fixture"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +18,7 @@ func newFixtureCheckCmd() *cobra.Command {
 		in      fixtureInputs
 		asJSON  bool
 		timeout time.Duration
+		statsTo string
 	)
 	cmd := &cobra.Command{
 		Use:     "fixture-check <dir>",
@@ -27,7 +29,10 @@ func newFixtureCheckCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Dir = args[0]
-			return status(fixtureCheck(cmd, o, in, asJSON, timeout))
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				o.Stats = rec
+				return fixtureCheck(cmd, o, in, asJSON, timeout)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -39,6 +44,7 @@ func newFixtureCheckCmd() *cobra.Command {
 	f.StringVar(&in.schema, "schema", "", fixtureCheckSchemaUsage)
 	f.BoolVar(&asJSON, "json", false, fixtureCheckJSONUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	return cmd
 }
 
@@ -47,11 +53,13 @@ func newFixtureCheckCmd() *cobra.Command {
 // or the timeout.
 func fixtureCheck(cmd *cobra.Command, o fixture.Options, in fixtureInputs, asJSON bool, timeout time.Duration) int {
 	lim := facts.DefaultLimits
+	lim.Stats = o.Stats
 	return runBounded(cmd, timeout, &lim, func() workResult {
 		r, err := fixtureCheckWork(o, in)
 		if err != nil {
 			return workResult{err: fmt.Errorf("fixture-check: %w", err)}
 		}
+		o.Stats.Phase("render")
 		code := exitClean
 		if !r.OK {
 			code = exitFindings

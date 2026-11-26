@@ -23,6 +23,7 @@ mtf-facts lint <dir> [--base <dir> | --diff <file>] [--full-tree] [--json [--ai]
 | `--candidates` | In the text report, list each candidate, not only the count per rule. |
 | `--not-evaluated` | In the text report, list each rule and area not evaluated, not only the count per reason. |
 | `--timeout <duration>` | Stop a run that takes longer. Default `60s`. |
+| `--stats-file <file>` | Also write a timing and memory record. Every command a review runs takes it; see [Timing and memory stats](usage.md#timing-and-memory-stats). |
 | `--registry <rule-facts.md>` | Record the registry hash. |
 | `--profile-dir <dir>` | The module profile directory. |
 | `--schema-files <file>` | A `terraform providers schema -json` output. Repeatable. |

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/modulestf/facts/internal/schema"
+	"github.com/modulestf/facts/internal/stats"
 )
 
 // Limits bound what one run reads and writes.
@@ -45,6 +46,11 @@ type Limits struct {
 	// keepBinary keeps the bytes of every regular file, as a profile
 	// directory needs: its tree hash covers every file's bytes.
 	keepBinary bool
+
+	// Stats, when set, records where the run spends its time. Every copy
+	// of Limits shares it; nil records nothing. It is no limit and never
+	// changes a result.
+	Stats *stats.Recorder
 }
 
 // ErrDeadline is returned when a run passes Limits.Deadline. It is the
@@ -191,7 +197,21 @@ func ReadTree(root string, lim Limits) (*Tree, error) {
 		return nil, err
 	}
 	w.t.index()
+	// Binary bytes were read and dropped, oversize bytes streamed to a hash.
+	lim.Stats.Read(w.t.filesRead(), w.total+w.opaque+w.hashed)
 	return w.t, nil
+}
+
+// filesRead counts the regular files the read opened and read: those it
+// kept and the oversize files it hashed.
+func (t *Tree) filesRead() int {
+	n := 0
+	for _, e := range t.Entries {
+		if e.Kind == KindFile || e.Kind == KindOversize && e.oversizeSHA256 != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // index sorts Paths and groups the entries by directory.

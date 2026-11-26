@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/modulestf/facts/schema/stats.schema.json",
+  "title": "mtf-facts stats record",
+  "description": "Where one run spent its time and memory, written to the file --stats-file names. Times are integer nanoseconds and sizes integer bytes, so the records of many calls sum exactly; max_rss_bytes is a peak, so take the maximum. The record holds no path of an input tree.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tool", "command", "outcome", "exit_code", "started_unix_ns", "wall_ns", "cpu_user_ns", "cpu_system_ns", "max_rss_bytes", "heap_alloc_bytes", "files_read", "bytes_read", "phases", "parse", "rules"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"const": "mtf-facts"},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "command": {"enum": ["affected", "behaviour", "claims-eval", "depth", "fixture-check", "lint", "schema-diff"]},
+    "outcome": {
+      "enum": ["completed", "error", "timeout"],
+      "description": "completed: the command wrote its report, findings or not. error: it exited 2. timeout: its own timeout ended the run; phases may then be partial, and depth still exits 0."
+    },
+    "exit_code": {"type": "integer", "minimum": 0, "maximum": 3, "description": "The exit code of the run, the same as without --stats-file."},
+    "started_unix_ns": {"type": "integer", "minimum": 1, "description": "When the command started, so a host can tell a stale file from this run's."},
+    "wall_ns": {"type": "integer", "minimum": 0, "description": "From the start of the command to the record."},
+    "cpu_user_ns": {"type": ["integer", "null"], "minimum": 0, "description": "Process user CPU time; null where the system reports none."},
+    "cpu_system_ns": {"type": ["integer", "null"], "minimum": 0, "description": "Process system CPU time; null where the system reports none."},
+    "max_rss_bytes": {"type": ["integer", "null"], "minimum": 0, "description": "Peak resident set size of the process in bytes; null where the system reports none."},
+    "heap_alloc_bytes": {"type": "integer", "minimum": 0, "description": "Go heap bytes allocated during the run, freed or not."},
+    "files_read": {"type": "integer", "minimum": 0, "description": "Regular files read from input trees, counted once per read; a tree read twice counts twice."},
+    "bytes_read": {"type": "integer", "minimum": 0, "description": "Bytes of those files."},
+    "phases": {
+      "type": "array",
+      "description": "The steps of the run in order. They do not overlap, so their wall_ns sum to about wall_ns. The first is run, which lasts until the command starts a named step.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "wall_ns", "cpu_ns", "heap_alloc_bytes"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "wall_ns": {"type": "integer", "minimum": 0},
+          "cpu_ns": {"type": ["integer", "null"], "minimum": 0, "description": "Process CPU time, user and system, during the phase. Unlike wall_ns it does not grow while the process waits for a busy machine. null where the system reports none."},
+          "heap_alloc_bytes": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "parse": {
+      "type": "object",
+      "description": "Every parse of the .tf files of one directory, summed. Its time is also inside the phase each parse ran in.",
+      "additionalProperties": false,
+      "required": ["calls", "files", "bytes", "wall_ns"],
+      "properties": {
+        "calls": {"type": "integer", "minimum": 0},
+        "files": {"type": "integer", "minimum": 0},
+        "bytes": {"type": "integer", "minimum": 0},
+        "wall_ns": {"type": "integer", "minimum": 0}
+      }
+    },
+    "rules": {
+      "type": "array",
+      "description": "Each rule evaluated, summed over every area, sorted by id; empty for a command other than lint. Their time is also inside the rules phase.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "calls", "wall_ns"],
+        "properties": {
+          "id": {"$ref": "finding.schema.json#/$defs/rule_id"},
+          "calls": {"type": "integer", "minimum": 1},
+          "wall_ns": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}

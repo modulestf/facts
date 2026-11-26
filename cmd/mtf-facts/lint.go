@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,7 @@ func newLintCmd() *cobra.Command {
 		asJSON  bool
 		ai      bool
 		timeout time.Duration
+		statsTo string
 	)
 	cmd := &cobra.Command{
 		Use:     "lint <dir>",
@@ -41,7 +43,10 @@ func newLintCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Head = args[0]
-			return status(lint(cmd, o, view, asJSON, ai, timeout))
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				o.Limits.Stats = rec
+				return lint(cmd, o, view, asJSON, ai, timeout)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -60,6 +65,7 @@ func newLintCmd() *cobra.Command {
 	f.StringVar(&o.SchemaHandoff, "schema-handoff", "", lintSchemaHandoffUsage)
 	f.StringVar(&o.HeadSHA, "head-sha", "", lintHeadSHAUsage)
 	f.StringVar(&o.MergeBaseSHA, "merge-base-sha", "", lintMergeBaseSHAUsage)
+	addStatsFlag(cmd, &statsTo)
 	cmd.MarkFlagsMutuallyExclusive("base", "diff")
 	return cmd
 }
@@ -81,6 +87,7 @@ var runFacts = facts.Run
 // report when ai is set, or the text report view shapes. It writes
 // nothing.
 func lintWork(engine func(facts.Options) (*facts.Report, error), o facts.Options, view textView, asJSON, ai bool) workResult {
+	o.Limits.Stats.Phase("binary_hash")
 	sum, err := binarySHA256()
 	if err != nil {
 		return workResult{err: err}
@@ -90,6 +97,7 @@ func lintWork(engine func(facts.Options) (*facts.Report, error), o facts.Options
 	if err != nil {
 		return workResult{err: err}
 	}
+	o.Limits.Stats.Phase("render")
 	var out []byte
 	switch {
 	case asJSON && ai:

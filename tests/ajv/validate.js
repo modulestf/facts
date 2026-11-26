@@ -11,10 +11,10 @@
 //
 // Usage:
 //   node validate.js <schema-dir> <node_modules-dir>
-//     [--live <schema-name> <data-file> <label>] [--note <fail|skip> <text-file>]
-// The second argument names where ajv is installed. --live also validates
-// one data file against one schema, as `ajv validate` does without
-// --all-errors, and reports it under <label>. --note prints a line the
+//     [--live <schema-name> <data-file> <label>]... [--note <fail|skip> <text-file>]...
+// The second argument names where ajv is installed. Each --live also
+// validates one data file against one schema, as `ajv validate` does without
+// --all-errors, and reports it under <label>. Each --note prints a line the
 // caller wrote, after the examples; a fail note fails the run.
 //
 // The result goes to process.exitCode, never process.exit, so output on a
@@ -25,24 +25,25 @@ const fs = require("fs");
 const path = require("path");
 
 const usage = "usage: node validate.js <schema-dir> <node_modules-dir> " +
-  "[--live <schema-name> <data-file> <label>] [--note <fail|skip> <text-file>]";
+  "[--live <schema-name> <data-file> <label>]... [--note <fail|skip> <text-file>]...";
 const args = process.argv.slice(2);
 const [schemaDir, modulesDir] = args;
-let live = null;
-let note = null;
+const lives = [];
+const notes = [];
+let badArgs = false;
 for (let i = 2; i < args.length; ) {
   if (args[i] === "--live" && i + 3 < args.length) {
-    live = { name: args[i + 1], file: args[i + 2], label: args[i + 3] };
+    lives.push({ name: args[i + 1], file: args[i + 2], label: args[i + 3] });
     i += 4;
   } else if (args[i] === "--note" && i + 2 < args.length && ["fail", "skip"].includes(args[i + 1])) {
-    note = { fail: args[i + 1] === "fail", file: args[i + 2] };
+    notes.push({ fail: args[i + 1] === "fail", file: args[i + 2] });
     i += 3;
   } else {
-    live = undefined;
+    badArgs = true;
     break;
   }
 }
-if (!schemaDir || !modulesDir || live === undefined) {
+if (!schemaDir || !modulesDir || badArgs) {
   console.error(usage);
   process.exit(2);
 }
@@ -162,7 +163,7 @@ for (const file of schemaFiles) {
 
 if (checked === 0) console.log("FAIL no schemas found");
 
-if (live) {
+for (const live of lives) {
   let out;
   try {
     const validate = compile(live.name, false);
@@ -179,7 +180,7 @@ if (live) {
     fail = true;
   }
 }
-if (note) {
+for (const note of notes) {
   process.stdout.write(fs.readFileSync(note.file, "utf8"));
   if (note.fail) fail = true;
 }

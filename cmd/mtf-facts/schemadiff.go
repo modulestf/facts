@@ -6,6 +6,7 @@ import (
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/schemadiff"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,7 @@ func newSchemaDiffCmd() *cobra.Command {
 	var (
 		o       = schemadiff.Options{Limits: facts.DefaultLimits}
 		timeout time.Duration
+		statsTo string
 	)
 	cmd := &cobra.Command{
 		Use:     "schema-diff",
@@ -22,8 +24,11 @@ func newSchemaDiffCmd() *cobra.Command {
 		Example: schemaDiffExample,
 		GroupID: groupCheck,
 		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return status(schemaDiff(cmd, o, timeout))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return withStats(cmd, args, statsTo, func(rec *stats.Recorder) int {
+				o.Limits.Stats = rec
+				return schemaDiff(cmd, o, timeout)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -32,6 +37,7 @@ func newSchemaDiffCmd() *cobra.Command {
 	f.StringVar(&o.To, "to", "", schemaDiffToUsage)
 	f.StringVar(&o.TypesFrom, "types-from", "", schemaDiffTypesFromUsage)
 	addTimeoutFlag(cmd, &timeout)
+	addStatsFlag(cmd, &statsTo)
 	return cmd
 }
 
@@ -43,6 +49,7 @@ func schemaDiff(cmd *cobra.Command, o schemadiff.Options, timeout time.Duration)
 		return usageError(cmd, schemaDiffRequired)
 	}
 	return runBounded(cmd, timeout, &o.Limits, func() workResult {
+		o.Limits.Stats.Phase("binary_hash")
 		sum, err := binarySHA256()
 		if err != nil {
 			return workResult{err: err}
@@ -52,6 +59,7 @@ func schemaDiff(cmd *cobra.Command, o schemadiff.Options, timeout time.Duration)
 		if err != nil {
 			return workResult{err: fmt.Errorf("schema-diff: %w", err)}
 		}
+		o.Limits.Stats.Phase("render")
 		return jsonResult(r, exitClean)
 	}, nil)
 }

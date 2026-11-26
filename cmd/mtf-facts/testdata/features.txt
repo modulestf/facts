@@ -29,11 +29,13 @@ flag:affected:base
 flag:affected:diff
 flag:affected:json
 flag:affected:module-root
+flag:affected:stats-file
 flag:affected:timeout
 flag:behaviour:base
 flag:behaviour:diff
 flag:behaviour:json
 flag:behaviour:schema
+flag:behaviour:stats-file
 flag:behaviour:timeout
 flag:bundle:binary-sha256
 flag:bundle:head-sha
@@ -56,6 +58,7 @@ flag:claims-eval:claims
 flag:claims-eval:head-sha
 flag:claims-eval:json
 flag:claims-eval:ladder
+flag:claims-eval:stats-file
 flag:claims-eval:timeout
 flag:depth:affected
 flag:depth:base
@@ -63,6 +66,7 @@ flag:depth:classify
 flag:depth:examples
 flag:depth:files
 flag:depth:head
+flag:depth:stats-file
 flag:depth:timeout
 flag:fixture-check:expect
 flag:fixture-check:json
@@ -70,6 +74,7 @@ flag:fixture-check:level
 flag:fixture-check:pins
 flag:fixture-check:resource
 flag:fixture-check:schema
+flag:fixture-check:stats-file
 flag:fixture-check:timeout
 flag:ledger:check
 flag:ledger:registry
@@ -88,6 +93,7 @@ flag:lint:profile-dir
 flag:lint:registry
 flag:lint:schema-files
 flag:lint:schema-handoff
+flag:lint:stats-file
 flag:lint:timeout
 flag:merge.check:timeout
 flag:merge.counts:timeout
@@ -101,6 +107,7 @@ flag:profile-check:profile-dir
 flag:profile-check:timeout
 flag:profile-snapshot:profile-dir
 flag:schema-diff:from
+flag:schema-diff:stats-file
 flag:schema-diff:timeout
 flag:schema-diff:to
 flag:schema-diff:types-from

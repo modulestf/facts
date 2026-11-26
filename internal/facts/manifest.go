@@ -186,7 +186,9 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 			continue
 		}
 		if r.CrossArea {
+			stop := ch.stats.Rule(r.ID)
 			res := evaluateCrossArea(r, areas, ch)
+			stop()
 			manifest = append(manifest, crossEntries(r.ID, res, peers)...)
 			findings = append(findings, res.Findings...)
 			candidates = append(candidates, res.Candidates...)
@@ -196,7 +198,9 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 			if a.Untouched {
 				continue
 			}
+			stop := ch.stats.Rule(r.ID)
 			res := scoped(r, evaluate(r, a, ch), ch)
+			stop()
 			manifest = append(manifest, manifestEntry(r.ID, a.Path, res))
 			if res.NotEvaluated == "" {
 				findings = append(findings, res.Findings...)

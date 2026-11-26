@@ -44,10 +44,12 @@ func Run(o Options) (*Report, error) {
 	if (o.Base == "") == (o.Diff == "") {
 		return nil, errors.New("give exactly one of a base tree and a diff")
 	}
+	o.Limits.Stats.Phase("read_head")
 	head, err := facts.ReadTree(o.Head, o.Limits)
 	if err != nil {
 		return nil, fmt.Errorf("head: %w", err)
 	}
+	o.Limits.Stats.Phase("read_base")
 	var base *facts.Tree
 	if o.Base != "" {
 		if base, err = facts.ReadTree(o.Base, o.Limits); err != nil {
@@ -58,10 +60,12 @@ func Run(o Options) (*Report, error) {
 	}
 	c := &classifier{head: head, base: base, lim: o.Limits, views: map[string][2]*view{}}
 	if o.Schema != "" {
+		o.Limits.Stats.Phase("schema")
 		if c.schema, err = schema.Load("", []string{o.Schema}, o.Limits.Deadline); err != nil {
 			return nil, err
 		}
 	}
+	o.Limits.Stats.Phase("classify")
 	return c.run()
 }
 

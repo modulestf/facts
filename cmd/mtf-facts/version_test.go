@@ -164,18 +164,21 @@ func TestReportVersions(t *testing.T) {
 	shas := []string{"--head-sha", strings.Repeat("0", 40), "--base-sha", strings.Repeat("1", 40)}
 	ftd := "../../testdata/fixture-check"
 	sd := "../../testdata/schema-diff"
+	statsFile := filepath.Join(t.TempDir(), "stats.json")
 	cases := map[string]struct {
 		args     []string
-		envelope bool // the version is .envelope.schema_version
+		envelope bool   // the version is .envelope.schema_version
+		file     string // the report is this file, not stdout
 		schema   string
 	}{
-		"affected":      {[]string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, false, "affected.schema.json"},
-		"changes":       {[]string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base", "--json"}, false, "changes.schema.json"},
-		"behaviour":     {[]string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, false, "behaviour.schema.json"},
-		"claims-eval":   {append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"}, shas...), false, "claims-eval.schema.json"},
-		"fixture-check": {[]string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, false, "fixture-check.schema.json"},
-		"lint":          {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, true, "envelope.schema.json"},
-		"schema-diff":   {[]string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, false, "schema-diff.schema.json"},
+		"stats":         {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json", "--stats-file", statsFile}, false, statsFile, "stats.schema.json"},
+		"affected":      {[]string{"affected", "../../testdata/diff-base/head", "--base", "../../testdata/diff-base/base", "--json"}, false, "", "affected.schema.json"},
+		"changes":       {[]string{"changes", "../../testdata/changes/heredoc/head", "--base", "../../testdata/changes/heredoc/base", "--json"}, false, "", "changes.schema.json"},
+		"behaviour":     {[]string{"behaviour", pr556 + "/head", "--base", pr556 + "/base", "--json"}, false, "", "behaviour.schema.json"},
+		"claims-eval":   {append([]string{"claims-eval", "--behaviour", ex + "/behaviour.valid.json", "--ladder", ex + "/ladder-record.valid.json", "--json"}, shas...), false, "", "claims-eval.schema.json"},
+		"fixture-check": {[]string{"fixture-check", filepath.Join(ftd, "l1"), "--json"}, false, "", "fixture-check.schema.json"},
+		"lint":          {[]string{"lint", "../../testdata/variable-untyped-base/head", "--json"}, true, "", "envelope.schema.json"},
+		"schema-diff":   {[]string{"schema-diff", "--from", filepath.Join(sd, "from.json"), "--to", filepath.Join(sd, "to.json"), "--types-from", filepath.Join(sd, "module")}, false, "", "schema-diff.schema.json"},
 	}
 	r := decodeVersionReport(t)
 	for name := range r.Reports {
@@ -190,6 +193,13 @@ func TestReportVersions(t *testing.T) {
 				t.Fatalf("version --json lists no %s", name)
 			}
 			_, out, errOut := runCLI(c.args)
+			if c.file != "" {
+				b, err := os.ReadFile(c.file)
+				if err != nil {
+					t.Fatalf("%v: %v, stderr %q", c.args, err, errOut)
+				}
+				out = string(b)
+			}
 			var doc struct {
 				SchemaVersion *int `json:"schema_version"`
 				Envelope      struct {
