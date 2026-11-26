@@ -4,11 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
 
@@ -149,7 +151,7 @@ func TestRunErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name, from, to, types, want string
 	}{
-		{"missing from", filepath.Join(dir, "none.json"), to, module, "--from: schema file: open none.json: "},
+		{"missing from", filepath.Join(dir, "none.json"), to, module, "--from: schema file: none.json: no such file or directory"},
 		{"malformed to", from, filepath.Join(module, "main.tf"), module, "--to: schema file main.tf: malformed"},
 		{"missing tree", from, to, filepath.Join(dir, "none"), "--types-from: "},
 		{"override file", from, to, override, "override file"},
@@ -233,5 +235,21 @@ func TestDiffEdges(t *testing.T) {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestRunDeadlineInSchemaLoad passes the deadline with an empty module, whose
+// tree read has nothing to stop at: only the schema load can return it.
+func TestRunDeadlineInSchemaLoad(t *testing.T) {
+	lim := facts.DefaultLimits
+	lim.Deadline = time.Now().Add(-time.Second)
+	_, err := Run(Options{
+		From:      filepath.Join(testdata, "from.json"),
+		To:        filepath.Join(testdata, "to.json"),
+		TypesFrom: t.TempDir(),
+		Limits:    lim,
+	})
+	if !errors.Is(err, facts.ErrDeadline) {
+		t.Errorf("error %v, want ErrDeadline", err)
 	}
 }

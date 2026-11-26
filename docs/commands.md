@@ -2,6 +2,8 @@
 
 Each command's flags, report and exit codes. `mtf-facts <command> --help` prints the same flags and exit codes.
 
+Every command that reads files, all but `profile-snapshot`, `rules` and `version`, takes `--timeout <duration>`, default `60s`, which must be greater than zero, and refuses output over 16 MiB. A run past the timeout writes `mtf-facts: timeout` to stderr and exits 2 with nothing on stdout; `depth` alone fails closed instead, with its `deep-unwalked` report and exit 0. Output over the cap writes `mtf-facts: output over 16777216 bytes` and exits 2 with nothing on stdout. The cap holds each file `bundle` writes too, and a refused `bundle` run writes no file.
+
 ## lint
 
 ```sh
@@ -37,6 +39,7 @@ The `--json` report holds the envelope, one manifest entry per rule and area (se
 - `in_repo_downgrade`: always written, sorted, often `[]`. See [In-repo downgrade](rules.md#in-repo-downgrade).
 - On a candidate, `downgrade: "in-repo"` and `severities: ["MEDIUM"]` when the in-repo downgrade covers it; absent otherwise.
 - A manifest entry for a rule the profile's options gate is `not_applicable` with `reason_code` `profile_option` and a reason text. See [Profile options](rules.md#profile-options).
+- A rule whose check fails inside the tool (a panic, a bug of the tool and never of the tree) is `not_evaluated` with `reason_code` `internal_error` and a fixed reason text, in each area where it ran; the other rules and the report are unaffected, and the rule must be judged another way.
 - In a run with no change (no `--base`, no `--diff`), a rule that needs the base is `not_applicable` with `reason_code` `no_change_given` and a reason text in each area of its kinds: there is nothing to compare, which does not mean the rule never applies. A rule the profile's options gate keeps `profile_option`. With a change, a file whose base content is unknown still makes the rule `not_evaluated(no_base)`.
 
 The text report prints the findings grouped by rule, each with its own summary and fix, one line that counts the candidates by rule and one that counts the rules not evaluated by reason (top five rules each, the rest counted), a line saying how to pass a profile when `--profile-dir` is not given (the default profile is `.agents/skills/terraform-module-maintainer/profiles/terraform-aws-modules` in [modulestf/modulestf](https://github.com/modulestf/modulestf)), and one saying how to pass a schema when schema rules are not evaluated for want of one. It prints a `scope:` line, and with a change one line per changed module with the floors the change moves, and one line per caller with its own floor at those addresses. The JSON schemas are in [schema/](../schema/).
@@ -239,7 +242,7 @@ It exits 0 with the report, or 2 on bad input, a limit or the timeout, with noth
 `mtf-facts claims-eval` validates the claims a reviewing model wrote, and computes the state of every trigger and every claim from a ladder record.
 
 ```sh
-mtf-facts claims-eval --behaviour <file> --ladder <file> [--claims <file>] [--head-sha <sha>] [--base-sha <sha>] --json
+mtf-facts claims-eval --behaviour <file> --ladder <file> [--claims <file>] [--head-sha <sha>] [--base-sha <sha>] --json [--timeout <duration>]
 ```
 
 - The claims file has the shape of [claims.schema.json](../schema/claims.schema.json): each claim names a closed predicate (`expression-output-unknown`, `expression-output-length-known`, `expression-output-equals-for-inputs`, `plan-attribute-unknown`, `plan-attribute-unchanged-vs-prior`, `plan-action`, `input-filtered`) and a trigger by id in `params.node`, never HCL text. A claim that does not validate is listed in `discarded_claims` with the reason.
@@ -263,7 +266,7 @@ The output has the shape of [claims-eval.schema.json](../schema/claims-eval.sche
 mtf-facts bundle --report lint.json --skills path/to/terraform-module-reviewer \
   --out bundle.txt --injection injection.md \
   --head-sha <sha> --merge-base-sha <sha> --binary-sha256 <sha256> \
-  [--schema-handoff <file>] [--schema-files <file>]... [--profile-dir <dir>]
+  [--schema-handoff <file>] [--schema-files <file>]... [--profile-dir <dir>] [--timeout <duration>]
 ```
 
 `--skills` is the reviewer skill directory at its pinned commit. From it, the bundle reads the rule registry, `references/rule-facts.md`, and the rule text under `references/engine/`. `--out` and `--injection` must be different files. `--head-sha` and `--merge-base-sha` take 40 or 64 lowercase hex characters, and `--binary-sha256` the pinned SHA-256 of the binary that wrote the report. Give `--schema-handoff`, `--schema-files` and `--profile-dir` exactly as the lint run had them.
@@ -293,10 +296,10 @@ The bundle carries `schema_version: 1`, `module_areas` (the report's `scope.modu
 `mtf-facts merge` reads the bundle file `mtf-facts bundle` writes. It checks a model reviewer's reply to that bundle and merges the two into the final findings. The reply is untrusted: it is read with exact keys, no duplicate key, no trailing data and a 1 MiB cap.
 
 ```sh
-mtf-facts merge check bundle.txt reply.json
+mtf-facts merge check bundle.txt reply.json [--timeout <duration>]
 mtf-facts merge final --registry rule-facts.md [--report lint.json] [--templates templates.json] \
-  bundle.txt reply.json [repair.json]
-mtf-facts merge counts bundle.txt reply.json [repair.json]
+  bundle.txt reply.json [repair.json] [--timeout <duration>]
+mtf-facts merge counts bundle.txt reply.json [repair.json] [--timeout <duration>]
 ```
 
 The reply is one JSON object with the arrays `candidate_decisions` and `findings` and, optionally, a `counts` object, in the shape of [model-output.schema.json](../schema/model-output.schema.json). `counts` holds the three counts a reviewer's summary line carries: `instruction-like-text-from-others`, `conversation-claims-unread` and `review.quoted-claim-unverifiable`. When present, it has exactly those three keys, each a natural number written as decimal digits, 0 included and at most 9007199254740991; anything else makes the reply invalid.
@@ -314,7 +317,7 @@ A model severity off its rule's list is clamped to the nearest permitted one, as
 ## profile-check
 
 ```sh
-mtf-facts profile-check --profile-dir <dir> [--gates] [--downgrade-ids]
+mtf-facts profile-check --profile-dir <dir> [--gates] [--downgrade-ids] [--timeout <duration>]
 ```
 
 First reads the directory with the walker `profile-snapshot` uses and exits 2 on anything it refuses (a link, a special file, a bad name, another device or a bound), so a profile cannot pass the check and then fail the snapshot. Hosts run it on the snapshot directory. It then reads the profile as `lint --profile-dir` does and checks it, options included. It prints one JSON object: `valid`, `problems`, and for a valid profile `options` and `relaxing`. `--gates` adds `gates`, the gate table, and `gated_rules`, the rules this profile gates; `--downgrade-ids` adds `downgrade_ids`. Exit 0 for a valid profile, 1 for an invalid one, 2 when the directory is missing, a link or cannot be read.
@@ -333,7 +336,7 @@ Copies the profile directory into a new 0700 temporary directory and prints `{"d
 
 ```sh
 mtf-facts ledger path/to/module --schema-files schema.json [--schema-files more.json]... \
-  [--check coverage-ledger.json] [--registry rule-facts.md]
+  [--check coverage-ledger.json] [--registry rule-facts.md] [--timeout <duration>]
 ```
 
 It reads only that directory, not `modules/*` or `examples/*`. At least one `--schema-files` is required. The run exits 2, with no inventory, when:
@@ -368,17 +371,17 @@ Without `--check`, `problems` is `null`.
 `mtf-facts schema-diff` compares two `terraform providers schema -json` files, the current and the target provider version, for the resource and data source types a module tree uses:
 
 ```sh
-mtf-facts schema-diff --from current.json --to target.json --types-from path/to/module
+mtf-facts schema-diff --from current.json --to target.json --types-from path/to/module [--timeout <duration>]
 ```
 
-All three flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](../schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
+The three file flags are required. It writes the report as JSON, in the shape of [schema-diff.schema.json](../schema/schema-diff.schema.json), and exits 0, with changes or none. Each schema file is recorded by base name and SHA-256 only. A provider the tree uses that either file lacks, bad input or a limit exits 2.
 
 ## fixture-check
 
 `mtf-facts fixture-check` checks the scratch tree a verification ladder level will run against a default-deny allowlist, before any Terraform command runs on it, and hashes the tree:
 
 ```sh
-mtf-facts fixture-check scratch/head --json
+mtf-facts fixture-check scratch/head --json [--timeout <duration>]
 mtf-facts fixture-check scratch/l2 --level L2 --pins pins.json --schema schema.json --json
 mtf-facts fixture-check scratch/l3 --level L3 --resource aws_rds_cluster --pins pins.json --json
 ```

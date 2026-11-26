@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/fixture"
 	"github.com/spf13/cobra"
 )
@@ -12,11 +13,10 @@ import (
 // newFixtureCheckCmd builds fixture-check.
 func newFixtureCheckCmd() *cobra.Command {
 	var (
-		o      fixture.Options
-		pins   string
-		expect string
-		schema string
-		asJSON bool
+		o       fixture.Options
+		in      fixtureInputs
+		asJSON  bool
+		timeout time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:     "fixture-check <dir>",
@@ -27,73 +27,67 @@ func newFixtureCheckCmd() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			o.Dir = args[0]
-			return status(fixtureCheck(cmd, o, pins, expect, schema, asJSON))
+			return status(fixtureCheck(cmd, o, in, asJSON, timeout))
 		},
 	}
 	f := cmd.Flags()
 	f.SortFlags = false
 	f.StringVar(&o.Level, "level", "L1", fixtureCheckLevelUsage+" ("+strings.Join(fixture.Levels(), ", ")+")")
 	f.StringVar(&o.Resource, "resource", "", fixtureCheckResourceUsage)
-	f.StringVar(&pins, "pins", "", fixtureCheckPinsUsage)
-	f.StringVar(&expect, "expect", "", fixtureCheckExpectUsage)
-	f.StringVar(&schema, "schema", "", fixtureCheckSchemaUsage)
+	f.StringVar(&in.pins, "pins", "", fixtureCheckPinsUsage)
+	f.StringVar(&in.expect, "expect", "", fixtureCheckExpectUsage)
+	f.StringVar(&in.schema, "schema", "", fixtureCheckSchemaUsage)
 	f.BoolVar(&asJSON, "json", false, fixtureCheckJSONUsage)
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
 // fixtureCheck checks one scratch tree and writes the result. It exits 0
-// when the tree passes, 1 with violations and 2 on bad input.
-func fixtureCheck(cmd *cobra.Command, o fixture.Options, pins, expect, schema string, asJSON bool) int {
-	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
-	if pins != "" {
-		p, err := fixture.ReadPins(pins)
+// when the tree passes, 1 with violations and 2 on bad input, the output cap
+// or the timeout.
+func fixtureCheck(cmd *cobra.Command, o fixture.Options, in fixtureInputs, asJSON bool, timeout time.Duration) int {
+	lim := facts.DefaultLimits
+	return runBounded(cmd, timeout, &lim, func() workResult {
+		r, err := fixtureCheckWork(o, in)
 		if err != nil {
-			fmt.Fprintln(stderr, "mtf-facts: fixture-check:", err)
-			return exitError
+			return workResult{err: fmt.Errorf("fixture-check: %w", err)}
 		}
-		o.Pins = p
-	}
-	if expect != "" {
-		m, err := fixture.ReadManifest(expect)
-		if err != nil {
-			fmt.Fprintln(stderr, "mtf-facts: fixture-check:", err)
-			return exitError
+		code := exitClean
+		if !r.OK {
+			code = exitFindings
 		}
-		o.Expect = m
-	}
-	if schema != "" {
-		s, err := fixture.ReadSchemas(schema)
-		if err != nil {
-			fmt.Fprintln(stderr, "mtf-facts: fixture-check:", err)
-			return exitError
+		if asJSON {
+			return jsonResult(r, code)
 		}
-		o.Schemas = s
-	}
-	r, err := fixture.Check(o)
-	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts: fixture-check:", err)
-		return exitError
-	}
-	var out []byte
-	if asJSON {
-		if out, err = json.MarshalIndent(r, "", "  "); err != nil {
-			fmt.Fprintln(stderr, "mtf-facts:", err)
-			return exitError
-		}
-		out = append(out, '\n')
-	} else {
 		var b strings.Builder
 		for _, v := range r.Violations {
 			fmt.Fprintf(&b, "%s:%d: %s\n", clean(v.File), v.Line, strings.TrimSpace(v.Rule+" "+v.Detail))
 		}
 		fmt.Fprintf(&b, "%d violations, tree sha256 %s\n", len(r.Violations), r.TreeSHA256)
-		out = []byte(b.String())
+		return workResult{out: []byte(b.String()), code: code}
+	}, nil)
+}
+
+// fixtureInputs are the files fixture-check reads beside the tree.
+type fixtureInputs struct{ pins, expect, schema string }
+
+// fixtureCheckWork reads the input files and checks the tree.
+func fixtureCheckWork(o fixture.Options, in fixtureInputs) (*fixture.Result, error) {
+	var err error
+	if in.pins != "" {
+		if o.Pins, err = fixture.ReadPins(in.pins); err != nil {
+			return nil, err
+		}
 	}
-	if _, err := stdout.Write(out); err != nil {
-		return exitError
+	if in.expect != "" {
+		if o.Expect, err = fixture.ReadManifest(in.expect); err != nil {
+			return nil, err
+		}
 	}
-	if !r.OK {
-		return exitFindings
+	if in.schema != "" {
+		if o.Schemas, err = fixture.ReadSchemas(in.schema); err != nil {
+			return nil, err
+		}
 	}
-	return exitClean
+	return fixture.Check(o)
 }

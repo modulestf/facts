@@ -32,7 +32,8 @@ control character, another device, or a tree over the snapshot's bounds.
 A host runs it on the snapshot directory, so it checks the copy it uses.
 
 Exit 0 for a valid profile, 1 for an invalid one with the problems listed,
-and 2 when the directory is missing, a link, cannot be read or is refused.`
+and 2 when the directory is missing, a link, cannot be read or is refused,
+or on the timeout.`
 	profileCheckExample = `  mtf-facts profile-check --profile-dir ./profile --gates --downgrade-ids`
 
 	profileSnapshotShort = "Copy a module profile directory into a private temporary directory"

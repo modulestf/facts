@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	fb "github.com/modulestf/facts/internal/bundle"
+	factsmerge "github.com/modulestf/facts/internal/merge"
 )
 
 const mergeFixtures = "../../testdata/merge"
@@ -265,5 +266,21 @@ func TestMergeOnRealBundle(t *testing.T) {
 func TestOffListNote(t *testing.T) {
 	if offListNote(0) != "" || !strings.Contains(offListNote(3), " 3 finding severities ") {
 		t.Errorf("notes %q, %q", offListNote(0), offListNote(3))
+	}
+}
+
+// TestMergeCheckOversizeReply checks a reply one byte over its cap is read
+// as too large, a repair reason with exit 1, and not cut or refused with
+// exit 2: the reader returns the cap plus one byte.
+func TestMergeCheckOversizeReply(t *testing.T) {
+	reply := filepath.Join(t.TempDir(), "reply.json")
+	if err := os.WriteFile(reply, bytes.Repeat([]byte(" "), factsmerge.MaxReplyBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	code := run([]string{"merge", "check", regionFile(t, "answered-once-duplicate"), reply}, &out, &errb)
+	want := fmt.Sprintf(`{"result":"repair","reasons":["the reply is larger than %d bytes"]}`+"\n", factsmerge.MaxReplyBytes)
+	if code != exitReplyRepair || out.String() != want || errb.Len() != 0 {
+		t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
 	}
 }

@@ -105,6 +105,21 @@ func TestReadSchemas(t *testing.T) {
 	if _, err := ReadSchemas(filepath.Join(dir, "none.json")); err == nil {
 		t.Error("missing file: no error")
 	}
+	// A link to a valid schema file is refused at the open, as each input
+	// file's reader refuses one, and so are the pins and manifest files.
+	abs, err := filepath.Abs("../../testdata/fixture-check/schema.json")
+	mustDo(t, err)
+	link := filepath.Join(dir, "link.json")
+	mustDo(t, os.Symlink(abs, link))
+	if _, err := ReadSchemas(link); err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Errorf("link: %v", err)
+	}
+	if _, err := ReadPins(link); err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Errorf("pins link: %v", err)
+	}
+	if _, err := ReadManifest(link); err == nil || !strings.Contains(err.Error(), "not a regular file") {
+		t.Errorf("manifest link: %v", err)
+	}
 }
 
 // aws_db_instance is the second curated type, under the same provider rules.

@@ -15,6 +15,7 @@ import (
 
 	"github.com/modulestf/facts/internal/behaviour"
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Options are the inputs of Run.
@@ -148,17 +149,9 @@ func (r *run) add(reason string) { r.reasons[reason] = true }
 
 // readJSON decodes one JSON input file strictly when strict is set.
 func readJSON(name string, v any, strict bool) error {
-	f, err := os.Open(name)
+	data, err := readcap.File(name, maxInputBytes)
 	if err != nil {
 		return err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxInputBytes+1))
-	if err != nil {
-		return err
-	}
-	if len(data) > maxInputBytes {
-		return fmt.Errorf("over %d bytes", maxInputBytes)
 	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	if strict {

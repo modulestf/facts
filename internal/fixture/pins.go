@@ -6,8 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
+
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Pin is one provider version the host installed.
@@ -28,17 +29,9 @@ var (
 // ReadPins reads a pins file, {"providers":[{"source","version"}]}, each
 // version exact and each source once.
 func ReadPins(name string) ([]Pin, error) {
-	f, err := os.Open(name)
+	data, err := readcap.File(name, maxPinsBytes)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxPinsBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxPinsBytes {
-		return nil, fmt.Errorf("pins: over %d bytes", maxPinsBytes)
+		return nil, fmt.Errorf("pins: %w", err)
 	}
 	var doc struct {
 		Providers []Pin `json:"providers"`

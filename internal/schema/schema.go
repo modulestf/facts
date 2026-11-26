@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
 )
@@ -76,32 +77,55 @@ type decodedKey struct {
 	name       string
 }
 
+// ErrDeadline is returned when Load passes its deadline.
+var ErrDeadline = errors.New("deadline exceeded")
+
+// now is the clock expired reads; a test replaces it.
+var now = time.Now
+
+// expired returns ErrDeadline once deadline has passed; a zero deadline never
+// passes.
+func expired(deadline time.Time) error {
+	if !deadline.IsZero() && now().After(deadline) {
+		return ErrDeadline
+	}
+	return nil
+}
+
 // Load reads the handoff at handoffPath, if not empty, and the raw schema
 // files. Any read, cap or shape failure is an error: a caller must stop, not
-// fall back. The handoff is unbound until Bind.
-func Load(handoffPath string, files []string) (*Set, error) {
-	return load(handoffPath, files, nil)
+// fall back. It stops with ErrDeadline once deadline passes, checked before
+// and after the handoff and each raw file; zero means no deadline. The
+// handoff is unbound until Bind.
+func Load(handoffPath string, files []string, deadline time.Time) (*Set, error) {
+	return load(handoffPath, files, nil, deadline)
 }
 
 // LoadTypes is Load of raw schema files alone that keeps only the types keep
 // keeps. Every type is still checked, so a file Load refuses is refused
 // here too. A lookup of a type keep did not keep is schema_unavailable: a
 // caller must keep every type it looks up.
-func LoadTypes(files []string, keep Keep) (*Set, error) {
-	return load("", files, keep)
+func LoadTypes(files []string, keep Keep, deadline time.Time) (*Set, error) {
+	return load("", files, keep, deadline)
 }
 
-func load(handoffPath string, files []string, keep Keep) (*Set, error) {
+func load(handoffPath string, files []string, keep Keep, deadline time.Time) (*Set, error) {
 	s := &Set{Mismatch: "not bound"}
 	if handoffPath != "" {
+		if err := expired(deadline); err != nil {
+			return nil, err
+		}
 		h, sum, err := loadHandoff(handoffPath)
 		if err != nil {
 			return nil, fmt.Errorf("schema handoff: %w", err)
 		}
+		if err := expired(deadline); err != nil {
+			return nil, err
+		}
 		s.Handoff, s.HandoffSHA256 = h, sum
 		s.index()
 	}
-	raw, hashes, err := loadRaw(files, keep)
+	raw, hashes, err := loadRaw(files, keep, deadline)
 	if err != nil {
 		return nil, err
 	}

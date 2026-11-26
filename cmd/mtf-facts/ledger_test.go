@@ -110,7 +110,7 @@ func TestLedgerErrors(t *testing.T) {
 		{name: "two directories", args: []string{ledgerModule, ledgerModule, "--schema-files", ledgerSchema}, want: "accepts 1 arg(s), received 2"},
 		{name: "no schema", args: []string{ledgerModule}, want: "--schema-files"},
 		{name: "malformed ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", bad}, want: "unknown key"},
-		{name: "missing ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", filepath.Join(dir, "none.json")}, want: "not a regular file"},
+		{name: "missing ledger", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", filepath.Join(dir, "none.json")}, want: "none.json: no such file or directory"},
 		{name: "missing registry", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--registry", filepath.Join(dir, "none.md")}, want: "registry:"},
 		{name: "empty check", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check", ""}, want: "--check needs a path"},
 		{name: "empty check with =", args: []string{ledgerModule, "--schema-files", ledgerSchema, "--check="}, want: "--check needs a path"},

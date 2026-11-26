@@ -18,6 +18,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/modulestf/facts/internal/schema"
 )
 
 // Limits bound what one run reads and writes.
@@ -45,8 +47,9 @@ type Limits struct {
 	keepBinary bool
 }
 
-// ErrDeadline is returned when a run passes Limits.Deadline.
-var ErrDeadline = errors.New("deadline exceeded")
+// ErrDeadline is returned when a run passes Limits.Deadline. It is the
+// schema loader's, so a deadline hit while loading schemas is this error.
+var ErrDeadline = schema.ErrDeadline
 
 func (l Limits) expired() error {
 	if !l.Deadline.IsZero() && time.Now().After(l.Deadline) {

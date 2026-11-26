@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/zclconf/go-cty/cty"
@@ -132,11 +133,11 @@ func Run(o Options) (*Report, error) {
 	// its error is returned after the files' errors, as before.
 	types, typesErr := ModuleTypes(o.TypesFrom, o.Limits)
 	keep := keepTypes(types)
-	from, err := load("--from", o.From, keep)
+	from, err := load("--from", o.From, keep, o.Limits.Deadline)
 	if err != nil {
 		return nil, err
 	}
-	to, err := load("--to", o.To, keep)
+	to, err := load("--to", o.To, keep, o.Limits.Deadline)
 	if err != nil {
 		return nil, err
 	}
@@ -183,8 +184,8 @@ func keepTypes(types []TypeUse) schema.Keep {
 
 // load reads one schema file and keeps the types keep keeps. Its errors
 // name the file by base name only.
-func load(flag, p string, keep schema.Keep) (*schema.Set, error) {
-	s, err := schema.LoadTypes([]string{p}, keep)
+func load(flag, p string, keep schema.Keep, deadline time.Time) (*schema.Set, error) {
+	s, err := schema.LoadTypes([]string{p}, keep, deadline)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", flag, baseNamed(err, p))
 	}
@@ -194,7 +195,7 @@ func load(flag, p string, keep schema.Keep) (*schema.Set, error) {
 // baseNamed returns err with every occurrence of the path p replaced by its
 // base name, so no host path is printed.
 func baseNamed(err error, p string) error {
-	if p == "" {
+	if p == "" || errors.Is(err, schema.ErrDeadline) {
 		return err
 	}
 	return errors.New(strings.ReplaceAll(err.Error(), p, filepath.Base(p)))

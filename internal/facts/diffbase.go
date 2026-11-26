@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"path"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Diff formats ReadDiffBase reads.
@@ -53,7 +54,7 @@ type fileChange struct {
 // the base, so its content there is unknown. A diff that does not fit the
 // head tree is an error.
 func ReadDiffBase(head *Tree, file string, lim Limits) (*Tree, *DiffInput, error) {
-	data, err := readCapped(file, maxDiffBytes)
+	data, err := readcap.File(file, maxDiffBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("diff: %w", err)
 	}
@@ -63,26 +64,6 @@ func ReadDiffBase(head *Tree, file string, lim Limits) (*Tree, *DiffInput, error
 	}
 	sum := sha256.Sum256(data)
 	return base, &DiffInput{Format: format, SHA256: hex.EncodeToString(sum[:])}, nil
-}
-
-// readCapped reads a regular file, not a link, of at most limit bytes.
-func readCapped(p string, limit int64) ([]byte, error) {
-	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
-	}
-	f, err := os.Open(p)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("over %d bytes", limit)
-	}
-	return data, nil
 }
 
 func baseFromDiff(head *Tree, data []byte, lim Limits) (*Tree, string, error) {

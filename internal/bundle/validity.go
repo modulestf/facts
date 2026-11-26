@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/profile"
@@ -107,11 +108,11 @@ func show(s *string) string {
 // SchemaPins loads the schema input the workflow gave the lint run, with the
 // loader lint uses, and returns what its envelope must record; nil when the
 // run was given none.
-func SchemaPins(handoff string, files []string) (*facts.SchemaInputs, error) {
+func SchemaPins(handoff string, files []string, deadline time.Time) (*facts.SchemaInputs, error) {
 	if handoff == "" && len(files) == 0 {
 		return nil, nil
 	}
-	s, err := schema.Load(handoff, files)
+	s, err := schema.Load(handoff, files, deadline)
 	if err != nil {
 		return nil, err
 	}

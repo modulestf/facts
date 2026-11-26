@@ -5,13 +5,14 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	fb "github.com/modulestf/facts/internal/bundle"
+	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/registry"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +32,10 @@ type bundleArgs struct {
 
 // newBundleCmd builds bundle.
 func newBundleCmd() *cobra.Command {
-	var a bundleArgs
+	var (
+		a       bundleArgs
+		timeout time.Duration
+	)
 	cmd := &cobra.Command{
 		Use:     "bundle",
 		Short:   bundleShort,
@@ -40,7 +44,7 @@ func newBundleCmd() *cobra.Command {
 		GroupID: groupPipeline,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return status(bundle(a, cmd.OutOrStdout(), cmd.ErrOrStderr()))
+			return status(bundle(cmd, a, timeout))
 		},
 	}
 	f := cmd.Flags()
@@ -55,33 +59,45 @@ func newBundleCmd() *cobra.Command {
 	f.StringVar(&a.handoff, "schema-handoff", "", bundleSchemaHandoffUsage)
 	f.StringArrayVar(&a.schemaFiles, "schema-files", nil, bundleSchemaFilesUsage)
 	f.StringVar(&a.profileDir, "profile-dir", "", bundleProfileDirUsage)
+	addTimeoutFlag(cmd, &timeout)
 	return cmd
 }
 
 // bundle builds the facts bundle and the injection from a lint report and
 // prints the mode, judgment or full. It exits 2 on bad input, a report the
-// validity predicate refuses or one that does not match the registry. In
-// full mode it writes no file.
-func bundle(a bundleArgs, stdout, stderr io.Writer) int {
+// validity predicate refuses, one that does not match the registry, or the
+// timeout. In full mode it writes no file. The files are written after the
+// worker is done, so a timeout writes none.
+func bundle(cmd *cobra.Command, a bundleArgs, timeout time.Duration) int {
 	if err := checkBundleArgs(a); err != nil {
-		fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "mtf-facts: bundle:", err)
 		return exitError
 	}
-	res, err := buildBundle(a)
-	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
-		return exitError
-	}
-	if res.Mode == fb.ModeFull {
-		fmt.Fprintln(stderr, "mtf-facts: bundle: full variant:", res.Reason)
-	} else if err := writeOutputs(a.out, a.injection, res.Bundle, res.Injection); err != nil {
-		fmt.Fprintln(stderr, "mtf-facts: bundle:", err)
-		return exitError
-	}
-	if _, err := fmt.Fprintln(stdout, res.Mode); err != nil {
-		return exitError
-	}
-	return 0
+	lim := facts.DefaultLimits
+	return runBounded(cmd, timeout, &lim, func() workResult {
+		res, err := buildBundle(a, lim)
+		if err != nil {
+			return workResult{err: fmt.Errorf("bundle: %w", err)}
+		}
+		out := workResult{out: []byte(res.Mode + "\n")}
+		if res.Mode == fb.ModeFull {
+			out.notes = []string{"mtf-facts: bundle: full variant: " + res.Reason}
+			return out
+		}
+		// The files are output too: each is held to the output cap.
+		for _, f := range [][]byte{res.Bundle, res.Injection} {
+			if len(f) > lim.MaxOutputBytes {
+				return workResult{err: fmt.Errorf("bundle: a file over %d bytes", lim.MaxOutputBytes)}
+			}
+		}
+		out.commit = func() error {
+			if err := writeOutputs(a.out, a.injection, res.Bundle, res.Injection); err != nil {
+				return fmt.Errorf("bundle: %w", err)
+			}
+			return nil
+		}
+		return out
+	}, nil)
 }
 
 // checkBundleArgs refuses missing, malformed or clashing flag values.
@@ -100,7 +116,7 @@ func checkBundleArgs(a bundleArgs) error {
 }
 
 // buildBundle computes the pins it can compute, checks the report and builds.
-func buildBundle(a bundleArgs) (*fb.Result, error) {
+func buildBundle(a bundleArgs, lim facts.Limits) (*fb.Result, error) {
 	refs := filepath.Join(a.skills, "references")
 	regText, err := fb.ReadRegistry(filepath.Join(refs, "rule-facts.md"))
 	if err != nil {
@@ -112,7 +128,7 @@ func buildBundle(a bundleArgs) (*fb.Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("registry: %w", err)
 	}
-	if a.pins.Schema, err = fb.SchemaPins(a.handoff, a.schemaFiles); err != nil {
+	if a.pins.Schema, err = fb.SchemaPins(a.handoff, a.schemaFiles, lim.Deadline); err != nil {
 		return nil, err
 	}
 	if a.profileDir != "" {

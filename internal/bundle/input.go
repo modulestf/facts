@@ -15,6 +15,7 @@ import (
 	"os"
 
 	"github.com/modulestf/facts/internal/facts"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Input caps. A lint report is at most facts.DefaultLimits.MaxOutputBytes.
@@ -85,15 +86,11 @@ func ReadRegistry(p string) ([]byte, error) {
 
 // readRegular reads a regular file, not a link, of at most limit bytes.
 func readRegular(p string, limit int64) ([]byte, error) {
-	if st, err := os.Lstat(p); err != nil || !st.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", p)
-	}
-	f, err := os.Open(p)
+	data, err := readcap.File(p, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", p, err)
 	}
-	defer f.Close()
-	return readCapped(f, p, limit)
+	return data, nil
 }
 
 // readCapped reads f, which must be a regular file of at most limit bytes.

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modulestf/facts/internal/schema"
 )
@@ -93,7 +94,7 @@ func TestHandoffLoads(t *testing.T) {
 	if err := os.WriteFile(p, doc, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := schema.Load(p, nil); err != nil {
+	if _, err := schema.Load(p, nil, time.Time{}); err != nil {
 		t.Fatalf("schema.Load: %v", err)
 	}
 }

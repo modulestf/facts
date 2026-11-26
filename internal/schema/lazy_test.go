@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
 )
@@ -51,7 +52,7 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 		"bad first of two":         unusedDoc("", `{"block": {"attributes": 5}}, "aws_unused_thing": `+ok),
 	} {
 		p := writeFile(t, "aws.json", []byte(doc))
-		_, err := Load("", []string{p})
+		_, err := Load("", []string{p}, time.Time{})
 		if err == nil {
 			t.Errorf("%s: Load accepted", name)
 		}
@@ -60,7 +61,7 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 			!strings.HasPrefix(name, "functions") && (err == nil || !strings.Contains(err.Error(), want)) {
 			t.Errorf("%s: error %v does not name %q", name, err, want)
 		}
-		if _, err := LoadTypes([]string{p}, func(bool, string) bool { return false }); err == nil {
+		if _, err := LoadTypes([]string{p}, func(bool, string) bool { return false }, time.Time{}); err == nil {
 			t.Errorf("%s: LoadTypes accepted", name)
 		}
 		var ps tfjson.ProviderSchemas
@@ -69,7 +70,7 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 		}
 	}
 	p := writeFile(t, "aws.json", []byte(unusedDoc(`"provider": {"version": 0},`, ok)))
-	if _, err := Load("", []string{p}); err != nil {
+	if _, err := Load("", []string{p}, time.Time{}); err != nil {
 		t.Errorf("good file: %v", err)
 	}
 }
@@ -78,13 +79,13 @@ func TestRawUnusedTypeRefused(t *testing.T) {
 // schema_unavailable, and a type the file lacks is absent.
 func TestLoadTypes(t *testing.T) {
 	p := writeFile(t, "aws.json", []byte(unusedDoc("", `null`)))
-	all, err := Load("", []string{p})
+	all, err := Load("", []string{p}, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	some, err := LoadTypes([]string{p}, func(data bool, name string) bool {
 		return !data && name == "aws_demo_widget" || name == "aws_unused_thing"
-	})
+	}, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +129,7 @@ func TestLazyLookupMatchesWholeDecode(t *testing.T) {
 		if err := whole.UnmarshalJSON(data); err != nil {
 			t.Fatal(err)
 		}
-		s, err := Load("", []string{p})
+		s, err := Load("", []string{p}, time.Time{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +175,7 @@ func TestHandoffUnusedTypeRefused(t *testing.T) {
 		"bad first of two":  `{"block": {}, "description": "x"}, "aws_unused_thing": {"block": {}}`,
 	} {
 		doc := strings.Replace(string(data), anchor, anchor+`"aws_unused_thing": `+typ+`, `, 1)
-		_, err := Load(writeFile(t, "h.json", []byte(doc)), nil)
+		_, err := Load(writeFile(t, "h.json", []byte(doc)), nil, time.Time{})
 		if err == nil {
 			t.Errorf("%s: accepted", name)
 		}
@@ -184,7 +185,7 @@ func TestHandoffUnusedTypeRefused(t *testing.T) {
 		}
 	}
 	doc := strings.Replace(string(data), anchor, anchor+`"aws_unused_thing": {"block": {}}, `, 1)
-	if _, err := Load(writeFile(t, "h.json", []byte(doc)), nil); err != nil {
+	if _, err := Load(writeFile(t, "h.json", []byte(doc)), nil, time.Time{}); err != nil {
 		t.Errorf("good unused type: %v", err)
 	}
 }

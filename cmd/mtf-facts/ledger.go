@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -57,6 +56,7 @@ func newLedgerCmd() *cobra.Command {
 	f.StringArrayVar(&o.schemaFiles, "schema-files", nil, ledgerSchemaFilesUsage)
 	f.StringVar(&o.check, "check", "", ledgerCheckUsage)
 	f.StringVar(&o.registry, "registry", "", ledgerRegistryUsage)
+	addTimeoutFlag(cmd, &o.timeout)
 	return cmd
 }
 
@@ -64,13 +64,14 @@ func newLedgerCmd() *cobra.Command {
 type ledgerOptions struct {
 	schemaFiles     []string
 	check, registry string
+	timeout         time.Duration
 }
 
 // ledgerCmd writes the field inventory of the module in dir as JSON.
 // With --check it exits 1 when the ledger does not give every field exactly
 // one disposition or names an input or output the module lacks.
 func ledgerCmd(cmd *cobra.Command, dir string, o ledgerOptions) int {
-	stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
+	stderr := cmd.ErrOrStderr()
 	// A path flag given an empty value is refused, not read as absent.
 	empty := ""
 	switch f := cmd.Flags(); {
@@ -85,27 +86,22 @@ func ledgerCmd(cmd *cobra.Command, dir string, o ledgerOptions) int {
 		fmt.Fprintf(stderr, "mtf-facts: --%s needs a path\n", empty)
 		return exitError
 	}
-	rep, err := ledgerWork(dir, o.schemaFiles, o.check, o.registry)
-	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
-	}
-	out, err := json.MarshalIndent(rep, "", "  ")
-	if err != nil {
-		fmt.Fprintln(stderr, "mtf-facts:", err)
-		return exitError
-	}
-	if _, err := stdout.Write(append(out, '\n')); err != nil {
-		return exitError
-	}
-	if len(rep.Problems) > 0 {
-		fmt.Fprintf(stderr, "mtf-facts: ledger: %d problems\n", len(rep.Problems))
-		return exitFindings
-	}
-	return exitClean
+	lim := facts.DefaultLimits
+	return runBounded(cmd, o.timeout, &lim, func() workResult {
+		rep, err := ledgerWork(dir, o.schemaFiles, o.check, o.registry, lim)
+		if err != nil {
+			return workResult{err: err}
+		}
+		if len(rep.Problems) == 0 {
+			return jsonResult(rep, exitClean)
+		}
+		res := jsonResult(rep, exitFindings)
+		res.notes = []string{fmt.Sprintf("mtf-facts: ledger: %d problems", len(rep.Problems))}
+		return res
+	}, nil)
 }
 
-func ledgerWork(dir string, schemaFiles []string, check, registry string) (*ledgerReport, error) {
+func ledgerWork(dir string, schemaFiles []string, check, registry string, lim facts.Limits) (*ledgerReport, error) {
 	sum, err := binarySHA256()
 	if err != nil {
 		return nil, err
@@ -119,8 +115,6 @@ func ledgerWork(dir string, schemaFiles []string, check, registry string) (*ledg
 		h := hashOf(registry, data)
 		rep.Envelope.RegistrySHA256 = &h.SHA256
 	}
-	lim := facts.DefaultLimits
-	lim.Deadline = time.Now().Add(60 * time.Second)
 	inv, err := ledger.Build(dir, schemaFiles, lim)
 	if err != nil {
 		return nil, err

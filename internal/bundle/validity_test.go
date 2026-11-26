@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 )
@@ -86,11 +87,11 @@ func TestCheckRefusesEachField(t *testing.T) {
 }
 
 func TestSchemaPinsMatchLint(t *testing.T) {
-	if in, err := SchemaPins("", nil); in != nil || err != nil {
+	if in, err := SchemaPins("", nil, time.Time{}); in != nil || err != nil {
 		t.Errorf("no schema input: %v, %v", in, err)
 	}
 	handoff := "../../schema/examples/schema-handoff.valid.json"
-	in, err := SchemaPins(handoff, nil)
+	in, err := SchemaPins(handoff, nil, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +104,7 @@ func TestSchemaPinsMatchLint(t *testing.T) {
 	if err := Check(env, pins); err != nil {
 		t.Errorf("pins from the same handoff: %v", err)
 	}
-	if _, err := SchemaPins(filepath.Join(t.TempDir(), "missing"), nil); err == nil {
+	if _, err := SchemaPins(filepath.Join(t.TempDir(), "missing"), nil, time.Time{}); err == nil {
 		t.Error("a missing handoff loaded")
 	}
 }

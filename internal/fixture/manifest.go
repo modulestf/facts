@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/modulestf/facts/internal/readcap"
 )
 
 // Manifest is what the trusted template says each file of the tree holds:
@@ -57,17 +57,9 @@ func blockKey(typ string, labels []string) string {
 
 // ReadManifest reads and checks a manifest file.
 func ReadManifest(name string) (*Manifest, error) {
-	f, err := os.Open(name)
+	data, err := readcap.File(name, maxManifestBytes)
 	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxManifestBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > maxManifestBytes {
-		return nil, fmt.Errorf("expect: over %d bytes", maxManifestBytes)
+		return nil, fmt.Errorf("expect: %w", err)
 	}
 	var m Manifest
 	dec := json.NewDecoder(bytes.NewReader(data))
