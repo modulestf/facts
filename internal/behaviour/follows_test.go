@@ -2,6 +2,7 @@ package behaviour
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -639,6 +640,61 @@ func TestReadBehaviourFollows(t *testing.T) {
 	for name, d := range map[string]string{"levels": doc(`["L4"]`, `["T-002"]`), "id": doc(`[]`, `["x"]`)} {
 		if _, err := ReadBehaviour(writeJSON(t, "b.json", d)); err == nil {
 			t.Errorf("%s: read", name)
+		}
+	}
+}
+
+// TestFollowsKeyMatchesOffLadder holds the report to the off-ladder rule a
+// host applies to its JSON, which tests for the follows key where the
+// classifier tests for follow specs: the key is present exactly when the
+// trigger follows something or nothing, as an added variable no expression
+// reads does with an empty array, which claims-eval verifies. Omitting the
+// empty array would make that trigger one of its own, with no level.
+func TestFollowsKeyMatchesOffLadder(t *testing.T) {
+	t.Parallel()
+	unused := runPair(t, asgBase(), with(asgHead(asgLine), "main.tf", asgMain), "")
+	v := find(t, unused, "variables.tf", "var.alarm_specification", "")
+	capBase, capHead := capTrees(45, 45)
+	moved := runPair(t, map[string]string{"main.tf": "resource \"aws_s3_bucket\" \"a\" {\n  bucket = \"x\"\n}\n"},
+		map[string]string{"main.tf": "resource \"aws_s3_bucket\" \"b\" {\n  bucket = \"x\"\n}\n"}, "")
+	sawEmpty := false
+	for name, r := range map[string]*Report{"unused": unused, "cap": runPair(t, capBase, capHead, ""), "moved": moved} {
+		var doc struct {
+			Triggers []map[string]json.RawMessage `json:"triggers"`
+		}
+		if err := json.Unmarshal(mustJSON(t, r), &doc); err != nil {
+			t.Fatal(err)
+		}
+		for i, tr := range r.Triggers {
+			raw, has := doc.Triggers[i]["follows"]
+			if has != (tr.Follows != nil) {
+				t.Errorf("%s %s: follows key %v, follows %v", name, tr.ID, has, tr.Follows)
+			}
+			if tr.ID == v.ID && name == "unused" {
+				sawEmpty = has && string(raw) == "[]"
+			}
+			_, also := doc.Triggers[i]["also_categories"]
+			host := !also && !has && (tr.Category == CatVersionFloor && slices.Equal(tr.Levels, []string{LevelCompat}) ||
+				tr.Category == CatMoved && len(tr.Levels) == 0)
+			engine := tr
+			if tr.Follows != nil {
+				engine.followSIDs = []int{}
+			}
+			if host != offLadder(engine) {
+				t.Errorf("%s %s: host reads off-ladder %v, the classifier %v", name, tr.ID, host, offLadder(engine))
+			}
+		}
+	}
+	if !sawEmpty {
+		t.Errorf("an unread added variable has no empty follows array: %v", v.Follows)
+	}
+	var back Report
+	if err := json.Unmarshal(mustJSON(t, unused), &back); err != nil {
+		t.Fatal(err)
+	}
+	for _, tr := range back.Triggers {
+		if tr.ID == v.ID && (tr.Follows == nil || len(tr.Follows) != 0) {
+			t.Errorf("decoded follows %v, want an empty array", tr.Follows)
 		}
 	}
 }
