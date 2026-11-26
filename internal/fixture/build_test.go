@@ -393,3 +393,32 @@ func TestBuildWritesUTF8(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildRefusesFoldedCaseIDs: two case ids that differ only in letter
+// case would share one var file on a case-insensitive file system, so the
+// known case would plan the other's inputs. They are refused on every file
+// system, with no file; the first builder built them.
+func TestBuildRefusesFoldedCaseIDs(t *testing.T) {
+	tmpl := readTD(t, filepath.Join(buildTD, "templates", "l1.tf.tmpl"))
+	in := map[string]any{"vpc_security_group_ids": map[string]any{"value": []any{}}}
+	unk := map[string]any{"vpc_security_group_ids": map[string]any{"value": nil, "unknown": true}}
+	trig := hostileTrigger(t, "cases", []any{map[string]any{"id": "Typical", "inputs": in}, map[string]any{"id": "typical", "inputs": unk}})
+	b, err := Build(BuildOptions{Level: "L1", Template: tmpl, Trigger: trig})
+	if err != nil || b.OK || b.Result["reason"] != "two case ids differ only in letter case" || len(b.Files) != 0 {
+		t.Fatalf("%v %v", err, b)
+	}
+}
+
+// TestWriteFilesCleansUp: a write that fails part way removes every file
+// and directory it made, so --out stays empty. A path given twice fails at
+// its second exclusive create; without O_EXCL it would overwrite.
+func TestWriteFilesCleansUp(t *testing.T) {
+	out := t.TempDir()
+	files := []File{{Path: "vars/a.tfvars.json", Data: []byte("{}")}, {Path: "base/main.tf", Data: []byte("x")}, {Path: "base/main.tf", Data: []byte("y")}}
+	if err := WriteFiles(out, files); err == nil {
+		t.Fatal("a path written twice")
+	}
+	if ents, err := os.ReadDir(out); err != nil || len(ents) != 0 {
+		t.Errorf("%d entries left: %v", len(ents), err)
+	}
+}

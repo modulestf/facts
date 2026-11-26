@@ -384,7 +384,7 @@ func (b *builder) cases(wrap, omit string, hasOmit bool) ([]fixtureCase, error) 
 	}
 	slices.Sort(names)
 	want := strings.Join(names, "\n")
-	ids := map[string]bool{}
+	ids, folded := map[string]bool{}, map[string]bool{}
 	out := make([]fixtureCase, 0, len(cs))
 	for _, cv := range cs {
 		c, ok := cv.(map[string]any)
@@ -397,6 +397,13 @@ func (b *builder) cases(wrap, omit string, hasOmit bool) ([]fixtureCase, error) 
 			return nil, refuse("two cases share an id")
 		}
 		ids[id] = true
+		// Each case is a var file named by its id, so two ids that differ only
+		// in letter case would be one file on a case-insensitive file system:
+		// refused on every file system alike.
+		if folded[strings.ToLower(id)] {
+			return nil, refuse("two case ids differ only in letter case")
+		}
+		folded[strings.ToLower(id)] = true
 		keys := make([]string, 0, len(inputs))
 		for k := range inputs {
 			keys = append(keys, k)

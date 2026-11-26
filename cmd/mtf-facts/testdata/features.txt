@@ -78,6 +78,7 @@ flag:fixture-build:level
 flag:fixture-build:out
 flag:fixture-build:resource
 flag:fixture-build:resource-template
+flag:fixture-build:stats-file
 flag:fixture-build:template
 flag:fixture-build:timeout
 flag:fixture-check:expect

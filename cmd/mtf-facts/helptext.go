@@ -387,9 +387,9 @@ manifest fixture-check --expect reads; and vars/<case id>.tfvars.json per case.
 A type constraint is string, number, bool, any, list, set or map of one type,
 tuple, or object with optional attributes, at most 400 tokens and 20 levels
 deep. A trigger the builder cannot model, such as a type outside that grammar,
-a local or module reference, over 32 cases, an expression over 16 KiB, or a
-count, each or default context at L2 or L3, is refused with a fixed reason and
-no file is written.
+a local or module reference, over 32 cases, an expression over 16 KiB, two
+case ids that differ only in letter case, or a count, each or default context
+at L2 or L3, is refused with a fixed reason and no file is written.
 
 It prints one JSON object, sorted keys: {"schema_version":1,"ok":true,"wrap",
 "sides","canaries","cases":[{"id","inputs","unknown_inputs","addr"}]} or

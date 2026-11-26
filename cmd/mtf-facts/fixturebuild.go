@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/modulestf/facts/internal/facts"
 	"github.com/modulestf/facts/internal/fixture"
 	"github.com/modulestf/facts/internal/readcap"
+	"github.com/modulestf/facts/internal/stats"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +17,15 @@ type fixtureBuildFlags struct {
 	template, resourceTemplate, out string
 	level, attribute, resource      string
 	timeout                         time.Duration
+	statsTo                         string
 }
+
+// The names --attribute and --resource take: a Terraform attribute name,
+// and a resource type with its provider prefix.
+var (
+	buildAttribute = regexp.MustCompile(`\A[a-z][a-z0-9_]{0,63}\z`)
+	buildResource  = regexp.MustCompile(`\A[a-z][a-z0-9]*_[a-z0-9_]{1,63}\z`)
+)
 
 // newFixtureBuildCmd builds fixture-build.
 func newFixtureBuildCmd() *cobra.Command {
@@ -28,7 +38,9 @@ func newFixtureBuildCmd() *cobra.Command {
 		GroupID: groupPipeline,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return status(fixtureBuild(cmd, args[0], fl))
+			return withStats(cmd, args, fl.statsTo, func(rec *stats.Recorder) int {
+				return fixtureBuild(cmd, args[0], fl, rec)
+			})
 		},
 	}
 	f := cmd.Flags()
@@ -40,6 +52,7 @@ func newFixtureBuildCmd() *cobra.Command {
 	f.StringVar(&fl.resource, "resource", "", fixtureBuildResourceUsage)
 	f.StringVar(&fl.resourceTemplate, "resource-template", "", fixtureBuildResourceTemplateUsage)
 	addTimeoutFlag(cmd, &fl.timeout)
+	addStatsFlag(cmd, &fl.statsTo)
 	return cmd
 }
 
@@ -47,7 +60,7 @@ func newFixtureBuildCmd() *cobra.Command {
 // the fixture is written, 1 when the trigger is refused and 2 on bad input,
 // the output cap or the timeout. The files are written after the worker is
 // done and the caps pass, so a timeout or a cap writes none.
-func fixtureBuild(cmd *cobra.Command, trigger string, fl fixtureBuildFlags) int {
+func fixtureBuild(cmd *cobra.Command, trigger string, fl fixtureBuildFlags, rec *stats.Recorder) int {
 	if msg := fl.check(); msg != "" {
 		return usageError(cmd, msg)
 	}
@@ -56,6 +69,7 @@ func fixtureBuild(cmd *cobra.Command, trigger string, fl fixtureBuildFlags) int 
 		return exitError
 	}
 	lim := facts.DefaultLimits
+	lim.Stats = rec
 	return runBounded(cmd, fl.timeout, &lim, func() workResult {
 		b, err := fixtureBuildWork(trigger, fl)
 		if err != nil {
@@ -93,6 +107,10 @@ func (fl fixtureBuildFlags) check() string {
 		return "--template is required"
 	case fl.out == "":
 		return "--out is required"
+	case fl.attribute != "" && !buildAttribute.MatchString(fl.attribute):
+		return "--attribute must be an attribute name"
+	case fl.resource != "" && !buildResource.MatchString(fl.resource):
+		return "--resource must be a resource type"
 	}
 	l3 := fl.resource != "" || fl.resourceTemplate != ""
 	switch fl.level {

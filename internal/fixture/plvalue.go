@@ -43,7 +43,46 @@ func decodeJSON(data []byte) (any, error) {
 	if depth(v, 0) > maxJSONDepth {
 		return nil, fmt.Errorf("nested over %d deep", maxJSONDepth)
 	}
+	if loneSurrogate(data) {
+		return nil, errors.New("a lone surrogate escape")
+	}
 	return v, nil
+}
+
+// loneSurrogate reports a \u escape of a surrogate that is not one half of
+// a pair, which the first builder refused and Go's decoder would turn into
+// U+FFFD. data is valid JSON, so only string text holds a backslash.
+func loneSurrogate(data []byte) bool {
+	hex4 := func(i int) (rune, bool) {
+		if i+6 > len(data) || data[i] != '\\' || data[i+1] != 'u' {
+			return 0, false
+		}
+		n, err := strconv.ParseUint(string(data[i+2:i+6]), 16, 16)
+		return rune(n), err == nil
+	}
+	for i := 0; i < len(data); i++ {
+		if data[i] != '\\' {
+			continue
+		}
+		r, ok := hex4(i)
+		if !ok {
+			i++ // another escape: skip the escaped byte
+			continue
+		}
+		switch {
+		case r >= 0xD800 && r <= 0xDBFF:
+			lo, ok := hex4(i + 6)
+			if !ok || lo < 0xDC00 || lo > 0xDFFF {
+				return true
+			}
+			i += 11
+		case r >= 0xDC00 && r <= 0xDFFF:
+			return true
+		default:
+			i += 5
+		}
+	}
+	return false
 }
 
 // depth is the nesting of arrays and objects in v, where v sits at d.

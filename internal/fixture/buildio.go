@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"slices"
 	"syscall"
 )
 
@@ -18,7 +19,8 @@ const (
 // WriteFiles writes the files of a build under dir, which must be an
 // existing empty directory and no link. Every write goes through an
 // os.Root of dir, so no path leaves it, and each subdirectory and file is
-// made new, never through a link. It stops at the first error.
+// made new, never through a link. It stops at the first error and then
+// removes what it made, so dir is left empty.
 func WriteFiles(dir string, files []File) error {
 	if err := CheckOut(dir); err != nil {
 		return err
@@ -31,6 +33,19 @@ func WriteFiles(dir string, files []File) error {
 	if err := emptyDir(r, dir); err != nil {
 		return err
 	}
+	var created []string // in the order made, so removed in reverse
+	if err := writeAll(r, files, &created); err != nil {
+		for _, p := range slices.Backward(created) {
+			err = errors.Join(err, r.Remove(p))
+		}
+		return err
+	}
+	return nil
+}
+
+// writeAll makes each file and its directory under r, and records each
+// path it made in created.
+func writeAll(r *os.Root, files []File, created *[]string) error {
 	made := map[string]bool{".": true}
 	for _, f := range files {
 		if sub := path.Dir(f.Path); !made[sub] {
@@ -38,11 +53,13 @@ func WriteFiles(dir string, files []File) error {
 				return err
 			}
 			made[sub] = true
+			*created = append(*created, sub)
 		}
 		h, err := r.OpenFile(f.Path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0o666)
 		if err != nil {
 			return err
 		}
+		*created = append(*created, f.Path)
 		_, werr := h.Write(f.Data)
 		if err := errors.Join(werr, h.Close()); err != nil {
 			return err
