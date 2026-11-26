@@ -85,6 +85,9 @@ func run(ctx context.Context, root string, ms []Mutant, opts runOptions) []resul
 		start := time.Now()
 		// The rest of the budget is the test timeout, so a hung baseline
 		// test binary ends itself even if the process group is not killed.
+		// No test can see this argument: the test binary's timer starts after
+		// the build, so the group kill at the budget's end always comes first,
+		// and a baseline with the timeout dropped ends the same way.
 		out, err := goTest(ctx, root, pkgs[i], "", remaining(ctx))
 		b := baseline{
 			took: time.Since(start), ok: err == nil, ran: ctx.Err() == nil,
@@ -226,7 +229,11 @@ func report(w io.Writer, res []result) {
 			parts = append(parts, fmt.Sprintf("%d %s", counts[s], s))
 		}
 	}
-	fmt.Fprintf(w, "%d mutants on the changed lines: %s.\n\n", len(res), strings.Join(parts, ", "))
+	noun := "mutants"
+	if len(res) == 1 {
+		noun = "mutant"
+	}
+	fmt.Fprintf(w, "%d %s on the changed lines: %s.\n\n", len(res), noun, strings.Join(parts, ", "))
 	fmt.Fprintln(w, "A survivor passes every test of its package: a guard removed, or a condition operand dropped, and no test fails. Report only; nothing here fails the build.")
 	if counts[statusSurvived] > 0 {
 		fmt.Fprintln(w)
