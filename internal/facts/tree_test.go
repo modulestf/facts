@@ -366,3 +366,27 @@ func TestDirErrorsQuotePath(t *testing.T) {
 		t.Errorf("Run: error %q is missing, off its reason or holds a line break", err)
 	}
 }
+
+// A directory named .GIT is not the repository's .git and is read as
+// content, so a change under it is never hidden. Skipped on a file system
+// that folds case, where .GIT is .git.
+func TestReadTreeReadsUpperGit(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".GIT", "config")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		t.Skip("case-insensitive file system")
+	}
+	tr, err := ReadTree(dir, DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := tr.Entries[".GIT/config"]; e == nil || e.Kind != KindFile {
+		t.Errorf("got %+v, want kind %s", e, KindFile)
+	}
+}
