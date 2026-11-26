@@ -1,3 +1,12 @@
+## [0.11.1](https://github.com/modulestf/facts/compare/v0.11.0...v0.11.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* Stop two tool rules firing on exempt or empty directories ([#65](https://github.com/modulestf/facts/issues/65)) ([a9528a2](https://github.com/modulestf/facts/commit/a9528a2fef7403c90be62d2f32ff737a5934e58a)), closes [lambda#778](https://github.com/lambda/issues/778) [#780](https://github.com/modulestf/facts/issues/780) [#781](https://github.com/modulestf/facts/issues/781) [terraform-aws-alb#440](https://github.com/terraform-aws-alb/issues/440) [#38](https://github.com/modulestf/facts/issues/38) [lambda#778](https://github.com/lambda/issues/778) [#780](https://github.com/modulestf/facts/issues/780) [#781](https://github.com/modulestf/facts/issues/781) [alb#440](https://github.com/alb/issues/440) [vpc#1188](https://github.com/vpc/issues/1188) [iam#671](https://github.com/iam/issues/671) [eks-pod-identity#68](https://github.com/eks-pod-identity/issues/68) [eventbridge#213](https://github.com/eventbridge/issues/213)
+
+
+
 # [0.11.0](https://github.com/modulestf/facts/compare/v0.10.0...v0.11.0) (2026-11-26)
 
 
