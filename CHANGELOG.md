@@ -1,3 +1,12 @@
+## [0.14.3](https://github.com/modulestf/facts/compare/v0.14.2...v0.14.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* Read resource.<type>.<name> references as <type>.<name> ([#89](https://github.com/modulestf/facts/issues/89)) ([36b1d07](https://github.com/modulestf/facts/commit/36b1d075c9d9d6703fec23151833822e92babbe0))
+
+
+
 ## [0.14.2](https://github.com/modulestf/facts/compare/v0.14.1...v0.14.2) (2026-11-26)
 
 
