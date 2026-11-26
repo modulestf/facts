@@ -260,6 +260,34 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {\n  validation {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\n"}, found: true},
 		{name: "validation with no message", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {\n  validation {\n    condition = true\n  }\n}\n"},
 			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {\n  validation {\n    condition = true\n  }\n}\n"}},
+		{name: "new resource read by an existing argument", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = try(aws_k.this[0].arn, \"f\")\n}\nresource \"aws_k\" \"this\" {\n  count = var.a ? 1 : 0\n}\n"}, found: true},
+		{name: "new resource read through a new data source", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = aws_k.this.arn\n}\nresource \"aws_k\" \"this\" {\n  doc = data.aws_d.d.json\n}\ndata \"aws_d\" \"d\" {\n  name = var.a\n}\n"}, found: true},
+		{name: "existing output reads a new resource", base: map[string]string{"main.tf": "output \"o\" {\n  value = 1\n}\n"},
+			head: map[string]string{"main.tf": "output \"o\" {\n  value = aws_k.this.arn\n}\nresource \"aws_k\" \"this\" {\n  count = var.a ? 1 : 0\n}\n"}, found: true},
+		{name: "new module call read by an existing argument", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = module.m.out\n}\nmodule \"m\" {\n  source  = \"./m\"\n  enabled = var.a\n}\n"}, found: true},
+		{name: "new resource read that reads no new variable", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = aws_k.this.arn\n}\nresource \"aws_k\" \"this\" {\n  name = \"k\"\n}\n"}},
+		{name: "new resources reading each other", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = aws_k.p.arn\n}\nresource \"aws_k\" \"p\" {\n  name = aws_k.q.arn\n}\nresource \"aws_k\" \"q\" {\n  name = aws_k.p.arn\n}\n"}},
+		{name: "moved twice", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"z\" {\n  name = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.y\n}\nmoved {\n  from = aws_r.y\n  to   = aws_r.z\n}\n"}, found: true},
+		{name: "two moves into one address", base: map[string]string{"main.tf": "resource \"aws_r\" \"x\" {\n  name = \"f\"\n}\nresource \"aws_r\" \"w\" {\n  other = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"z\" {\n  name = var.a\n}\nmoved {\n  from = aws_r.w\n  to   = aws_r.z\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.z\n}\n"}, found: true},
+		{name: "moved cycle", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.y\n}\nmoved {\n  from = aws_r.y\n  to   = aws_r.x\n}\n"}},
+		{name: "new variable validation reads another variable", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"mode\" {}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": "variable \"mode\" {}\nvariable \"a\" {\n  default = \"x\"\n  validation {\n    condition     = var.mode == \"a\" ? var.a != \"\" : true\n    error_message = \"e\"\n  }\n}\n"}, found: true},
+		{name: "new variable validation reads a null default's neighbour", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"mode\" {}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": "variable \"mode\" {}\nvariable \"a\" {\n  default = null\n  validation {\n    condition     = var.mode == \"a\"\n    error_message = \"e\"\n  }\n}\n"}, found: true},
+		{name: "new variable validation reads itself", base: map[string]string{"main.tf": "\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": "variable \"a\" {\n  default = \"x\"\n  validation {\n    condition     = var.a != \"\"\n    error_message = \"e ${var.a}\"\n  }\n}\n"}},
+		{name: "imports swapped with one rewritten", base: map[string]string{"main.tf": "import {\n  to = aws_r.x\n  id = \"i\"\n}\nimport {\n  to = aws_r.y\n  id = \"j\"\n}\n"},
+			head: map[string]string{"main.tf": "import {\n  to = aws_r.y\n  id = \"j\"\n}\nimport {\n  to = aws_r.x\n  id = var.a\n}\n"}, found: true},
+		{name: "import gains for_each", base: map[string]string{"main.tf": "import {\n  to = aws_r.x\n  id = \"i\"\n}\n"},
+			head: map[string]string{"main.tf": "import {\n  to       = aws_r.x\n  id       = \"i\"\n  for_each = toset([var.a])\n}\n"}, found: true},
 		{name: "unrelated resource and example only", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			head:  map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			extra: map[string]string{"examples/basic/main.tf": "resource \"aws_r\" \"e\" {\n  name = var.a\n}\n", "examples/basic/variables.tf": vars}},
@@ -296,8 +324,13 @@ func TestVarReads(t *testing.T) {
 	tests := []struct {
 		text       string
 		vars, locs []string
+		refs       []string
 		allV, allL bool
 	}{
+		{text: "try(aws_k.this[0].arn, var.a)", vars: []string{"a"}, refs: []string{"aws_k.this"}},
+		{text: "data.aws_d.d.id", refs: []string{"data.aws_d.d"}},
+		{text: "module.m.out", refs: []string{"module.m"}},
+		{text: "resource.aws_k.this.arn", refs: []string{"aws_k.this"}},
 		{text: "var.a", vars: []string{"a"}},
 		{text: `var["a"]`, vars: []string{"a"}},
 		{text: "local.m", locs: []string{"m"}},
@@ -312,7 +345,7 @@ func TestVarReads(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.text, func(t *testing.T) {
 			t.Parallel()
-			r := &varReads{vars: map[string]bool{}, locals: map[string]bool{}}
+			r := newVarReads()
 			r.add(&Expr{Text: tt.text})
 			r.add(nil)
 			got := func(m map[string]bool) []string {
@@ -323,7 +356,7 @@ func TestVarReads(t *testing.T) {
 				slices.Sort(s)
 				return s
 			}
-			if !slices.Equal(got(r.vars), tt.vars) || !slices.Equal(got(r.locals), tt.locs) ||
+			if !slices.Equal(got(r.vars), tt.vars) || !slices.Equal(got(r.locals), tt.locs) || !slices.Equal(got(r.refs), tt.refs) ||
 				r.allVars != tt.allV || r.allLocals != tt.allL {
 				t.Errorf("vars %v locals %v allVars %v allLocals %v", got(r.vars), got(r.locals), r.allVars, r.allLocals)
 			}

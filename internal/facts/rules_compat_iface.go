@@ -138,11 +138,12 @@ func checkDefaultChanged(a *Area) Result {
 			// sets nothing, gets where configuration the caller already had
 			// reads it. A new argument or block behind it is a feature the
 			// caller had not, which the review judges from the diff.
-			if v.Default != nil && strings.TrimSpace(v.Default.Text) != "null" && moduleAtBase(a) {
+			if v.Default != nil && moduleAtBase(a) {
 				if readByBase == nil {
 					readByBase = varsReadByBaseConfig(a)
 				}
-				if !readByBase.has(v.Name) {
+				nonNull := strings.TrimSpace(v.Default.Text) != "null"
+				if !(nonNull && readByBase.has(v.Name)) && !validationReadsOthers(v) {
 					continue
 				}
 				e := newCompatEvidence(a)
@@ -188,13 +189,18 @@ func checkDefaultChanged(a *Area) Result {
 	return res
 }
 
-// varReads is what head expressions read of the variables and locals: the
-// names, or every one of a kind when an expression reads the whole object
-// (`var`, `{for k, v in var : ...}`) or indexes it with a key it cannot
-// resolve, or cannot be parsed. Unknown reads count as reads of everything.
+// varReads is what head expressions read: variables and locals by name, or
+// every one of a kind when an expression reads the whole object (`var`,
+// `{for k, v in var : ...}`), indexes it with a key it cannot resolve, or
+// cannot be parsed, and the addresses of the resources, data sources and
+// module calls it reads. Unknown reads count as reads of everything.
 type varReads struct {
-	vars, locals       map[string]bool
+	vars, locals, refs map[string]bool
 	allVars, allLocals bool
+}
+
+func newVarReads() *varReads {
+	return &varReads{vars: map[string]bool{}, locals: map[string]bool{}, refs: map[string]bool{}}
 }
 
 func (r *varReads) add(e *Expr) {
@@ -213,6 +219,9 @@ func (r *varReads) add(e *Expr) {
 		case "local":
 			names, all = r.locals, &r.allLocals
 		default:
+			if a := refAddress(t); a != "" {
+				r.refs[a] = true
+			}
 			continue
 		}
 		if len(t) > 1 {
@@ -232,15 +241,54 @@ func (r *varReads) add(e *Expr) {
 	}
 }
 
+func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
+
+// readsOtherThan reports a read of anything but the variable name itself.
+func (r *varReads) readsOtherThan(name string) bool {
+	if r.allVars || r.allLocals || len(r.locals) > 0 || len(r.refs) > 0 {
+		return true
+	}
+	for v := range r.vars {
+		if v != name {
+			return true
+		}
+	}
+	return false
+}
+
+// validationReadsOthers reports a validation of a new variable that reads
+// something besides the variable: its condition can fail a plan for a caller
+// who leaves the variable at its default.
+func validationReadsOthers(v *Variable) bool {
+	r := newVarReads()
+	for _, val := range v.Validations {
+		r.add(val.Condition)
+		r.add(val.ErrorMessage)
+	}
+	return r.readsOtherThan(v.Name)
+}
+
+func mergeBodies(bs []Body) Body {
+	var m Body
+	for _, b := range bs {
+		m.Attributes = append(m.Attributes, b.Attributes...)
+		m.Blocks = append(m.Blocks, b.Blocks...)
+	}
+	return m
+}
+
 // varsReadByBaseConfig finds what head configuration that exists at the
-// base reads, directly or through head locals: count and for_each of a
-// resource, data or module block the base has (found by its moved block
-// when renamed), the arguments of such a block, of a provider, of another
-// block type or of an output that the base block also has, and of its
-// nested blocks, and the validation of a variable the base has. Where the
-// pairing of nested blocks is ambiguous, every argument counts.
+// base reads, directly or through head locals and new blocks: count and
+// for_each of a resource, data or module block the base has, the arguments
+// of such a block, of a provider, of another block type or of an output that
+// the base block also has, and of its nested blocks, and the validation of a
+// variable the base has. A block is found at the base by its address or by
+// any address a chain of moved blocks leads back to, and compared with each.
+// A resource, data source or module call the base lacks that such an
+// argument reads counts with every argument it has, and so on from there.
+// Where the pairing of nested blocks is ambiguous, every argument counts.
 func varsReadByBaseConfig(a *Area) *varReads {
-	r := &varReads{vars: map[string]bool{}, locals: map[string]bool{}}
+	r := newVarReads()
 	bodies := map[string]Body{}
 	addr := func(mode, typ, name string) string {
 		if mode == "data" {
@@ -265,55 +313,66 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		k := o.Type + "." + strings.Join(o.Labels, ".")
 		baseOther[k] = append(baseOther[k], o.Body)
 	}
-	from := map[string]string{}
+	from := map[string][]string{}
 	for _, m := range a.Head.Moved {
 		to, _, _ := strings.Cut(m.ToAddr, "[")
 		f, _, _ := strings.Cut(m.FromAddr, "[")
-		from[to] = f
+		from[to] = append(from[to], f)
 	}
-	shared := func(key string, h Body, top bool) {
-		b, ok := bodies[key]
-		if !ok {
-			b, ok = bodies[from[key]]
+	// bases are the base bodies a head block can stand for: the one at its
+	// own address and one at each address a chain of moved blocks reaches.
+	bases := func(key string) []Body {
+		var out []Body
+		seen := map[string]bool{}
+		for queue := []string{key}; len(queue) > 0; queue = queue[1:] {
+			k := queue[0]
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			if b, ok := bodies[k]; ok {
+				out = append(out, b)
+			}
+			queue = append(queue, from[k]...)
 		}
-		if ok {
+		return out
+	}
+	newBlocks := map[string]Body{} // head blocks with no base block
+	shared := func(key string, h Body, top, track bool) {
+		bs := bases(key)
+		if len(bs) == 0 && track {
+			newBlocks[key] = h
+		}
+		for _, b := range bs {
 			for _, e := range sharedArgs(b, h, top, false) {
 				r.add(e)
 			}
 		}
 	}
 	for _, x := range a.Head.Resources {
-		shared(addr(x.Mode, x.Type, x.Name), x.Body, true)
+		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, true)
 	}
 	for _, m := range a.Head.ModuleCalls {
-		shared("module."+m.Name, m.Body, true)
+		shared("module."+m.Name, m.Body, true, true)
 	}
 	for _, p := range a.Head.Providers {
-		shared("provider."+p.Name+"."+p.Alias, p.Body, false)
+		shared("provider."+p.Name+"."+p.Alias, p.Body, false, false)
 	}
 	for _, o := range a.Head.Outputs {
-		shared("output."+o.Name, o.Body, false)
+		shared("output."+o.Name, o.Body, false, false)
 	}
-	// Blocks with no label to pair them by (import) are paired by position;
-	// when the counts differ, position says nothing and every argument counts.
+	// Blocks with no label to pair them by (import) are read as one body per
+	// type and labels; when the counts differ every argument counts.
 	headOther := map[string]int{}
 	for _, o := range a.Head.Other {
 		headOther[o.Type+"."+strings.Join(o.Labels, ".")]++
 	}
-	seenOther := map[string]int{}
 	for _, o := range a.Head.Other {
 		k := o.Type + "." + strings.Join(o.Labels, ".")
-		i := seenOther[k]
-		seenOther[k]++
 		if len(baseOther[k]) == 0 {
 			continue
 		}
-		differ := len(baseOther[k]) != headOther[k]
-		var b Body
-		if !differ {
-			b = baseOther[k][i]
-		}
-		for _, e := range sharedArgs(b, o.Body, false, differ) {
+		for _, e := range sharedArgs(mergeBodies(baseOther[k]), o.Body, true, len(baseOther[k]) != headOther[k]) {
 			r.add(e)
 		}
 	}
@@ -336,16 +395,22 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	for changed := true; changed; {
 		changed = false
 		for name, e := range locals {
-			if !done[name] && (r.allLocals || r.locals[name]) {
-				done[name], changed = true, true
+			if !done["local."+name] && (r.allLocals || r.locals[name]) {
+				done["local."+name], changed = true, true
 				r.add(e)
+			}
+		}
+		for key, h := range newBlocks {
+			if !done[key] && r.refs[key] {
+				done[key], changed = true, true
+				for _, e := range sharedArgs(Body{}, h, true, true) {
+					r.add(e)
+				}
 			}
 		}
 	}
 	return r
 }
-
-func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
 
 // sharedArgs are the head arguments of a block that the base block also
 // has, with count and for_each at the top level whether the base has them
@@ -378,11 +443,11 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 		if !known && !ambiguous {
 			continue
 		}
-		var bb Body
+		var bodies []Body
 		for _, b := range bt[t] {
-			bb.Attributes = append(bb.Attributes, b.Body.Attributes...)
-			bb.Blocks = append(bb.Blocks, b.Body.Blocks...)
+			bodies = append(bodies, b.Body)
 		}
+		bb := mergeBodies(bodies)
 		for _, h := range hb {
 			if h.ForEach != nil {
 				out = append(out, h.ForEach)
