@@ -1,3 +1,12 @@
+# [0.15.0](https://github.com/modulestf/facts/compare/v0.14.4...v0.15.0) (2026-11-26)
+
+
+### Features
+
+* Read pre-commit-terraform wrapper and terraform-docs pins ([#91](https://github.com/modulestf/facts/issues/91)) ([2905df4](https://github.com/modulestf/facts/commit/2905df4a1ff308a852cd3cdb21a7a2b3faedaeac))
+
+
+
 ## [0.14.4](https://github.com/modulestf/facts/compare/v0.14.3...v0.14.4) (2026-11-26)
 
 
