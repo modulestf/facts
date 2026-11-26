@@ -1,3 +1,12 @@
+## [0.12.5](https://github.com/modulestf/facts/compare/v0.12.4...v0.12.5) (2026-11-26)
+
+
+### Bug Fixes
+
+* Bound every command with a deadline and an output cap ([#74](https://github.com/modulestf/facts/issues/74)) ([b38ca60](https://github.com/modulestf/facts/commit/b38ca60bd55cf67704aa839d51e55071fd3fe041))
+
+
+
 ## [0.12.4](https://github.com/modulestf/facts/compare/v0.12.3...v0.12.4) (2026-11-26)
 
 
