@@ -1,3 +1,12 @@
+## [0.12.6](https://github.com/modulestf/facts/compare/v0.12.5...v0.12.6) (2026-11-26)
+
+
+### Bug Fixes
+
+* Do not read an IAM path of "/" as a read of every file ([#75](https://github.com/modulestf/facts/issues/75)) ([0681818](https://github.com/modulestf/facts/commit/0681818d39db09143fd1471d6fda1f173fd4444f)), closes [terraform-aws-rds#634](https://github.com/terraform-aws-rds/issues/634) [terraform-aws-rds#634](https://github.com/terraform-aws-rds/issues/634) [terraform-aws-rds#634](https://github.com/terraform-aws-rds/issues/634)
+
+
+
 ## [0.12.5](https://github.com/modulestf/facts/compare/v0.12.4...v0.12.5) (2026-11-26)
 
 
