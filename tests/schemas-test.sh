@@ -104,6 +104,40 @@ if [ -x "$bin" ]; then
     echo "FAIL lint --stats-file wrote no record" >"$tmp/stats-note"
     live+=(--note fail "$tmp/stats-note")
   fi
+  # A minimal tree: no examples, modules, variables or change. Every report
+  # must still pass its schema, empty lists and null fields included.
+  mkdir -p "$tmp/min/head" "$tmp/min/base" "$tmp/min/vars"
+  echo '# empty' >"$tmp/min/head/main.tf"
+  echo '# empty' >"$tmp/min/base/main.tf"
+  printf 'variable "x" {\n  type = string\n}\n' >"$tmp/min/vars/variables.tf"
+  : >"$tmp/min/empty.diff"
+  echo '[]' >"$tmp/min/files.json"
+  min=$tmp/min
+  live_case lint "lint --json on a tree with no change" "0 1 3" lint $min/head --json
+  live_case lint "lint --json on a tree with no difference" "0 1 3" lint $min/head --base $min/base --json
+  live_case lint "lint --json --ai on a tree with no difference" "0 1 3" lint $min/head --base $min/base --json --ai
+  live_case lint "lint --json on a tree that adds a variable" "0 1 3" lint $min/vars --base $min/base --json
+  live_case lint "lint --json on an empty diff" "0 1 3" lint $min/head --diff $min/empty.diff --json
+  live_case affected "affected --json on a tree with no change" "0" affected $min/head --json
+  live_case affected "affected --json on a tree with no examples" "0" affected $min/head --base $min/base --json
+  live_case affected "affected --json on a tree that adds a variable" "0" affected $min/vars --base $min/base --json
+  live_case affected "affected --json on an empty diff" "0" affected $min/head --diff $min/empty.diff --json
+  live_case changes "changes --json on a tree with no difference" "0" changes $min/head --base $min/base --json
+  live_case changes "changes --json on a tree that adds a variable" "0" changes $min/vars --base $min/base --json
+  live_case behaviour "behaviour --json on a tree with no difference" "0" behaviour $min/head --base $min/base --json
+  live_case behaviour "behaviour --json on a tree that adds a variable" "0" behaviour $min/vars --base $min/base --json
+  live_case behaviour "behaviour --json on an empty diff" "0" behaviour $min/head --diff $min/empty.diff --json
+  live_case depth "depth on a tree with no change" "0" depth --head $min/head --base $min/base --files $min/files.json
+  live_case fixture-check "fixture-check --json on a minimal tree" "0" fixture-check $min/head --json
+  # A resource type whose schema block has no field, and an empty change set
+  # carried through claims-eval.
+  mkdir -p "$tmp/min/empty-res"
+  echo 'resource "aws_empty" "x" {}' >"$tmp/min/empty-res/main.tf"
+  echo '{"format_version":"1.0","provider_schemas":{"registry.terraform.io/hashicorp/aws":{"resource_schemas":{"aws_empty":{"version":0,"block":{}}}}}}' >"$tmp/min/empty-schema.json"
+  live_case ledger-report "ledger on a type with no field" "0" ledger $min/empty-res --schema-files $min/empty-schema.json
+  (cd "$root" && "$bin" behaviour "$min/head" --base "$min/base" --json) >"$tmp/min/behaviour.json" 2>/dev/null || true
+  live_case claims-eval "claims-eval --json on a change with no trigger" "0" claims-eval --behaviour $min/behaviour.json --ladder $e/ladder-record.valid.json \
+    --json --head-sha 0000000000000000000000000000000000000000 --base-sha 1111111111111111111111111111111111111111
   # merge check and counts read a bundle in the region form bundle writes.
   node -e '
     const fs = require("fs");

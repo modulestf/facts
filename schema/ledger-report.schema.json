@@ -108,7 +108,8 @@
             "minLength": 1
           },
           "fields": {
-            "type": "array",
+            "description": "null, not an empty list, for a type whose schema block has no attribute and no nested block.",
+            "type": ["array", "null"],
             "items": {
               "type": "object",
               "additionalProperties": false,

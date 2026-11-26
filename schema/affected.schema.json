@@ -12,7 +12,8 @@
     "inert": {"type": "boolean", "description": "True only when every changed path is a documentation or metadata path no HCL read site reaches."},
     "fallback": {"enum": [null, "unparsed", "dynamic-source", "no-change-input"]},
     "examples": {
-      "type": "array",
+      "description": "null, not an empty list, when the tree has no examples directory and the change was given as a base tree or diff.",
+      "type": ["array", "null"],
       "items": {
         "type": "object",
         "additionalProperties": false,
