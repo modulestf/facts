@@ -602,8 +602,11 @@ func (d *decomposer) body(bi, hi *item, bb, hb *hclsyntax.Body, prefix []string,
 		case ctx == nil || forced:
 		case ctx.mode == itemData:
 			// No prior state: an unknown argument defers the read, which L1
-			// shows; L3 plans no data source.
-			if !isLiteral(bx) || !isLiteral(hx) {
+			// shows; L3 plans no data source. Two sides with the same
+			// known-atoms are known or unknown alike, so the deferral cannot
+			// differ; the L4 trigger above still needs the plan.
+			if (!isLiteral(bx) || !isLiteral(hx)) &&
+				(bx == nil || hx == nil || !maps.Equal(knownAtoms(bx), knownAtoms(hx))) {
 				s.cat, s.reason, s.levels = CatUnknownPropagation, reasonDataRead, []string{LevelL1}
 				d.add(s)
 			}

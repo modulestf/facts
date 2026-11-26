@@ -102,6 +102,44 @@ func isConditional(x *exprInfo) bool {
 	return ok
 }
 
+// knownAtoms is the set of the subexpressions whose values decide whether x
+// is wholly known: a literal part of a template and a literal element of a
+// tuple or object never makes it unknown, so those structures are looked
+// through; any other node that is not a literal is one atom, by its
+// normalized text. A literal inside such an atom (a function argument, an
+// index key, a condition) stays in its text: lookup(local.m, "a") and
+// lookup(local.m, "b") can differ in what is known.
+func knownAtoms(x *exprInfo) map[string]bool {
+	out := map[string]bool{}
+	var walk func(e hclsyntax.Expression)
+	walk = func(e hclsyntax.Expression) {
+		switch n := unwrap(e).(type) {
+		case *hclsyntax.LiteralValueExpr:
+		case *hclsyntax.TemplateExpr:
+			for _, p := range n.Parts {
+				walk(p)
+			}
+		case *hclsyntax.TemplateWrapExpr:
+			walk(n.Wrapped)
+		case *hclsyntax.TupleConsExpr:
+			for _, el := range n.Exprs {
+				walk(el)
+			}
+		case *hclsyntax.ObjectConsExpr:
+			for _, it := range n.Items {
+				walk(it.KeyExpr)
+				walk(it.ValueExpr)
+			}
+		default:
+			if a := (&exprInfo{n, x.src}); !isLiteral(a) {
+				out[a.key()] = true
+			}
+		}
+	}
+	walk(x.expr)
+	return out
+}
+
 // isLiteral reports an expression with no reference and no function call.
 func isLiteral(x *exprInfo) bool {
 	if x == nil {
