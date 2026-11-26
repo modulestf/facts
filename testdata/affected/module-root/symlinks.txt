@@ -1,0 +1,4 @@
+head/alink modules/a
+head/examples/linked calls
+head/outside/x.tf ../examples/calls/main.tf
+head/examples/tflink/main.tf ../../outside/x.tf

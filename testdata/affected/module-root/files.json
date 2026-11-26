@@ -1,0 +1,12 @@
+[
+  {
+    "filename": "modules/a/main.tf",
+    "status": "modified",
+    "patch": "@@ -1 +1 @@\n-variable \"u\" {}\n+variable \"v\" {}"
+  },
+  {
+    "filename": "examples/touched/main.tf",
+    "status": "modified",
+    "patch": "@@ -1 +1 @@\n-module \"a\" { source = \"../../modules/a\" }\n+module \"a\" { source = \"./../../modules/a/\" }"
+  }
+]

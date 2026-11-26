@@ -78,6 +78,12 @@ var behaviourFeatures = []string{
 	// not_applicable, not not_evaluated(no_base)
 	// (internal/facts TestNeedsBase).
 	"lint.no-change-not-applicable",
+	// depth reads the module_root and unresolved fields of an affected
+	// report: an example the report leaves out outside its module root
+	// counts as reason all, an unresolved one is selected, and a report
+	// whose module_root is unsafe is refused
+	// (internal/depth TestFixtures module-root-*).
+	"depth.module-root",
 }
 
 func newVersionCmd() *cobra.Command {

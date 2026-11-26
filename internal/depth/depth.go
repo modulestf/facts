@@ -496,6 +496,11 @@ func (r *run) affected() *facts.AffectedReport {
 		r.note("affected report: schema_version %d", rep.SchemaVersion)
 		return nil
 	}
+	if m := rep.ModuleRoot; m != "" && (!safePath(m) || inside(m, "examples")) {
+		r.add(ReasonAffectedInvalid)
+		r.note("affected report: module_root %q is not a safe path outside examples/", m)
+		return nil
+	}
 	if rep.Fallback != nil {
 		r.add(ReasonAffectedFallback)
 		r.note("affected report fell back: %s", *rep.Fallback)
@@ -518,14 +523,17 @@ func (r *run) affected() *facts.AffectedReport {
 }
 
 // examples returns every known example and the ones a focused review
-// selects: touched or caller in the affected report, not in it, holding a
-// changed path, or reaching a changed directory or the closure through
+// selects: touched, caller or unresolved in the affected report, not in it
+// (outside the module root of a module root report, not in it reads as
+// reason all), holding a changed path, or reaching a changed directory or the closure through
 // local module calls.
 func (r *run) examples(hm *model, an *analysis, aff *facts.AffectedReport, changed []string, sc *scanner) (all, sel []string) {
 	reason := map[string]string{}
+	unresolved := map[string]bool{}
 	if aff != nil {
 		for _, e := range aff.Examples {
 			reason[e.Dir] = e.Reason
+			unresolved[e.Dir] = e.Unresolved
 		}
 	}
 	known := map[string]bool{}
@@ -557,8 +565,13 @@ func (r *run) examples(hm *model, an *analysis, aff *facts.AffectedReport, chang
 		}
 		all = append(all, ex)
 		rs, listed := reason[ex]
+		if !listed && aff != nil && aff.ModuleRoot != "" && !inside(ex, aff.ModuleRoot) {
+			// A module root report leaves out the examples that do not call
+			// the module root: read as reason all, not as unknown.
+			listed, rs = true, facts.ReasonAll
+		}
 		switch {
-		case !listed, rs == facts.ReasonTouched, rs == facts.ReasonCaller,
+		case !listed, rs == facts.ReasonTouched, rs == facts.ReasonCaller, unresolved[ex],
 			slices.ContainsFunc(changed, func(p string) bool { return strings.HasPrefix(p, ex+"/") }),
 			reaches(ex, an, reached):
 			sel = append(sel, ex)
@@ -566,6 +579,9 @@ func (r *run) examples(hm *model, an *analysis, aff *facts.AffectedReport, chang
 	}
 	return all, sel
 }
+
+// inside reports whether p is d or a path below it.
+func inside(p, d string) bool { return p == d || strings.HasPrefix(p, d+"/") }
 
 // reaches reports whether dir or a module it calls through local sources,
 // transitively, is in targets.

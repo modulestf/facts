@@ -31,10 +31,14 @@ var exampleName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // AffectedOptions are the inputs of Affected. Base and Diff are exclusive.
 type AffectedOptions struct {
-	Head   string // directory of the head tree
-	Base   string // optional directory of the tree the change started from
-	Diff   string // optional GitHub pull request files list or unified diff; see ReadDiffBase
-	Limits Limits
+	Head string // directory of the head tree
+	Base string // optional directory of the tree the change started from
+	Diff string // optional GitHub pull request files list or unified diff; see ReadDiffBase
+	// ModuleRoot, when set, is the repository-relative directory of the
+	// module under review; Head and Base are then repository roots. See
+	// affectedModuleRoot.
+	ModuleRoot string
+	Limits     Limits
 }
 
 // AffectedReport says which examples a change can affect, most likely first.
@@ -44,6 +48,7 @@ type AffectedOptions struct {
 // no HCL read site reaches, and never with a fallback.
 type AffectedReport struct {
 	SchemaVersion int               `json:"schema_version"`
+	ModuleRoot    string            `json:"module_root,omitempty"`
 	Inert         bool              `json:"inert"`
 	Fallback      *string           `json:"fallback"`
 	Examples      []AffectedExample `json:"examples"`
@@ -51,10 +56,13 @@ type AffectedReport struct {
 }
 
 // AffectedExample is one example directory, "examples/<name>", and why it
-// is listed.
+// is listed. With a module root, Dir is repository-relative and Unresolved
+// marks a repository-root example listed with reason all because the engine
+// could not tell whether it calls the module root.
 type AffectedExample struct {
-	Dir    string `json:"dir"`
-	Reason string `json:"reason"`
+	Dir        string `json:"dir"`
+	Reason     string `json:"reason"`
+	Unresolved bool   `json:"unresolved,omitempty"`
 }
 
 // Affected reads the head tree and the change, and lists the examples the
@@ -72,6 +80,9 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	head, err := ReadTree(o.Head, o.Limits)
 	if err != nil {
 		return nil, fmt.Errorf("head tree: %w", err)
+	}
+	if o.ModuleRoot != "" {
+		return affectedModuleRoot(o, head)
 	}
 	examples, err := exampleDirs(head)
 	if err != nil {
@@ -150,11 +161,11 @@ func Affected(o AffectedOptions) (*AffectedReport, error) {
 	for _, ex := range examples {
 		switch {
 		case slices.ContainsFunc(r.Changed, func(p string) bool { return strings.HasPrefix(p, ex+"/") }):
-			touched = append(touched, AffectedExample{ex, ReasonTouched})
+			touched = append(touched, AffectedExample{Dir: ex, Reason: ReasonTouched})
 		case reaches(ex, edges, changedDirs):
-			callers = append(callers, AffectedExample{ex, ReasonCaller})
+			callers = append(callers, AffectedExample{Dir: ex, Reason: ReasonCaller})
 		default:
-			rest = append(rest, AffectedExample{ex, ReasonAll})
+			rest = append(rest, AffectedExample{Dir: ex, Reason: ReasonAll})
 		}
 	}
 	r.Examples = slices.Concat([]AffectedExample{}, touched, callers, rest)
@@ -166,7 +177,7 @@ func (r *AffectedReport) fallback(why string, examples []string) *AffectedReport
 	r.Fallback, r.Inert = &why, false
 	r.Examples = []AffectedExample{}
 	for _, ex := range examples {
-		r.Examples = append(r.Examples, AffectedExample{ex, ReasonAll})
+		r.Examples = append(r.Examples, AffectedExample{Dir: ex, Reason: ReasonAll})
 	}
 	return r
 }

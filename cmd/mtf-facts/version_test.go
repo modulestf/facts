@@ -138,6 +138,8 @@ func TestFeaturesProbed(t *testing.T) {
 		"flag:behaviour:schema":            "behaviour --schema",
 		"flag:affected:base":               "affected --base",
 		"flag:affected:diff":               "affected --diff",
+		"flag:affected:module-root":        "affected --module-root, in place of the shell scan of repository-root examples",
+		"depth.module-root":                "depth given a module root affected report",
 		"flag:lint:schema-handoff":         "lint --schema-handoff, retried without on exit 2",
 		"flag:lint:ai":                     "lint --ai",
 		"lint.in-repo-downgrade":           "a relaxing profile is refused without in_repo_downgrade in the lint report",

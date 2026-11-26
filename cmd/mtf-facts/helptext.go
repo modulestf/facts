@@ -333,13 +333,31 @@ reason all: unparsed when an HCL file cannot be parsed, dynamic-source when
 a module call has no literal source, no-change-input when neither --base
 nor --diff is given.
 
+With --module-root, <dir> and --base are repository roots, the change is
+repository-relative and the module under review is the directory the flag
+names. Every path in the report is then repository-relative and
+module_root names it. The examples are those of the module root,
+<module-root>/examples/<name>, and the repository-root examples whose
+local module calls reach the module root or a directory below it,
+transitively. A repository-root example whose calls pass a directory that
+does not parse or a call with no literal source is listed with reason all
+and unresolved; so is every repository-root example when they hold more
+than 1000 .tf files or 8 MiB. An unresolved example makes the change not
+inert. Only the changed paths in the module root's scope count: under the
+module root or a listed example, in a directory they reach on the way to
+the module root, or read by a read site there. A fallback lists the module
+root's examples and every repository-root example.
+
 Exit codes:
   0  the list was written
-  2  an error: bad input, a limit, an example name outside [A-Za-z0-9._-]
-     or the timeout; stdout is empty`
+  2  an error: bad input, a limit, an example name outside [A-Za-z0-9._-],
+     a module root that is not a directory of the tree under a clean
+     relative path, or the timeout; stdout is empty`
 	affectedExample = `  mtf-facts affected path/to/module --diff files.json --json
-  mtf-facts affected path/to/module --base path/to/base-tree`
-	affectedBaseUsage = "the `tree` the change started from"
-	affectedDiffUsage = "the change as a `file`, a GitHub pull request files list or a unified diff, to rebuild the base tree from; not with --base"
-	affectedJSONUsage = "write the list as JSON (schema/affected.schema.json)"
+  mtf-facts affected path/to/module --base path/to/base-tree
+  mtf-facts affected path/to/repo --module-root modules/foo --diff files.json --json`
+	affectedBaseUsage       = "the `tree` the change started from"
+	affectedDiffUsage       = "the change as a `file`, a GitHub pull request files list or a unified diff, to rebuild the base tree from; not with --base"
+	affectedJSONUsage       = "write the list as JSON (schema/affected.schema.json)"
+	affectedModuleRootUsage = "the repository-relative `dir` of the module under review; <dir> is then the repository root"
 )
