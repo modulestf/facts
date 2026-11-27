@@ -1,3 +1,12 @@
+## [0.20.6](https://github.com/modulestf/facts/compare/v0.20.5...v0.20.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* **affected:** Never read a submodule pointer change as inert ([#116](https://github.com/modulestf/facts/issues/116)) ([673c68b](https://github.com/modulestf/facts/commit/673c68b1287652b5bc3990fc5b8aecf171aac06b))
+
+
+
 ## [0.20.5](https://github.com/modulestf/facts/compare/v0.20.4...v0.20.5) (2026-11-26)
 
 
