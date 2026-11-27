@@ -12,6 +12,7 @@ cmd:claims-eval
 cmd:depth
 cmd:fixture-build
 cmd:fixture-check
+cmd:iam-policy-docs
 cmd:ledger
 cmd:lint
 cmd:merge
@@ -91,6 +92,8 @@ flag:fixture-check:resource
 flag:fixture-check:schema
 flag:fixture-check:stats-file
 flag:fixture-check:timeout
+flag:iam-policy-docs:base
+flag:iam-policy-docs:timeout
 flag:ledger:check
 flag:ledger:registry
 flag:ledger:schema-files

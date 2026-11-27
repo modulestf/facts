@@ -1,0 +1,362 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.this",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          23,
+          35
+        ],
+        "gate": {
+          "meta": "count",
+          "text": "local.create_policy ? 1 : 0"
+        },
+        "instances": "conditional",
+        "content": null,
+        "content_undecidable": {
+          "code": "merge",
+          "detail": "source_policy_documents"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              },
+              {
+                "dir": ".",
+                "address": "aws_iam_policy.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              }
+            ],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.load_balancer_controller",
+        "kind": "data_source",
+        "file": "policies.tf",
+        "lines": [
+          1,
+          22
+        ],
+        "gate": {
+          "meta": "count",
+          "text": "var.create && var.attach_load_balancer_controller_policy ? 1 : 0"
+        },
+        "instances": "conditional",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "iam:CreateServiceLinkedRole"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": [
+                {
+                  "test": "StringEquals",
+                  "variable": "iam:AWSServiceName",
+                  "values": [
+                    {
+                      "template": [
+                        {
+                          "ref": "data.aws_service_principal.elasticloadbalancing[0].name"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "ec2:DescribeAccountAttributes",
+                "ec2:DescribeVpcs"
+              ],
+              "not_actions": null,
+              "resources": [
+                {
+                  "template": [
+                    "arn:",
+                    {
+                      "ref": "local.partition"
+                    },
+                    ":ec2:*:*:security-group/*"
+                  ]
+                }
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "local.source_policy_documents",
+                "role": "local"
+              },
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.this",
+                "role": "source"
+              }
+            ],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.load_balancer_controller",
+                "meta": "count",
+                "text": "var.create && var.attach_load_balancer_controller_policy ? 1 : 0"
+              },
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              },
+              {
+                "dir": ".",
+                "address": "aws_iam_policy.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              }
+            ],
+            "instances": "conditional",
+            "extra": 1
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.this",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          23,
+          35
+        ],
+        "gate": {
+          "meta": "count",
+          "text": "local.create_policy ? 1 : 0"
+        },
+        "instances": "conditional",
+        "content": null,
+        "content_undecidable": {
+          "code": "merge",
+          "detail": "source_policy_documents"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              },
+              {
+                "dir": ".",
+                "address": "aws_iam_policy.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              }
+            ],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.load_balancer_controller",
+        "kind": "data_source",
+        "file": "policies.tf",
+        "lines": [
+          1,
+          23
+        ],
+        "gate": {
+          "meta": "count",
+          "text": "var.create && var.attach_load_balancer_controller_policy ? 1 : 0"
+        },
+        "instances": "conditional",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "iam:CreateServiceLinkedRole"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": [
+                {
+                  "test": "StringEquals",
+                  "variable": "iam:AWSServiceName",
+                  "values": [
+                    {
+                      "template": [
+                        {
+                          "ref": "data.aws_service_principal.elasticloadbalancing[0].name"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "ec2:DeleteVolume",
+                "ec2:DescribeAccountAttributes",
+                "ec2:DescribeVpcs"
+              ],
+              "not_actions": null,
+              "resources": [
+                {
+                  "template": [
+                    "arn:",
+                    {
+                      "ref": "local.partition"
+                    },
+                    ":ec2:*:*:security-group/*"
+                  ]
+                }
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "local.source_policy_documents",
+                "role": "local"
+              },
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.this",
+                "role": "source"
+              }
+            ],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.load_balancer_controller",
+                "meta": "count",
+                "text": "var.create && var.attach_load_balancer_controller_policy ? 1 : 0"
+              },
+              {
+                "dir": ".",
+                "address": "data.aws_iam_policy_document.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              },
+              {
+                "dir": ".",
+                "address": "aws_iam_policy.this",
+                "meta": "count",
+                "text": "local.create_policy ? 1 : 0"
+              }
+            ],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "compare": [
+    {
+      "dir": ".",
+      "address": "data.aws_iam_policy_document.load_balancer_controller",
+      "presence": "both",
+      "content": "differs",
+      "uses": "equal"
+    },
+    {
+      "dir": ".",
+      "address": "data.aws_iam_policy_document.this",
+      "presence": "both",
+      "content": "undecidable",
+      "uses": "differs"
+    }
+  ],
+  "precondition": true
+}

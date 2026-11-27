@@ -43,17 +43,18 @@ type versionReport struct {
 // ownership unit, not the bundle.
 func reportVersions() map[string]int {
 	return map[string]int{
-		"affected":      facts.AffectedSchemaVersion,
-		"behaviour":     behaviour.SchemaVersion,
-		"changes":       facts.ChangesSchemaVersion,
-		"claims-eval":   behaviour.SchemaVersion,
-		"depth":         depth.SchemaVersion,
-		"fixture-build": fixture.BuildSchemaVersion,
-		"fixture-check": fixture.SchemaVersion,
-		"lint":          facts.SchemaVersion,
-		"rules":         rulesSchemaVersion,
-		"schema-diff":   schemadiff.SchemaVersion,
-		"stats":         stats.SchemaVersion,
+		"affected":        facts.AffectedSchemaVersion,
+		"behaviour":       behaviour.SchemaVersion,
+		"changes":         facts.ChangesSchemaVersion,
+		"claims-eval":     behaviour.SchemaVersion,
+		"depth":           depth.SchemaVersion,
+		"fixture-build":   fixture.BuildSchemaVersion,
+		"fixture-check":   fixture.SchemaVersion,
+		"iam-policy-docs": facts.PolicyDocsSchemaVersion,
+		"lint":            facts.SchemaVersion,
+		"rules":           rulesSchemaVersion,
+		"schema-diff":     schemadiff.SchemaVersion,
+		"stats":           stats.SchemaVersion,
 	}
 }
 

@@ -1,0 +1,3 @@
+module "leaf" {
+  source = "./leaf"
+}

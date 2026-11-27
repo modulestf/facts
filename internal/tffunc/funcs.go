@@ -59,3 +59,20 @@ func Set(without ...string) map[string]bool {
 	}
 	return m
 }
+
+// Pure returns the built-in functions whose result depends on their
+// arguments only. Left out: every file* function, templatefile,
+// templatestring, abspath, pathexpand, dirname and basename (paths),
+// timestamp and plantimestamp (the clock), uuid, uuidv5 and bcrypt
+// (randomness or salts), rsadecrypt (keys), ephemeralasnull, yamldecode
+// (alias expansion), and convert, list and map. Provider-defined functions
+// (provider::...) are not built-ins and so never in it.
+func Pure() map[string]bool {
+	return Set(
+		"file", "filebase64", "filebase64sha256", "filebase64sha512", "fileexists", "filemd5",
+		"filesha1", "filesha256", "filesha512", "fileset", "templatefile", "templatestring",
+		"abspath", "pathexpand", "dirname", "basename",
+		"timestamp", "plantimestamp", "uuid", "uuidv5", "bcrypt", "rsadecrypt", "ephemeralasnull", "yamldecode",
+		"convert", "list", "map",
+	)
+}
