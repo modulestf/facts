@@ -146,3 +146,79 @@ func TestExpressionCapReasonL1Only(t *testing.T) {
 		t.Fatalf("L1 trigger %v %s reason %s", tr.Levels, tr.Category, str(tr.Reason))
 	}
 }
+
+// A token only when every cause of a directory that does not decompose,
+// at both revisions, is the same review tool limit.
+func TestLimitMixedCauses(t *testing.T) {
+	t.Parallel()
+	big := "# " + strings.Repeat("x", 3<<20) + "\n"
+	deep := "locals {\n  x = " + strings.Repeat("(", 100) + "1" + strings.Repeat(")", 100) + "\n}\n"
+	bad := "locals {\n  x = \n}\n"
+	ok := "locals {}\n"
+	cases := []struct {
+		name       string
+		base, head map[string]string
+		want       string
+	}{
+		{"oversize and a parse error at the head", map[string]string{"a.tf": ok, "b.tf": ok},
+			map[string]string{"a.tf": big, "b.tf": bad}, ""},
+		{"a parse error before an oversize file", map[string]string{"a.tf": ok, "b.tf": ok},
+			map[string]string{"a.tf": bad, "b.tf": big}, ""},
+		{"oversize at the base, a parse error at the head", map[string]string{"a.tf": big, "b.tf": ok},
+			map[string]string{"a.tf": big, "b.tf": bad}, ""},
+		{"oversize at the base, a parser limit at the head", map[string]string{"a.tf": big, "b.tf": ok},
+			map[string]string{"a.tf": ok, "b.tf": deep}, ""},
+		{"oversize and an override file", map[string]string{"a.tf": ok, "override.tf": ok},
+			map[string]string{"a.tf": big, "override.tf": ok}, ""},
+		{"oversize and a block declared twice", map[string]string{"a.tf": ok, "b.tf": "locals {\n  y = 1\n}\n"},
+			map[string]string{"a.tf": big, "b.tf": "locals {\n  y = 1\n}\nlocals {\n  y = 2\n}\n"}, ""},
+		{"two oversize files", map[string]string{"a.tf": ok, "b.tf": ok},
+			map[string]string{"a.tf": big, "b.tf": big + "#\n"}, LimitFileSize},
+		{"oversize at the head only", map[string]string{"a.tf": ok, "b.tf": ok},
+			map[string]string{"a.tf": big, "b.tf": ok + "#\n"}, LimitFileSize},
+		{"oversize at the base only", map[string]string{"a.tf": big, "b.tf": ok},
+			map[string]string{"a.tf": ok, "b.tf": ok + "#\n"}, LimitFileSize},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r := runPair(t, tc.base, tc.head, "")
+			if len(r.Triggers) == 0 {
+				t.Fatal("no trigger")
+			}
+			for _, tr := range r.Triggers {
+				if tr.Limit != tc.want {
+					t.Fatalf("%s: limit %q, want %q (%s)", tr.File, tr.Limit, tc.want, str(tr.Reason))
+				}
+				if got := evalOne(tr, noLadder()).Limit; got != tc.want {
+					t.Fatalf("%s: eval limit %q, want %q", tr.File, got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// An unverifiable claim is a cause of its own: no token beside it.
+func TestLimitUnverifiableClaim(t *testing.T) {
+	t.Parallel()
+	addr, attr := "module.wafv2", "rules"
+	l := &Ladder{Coverage: Coverage{Class: "complete", Examples: []CoverageExample{{Dir: "examples/complete", Head: "planned",
+		Addresses: []string{"module.wafv2.aws_wafv2_web_acl.this"}}}}}
+	claim := []ClaimState{{ClaimID: "C-1", State: StateUnverifiable}}
+	for _, tc := range []struct {
+		token string
+		tr    Trigger
+	}{
+		{LimitFileSize, Trigger{ID: "T-001", File: "main.tf", Category: CatUnclassified, Levels: []string{LevelL4}, Limit: LimitFileSize}},
+		{LimitParser, Trigger{ID: "T-001", File: "main.tf", Category: CatUnclassified, Levels: []string{LevelL4}, Limit: LimitParser}},
+		{LimitNoInputStates, Trigger{ID: "T-001", File: "main.tf", Category: CatLocalsOutputs, Levels: []string{LevelL1}, Limit: LimitNoInputStates}},
+		{LimitModuleCallArg, Trigger{ID: "T-001", File: "examples/complete/main.tf", Category: CatLiteral, Address: &addr, Attribute: &attr, Levels: []string{LevelL4}}},
+	} {
+		if ts := evalOne(tc.tr, l); ts.Limit != tc.token {
+			t.Fatalf("%s: without a claim limit %q", tc.token, ts.Limit)
+		}
+		if ts := evalTrigger(tc.tr, l, claim, nil, map[string]bool{}, false); ts.State != StateUnverifiable || ts.Limit != "" {
+			t.Fatalf("%s: beside an unverifiable claim %+v", tc.token, ts)
+		}
+	}
+}

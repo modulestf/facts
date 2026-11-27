@@ -494,6 +494,8 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 	default:
 		ts.Reason = cmp.Or(strings.Join(why, "; "), "no level the trigger selects decided it")
 		switch {
+		// An unverifiable claim is a cause of its own.
+		case unchecked:
 		// A file the classifier could not read is unverifiable for that alone.
 		case t.Limit == LimitFileSize || t.Limit == LimitParser:
 			ts.Limit = t.Limit

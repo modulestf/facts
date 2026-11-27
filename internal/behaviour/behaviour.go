@@ -183,10 +183,16 @@ func (c *classifier) decompose(dir string, changes []change) []spec {
 	bv, bwhy, blim := buildView(c.base, dir, c.lim)
 	hv, hwhy, hlim := buildView(c.head, dir, c.lim)
 	if why := cmp.Or(hwhy, bwhy); why != "" {
-		limit := blim
-		if hwhy != "" {
-			limit = hlim
+		// A token only when each revision that refused did so for the
+		// same review tool limit alone.
+		var limits []string
+		if bwhy != "" {
+			limits = append(limits, blim)
 		}
+		if hwhy != "" {
+			limits = append(limits, hlim)
+		}
+		limit := oneLimit(limits)
 		var out []spec
 		for _, ch := range changes {
 			if ch.kind != KindMode && isConfigName(ch.path) && (path.Dir(ch.path) == dir || ch.prev != "" && path.Dir(ch.prev) == dir) {
