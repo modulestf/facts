@@ -55,6 +55,16 @@ type caseState struct {
 
 var caseIDBad = regexp.MustCompile(`[^A-Za-z0-9_.:-]`)
 
+// buildableRef is the shape of a resource or data source reference the L1
+// fixture builder stands in for: one attribute of the block, its instances
+// by a splat, an index or a legacy splat. It must equal resourceRef in
+// internal/fixture, which a test holds it to. A whole-resource reference,
+// a nested attribute or a key index has no stand-in.
+var buildableRef = regexp.MustCompile(`\A(?:data\.)?[a-z][a-z0-9_]*\.[A-Za-z_][A-Za-z0-9_-]*(\[\*\]|\[[0-9]+\]|\.\*)?\.([A-Za-z_][A-Za-z0-9_]*)\z`)
+
+// maxBuildableRefBytes is the fixture builder's limit on a reference text.
+const maxBuildableRefBytes = 256
+
 // maxLiterals caps the distinct literals of one kind that become states.
 const maxLiterals = 8
 
@@ -101,6 +111,11 @@ func (c *classifier) cases(t Trigger, dir string, xs ...*exprInfo) ([]Case, stri
 				addDefault(inputs, in.Name, def)
 			}
 		}
+	}
+	hasCount := slices.ContainsFunc(t.ContextualRefDetails, func(d RefDetail) bool { return d.Text == "count.index" })
+	if hasCount && slices.ContainsFunc(t.ContextualRefDetails, func(d RefDetail) bool { return d.Text == "each.key" }) {
+		// No block has both; the fixture builder refuses the pair.
+		return []Case{}, "count.index and each.key in one expression"
 	}
 	for _, d := range t.ContextualRefDetails {
 		if seen[d.Text] {
@@ -512,17 +527,27 @@ const noInputStates = " has no input states, so the L1 sweep cannot stand in for
 // null, so its splat has no null instance. Any other resource or data
 // reference is unknown first, then known, with the states of a collection of
 // its type and the literals. count.index is 0 or 1 and each.key "a" or "".
-// path and terraform references are fixed and are no input (nil, ""). A
-// local, module, self or each.value reference has no states: why says so.
+// A path, terraform, local, module, self or each.value reference has no
+// states, nor has a resource or data reference the fixture builder cannot
+// stand in for (see buildableRef) or one with no attribute type that is no
+// id: why says so.
 func refStates(d RefDetail, lits literalSet) ([]caseState, string) {
 	switch {
 	case d.Kind == "path" || d.Kind == "terraform":
-		return nil, ""
+		// The fixture builder has no stand-in for them; cases it would
+		// refuse would only fail the level.
+		return nil, "a reference to " + d.Text + noInputStates
 	case d.Text == "count.index":
 		return []caseState{{"index0", CaseInput{Value: raw(0)}}, {"index1", CaseInput{Value: raw(1)}}}, ""
 	case d.Text == "each.key":
 		return []caseState{{"key", CaseInput{Value: raw("a")}}, {"empty-key", CaseInput{Value: raw("")}}}, ""
 	case d.Kind != "resource" && d.Kind != "data":
+		return nil, "a reference to " + d.Text + noInputStates
+	}
+	m := buildableRef.FindStringSubmatch(d.Text)
+	// The builder stands in for an attribute with a type from the schema,
+	// or for an id, which is a string; anything else it refuses.
+	if m == nil || len(d.Text) > maxBuildableRefBytes || d.Type == nil && m[2] != "id" {
 		return nil, "a reference to " + d.Text + noInputStates
 	}
 	el := cty.String
