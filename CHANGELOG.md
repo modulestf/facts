@@ -1,3 +1,12 @@
+## [0.21.8](https://github.com/modulestf/facts/compare/v0.21.7...v0.21.8) (2026-11-27)
+
+
+### Bug Fixes
+
+* Fail closed on a block or local declared twice in the compat maps ([#140](https://github.com/modulestf/facts/issues/140)) ([f0342dc](https://github.com/modulestf/facts/commit/f0342dc41939edca84b73047922b331d49ab9a36)), closes [#139](https://github.com/modulestf/facts/issues/139) [#138](https://github.com/modulestf/facts/issues/138) [#144](https://github.com/modulestf/facts/issues/144)
+
+
+
 ## [0.21.7](https://github.com/modulestf/facts/compare/v0.21.6...v0.21.7) (2026-11-27)
 
 
