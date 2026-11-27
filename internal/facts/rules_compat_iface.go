@@ -314,6 +314,15 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	}
 	var moves []move
 	malformedMove := false
+	// A moved module call pairs its arguments by name across two modules'
+	// inputs unless both calls have the same literal source.
+	baseSrc, headSrc := map[string]string{}, map[string]string{}
+	for _, m := range a.Base.ModuleCalls {
+		baseSrc["module."+m.Name] = m.Source
+	}
+	for _, m := range a.Head.ModuleCalls {
+		headSrc["module."+m.Name] = m.Source
+	}
 	for _, m := range a.Head.Moved {
 		f, fd := movedKey(m.FromAddr)
 		t, td := movedKey(m.ToAddr)
@@ -324,7 +333,11 @@ func varsReadByBaseConfig(a *Area) *varReads {
 			continue
 		}
 		from[t] = append(from[t], f)
-		moves = append(moves, move{f, t, fd || td || blockType(f) != blockType(t)})
+		deep := fd || td || blockType(f) != blockType(t)
+		if blockType(f) == "module" && (baseSrc[f] == "" || baseSrc[f] != headSrc[t]) {
+			deep = true
+		}
+		moves = append(moves, move{f, t, deep})
 	}
 	// bases are the base bodies a head block can stand for: the one at its
 	// own address and one at each address a chain of moved blocks reaches.
