@@ -188,10 +188,10 @@ func (m addressMoves) follow(addr string) (to string, first *Moved, broken bool)
 }
 
 // split returns the head block a target names and the key, or nil when the
-// target is in no block of this area. other reports a target under a module
-// call that is no block of this area: an address inside one, such as
-// module.child.<type>.<name>, or a call the head lacks. The first segment
-// decides, so a key that holds the text module. names no call.
+// target is in no block of this area. other reports a target in another
+// area: an address inside a module call, such as module.child.<type>.<name>,
+// read by its segments, so a key that holds the text module. names no call
+// and module.m[0][1], a module call with two keys, is in no area.
 func (m addressMoves) split(target string) (b *addrBlock, key string, other bool) {
 	if b := m.head[target]; b != nil {
 		return b, "", false
@@ -201,9 +201,14 @@ func (m addressMoves) split(target string) (b *addrBlock, key string, other bool
 			return b, target[loc[0]:], false
 		}
 	}
-	call, _ := movedKey(target)
-	return nil, "", blockType(call) == "module"
+	call, deep := movedKey(target)
+	return nil, "", deep && blockType(call) == "module"
 }
+
+// otherKind reports a moved block between a resource and a module call,
+// which Terraform refuses. A move between resource types is left to the
+// provider, which may support it.
+func otherKind(b, t *addrBlock) bool { return (b.kind == "module") != (t.kind == "module") }
 
 // keyFits reports a key that a block with the given keys has, directly or
 // by Terraform's implicit move between no key and [0].
@@ -214,12 +219,13 @@ func keyFits(k string, keys []string) bool { return slices.Contains(keys, k) || 
 // target block at the head has that key, or the same address at the head
 // with that key. A move for one instance into another area, a target the
 // head lacks or declares twice, a module call the head lacks or declares
-// twice, a broken chain (see follow) and keys that are not static leave it
-// without one.
+// twice, a target of the other kind (a resource moved to a module call, or
+// a module call to a resource), a broken chain (see follow) and keys that
+// are not static leave it without one.
 func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv *Moved) {
 	if to, mv, broken := m.follow(b.addr + k); k != "" && mv != nil {
 		t, key, _ := m.split(to)
-		if broken || t == nil || m.headDup[t.addr] {
+		if broken || t == nil || m.headDup[t.addr] || otherKind(b, t) {
 			return false, mv
 		}
 		keys, kok := instanceKeys(t.body)
@@ -235,7 +241,7 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 			// declares the module call it lands in once.
 			call, _ := movedKey(to)
 			return m.head[call] != nil && !m.headDup[call], mv
-		case t == nil || m.headDup[t.addr]:
+		case t == nil || m.headDup[t.addr] || otherKind(b, t):
 			return false, mv
 		case key != "":
 			// To one instance: only an address with no key fits there.

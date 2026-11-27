@@ -3,9 +3,12 @@ package facts
 import (
 	"fmt"
 	"maps"
+	"math"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // compatVar parses one variable with the given type text, or none when typ
@@ -236,6 +239,8 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			head: map[string]string{"main.tf": r + "  t {}\n" + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n" + "}\n"}, found: true},
 		{name: "nested blocks doubled in each parent", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n  }\n  t {\n    u {\n      v = 2\n    }\n  }\n}\n"},
 			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n  t {\n    u {\n      v = 2\n    }\n    u {\n      v = 3\n    }\n  }\n}\n"}, found: true},
+		{name: "parents of nested blocks swapped", base: map[string]string{"main.tf": r + "  t {}\n  t {\n    u {\n      v = 1\n    }\n    u {\n      v = 2\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n  t {}\n}\n"}},
 		{name: "one nested block in each of two parents", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = \"f\"\n    }\n  }\n  t {\n    u {\n      v = \"g\"\n    }\n  }\n}\n"},
 			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = \"f\"\n    }\n  }\n  t {\n    u {\n      w = var.a\n    }\n  }\n}\n"}, found: true},
 		{name: "variable declared twice, the validation last", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {}\n"},
@@ -618,4 +623,48 @@ func TestMovedKey(t *testing.T) {
 			t.Errorf("%q: got %q %v, want %q %v", tt.addr, key, deep, tt.key, tt.deep)
 		}
 	}
+}
+
+// sharedArgs reads the nested block types of a body in time linear in the
+// blocks: one resource with many distinct nested block types must not cost
+// a pass over the whole body for each type. Linear work gives a ratio of
+// about 8 between the two sizes and the limit is 16; work quadratic in the
+// types gives 64. A ratio over the limit is measured again, up to twice, so
+// one run slowed by load cannot fail the test.
+func TestSharedArgsManyNestedTypesAreLinear(t *testing.T) {
+	body := func(n int) Body {
+		var b Body
+		for i := range n {
+			b.Blocks = append(b.Blocks, NestedBlock{Type: fmt.Sprintf("t%d", i),
+				Body: Body{Attributes: []Attribute{{Name: "v"}}}})
+		}
+		return b
+	}
+	run := func(n int) time.Duration {
+		base, head := body(n), body(n)
+		runtime.GC()
+		start := time.Now()
+		if got := len(sharedArgs(base, head, true, false)); got != n {
+			t.Fatalf("%d arguments, want %d", got, n)
+		}
+		return time.Since(start)
+	}
+	const (
+		small    = 500
+		large    = 8 * small
+		tries    = 3
+		attempts = 3
+		maxRatio = 16 // linear is 8, quadratic 64
+	)
+	fastS, fastL := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
+	var ratio float64
+	for range attempts {
+		for range tries {
+			fastS, fastL = min(fastS, run(small)), min(fastL, run(large))
+		}
+		if ratio = float64(fastL) / float64(fastS); ratio <= maxRatio {
+			return
+		}
+	}
+	t.Errorf("%d types took %v, %d types %v: ratio %.1f, want at most %d", large, fastL, small, fastS, ratio, maxRatio)
 }

@@ -352,6 +352,45 @@ func TestResourceAddressCases(t *testing.T) {
 			head: "resource \"aws_a\" \"x\" {}\nmoved {\n  from = aws_a.w\n  to   = aws_a.x.y\n}\n",
 			want: []string{"main.tf:2 .:aws_a.w"},
 		},
+		"module call to an instance with two keys": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\nmodule \"m\" {\n  source = \"./m\"\n}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 2\n}\nmoved {\n  from = module.a\n  to   = module.m[0][1]\n}\n",
+			want: []string{"main.tf:5 .:module.a"},
+		},
+		"module call to an instance with a number and a string key": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\nmodule \"m\" {\n  source = \"./m\"\n}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 2\n}\nmoved {\n  from = module.a\n  to   = module.m[0][\"k\"]\n}\n",
+			want: []string{"main.tf:5 .:module.a"},
+		},
+		"module call to an instance with a string and a number key": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\nmodule \"m\" {\n  source = \"./m\"\n}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 2\n}\nmoved {\n  from = module.a\n  to   = module.m[\"a\"][0]\n}\n",
+			want: []string{"main.tf:5 .:module.a"},
+		},
+		"resource moved to a module instance": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 2\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[0]\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"resource moved to a module call": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
+		"resource instance moved to a module instance": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 1\n}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 2\n}\nmoved {\n  from = aws_a.x[0]\n  to   = module.m[0]\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"module call moved to a resource": {
+			base: "module \"a\" {\n  source = \"./m\"\n}\n",
+			head: "resource \"aws_a\" \"x\" {}\nmoved {\n  from = module.a\n  to   = aws_a.x\n}\n",
+			want: []string{"main.tf:2 .:module.a"},
+		},
+		"resource moved to another resource type": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_b\" \"x\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_b.x\n}\n",
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",

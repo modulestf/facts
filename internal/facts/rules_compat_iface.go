@@ -548,13 +548,13 @@ func sharedArgsOf(bases, heads []Body, top, all bool) []*Expr {
 		}
 	}
 	ht := nestedByType(mergeBodies(heads))
+	bc, hc := countsByType(bases), countsByType(heads)
 	for _, t := range slices.Sorted(maps.Keys(ht)) {
 		hb := ht[t]
 		known := len(bt[t]) > 0
 		// Blocks of a type the base wrote as an argument are the same setting.
 		ambiguous := all || failingBlocks[t] || bodyAttr(base, t) != nil ||
-			(known && (slices.ContainsFunc(heads, func(h Body) bool { return len(nestedByType(h)[t]) != len(bt[t]) }) ||
-				!slices.Equal(perParent(bases, t), perParent(heads, t))))
+			(known && (oneDiffers(hc[t], len(bt[t])) || !sameProfile(bc[t], hc[t], len(bases), len(heads))))
 		if !known && !ambiguous {
 			continue
 		}
@@ -582,12 +582,36 @@ func nestedByType(b Body) map[string][]*NestedBlock {
 	return m
 }
 
-// perParent is the number of nested blocks of type t in each body, sorted.
-func perParent(bodies []Body, t string) []int {
-	out := make([]int, 0, len(bodies))
+// countsByType is, for each nested block type, the number of its blocks in
+// each body that has one, read in one pass over the bodies.
+func countsByType(bodies []Body) map[string][]int {
+	out := map[string][]int{}
 	for _, b := range bodies {
-		out = append(out, len(nestedByType(b)[t]))
+		n := map[string]int{}
+		for i := range b.Blocks {
+			n[b.Blocks[i].Type]++
+		}
+		for t, c := range n {
+			out[t] = append(out[t], c)
+		}
 	}
+	return out
+}
+
+// oneDiffers reports a body that has blocks of a type, but not want of them.
+func oneDiffers(counts []int, want int) bool {
+	return slices.ContainsFunc(counts, func(c int) bool { return c != want })
+}
+
+// sameProfile reports whether two sets of bodies hold the same numbers of
+// blocks per body, in any order, the bodies with none counting 0. Sets of
+// another size differ.
+func sameProfile(x, y []int, xBodies, yBodies int) bool {
+	return slices.Equal(countProfile(x, xBodies), countProfile(y, yBodies))
+}
+
+func countProfile(counts []int, bodies int) []int {
+	out := append(make([]int, bodies-len(counts)), counts...)
 	slices.Sort(out)
 	return out
 }
