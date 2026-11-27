@@ -1,3 +1,12 @@
+## [0.21.6](https://github.com/modulestf/facts/compare/v0.21.5...v0.21.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* Fail closed on a module label declared twice ([#138](https://github.com/modulestf/facts/issues/138)) ([a65489d](https://github.com/modulestf/facts/commit/a65489d3ebaca4164111feae68b191be40e9e634)), closes [#136](https://github.com/modulestf/facts/issues/136)
+
+
+
 ## [0.21.5](https://github.com/modulestf/facts/compare/v0.21.4...v0.21.5) (2026-11-27)
 
 
