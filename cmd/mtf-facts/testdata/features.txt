@@ -3,6 +3,7 @@ behaviour.declarations
 behaviour.l2-count-for-each
 behaviour.null-sides
 behaviour.off-ladder-cap
+behaviour.resource-gate
 behaviour.schema-required
 cmd:affected
 cmd:behaviour

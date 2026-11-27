@@ -103,5 +103,6 @@ func mergeTwo(a, b Trigger) (Trigger, bool) {
 		m.Reason = &joined
 	}
 	m.ForEachOnly = a.ForEachOnly || b.ForEachOnly
+	m.Gate = nil // a merged trigger stands for more than the resource
 	return m, true
 }

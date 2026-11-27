@@ -123,6 +123,28 @@
           "schema_required": {
             "description": "With --schema, for an argument or nested block of a resource or data source: whether the schema, at the head's provider source, requires it at that path (a required attribute at any block depth, or a block type with min_items above 0). A dynamic segment stands for the block it generates. unknown when the schema lacks the provider, the type or the path.",
             "enum": ["required", "not_required", "unknown"]
+          },
+          "gate": {
+            "description": "On a resource-added-or-removed trigger of a managed resource the change adds: its count or for_each at the head, the one argument that decides whether an instance is made. Absent when the resource has neither, or the trigger was merged with another.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attribute", "expr", "referenced_inputs", "contextual_refs", "pure"],
+            "properties": {
+              "attribute": {"enum": ["count", "for_each"]},
+              "expr": {"type": ["string", "null"], "description": "The expression text, null when it is over the size limit."},
+              "referenced_inputs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "type"],
+                  "properties": {"name": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1},
+                    "declaration": {"$ref": "#/$defs/declaration"}}
+                }
+              },
+              "contextual_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "pure": {"type": "boolean"}
+            }
           }
         },
         "if": {"type": "object", "required": ["levels"], "properties": {"levels": {"type": "array", "maxItems": 0}}},
