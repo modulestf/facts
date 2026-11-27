@@ -20,18 +20,18 @@ type noPatchCase struct {
 }
 
 var noPatchCases = map[string]noPatchCase{
-	"removed, 0 and 0":         {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
-	"removed, no counts":       {`{"filename":"variables.tf","status":"removed"}`, "variables.tf", "# moved out\n", false},
-	"removed, deletions":       {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":3}`, "variables.tf", "# moved out\n", false},
-	"removed, blank patch":     {`{"filename":"variables.tf","status":"removed","patch":"","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
-	"modified, no counts":      {`{"filename":"main.tf","status":"modified"}`, "main.tf", noPatchMain, false},
-	"changed, no counts":       {`{"filename":"main.tf","status":"changed"}`, "main.tf", noPatchMain, false},
-	"renamed, no counts":       {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf"}`, "old.tf", noPatchMain, false},
-	"modified, hidden diff":    {`{"filename":"main.tf","status":"modified","additions":0,"deletions":0}`, "main.tf", noPatchMain, true},
-	"changed, hidden diff":     {`{"filename":"main.tf","status":"changed","additions":0,"deletions":0}`, "main.tf", noPatchMain, true},
-	"renamed, hidden diff":     {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0,"deletions":0}`, "old.tf", noPatchMain, true},
-	"renamed, one count":       {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0}`, "old.tf", noPatchMain, false},
-	"removed, whitespace patch":{`{"filename":"variables.tf","status":"removed","patch":"  \n","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
+	"removed, 0 and 0":          {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
+	"removed, no counts":        {`{"filename":"variables.tf","status":"removed"}`, "variables.tf", "# moved out\n", false},
+	"removed, deletions":        {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":3}`, "variables.tf", "# moved out\n", false},
+	"removed, blank patch":      {`{"filename":"variables.tf","status":"removed","patch":"","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
+	"modified, no counts":       {`{"filename":"main.tf","status":"modified"}`, "main.tf", noPatchMain, false},
+	"changed, no counts":        {`{"filename":"main.tf","status":"changed"}`, "main.tf", noPatchMain, false},
+	"renamed, no counts":        {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf"}`, "old.tf", noPatchMain, false},
+	"modified, hidden diff":     {`{"filename":"main.tf","status":"modified","additions":0,"deletions":0}`, "main.tf", noPatchMain, true},
+	"changed, hidden diff":      {`{"filename":"main.tf","status":"changed","additions":0,"deletions":0}`, "main.tf", noPatchMain, true},
+	"renamed, hidden diff":      {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0,"deletions":0}`, "old.tf", noPatchMain, true},
+	"renamed, one count":        {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0}`, "old.tf", noPatchMain, false},
+	"removed, whitespace patch": {`{"filename":"variables.tf","status":"removed","patch":"  \n","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
 }
 
 // noPatchTrees writes the head, the merge base and the files list of c.
