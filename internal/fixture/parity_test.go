@@ -21,6 +21,7 @@ func TestClassifierCasesBuild(t *testing.T) {
 		"aws_s3_bucket.this[*].id":                     true,
 		"aws_s3_bucket.this[0].id":                     true,
 		"aws_s3_bucket.this.id":                        true,
+		"aws_s3_bucket.this.*.id":                      true, // the legacy splat
 		"data.aws_iam_policy_document.this[0].id":      true,
 		"aws_s3_bucket.this[*].arn":                    false, // no attribute type without a schema
 		"data.aws_iam_policy_document.this[*].json":    false,
