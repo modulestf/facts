@@ -125,7 +125,7 @@
             "enum": ["required", "not_required", "unknown"]
           },
           "gate": {
-            "description": "On a resource-added-or-removed trigger of a managed resource the change adds: its count or for_each at the head, the one argument that decides whether an instance is made. Absent when the resource has neither, or the trigger was merged with another.",
+            "description": "On a resource-added-or-removed trigger of a managed resource the change adds: its count or for_each at the head, the one argument that decides whether an instance is made. Absent when the resource has neither or both, or the trigger was merged with another.",
             "type": "object",
             "additionalProperties": false,
             "required": ["attribute", "expr", "referenced_inputs", "contextual_refs", "pure"],

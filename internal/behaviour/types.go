@@ -182,8 +182,8 @@ type Trigger struct {
 	SchemaRequired string `json:"schema_required,omitempty"`
 	// Gate is the count or for_each of a managed resource the change adds,
 	// at the head: whether an instance is made at all. Absent for any other
-	// trigger, a resource with neither argument, or a trigger merged with
-	// another. An optional field.
+	// trigger, a resource with neither argument or both, or a trigger merged
+	// with another. An optional field.
 	Gate *Gate `json:"gate,omitempty"`
 
 	// sids are the specs this trigger stands for, and followSIDs the specs
@@ -214,7 +214,8 @@ type Gate struct {
 	// ContextualRefs are the other references the expression reads.
 	ContextualRefs []string `json:"contextual_refs"`
 	// Pure is set when every function the expression calls is on the pure
-	// function allowlist and it does not read self.
+	// function allowlist, it does not read self and every read of var names a
+	// variable.
 	Pure bool `json:"pure"`
 }
 

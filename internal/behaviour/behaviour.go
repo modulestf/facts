@@ -437,7 +437,7 @@ func (c *classifier) trigger(s spec) Trigger {
 		gin, gctx := refs(s.gate.expr)
 		expr, _ := capped(s.gate.expr)
 		t.Gate = &Gate{Attribute: s.gate.attr, Expr: expr, ReferencedInputs: c.inputs(v, gin),
-			ContextualRefs: append([]string{}, gctx...), Pure: isPure(s.gate.expr)}
+			ContextualRefs: append([]string{}, gctx...), Pure: isPure(s.gate.expr) && varsNamed(s.gate.expr)}
 	}
 	if name, ok := strings.CutPrefix(s.addr, "var."); ok {
 		t.Declaration = declaration(v, name)
