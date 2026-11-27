@@ -432,15 +432,12 @@ func (c *classifier) trigger(s spec) Trigger {
 	}
 	inputs, ctx := refs(rb, rh)
 	v := c.views[path.Dir(s.file)]
-	for _, name := range inputs {
-		typ := ""
-		if v[1] != nil {
-			typ = v[1].vars[name]
-		}
-		if typ == "" && v[0] != nil {
-			typ = v[0].vars[name]
-		}
-		t.ReferencedInputs = append(t.ReferencedInputs, Input{Name: name, Type: cmp.Or(typ, "any"), Declaration: declaration(v, name)})
+	t.ReferencedInputs = c.inputs(v, inputs)
+	if s.gate != nil {
+		gin, gctx := refs(s.gate.expr)
+		expr, _ := capped(s.gate.expr)
+		t.Gate = &Gate{Attribute: s.gate.attr, Expr: expr, ReferencedInputs: c.inputs(v, gin),
+			ContextualRefs: append([]string{}, gctx...), Pure: isPure(s.gate.expr) && varsNamed(s.gate.expr)}
 	}
 	if name, ok := strings.CutPrefix(s.addr, "var."); ok {
 		t.Declaration = declaration(v, name)
@@ -476,6 +473,23 @@ func (c *classifier) trigger(s spec) Trigger {
 		t.Reason = &reason
 	}
 	return t
+}
+
+// inputs gives each variable name its declared type, the head's first, and
+// its declaration in the view's directory.
+func (c *classifier) inputs(v [2]*view, names []string) []Input {
+	out := []Input{}
+	for _, name := range names {
+		typ := ""
+		if v[1] != nil {
+			typ = v[1].vars[name]
+		}
+		if typ == "" && v[0] != nil {
+			typ = v[0].vars[name]
+		}
+		out = append(out, Input{Name: name, Type: cmp.Or(typ, "any"), Declaration: declaration(v, name)})
+	}
+	return out
 }
 
 func compareTriggers(a, b Trigger) int {

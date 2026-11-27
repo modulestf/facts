@@ -321,6 +321,8 @@ type spec struct {
 	rng *hcl.Range
 	// variable is the block of a variable the change adds.
 	variable *item
+	// gate is the count or for_each of a managed resource the change adds.
+	gate *gateSpec
 	// res is the resource or data source the argument or block belongs to,
 	// for its schema lookup.
 	res *resourceCtx
@@ -328,6 +330,12 @@ type spec struct {
 	// this one follows, non-nil for a follower.
 	sid     int
 	follows []int
+}
+
+// gateSpec is the count or for_each argument of an added resource.
+type gateSpec struct {
+	attr string
+	expr *exprInfo
 }
 
 // decomposer compares the base and head views of one directory.
@@ -404,6 +412,16 @@ func (d *decomposer) alone(it *item, kind string) {
 	case itemResource, itemData, itemModule:
 		s.cat = CatResourceAddRemove
 		s.rng = new(it.block.Range())
+		if it.kind == itemResource && kind == KindAdded {
+			// Terraform refuses a block with both, so neither is the gate.
+			c, f := it.block.Body.Attributes["count"], it.block.Body.Attributes["for_each"]
+			switch {
+			case c != nil && f == nil:
+				s.gate = &gateSpec{attr: "count", expr: x(c)}
+			case f != nil && c == nil:
+				s.gate = &gateSpec{attr: "for_each", expr: x(f)}
+			}
+		}
 	case itemLocal:
 		s.cat, e = CatLocalsOutputs, x(it.attr)
 		s.rng = new(it.attr.SrcRange)

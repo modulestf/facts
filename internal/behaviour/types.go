@@ -180,6 +180,11 @@ type Trigger struct {
 	// that path: SchemaRequiredYes, SchemaRequiredNo or SchemaUnknown. Set
 	// only with a schema. An optional field.
 	SchemaRequired string `json:"schema_required,omitempty"`
+	// Gate is the count or for_each of a managed resource the change adds,
+	// at the head: whether an instance is made at all. Absent for any other
+	// trigger, a resource with neither argument or both, or a trigger merged
+	// with another. An optional field.
+	Gate *Gate `json:"gate,omitempty"`
 
 	// sids are the specs this trigger stands for, and followSIDs the specs
 	// it follows, until the report numbers the triggers.
@@ -195,6 +200,23 @@ type Input struct {
 	// decompose or is not fully walked at either revision, or holds no such
 	// variable at the head. An optional field.
 	Declaration *Declaration `json:"declaration,omitempty"`
+}
+
+// Gate is the count or for_each argument of an added resource.
+type Gate struct {
+	// Attribute is "count" or "for_each".
+	Attribute string `json:"attribute"`
+	// Expr is the expression text, null when it is over the size limit.
+	Expr *string `json:"expr"`
+	// ReferencedInputs are the variables the expression reads, with their
+	// declared types and declarations, as on a trigger.
+	ReferencedInputs []Input `json:"referenced_inputs"`
+	// ContextualRefs are the other references the expression reads.
+	ContextualRefs []string `json:"contextual_refs"`
+	// Pure is set when every function the expression calls is on the pure
+	// function allowlist, it does not read self and every read of var names a
+	// variable.
+	Pure bool `json:"pure"`
 }
 
 // Declaration is what a variable block says, read with the HCL parser at

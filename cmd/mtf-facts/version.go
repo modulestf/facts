@@ -84,6 +84,10 @@ var behaviourFeatures = []string{
 	// address) are listed apart, so a report holds up to 80
 	// (internal/behaviour TestCapSparesEvidence).
 	"behaviour.off-ladder-cap",
+	// A managed resource the change adds carries gate, its count or
+	// for_each at the head with the inputs and references it reads
+	// (internal/behaviour TestResourceGate).
+	"behaviour.resource-gate",
 	// The lint report carries in_repo_downgrade, the module areas whose
 	// listed candidates the in-repo profile downgrades to MEDIUM
 	// (internal/facts TestModuleCallersMonorepo, TestInRepoDowngradeConditions,

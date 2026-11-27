@@ -233,6 +233,24 @@ func isPure(xs ...*exprInfo) bool {
 	return true
 }
 
+// varsNamed reports that every reference to var names a variable with a
+// static attribute: refs drops var alone or var["x"], so a reader of the
+// inputs would miss them.
+func varsNamed(xs ...*exprInfo) bool {
+	for _, x := range xs {
+		if x == nil {
+			continue
+		}
+		for _, tr := range x.expr.Variables() {
+			tr = facts.Unaliased(tr)
+			if tr.RootName() == "var" && (len(tr) < 2 || attrName(tr[1]) == "") {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // refs returns the variable names and the other references the expressions
 // read, each sorted and unique.
 func refs(xs ...*exprInfo) (inputs, contextual []string) {
