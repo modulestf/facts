@@ -250,6 +250,13 @@ var (
 	iamSep = map[string]string{"modules/foo/main.tf": iamPolicy +
 		"resource \"aws_s3_object\" \"o\" {\n  source = join(aws_iam_policy.p.path, [path.module, \"README.md\"])\n}\n"}
 	iamModule = map[string]string{"examples/a/main.tf": "module \"policy\" {\n  source = \"terraform-aws-modules/iam/aws//modules/iam-policy\"\n  path   = \"/\"\n}\n"}
+	// the "/" of iamLocalModule goes only to the IAM path of a role the tree holds
+	iamLocalModule = map[string]string{
+		"examples/a/main.tf": "locals {\n  name = replace(var.name, \"/\", \"-\")\n}\n" +
+			"module \"vpc\" {\n  source        = \"../../\"\n  iam_role_path = \"/\"\n}\n",
+		"main.tf": "variable \"iam_role_path\" {\n  type    = string\n  default = null\n}\n" +
+			"resource \"aws_iam_role\" \"r\" {\n  path = var.iam_role_path\n}\n",
+	}
 )
 
 func TestInert(t *testing.T) {
@@ -319,6 +326,8 @@ func TestInert(t *testing.T) {
 		{"iam policy path as a join separator", fooRead(iamSep, "a"), fooRead(iamSep, "b"), false, []string{CatNonHCL, CatNonHCL, CatNonHCL}},
 		{"iam path module argument is still a read site",
 			sepRead(iamModule, "a"), sepRead(iamModule, "b"), false, []string{CatNonHCL, CatNonHCL}},
+		{"iam path module argument to a module the tree holds reads no file",
+			sepRead(iamLocalModule, "a"), sepRead(iamLocalModule, "b"), true, nil},
 		{"iam path with a dynamic part is still a read site", map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "a"},
 			map[string]string{"main.tf": rds + "resource \"aws_iam_role\" \"t\" {\n  path = \"/${var.team}/\"\n}\n", "README.md": "b"}, false, []string{CatNonHCL}},
 		{"no change", map[string]string{"main.tf": rds}, map[string]string{"main.tf": rds}, true, nil},
