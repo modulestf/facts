@@ -107,6 +107,10 @@ func TestNewExampleKeepsTriggers(t *testing.T) {
 		{"named by a test file", neBase(), neHead(map[string]string{"tests/a.tftest.hcl": "run \"a\" {\n  module {\n    source = \"./examples/ipv6-ipam\"\n  }\n}\n"})},
 		{"named by a wrapper file", neBase(), neHead(map[string]string{"terragrunt.hcl": "terraform {\n  source = \"examples//ipv6-ipam\"\n}\n"})},
 		{"named by a JSON configuration file", neBase(), neHead(map[string]string{"x.tf.json": "{\"module\": {\"e\": {\"source\": \"./examples/ipv6-ipam\"}}}\n"})},
+		{"named in another letter case", neBase(), neHead(map[string]string{"main.tf": neRoot + "# IPv6-IPAM\n"})},
+		{"a \\u escape that could spell it", neBase(), neHead(map[string]string{"main.tf": neRoot +
+			"module \"ex\" {\n  source = \"./examples/ipv6-\\u0069pam\"\n}\n"})},
+		{"a \\U escape in a JSON file", neBase(), neHead(map[string]string{"x.tf.json": "{\"module\": {\"e\": {\"source\": \"./examples/\\U00000069pv6-ipam\"}}}\n"})},
 		{"named by a variables file", neBase(), neHead(map[string]string{"examples/old/x.tfvars": "p = \"ipv6-ipam\"\n"})},
 		{"present at the base", func() map[string]string {
 			b := neBase()

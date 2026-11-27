@@ -28,7 +28,7 @@ func configLike(name string) bool {
 // that nothing else can call: it is under examples/, no entry at or under
 // it exists at the base, every change under it adds a file, and no
 // configuration file outside it, at either revision, holds its last path
-// segment. Any link, submodule pointer or configuration file whose content
+// segment in any letter case, or a \u or \U escape. Any link, submodule pointer or configuration file whose content
 // is not read, in either tree, keeps the triggers, and so does any doubt.
 func (c *classifier) newExample(dir string, changes []change) bool {
 	if !strings.HasPrefix(dir, "examples/") {
@@ -40,7 +40,7 @@ func (c *classifier) newExample(dir string, changes []change) bool {
 			return false
 		}
 	}
-	name := []byte(path.Base(dir))
+	name := bytes.ToLower([]byte(path.Base(dir)))
 	for _, t := range []*facts.Tree{c.base, c.head} {
 		if t.HasGitlinks() {
 			return false
@@ -56,7 +56,9 @@ func (c *classifier) newExample(dir string, changes []change) bool {
 			if under(p) || !configLike(path.Base(p)) {
 				continue
 			}
-			if e.Data == nil || bytes.Contains(e.Data, name) {
+			// A name in any letter case, or text with a \u or \U escape
+			// that could spell it, keeps the triggers.
+			if e.Data == nil || bytes.Contains(bytes.ToLower(e.Data), name) || bytes.Contains(e.Data, []byte(`\u`)) || bytes.Contains(e.Data, []byte(`\U`)) {
 				return false
 			}
 		}
