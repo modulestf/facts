@@ -1,3 +1,30 @@
+## [0.21.7](https://github.com/modulestf/facts/compare/v0.21.6...v0.21.7) (2026-11-27)
+
+
+### Bug Fixes
+
+* Read a variable's type as a type constraint in iam-policy-docs keys ([#142](https://github.com/modulestf/facts/issues/142)) ([7b8b431](https://github.com/modulestf/facts/commit/7b8b431edb6985cf1f20563958c5bd66ccf4ef81)), closes [#141](https://github.com/modulestf/facts/issues/141)
+
+
+
+## [0.21.6](https://github.com/modulestf/facts/compare/v0.21.5...v0.21.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* Fail closed on a module label declared twice ([#138](https://github.com/modulestf/facts/issues/138)) ([a65489d](https://github.com/modulestf/facts/commit/a65489d3ebaca4164111feae68b191be40e9e634)), closes [#136](https://github.com/modulestf/facts/issues/136)
+
+
+
+## [0.21.5](https://github.com/modulestf/facts/compare/v0.21.4...v0.21.5) (2026-11-27)
+
+
+### Bug Fixes
+
+* Count every argument of a module call whose source changes in place ([#135](https://github.com/modulestf/facts/issues/135)) ([8d17cd4](https://github.com/modulestf/facts/commit/8d17cd4b47c79694ea5183bca81033255b31d75f)), closes [#132](https://github.com/modulestf/facts/issues/132)
+
+
+
 ## [0.21.4](https://github.com/modulestf/facts/compare/v0.21.3...v0.21.4) (2026-11-27)
 
 
