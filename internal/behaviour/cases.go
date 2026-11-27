@@ -503,6 +503,9 @@ func shapeStates(ty cty.Type, lits literalSet) []caseState {
 	return st
 }
 
+// noInputStates ends the reason of a reference the sweep has no states for.
+const noInputStates = " has no input states, so the L1 sweep cannot stand in for it"
+
 // refStates are the states of a contextual reference. A resource or data
 // splat is a list of instances: one unknown instance first, then none, one
 // with a null attribute and one known; a managed resource's id is never
@@ -520,7 +523,7 @@ func refStates(d RefDetail, lits literalSet) ([]caseState, string) {
 	case d.Text == "each.key":
 		return []caseState{{"key", CaseInput{Value: raw("a")}}, {"empty-key", CaseInput{Value: raw("")}}}, ""
 	case d.Kind != "resource" && d.Kind != "data":
-		return nil, fmt.Sprintf("a reference to %s has no input states, so the L1 sweep cannot stand in for it", d.Text)
+		return nil, "a reference to " + d.Text + noInputStates
 	}
 	el := cty.String
 	if d.Type != nil {

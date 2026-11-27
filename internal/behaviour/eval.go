@@ -137,6 +137,9 @@ type TriggerState struct {
 	// EvidenceDigest binds Outstanding to the evidence; see evidenceDigest.
 	// Set only when Outstanding is not empty.
 	EvidenceDigest string `json:"evidence_digest,omitempty"`
+	// Limit is a Limit* token, set on an unverifiable trigger whose only
+	// cause is a review tool limit. An optional field.
+	Limit string `json:"limit,omitempty"`
 }
 
 // ClaimState is the state of one valid claim.
@@ -459,9 +462,10 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 		}
 	}
 	unchecked := slices.ContainsFunc(states, func(c ClaimState) bool { return c.State == StateUnverifiable })
-	coveredOK := true
+	coveredOK, argOnly := true, false
 	if slices.Contains(t.Levels, LevelL4) {
-		ok, cov := covered(t, l)
+		ok, cov, arg := covered(t, l)
+		argOnly = arg
 		switch {
 		case ok && !unchecked:
 			done = cov
@@ -489,15 +493,25 @@ func evalTrigger(t Trigger, l *Ladder, states []ClaimState, claims []Claim, veri
 		ts.State, ts.Reason = StateVerified, done
 	default:
 		ts.Reason = cmp.Or(strings.Join(why, "; "), "no level the trigger selects decided it")
+		switch {
+		// A file the classifier could not read is unverifiable for that alone.
+		case t.Limit == LimitFileSize || t.Limit == LimitParser:
+			ts.Limit = t.Limit
+		case len(why) == 1 && argOnly:
+			ts.Limit = LimitModuleCallArg
+		case len(why) == 1 && !sweepOK && t.Limit == LimitNoInputStates && len(t.Cases) == 0:
+			ts.Limit = LimitNoInputStates
+		}
 	}
 	return ts
 }
 
 // covered reports whether the trigger's address, and changed attribute,
-// are in a planned example.
-func covered(t Trigger, l *Ladder) (bool, string) {
+// are in a planned example. arg is set when it is not covered only because
+// a plan shows no module call argument: an address under the call planned.
+func covered(t Trigger, l *Ladder) (ok bool, why string, arg bool) {
 	if t.Address == nil {
-		return false, "the trigger has no address a plan can show"
+		return false, "the trigger has no address a plan can show", false
 	}
 	addr := *t.Address
 	dir := path.Dir(t.File)
@@ -510,10 +524,15 @@ func covered(t Trigger, l *Ladder) (bool, string) {
 				continue
 			}
 			if t.Attribute == nil {
-				return true, fmt.Sprintf("%s is planned in %s", a, e.Dir)
+				return true, fmt.Sprintf("%s is planned in %s", a, e.Dir), false
 			}
 			if strings.HasPrefix(addr, "module.") {
-				continue // a plan shows no module call argument
+				// A plan shows no module call argument: an address under
+				// the call does not show the argument reached it.
+				if !arg {
+					arg, why = true, fmt.Sprintf("%s is planned in %s, but a plan shows no module call argument", a, e.Dir)
+				}
+				continue
 			}
 			// A dynamic block plans as the blocks it generates. A lifecycle
 			// argument is no planned attribute, so it is never covered.
@@ -522,11 +541,14 @@ func covered(t Trigger, l *Ladder) (bool, string) {
 			}
 			top, _, _ := strings.Cut(strings.TrimPrefix(*t.Attribute, "dynamic."), ".")
 			if slices.Contains(e.Attributes[a], top) {
-				return true, fmt.Sprintf("%s.%s is planned in %s", a, top, e.Dir)
+				return true, fmt.Sprintf("%s.%s is planned in %s", a, top, e.Dir), false
 			}
 		}
 	}
-	return false, "the address and changed attribute are in no planned example"
+	if arg {
+		return false, why, true
+	}
+	return false, "the address and changed attribute are in no planned example", false
 }
 
 // addressMatch matches a plan config address to a trigger address of a

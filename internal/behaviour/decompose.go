@@ -98,10 +98,10 @@ type viewFile struct {
 // directory cannot be decomposed: a file that is not a regular file (a link,
 // a special file or one over the size limit), does not parse or is over a
 // parser limit, or is an override file, or two units with one key.
-func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string) {
+func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why, limit string) {
 	v = &view{items: map[string]*item{}, vars: map[string]string{}, providers: map[string]string{}, defaults: map[string]CaseInput{}}
 	if t == nil {
-		return v, ""
+		return v, "", ""
 	}
 	for _, e := range t.DirEntries(dir) {
 		name := path.Base(e.Path)
@@ -112,27 +112,30 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 			continue
 		}
 		if name == "override.tf" || strings.HasSuffix(name, "_override.tf") {
-			return nil, e.Path + " is an override file, which merges into other blocks"
+			return nil, e.Path + " is an override file, which merges into other blocks", ""
+		}
+		if e.Kind == facts.KindOversize {
+			return nil, e.Path + " is " + facts.KindText(e.Kind), LimitFileSize
 		}
 		if e.Kind != facts.KindFile {
-			return nil, e.Path + " is " + facts.KindText(e.Kind)
+			return nil, e.Path + " is " + facts.KindText(e.Kind), ""
 		}
 		body, err := facts.ParseBodyOnly(e.Path, e.Data, lim)
 		if err != nil {
 			if facts.IsLimitError(err) {
-				return nil, e.Path + " is over a parser limit: " + err.Error()
+				return nil, e.Path + " is over a parser limit: " + err.Error(), LimitParser
 			}
-			return nil, e.Path + " does not parse"
+			return nil, e.Path + " does not parse", ""
 		}
 		v.files = append(v.files, viewFile{e.Path, body})
 		for _, it := range fileItems(e.Path, e.Data, body, v) {
 			if v.items[it.key] != nil {
-				return nil, fmt.Sprintf("%s is declared twice", it.addr)
+				return nil, fmt.Sprintf("%s is declared twice", it.addr), ""
 			}
 			v.items[it.key] = it
 		}
 	}
-	return v, ""
+	return v, "", ""
 }
 
 // fileItems splits one file into items, and records its variable types and
@@ -276,6 +279,7 @@ type spec struct {
 	addr, attr  string
 	b, h        *exprInfo
 	reason      string
+	limit       string // the Limit* token of a refusal a review tool limit caused
 	noLevels    bool
 	levels      []string // overrides the category's levels when set
 	forEachOnly bool

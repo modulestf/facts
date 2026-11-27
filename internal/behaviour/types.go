@@ -48,6 +48,15 @@ const (
 	CatNonHCL             = "non-hcl-dependency"
 )
 
+// Tokens of Trigger.Limit and TriggerState.Limit: a closed list, so a host
+// can show the cause of an unverified trigger without free text.
+const (
+	LimitFileSize      = "file-size"
+	LimitParser        = "parser-limit"
+	LimitNoInputStates = "no-input-states"
+	LimitModuleCallArg = "module-call-argument"
+)
+
 // Verification levels a trigger can select.
 const (
 	LevelL1     = "L1"
@@ -139,6 +148,11 @@ type Trigger struct {
 	Cases  []Case   `json:"cases,omitempty"`
 	Levels []string `json:"levels"`
 	Reason *string  `json:"reason"`
+	// Limit is the Limit* token of a review tool limit that keeps the
+	// classifier from reading the change: a file over the size limit or a
+	// parser limit, or, for an L1 trigger, a reference with no input states.
+	// An optional field.
+	Limit string `json:"limit,omitempty"`
 	// ForEachOnly marks a dynamic-block-change whose for_each alone changed,
 	// routed to L1 on that for_each. An optional field.
 	ForEachOnly bool `json:"for_each_only,omitempty"`
