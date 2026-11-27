@@ -16,22 +16,21 @@ const noPatchMain = "resource \"aws_s3_bucket\" \"this\" {\n  bucket = var.name\
 // host would hold there, which depth reads from its own tree.
 type noPatchCase struct {
 	entry, at, base string
-	attrs           bool // the head has a .gitattributes file that may hide a diff
 }
 
 var noPatchCases = map[string]noPatchCase{
-	"removed, 0 and 0":          {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
-	"removed, no counts":        {`{"filename":"variables.tf","status":"removed"}`, "variables.tf", "# moved out\n", false},
-	"removed, deletions":        {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":3}`, "variables.tf", "# moved out\n", false},
-	"removed, blank patch":      {`{"filename":"variables.tf","status":"removed","patch":"","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
-	"modified, no counts":       {`{"filename":"main.tf","status":"modified"}`, "main.tf", noPatchMain, false},
-	"changed, no counts":        {`{"filename":"main.tf","status":"changed"}`, "main.tf", noPatchMain, false},
-	"renamed, no counts":        {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf"}`, "old.tf", noPatchMain, false},
-	"modified, hidden diff":     {`{"filename":"main.tf","status":"modified","additions":0,"deletions":0}`, "main.tf", noPatchMain, true},
-	"changed, hidden diff":      {`{"filename":"main.tf","status":"changed","additions":0,"deletions":0}`, "main.tf", noPatchMain, true},
-	"renamed, hidden diff":      {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0,"deletions":0}`, "old.tf", noPatchMain, true},
-	"renamed, one count":        {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0}`, "old.tf", noPatchMain, false},
-	"removed, whitespace patch": {`{"filename":"variables.tf","status":"removed","patch":"  \n","additions":0,"deletions":0}`, "variables.tf", "# moved out\n", false},
+	"removed, 0 and 0":          {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":0}`, "variables.tf", "# moved out\n"},
+	"removed, no counts":        {`{"filename":"variables.tf","status":"removed"}`, "variables.tf", "# moved out\n"},
+	"removed, deletions":        {`{"filename":"variables.tf","status":"removed","additions":0,"deletions":3}`, "variables.tf", "# moved out\n"},
+	"removed, blank patch":      {`{"filename":"variables.tf","status":"removed","patch":"","additions":0,"deletions":0}`, "variables.tf", "# moved out\n"},
+	"removed, whitespace patch": {`{"filename":"variables.tf","status":"removed","patch":"  \n","additions":0,"deletions":0}`, "variables.tf", "# moved out\n"},
+	"modified, 0 and 0":         {`{"filename":"main.tf","status":"modified","additions":0,"deletions":0}`, "main.tf", noPatchMain},
+	"modified, no counts":       {`{"filename":"main.tf","status":"modified"}`, "main.tf", noPatchMain},
+	"modified, null counts":     {`{"filename":"main.tf","status":"modified","additions":null,"deletions":null}`, "main.tf", noPatchMain},
+	"changed, 0 and 0":          {`{"filename":"main.tf","status":"changed","additions":0,"deletions":0}`, "main.tf", noPatchMain},
+	"changed, negative counts":  {`{"filename":"main.tf","status":"changed","additions":-1,"deletions":-1}`, "main.tf", noPatchMain},
+	"renamed, 0 and 0":          {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0,"deletions":0}`, "old.tf", noPatchMain},
+	"renamed, no counts":        {`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf"}`, "old.tf", noPatchMain},
 }
 
 // noPatchTrees writes the head, the merge base and the files list of c.
@@ -49,9 +48,6 @@ func noPatchTrees(t *testing.T, c noPatchCase) (head, base, files string) {
 	}
 	for _, root := range []string{head, base} {
 		write(filepath.Join(root, "examples/complete/main.tf"), "module \"x\" {\n  source = \"../../\"\n  name   = \"n\"\n}\n")
-		if c.attrs {
-			write(filepath.Join(root, ".gitattributes"), "*.tf -diff\n")
-		}
 	}
 	write(filepath.Join(head, "main.tf"), noPatchMain)
 	if c.at == "variables.tf" {
@@ -148,21 +144,35 @@ func TestNoPatchNeverInert(t *testing.T) {
 	}
 }
 
-// TestNoPatchProvenContent: a pure rename and a mode change of a text file,
-// with both counts 0 and no .gitattributes file that may hide a diff, keep
-// the head content at the base, so a rename alone stays inert.
-func TestNoPatchProvenContent(t *testing.T) {
+// TestNoPatchUnifiedRenameProven: a unified diff states a rename with no
+// hunk as such, so the base keeps the head content and the rename stays
+// inert; a files list says the same with 0 and 0 and is not trusted.
+func TestNoPatchUnifiedRenameProven(t *testing.T) {
 	t.Parallel()
-	head, _, files := noPatchTrees(t, noPatchCase{
-		`{"filename":"main.tf","status":"renamed","previous_filename":"old.tf","additions":0,"deletions":0}`, "old.tf", noPatchMain, false})
-	if code, out, errOut := runCLI([]string{"behaviour", head, "--json", "--diff", files}); code != exitClean || !strings.Contains(out, `"inert": true`) {
-		t.Errorf("pure rename: exit %d, stderr %q, stdout:\n%s", code, errOut, out)
+	head, _, files := noPatchTrees(t, noPatchCases["renamed, 0 and 0"])
+	diff := filepath.Join(filepath.Dir(files), "change.diff")
+	if err := os.WriteFile(diff, []byte("diff --git a/old.tf b/main.tf\nsimilarity index 100%\nrename from old.tf\nrename to main.tf\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if code, out, errOut := runCLI([]string{"changes", head, "--json", "--diff", files}); code != exitClean || strings.Contains(out, "no_patch") {
-		t.Errorf("pure rename changes: exit %d, stderr %q, stdout:\n%s", code, errOut, out)
+	if code, out, errOut := runCLI([]string{"behaviour", head, "--json", "--diff", diff}); code != exitClean || !strings.Contains(out, `"inert": true`) {
+		t.Errorf("unified rename: exit %d, stderr %q, stdout:\n%s", code, errOut, out)
 	}
-	head, _, files = noPatchTrees(t, noPatchCase{`{"filename":"main.tf","status":"modified","additions":0,"deletions":0}`, "main.tf", noPatchMain, false})
-	if code, out, errOut := runCLI([]string{"changes", head, "--json", "--diff", files}); code != exitClean || strings.Contains(out, "no_patch") {
-		t.Errorf("mode change: exit %d, stderr %q, stdout:\n%s", code, errOut, out)
+}
+
+// TestNoPatchBadEntryRefused: a count that is no number and a status that is
+// no GitHub status stop the run.
+func TestNoPatchBadEntryRefused(t *testing.T) {
+	t.Parallel()
+	for _, entry := range []string{
+		`{"filename":"main.tf","status":"modified","additions":"0","deletions":0}`,
+		`{"filename":"main.tf","status":"pure-rename","previous_filename":"old.tf","additions":500,"deletions":500}`,
+		`{"filename":"main.tf","status":"mode-only"}`,
+	} {
+		head, _, files := noPatchTrees(t, noPatchCase{entry, "main.tf", noPatchMain})
+		for _, cmd := range []string{"behaviour", "affected", "changes", "lint"} {
+			if code, out, errOut := runCLI([]string{cmd, head, "--json", "--diff", files}); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: ") {
+				t.Errorf("%s %s: exit %d, stdout %q, stderr %q", cmd, entry, code, out, errOut)
+			}
+		}
 	}
 }
