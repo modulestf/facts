@@ -8,11 +8,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"math/big"
 	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/modulestf/facts/internal/tffunc"
 )
@@ -982,6 +984,24 @@ func closedBody(b *hclsyntax.Body) bool {
 	return true
 }
 
+// closedBlock reports a block whose body is closed. A variable's type is a
+// type constraint, not an expression: list(string) calls no function and
+// string names no definition. It must parse as one, with every optional
+// default a constant; its text is in the block's fingerprint.
+func closedBlock(b *hclsyntax.Block) bool {
+	t, ok := b.Body.Attributes["type"]
+	if b.Type != "variable" || !ok {
+		return closedBody(b.Body)
+	}
+	if _, _, diags := typeexpr.TypeConstraintWithDefaults(t.Expr); diags.HasErrors() {
+		return false
+	}
+	rest := *b.Body
+	rest.Attributes = maps.Clone(b.Body.Attributes)
+	delete(rest.Attributes, "type")
+	return closedBody(&rest)
+}
+
 // bodyRefs are the addresses a body reads, nested blocks included.
 func bodyRefs(b *hclsyntax.Body) []string {
 	var out []string
@@ -1160,7 +1180,7 @@ func (w *defsWalk) walk(di *policyDirInfo, refs []string) {
 				w.ok = false
 				return
 			}
-			if !closedBody(b.block.Body) {
+			if !closedBlock(b.block) {
 				w.ok = false
 				return
 			}
