@@ -151,20 +151,61 @@ func TestBaseFromDiff(t *testing.T) {
 			want: map[string]string{"big.tf": noPatch, "logo.png": noPatch},
 		},
 		{
-			name: "a removed .tf file with no patch and no line was empty",
+			name: "a removed .tf file with no patch and no line is unknown",
 			head: map[string]string{"main.tf": v1},
 			diff: func(t *testing.T) string {
 				return ghList(t, ghFile{Filename: "setup/variables.tf", Status: "removed"})
 			},
-			want: map[string]string{"main.tf": v1, "setup/variables.tf": ""},
+			want: map[string]string{"main.tf": v1, "setup/variables.tf": noPatch},
 		},
 		{
-			name: "a .gitattributes that may hide a diff keeps a removed .tf file unknown",
-			head: map[string]string{"main.tf": v1, ".gitattributes": "*.tf -diff\n"},
+			name: "a removed .tf file with no counts and no patch is unknown",
+			head: map[string]string{"main.tf": v1},
+			diff: func(*testing.T) string { return `[{"filename":"variables.tf","status":"removed"}]` },
+			want: map[string]string{"main.tf": v1, "variables.tf": noPatch},
+		},
+		{
+			name: "a removed .tf file with a blank patch is unknown",
+			head: map[string]string{"main.tf": v1},
 			diff: func(t *testing.T) string {
-				return ghList(t, ghFile{Filename: "setup/variables.tf", Status: "removed"})
+				return ghList(t, ghFile{Filename: "variables.tf", Status: "removed", Patch: new(" \n")})
 			},
-			want: map[string]string{"main.tf": v1, ".gitattributes": "*.tf -diff\n", "setup/variables.tf": noPatch},
+			want: map[string]string{"main.tf": v1, "variables.tf": noPatch},
+		},
+		{
+			name: "a modified, changed or renamed file with no counts and no patch is unknown",
+			head: map[string]string{"a.tf": v1, "b.tf": v1, "c.tf": v1},
+			diff: func(*testing.T) string {
+				return `[{"filename":"a.tf","status":"modified"},{"filename":"b.tf","status":"changed","additions":0},` +
+					`{"filename":"c.tf","status":"renamed","previous_filename":"d.tf","deletions":0}]`
+			},
+			want: map[string]string{"a.tf": noPatch, "b.tf": noPatch, "d.tf": noPatch},
+		},
+		{
+			name: "a renamed or modified file with removed lines and no patch is unknown",
+			head: map[string]string{"a.tf": v1, "c.tf": v1},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "a.tf", Status: "modified", Deletions: 2},
+					ghFile{Filename: "c.tf", PreviousFilename: "d.tf", Status: "renamed", Deletions: 2})
+			},
+			want: map[string]string{"a.tf": noPatch, "d.tf": noPatch},
+		},
+		{
+			name: "a .gitattributes that may hide a diff keeps a pure rename and a mode change unknown",
+			head: map[string]string{"a.tf": v1, "b.tf": v1, "c.tf": v1, ".gitattributes": "*.tf -diff\n"},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "a.tf", Status: "modified"}, ghFile{Filename: "b.tf", Status: "changed"},
+					ghFile{Filename: "c.tf", PreviousFilename: "d.tf", Status: "renamed"})
+			},
+			want: map[string]string{"a.tf": noPatch, "b.tf": noPatch, "d.tf": noPatch, ".gitattributes": "*.tf -diff\n"},
+		},
+		{
+			name: "a mode change of a text file keeps its content",
+			head: map[string]string{"a.tf": v1, "b.tf": v2},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "a.tf", Status: "modified"}, ghFile{Filename: "b.tf", Status: "changed"})
+			},
+			want: map[string]string{"a.tf": v1, "b.tf": v2},
 		},
 		{
 			name: "a link at head with a patch",
