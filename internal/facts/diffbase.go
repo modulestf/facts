@@ -227,6 +227,10 @@ func parseUnified(data []byte) ([]fileChange, error) {
 	for len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
+	// The signature git format-patch ends a mail with: "-- " and its version.
+	if n := len(lines); n >= 2 && lines[n-2] == "-- " && versionLine.MatchString(lines[n-1]) {
+		lines = lines[:n-2]
+	}
 	i := 0
 	for i < len(lines) && !gitStart(lines[i]) && !sidesAt(lines, i) {
 		i++ // preamble
@@ -275,7 +279,8 @@ const (
 )
 
 var (
-	indexLine      = regexp.MustCompile(`^index [0-9a-f]{4,64}\.\.[0-9a-f]{4,64}(?: ([0-7]{6}))?$`)
+	indexLine      = regexp.MustCompile(`^index ([0-9a-f]{4,64})\.\.([0-9a-f]{4,64})(?: ([0-7]{6}))?$`)
+	versionLine    = regexp.MustCompile(`^[0-9]+(?:\.[0-9A-Za-z]+)+(?: \([ -~]+\))?$`)
 	similarityLine = regexp.MustCompile(`^(?:dis)?similarity index (\d{1,3})%$`)
 	binaryLine     = regexp.MustCompile("^(?:(?:literal|delta) [0-9]+|[A-Za-z][0-9A-Za-z!#$%&()*+;<=>?@^_`{|}~-]+)?$")
 )
@@ -283,6 +288,33 @@ var (
 // gitModes are the modes git writes for a path: a file, an executable, a
 // link and a gitlink.
 var gitModes = []string{"100644", "100755", "120000", gitlinkMode}
+
+func regularMode(m string) bool { return m == "100644" || m == "100755" }
+
+// emptyBlob is the hash of the empty blob, which git abbreviates.
+const emptyBlob = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+
+func zeroHash(h string) bool  { return strings.Trim(h, "0") == "" }
+func emptyHash(h string) bool { return strings.HasPrefix(emptyBlob, h) }
+
+// bodyless checks a section with no hunk and no binary marker. git writes
+// one for a change of mode or path alone, and for an empty file added or
+// removed; with an index line whose hashes differ, any other section hides
+// a change of content, and the base would take the head's. A link
+// removed always has a hunk: its target.
+func bodyless(hdr string, c fileChange, oldHash, newHash string) error {
+	if c.status == "removed" && c.oldMode == "120000" {
+		return fmt.Errorf("%q: mode %s removed with no hunk", hdr, c.oldMode)
+	}
+	if oldHash == newHash {
+		return nil
+	}
+	if (c.status == "added" && zeroHash(oldHash) && emptyHash(newHash)) ||
+		(c.status == "removed" && emptyHash(oldHash) && zeroHash(newHash)) {
+		return nil
+	}
+	return fmt.Errorf("%q: index %s..%s with no hunk", hdr, oldHash, newHash)
+}
 
 func gitMode(s string) (string, error) {
 	if !slices.Contains(gitModes, s) {
@@ -300,7 +332,8 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 		return fileChange{}, 0, err
 	}
 	c := fileChange{path: p, prev: p, patch: []byte{}}
-	rank, shown, similarity, moved := 0, false, false, false
+	rank, shown, similarity, moved, body := 0, false, false, false, false
+	var oldHash, newHash string
 	step := func(r int) error {
 		if r <= rank {
 			return fmt.Errorf("%q: line %d is out of git's header order", hdr, i+1)
@@ -327,6 +360,11 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 			}
 			if c.oldMode == c.newMode {
 				return c, 0, fmt.Errorf("%q: old and new mode are the same", hdr)
+			}
+			// git writes a change of type, file to link or gitlink, as a
+			// removal and an addition: a mode pair is an exec bit change.
+			if !regularMode(c.oldMode) || !regularMode(c.newMode) {
+				return c, 0, fmt.Errorf("%q: old mode %s and new mode %s are of two types", hdr, c.oldMode, c.newMode)
 			}
 			c.oldGit, c.newGit, c.oldStated, c.newStated = c.oldMode == gitlinkMode, c.newMode == gitlinkMode, true, true
 			shown = true
@@ -381,13 +419,14 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 			if m == nil {
 				return c, 0, fmt.Errorf("%q: index line %q", hdr, l)
 			}
-			if m[1] != "" {
+			oldHash, newHash = m[1], m[2]
+			if m[3] != "" {
 				// The mode of both sides, which git writes only when it is
 				// the same: never beside a mode line.
 				if c.oldStated || c.newStated {
 					return c, 0, fmt.Errorf("%q: index line with a mode beside a mode line", hdr)
 				}
-				if c.newMode, err = gitMode(m[1]); err != nil {
+				if c.newMode, err = gitMode(m[3]); err != nil {
 					return c, 0, err
 				}
 				c.oldGit, c.newGit, c.oldStated, c.newStated = c.newMode == gitlinkMode, c.newMode == gitlinkMode, true, true
@@ -410,7 +449,7 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 			if err != nil {
 				return c, 0, fmt.Errorf("%q: %w", c.path, err)
 			}
-			i, shown = end-1, true
+			i, shown, body = end-1, true, true
 		case strings.HasPrefix(l, "Binary files "):
 			if err = step(rankBody); err != nil {
 				return c, 0, err
@@ -425,7 +464,7 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 			if l != "Binary files "+oldP+" and "+newP+" differ" {
 				return c, 0, fmt.Errorf("%q: binary marker %q", hdr, l)
 			}
-			c.patch, shown = nil, true
+			c.patch, shown, body = nil, true, true
 		case l == "GIT binary patch":
 			if err = step(rankBody); err != nil {
 				return c, 0, err
@@ -436,7 +475,7 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 				}
 				i++
 			}
-			c.patch, shown = nil, true
+			c.patch, shown, body = nil, true, true
 		default:
 			return c, 0, fmt.Errorf("%q: line %d is not a git header line", hdr, i+1)
 		}
@@ -449,6 +488,11 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 	}
 	if !shown {
 		return c, 0, fmt.Errorf("%q: no hunk and no change of mode, path or type", hdr)
+	}
+	if !body {
+		if err := bodyless(hdr, c, oldHash, newHash); err != nil {
+			return c, 0, err
+		}
 	}
 	switch c.status {
 	case "":

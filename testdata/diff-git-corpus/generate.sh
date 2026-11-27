@@ -8,6 +8,7 @@ dir=$(mktemp -d)
 trap 'rm -rf "$dir"' EXIT
 cd "$dir"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' GIT_COMMITTER_DATE='2026-01-01T00:00:00Z'
 git init -q
 git config user.name corpus
 git config user.email corpus@example.invalid
@@ -44,3 +45,5 @@ d -M -C --find-copies-harder --binary > "$out/binary.diff"
 d --no-renames > "$out/no-renames.diff"
 d -M -C --find-copies-harder -U0 > "$out/u0.diff"
 d -M -C --find-copies-harder --full-index > "$out/full-index.diff"
+git commit -qm head
+git -c core.quotePath=true format-patch -1 --stdout -M -C --find-copies-harder --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ > "$out/format-patch.diff"

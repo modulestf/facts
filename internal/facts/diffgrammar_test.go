@@ -59,12 +59,13 @@ func gitCorpusTree(t *testing.T) *Tree {
 // one change (generate.sh): a mode change, an empty file removed and added,
 // renames and a copy at 100%, a rename with a mode change, a rename with an
 // edit, a link retarget, a gitlink bump and a binary file, with renames and
-// without, with --binary, -U0 and --full-index. Each must give the base.
+// without, with --binary, -U0 and --full-index, and as git format-patch
+// writes it. Each must give the base.
 func TestUnifiedGitCorpus(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join("..", "..", "testdata", "diff-git-corpus")
 	names, err := filepath.Glob(filepath.Join(dir, "*.diff"))
-	if err != nil || len(names) != 5 {
+	if err != nil || len(names) != 6 {
 		t.Fatalf("corpus %v, %v", names, err)
 	}
 	for _, name := range names {
@@ -173,6 +174,22 @@ func TestUnifiedGrammarRefused(t *testing.T) {
 		"--- alone":                                   {"--- a/main.tf\n", "no file section"},
 		"a preamble alone":                            {"From: someone\n\n--- \n", "neither"},
 		"plain ---/+++ of /dev/null twice":            {"--- /dev/null\n+++ /dev/null\n@@ -0,0 +1 @@\n+a\n", "a file with no path"},
+		"a mode pair of a link and a file":            {g + "old mode 120000\nnew mode 100644\n", "of two types"},
+		"a mode pair of a file and a link":            {"diff --git a/x.tf b/x.tf\nold mode 100644\nnew mode 120000\n", "of two types"},
+		"a mode pair of a gitlink and a file":         {g + "old mode 160000\nnew mode 100644\n" + hunk, "of two types"},
+		"a mode pair of a file and a gitlink":         {g + "old mode 100644\nnew mode 160000\n", "of two types"},
+		"a rename below 100% with no hunk":            {"diff --git a/o.tf b/main.tf\nsimilarity index 50%\nrename from o.tf\nrename to main.tf\nindex 1111111..2222222 100644\n", "index 1111111..2222222 with no hunk"},
+		"a mode pair and index with no hunk":          {g + "old mode 100755\nnew mode 100644\nindex 1111111..2222222\n", "with no hunk"},
+		"an index alone with no hunk":                 {g + "index 1111111..2222222 100644\n", "no hunk"},
+		"a removal of a blob with no hunk":            {"diff --git a/o.tf b/o.tf\ndeleted file mode 100644\nindex 1111111..0000000\n", "with no hunk"},
+		"an addition of a blob with no hunk":          {"diff --git a/n.tf b/n.tf\nnew file mode 100644\nindex 0000000..2222222\n", "with no hunk"},
+		"the empty blob of a modified file":           {g + "index e69de29..0000000 100644\n", "no hunk"},
+		"a link removed with no hunk":                 {"diff --git a/o.tf b/o.tf\ndeleted file mode 120000\nindex e69de29..0000000\n", "removed with no hunk"},
+		"a new file mode not the head's":              {g + "new file mode 100755\nindex 0000000..2222222\n--- /dev/null\n+++ b/main.tf\n@@ -0,0 +1 @@\n+a = 1\n", "not the head entry's"},
+		"a link added over a head file":               {g + "new file mode 120000\nindex 0000000..2222222\n--- /dev/null\n+++ b/main.tf\n@@ -0,0 +1 @@\n+a = 1\n", "not the head entry's"},
+		"a signature before the end":                  {g + hunk + "-- \n2.56.1\n" + g + "index 1111111..2222222\n" + hunk, "not a git header line"},
+		"a change of type as git writes it":           {g + "deleted file mode 120000\nindex 1111111..0000000\n--- a/main.tf\n+++ /dev/null\n@@ -1 +0,0 @@\n-x.tf\n\\ No newline at end of file\n" + g + "new file mode 100644\nindex 0000000..2222222\n--- /dev/null\n+++ b/main.tf\n@@ -0,0 +1 @@\n+a = 1\n", "removed by the diff"},
+		"a signature with no version":                 {g + hunk + "-- \nhello\n", "not a git header line"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -199,6 +216,7 @@ func TestUnifiedGrammarAccepted(t *testing.T) {
 		"a plain diff":               {"--- a/main.tf\t2026-01-01\n+++ b/main.tf\t2026-01-02\n" + hunk, "a = 0\n"},
 		"trailing blank lines":       {"diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n" + hunk + "\n\n", "a = 0\n"},
 		"blank input":                {"\n", "a = 1\n"},
+		"a format-patch signature":   {"From 1 Mon Sep 17 00:00:00 2001\nSubject: x\n\n---\n main.tf | 2 +-\n\ndiff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\n--- a/main.tf\n+++ b/main.tf\n" + hunk + "-- \n2.39.5 (Apple Git-154)\n\n", "a = 0\n"},
 		"dissimilarity of a rewrite": {"diff --git a/main.tf b/main.tf\ndissimilarity index 100%\nindex 1111111..2222222 100644\n--- a/main.tf\n+++ b/main.tf\n" + hunk, "a = 0\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -209,6 +227,54 @@ func TestUnifiedGrammarAccepted(t *testing.T) {
 			}
 			if e := got.Entries["main.tf"]; e == nil || string(e.Data) != c.want {
 				t.Errorf("main.tf %+v, want %q", e, c.want)
+			}
+		})
+	}
+	// Sections git wrote (git 2.56.1, core.quotePath=true): paths holding a
+	// space and " b/", binary files added, removed and renamed with no
+	// --binary. Each maps a base path to its want: content, noPatch or
+	// absent.
+	for name, c := range map[string]struct {
+		head map[string]string
+		diff string
+		want map[string]string
+	}{
+		"a path with a space": {map[string]string{"my file.tf": "x = 2\n"},
+			"diff --git a/my file.tf b/my file.tf\nindex 7d4290a..407de30 100644\n--- a/my file.tf\t\n+++ b/my file.tf\t\n@@ -1 +1 @@\n-x = 1\n+x = 2\n",
+			map[string]string{"my file.tf": "x = 1\n"}},
+		"a path holding b/": {map[string]string{"a b/c.tf": "y = 2\n"},
+			"diff --git a/a b/c.tf b/a b/c.tf\nindex a003ef7..47643d4 100644\n--- a/a b/c.tf\t\n+++ b/a b/c.tf\t\n@@ -1 +1 @@\n-y = 1\n+y = 2\n",
+			map[string]string{"a b/c.tf": "y = 1\n"}},
+		"a binary file added": {map[string]string{"add.dat": "\x00new\n"},
+			"diff --git a/add.dat b/add.dat\nnew file mode 100644\nindex 0000000..843f4dc\nBinary files /dev/null and b/add.dat differ\n",
+			map[string]string{"add.dat": ""}},
+		"a binary file removed": {map[string]string{},
+			"diff --git a/gone.dat b/gone.dat\ndeleted file mode 100644\nindex 3c4f499..0000000\nBinary files a/gone.dat and /dev/null differ\n",
+			map[string]string{"gone.dat": noPatch}},
+		"a binary file renamed": {map[string]string{"new.dat": "\x00b\n"},
+			"diff --git a/old.dat b/new.dat\nsimilarity index 98%\nrename from old.dat\nrename to new.dat\nindex 9304e6e..8a6ac19 100644\nBinary files a/old.dat and b/new.dat differ\n",
+			map[string]string{"old.dat": noPatch, "new.dat": ""}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, _, err := baseFromDiff(mustTree(t, writeTree(t, c.head)), []byte(c.diff), DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for p, w := range c.want {
+				e := got.Entries[p]
+				switch {
+				case w == "":
+					if e != nil {
+						t.Errorf("%s: %+v, want absent", p, e)
+					}
+				case w == noPatch:
+					if e == nil || e.Kind != KindNoPatch {
+						t.Errorf("%s: %+v, want %s", p, e, KindNoPatch)
+					}
+				case e == nil || string(e.Data) != w:
+					t.Errorf("%s: %+v, want %q", p, e, w)
+				}
 			}
 		})
 	}

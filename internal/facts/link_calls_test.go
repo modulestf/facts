@@ -177,15 +177,13 @@ func TestParseUnifiedModeLines(t *testing.T) {
 			"x/b 160000", "x/a 160000", false, false},
 		"copy of a path ending in the mode": {"diff --git a/x/a 160000 b/x/b 160000\nsimilarity index 100%\ncopy from x/a 160000\ncopy to x/b 160000\n",
 			"x/b 160000", "x/a 160000", false, false},
-		"index line of a gitlink":  {"diff --git a/s b/s\nindex abc1234..def5678 160000\n" + plain, "s", "s", true, true},
-		"index line of a file":     {"diff --git a/s b/s\nindex abc1234..def5678 100644\n" + hunk, "s", "s", false, false},
-		"index line with no mode":  {"diff --git a/s b/s\nindex abc1234..def5678\n" + hunk, "s", "s", true, true},
-		"new file of a file":       {"diff --git a/s b/s\nnew file mode 100644\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", "s", "", false, false},
-		"deleted file of a file":   {"diff --git a/s b/s\ndeleted file mode 100644\n--- a/s\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n", "s", "", false, false},
-		"mode change of a file":    {"diff --git a/s b/s\nold mode 100644\nnew mode 100755\n" + hunk, "s", "s", false, false},
-		"old mode of a file alone": {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n" + hunk, "s", "s", false, true},
-		"new mode of a file alone": {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n" + hunk, "s", "s", true, false},
-		"no mode line":             {"diff --git a/s b/s\n" + hunk, "s", "s", true, true},
+		"index line of a gitlink": {"diff --git a/s b/s\nindex abc1234..def5678 160000\n" + plain, "s", "s", true, true},
+		"index line of a file":    {"diff --git a/s b/s\nindex abc1234..def5678 100644\n" + hunk, "s", "s", false, false},
+		"index line with no mode": {"diff --git a/s b/s\nindex abc1234..def5678\n" + hunk, "s", "s", true, true},
+		"new file of a file":      {"diff --git a/s b/s\nnew file mode 100644\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", "s", "", false, false},
+		"deleted file of a file":  {"diff --git a/s b/s\ndeleted file mode 100644\n--- a/s\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n", "s", "", false, false},
+		"mode change of a file":   {"diff --git a/s b/s\nold mode 100644\nnew mode 100755\n" + hunk, "s", "s", false, false},
+		"no mode line":            {"diff --git a/s b/s\n" + hunk, "s", "s", true, true},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
