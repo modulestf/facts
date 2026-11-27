@@ -142,12 +142,11 @@ func checkDefaultChanged(a *Area) Result {
 				if readByBase == nil {
 					readByBase = varsReadByBaseConfig(a)
 				}
-				// A validation of a new variable can reject its own default or
-				// read something else, so it fails a plan for a caller who
-				// sets nothing.
+				// A validation of a new variable can reject its own default,
+				// null included, or read something else, so it fails a plan
+				// for a caller who sets nothing.
 				nonNull := strings.TrimSpace(v.Default.Text) != "null"
-				raise := nonNull && (readByBase.has(v.Name) || len(v.Validations) > 0)
-				if !raise && !validationReadsOthers(v) {
+				if (!nonNull || !readByBase.has(v.Name)) && len(v.Validations) == 0 {
 					continue
 				}
 				e := newCompatEvidence(a)
@@ -262,31 +261,6 @@ func readAddr(t hcl.Traversal) string {
 
 func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
 
-// readsOtherThan reports a read of anything but the variable name itself.
-func (r *varReads) readsOtherThan(name string) bool {
-	if r.allVars || r.allLocals || len(r.locals) > 0 || len(r.refs) > 0 {
-		return true
-	}
-	for v := range r.vars {
-		if v != name {
-			return true
-		}
-	}
-	return false
-}
-
-// validationReadsOthers reports a validation of a new variable that reads
-// something besides the variable: its condition can fail a plan for a caller
-// who leaves the variable at its default.
-func validationReadsOthers(v *Variable) bool {
-	r := newVarReads()
-	for _, val := range v.Validations {
-		r.add(val.Condition)
-		r.add(val.ErrorMessage)
-	}
-	return r.readsOtherThan(v.Name)
-}
-
 func mergeBodies(bs []Body) Body {
 	var m Body
 	for _, b := range bs {
@@ -299,8 +273,9 @@ func mergeBodies(bs []Body) Body {
 // varsReadByBaseConfig finds what head configuration that exists at the
 // base reads, directly or through head locals and new blocks: count and
 // for_each of a resource, data or module block the base has, the arguments
-// of such a block, of a provider, of another block type or of an output that
-// the base block also has, and of its nested blocks, and the validation of a
+// of such a block, of another block type or of an output that the base
+// block also has, every argument and nested block of a provider the base
+// has, and the nested blocks of such blocks, and the validation of a
 // variable the base has. A block is found at the base by its address or by
 // any address a chain of moved blocks leads back to, and compared with each.
 // A resource, data source or module call the base lacks that such an
@@ -357,26 +332,26 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		return out
 	}
 	newBlocks := map[string]Body{} // head blocks with no base block
-	shared := func(key string, h Body, top bool) {
+	shared := func(key string, h Body, top, all bool) {
 		bs := bases(key)
 		if len(bs) == 0 {
 			newBlocks[key] = h
 		}
 		for _, b := range bs {
-			for _, e := range sharedArgs(b, h, top, false) {
+			for _, e := range sharedArgs(b, h, top, all) {
 				r.add(e)
 			}
 		}
 	}
 	for _, x := range a.Head.Resources {
-		shared(addr(x.Mode, x.Type, x.Name), x.Body, true)
+		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, false)
 	}
 	for _, m := range a.Head.ModuleCalls {
-		shared("module."+m.Name, m.Body, true)
+		shared("module."+m.Name, m.Body, true, false)
 	}
 	for _, p := range a.Head.Providers {
 		key := "provider." + p.Name + "." + p.Alias
-		shared(key, p.Body, false)
+		shared(key, p.Body, true, true)
 		// A new provider is read by name.alias, with the alias unquoted;
 		// one with no alias is the default of every resource of its type.
 		if nb, ok := newBlocks[key]; ok {
@@ -390,7 +365,7 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 	}
 	for _, o := range a.Head.Outputs {
-		shared("output."+o.Name, o.Body, false)
+		shared("output."+o.Name, o.Body, false, false)
 	}
 	// Blocks with no label to pair them by (import) are read as one body per
 	// type and labels; when the counts differ every argument counts.
