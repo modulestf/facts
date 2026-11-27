@@ -1,3 +1,12 @@
+## [0.21.2](https://github.com/modulestf/facts/compare/v0.21.1...v0.21.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* Refuse a quoted dynamic iterator in iam-policy-docs ([#125](https://github.com/modulestf/facts/issues/125)) ([76e4b70](https://github.com/modulestf/facts/commit/76e4b70f06f20a6f5d25a808d1b832fe1f4aa7b2)), closes [#54](https://github.com/modulestf/facts/issues/54) [#54](https://github.com/modulestf/facts/issues/54)
+
+
+
 ## [0.21.1](https://github.com/modulestf/facts/compare/v0.21.0...v0.21.1) (2026-11-27)
 
 
