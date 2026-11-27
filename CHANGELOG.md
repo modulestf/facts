@@ -1,3 +1,21 @@
+## [0.21.2](https://github.com/modulestf/facts/compare/v0.21.1...v0.21.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* Refuse a quoted dynamic iterator in iam-policy-docs ([#125](https://github.com/modulestf/facts/issues/125)) ([76e4b70](https://github.com/modulestf/facts/commit/76e4b70f06f20a6f5d25a808d1b832fe1f4aa7b2)), closes [#54](https://github.com/modulestf/facts/issues/54) [#54](https://github.com/modulestf/facts/issues/54)
+
+
+
+## [0.21.1](https://github.com/modulestf/facts/compare/v0.21.0...v0.21.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* Raise default-changed only for a new input that existing configuration reads ([#66](https://github.com/modulestf/facts/issues/66)) ([1f2ffa7](https://github.com/modulestf/facts/commit/1f2ffa75ef67f58633f28100d49d81cb989d21ed)), closes [#61](https://github.com/modulestf/facts/issues/61) [vpc#1305](https://github.com/vpc/issues/1305) [eks#3743](https://github.com/eks/issues/3743) [#61](https://github.com/modulestf/facts/issues/61) [vpc#1305](https://github.com/vpc/issues/1305) [eks#3743](https://github.com/eks/issues/3743) [vpc#1188](https://github.com/vpc/issues/1188) [vpc#1304](https://github.com/vpc/issues/1304) [eks#3746](https://github.com/eks/issues/3746) [eks#3769](https://github.com/eks/issues/3769) [vpc#1305](https://github.com/vpc/issues/1305) [eks#3743](https://github.com/eks/issues/3743) [vpc#1188](https://github.com/vpc/issues/1188) [vpc#1304](https://github.com/vpc/issues/1304) [eks#3746](https://github.com/eks/issues/3746) [eks#3769](https://github.com/eks/issues/3769) [vpc#1305](https://github.com/vpc/issues/1305)
+
+
+
 # [0.21.0](https://github.com/modulestf/facts/compare/v0.20.7...v0.21.0) (2026-11-27)
 
 

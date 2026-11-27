@@ -68,3 +68,9 @@ variable "owner_email" {
   description = "Contact address of the owning team"
   type        = string
 }
+
+variable "default_tags" {
+  description = "Tags every widget gets"
+  type        = map(string)
+  default     = { ManagedBy = "demo" }
+}

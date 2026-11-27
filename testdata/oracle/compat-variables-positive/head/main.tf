@@ -7,5 +7,5 @@ resource "aws_demo_widget" "this" {
 
   name = var.name
 
-  tags = var.tags
+  tags = merge(var.tags, var.default_tags)
 }
