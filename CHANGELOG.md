@@ -1,3 +1,12 @@
+## [0.21.5](https://github.com/modulestf/facts/compare/v0.21.4...v0.21.5) (2026-11-27)
+
+
+### Bug Fixes
+
+* Count every argument of a module call whose source changes in place ([#135](https://github.com/modulestf/facts/issues/135)) ([8d17cd4](https://github.com/modulestf/facts/commit/8d17cd4b47c79694ea5183bca81033255b31d75f)), closes [#132](https://github.com/modulestf/facts/issues/132)
+
+
+
 ## [0.21.4](https://github.com/modulestf/facts/compare/v0.21.3...v0.21.4) (2026-11-27)
 
 
