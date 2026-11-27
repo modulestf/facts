@@ -209,6 +209,21 @@ func (t *Tree) InGitlink(p string) bool {
 	}
 }
 
+// linkStep returns the first step of p, p itself included, that is an entry
+// other than a file: a link, special or unreadable entry, which the
+// engine never follows. It returns "" when there is none.
+func (t *Tree) linkStep(p string) string {
+	for i := 0; i <= len(p); i++ {
+		if i < len(p) && p[i] != '/' {
+			continue
+		}
+		if e := t.Entries[p[:i]]; e != nil && e.Kind != KindFile && e.Kind != KindOversize && e.Kind != KindNoPatch {
+			return p[:i]
+		}
+	}
+	return ""
+}
+
 // gitlinkDir reports whether a directory with these entries stands for a
 // gitlink: it holds nothing, or only the .git file of an initialized
 // submodule, which the read skips.

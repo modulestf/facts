@@ -44,6 +44,9 @@ type fileChange struct {
 	path, prev, status string
 	patch              []byte
 	oldMode            string
+	// oldStated and newStated are set when a mode line of a unified diff
+	// states the mode of that side; a hunk line then does not override it.
+	oldStated, newStated bool
 	// oldGit and newGit are set when the diff shows the path as a gitlink
 	// (mode 160000 or a "Subproject commit" line) at the base or at the head.
 	oldGit, newGit bool
@@ -56,9 +59,10 @@ const gitlinkMode = "160000"
 // submodule commit.
 func subprojectLine(l string) bool { return strings.HasPrefix(l, "Subproject commit ") }
 
-// markGitlink sets oldGit and newGit from the patch. A hunk line that removes
-// or keeps a "Subproject commit" line shows a gitlink at the base, and one
-// that adds it a gitlink at the head.
+// markGitlink sets oldGit and newGit from the patch, for a side whose mode no
+// line states. A hunk line that removes or keeps a "Subproject commit" line
+// shows a gitlink at the base, and one that adds it a gitlink at the head. A
+// files list states no mode, so there the hunk lines alone decide.
 func (c *fileChange) markGitlink() {
 	for l := range strings.Lines(string(c.patch)) {
 		l = strings.TrimRight(l, "\n")
@@ -67,9 +71,9 @@ func (c *fileChange) markGitlink() {
 		}
 		switch l[0] {
 		case '-', ' ':
-			c.oldGit = true
+			c.oldGit = c.oldGit || !c.oldStated
 		case '+':
-			c.newGit = true
+			c.newGit = c.newGit || !c.newStated
 		}
 	}
 }
@@ -254,18 +258,28 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			i += n - 1
 		case strings.HasPrefix(l, "new file mode"):
 			cur.status, cur.prev = "added", ""
-			cur.newGit = strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode
+			cur.newGit, cur.newStated = strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode, true
 		case strings.HasPrefix(l, "deleted file mode "):
 			cur.status, cur.prev = "removed", ""
 			cur.oldMode = strings.TrimPrefix(l, "deleted file mode ")
-			cur.oldGit = cur.oldMode == gitlinkMode
+			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
 		case strings.HasPrefix(l, "old mode "):
 			cur.oldMode = strings.TrimPrefix(l, "old mode ")
-			cur.oldGit = cur.oldMode == gitlinkMode
+			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
 		case strings.HasPrefix(l, "new mode "):
-			cur.newGit = strings.TrimPrefix(l, "new mode ") == gitlinkMode
-		case strings.HasSuffix(l, " "+gitlinkMode): // the index line of a gitlink, whose mode is the same at both sides
-			cur.oldGit, cur.newGit = true, true
+			cur.newGit, cur.newStated = strings.TrimPrefix(l, "new mode ") == gitlinkMode, true
+		case strings.HasPrefix(l, "index "):
+			// "index <old>..<new> <mode>" gives the mode of both sides when
+			// it is the same; with no mode field the mode lines give it. It
+			// never overrides a mode line.
+			if f := strings.Fields(l); len(f) == 3 {
+				if !cur.oldStated {
+					cur.oldGit, cur.oldStated = f[2] == gitlinkMode, true
+				}
+				if !cur.newStated {
+					cur.newGit, cur.newStated = f[2] == gitlinkMode, true
+				}
+			}
 		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
 			cur.prev = l[strings.Index(l, "from ")+5:]
 			if strings.HasPrefix(l, "copy") {

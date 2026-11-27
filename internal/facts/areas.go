@@ -205,10 +205,10 @@ type Area struct {
 	Issue string
 	// issueCode is the reason code of Issue.
 	issueCode string
-	// callsGitlink is why the area's module calls cannot all be read: one
-	// names a gitlink or a path below it, whose files the tree does not hold.
-	// Empty when none does. See markGitlinkCalls.
-	callsGitlink string
+	// callsUnread is why the area's module calls cannot all be read: one
+	// names a gitlink or a path below it, whose files the tree does not hold,
+	// or a path through a link. Empty when none does. See markUnreadCalls.
+	callsUnread string
 	// unreadConfig are the .tf and .tf.json files the change adds or edits
 	// in a boundary directory no area reads: on the root, those under tests/,
 	// where a test helper module lives; on a submodule modules/<m>, those more
@@ -446,12 +446,14 @@ func FindAreas(head, base *Tree, lim Limits, untouched bool) ([]*Area, error) {
 	return out, nil
 }
 
-// markGitlinkCalls sets callsGitlink when a local module call of the area,
-// at head or at base, names a gitlink or a path below one. A rule that reads
-// the callee would read an empty directory and report it clean, so the
-// configuration rules of the area are not evaluated.
-func (a *Area) markGitlinkCalls() {
-	a.callsGitlink = ""
+// markUnreadCalls sets callsUnread when a local module call of the area, at
+// head or at base, names a path the tree cannot read: a gitlink or a path
+// below one, or a path with a link, special or unreadable entry at any step.
+// The engine never follows a link, so a rule that reads the callee would read
+// an empty directory and report it clean; the configuration rules of the
+// area are not evaluated.
+func (a *Area) markUnreadCalls() {
+	a.callsUnread = ""
 	for _, m := range []*Module{a.Head, a.Base} {
 		if m == nil {
 			continue
@@ -462,9 +464,18 @@ func (a *Area) markGitlinkCalls() {
 				continue
 			}
 			to := path.Join(a.Path, src)
-			if a.headTree.InGitlink(to) || a.baseTree != nil && a.baseTree.InGitlink(to) {
-				a.callsGitlink = fmt.Sprintf("module call %q names %s, a submodule commit pointer whose files the tree does not hold", c.Name, to)
-				return
+			for _, t := range []*Tree{a.headTree, a.baseTree} {
+				if t == nil {
+					continue
+				}
+				if t.InGitlink(to) {
+					a.callsUnread = fmt.Sprintf("module call %q names %s, a submodule commit pointer whose files the tree does not hold", c.Name, to)
+					return
+				}
+				if l := t.linkStep(to); l != "" {
+					a.callsUnread = fmt.Sprintf("module call %q names %s through %s, a link or special entry the engine does not follow", c.Name, to, l)
+					return
+				}
 			}
 		}
 	}

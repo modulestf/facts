@@ -56,23 +56,32 @@ func TestScopeConfigNewModule(t *testing.T) {
 	}
 }
 
-// A local source through a symbolic link, or to a directory the head lacks,
-// is a candidate; a base docs/SCOPE.md that is a link is not read.
+// A local source to a directory the head lacks is a candidate; one through a
+// symbolic link leaves the area's configuration rules not evaluated, since the
+// engine does not follow the link; a base docs/SCOPE.md that is a link is not
+// read.
 func TestScopeConfigLinks(t *testing.T) {
 	base := map[string]string{"main.tf": "resource \"aws_demo_widget\" \"this\" {}\n", "modules/real/main.tf": ""}
 	head := map[string]string{
-		"main.tf":              "resource \"aws_demo_widget\" \"this\" {}\nmodule \"a\" {\n  source = \"./modules/alias\"\n}\nmodule \"b\" {\n  source = \"./modules/missing\"\n}\n",
+		"main.tf":              "resource \"aws_demo_widget\" \"this\" {}\nmodule \"b\" {\n  source = \"./modules/missing\"\n}\n",
 		"modules/real/main.tf": "",
-		"modules/alias":        "->real",
 	}
 	r := runScopeConfig(t, base, head)
 	var got []string
 	for _, c := range candidatesOf(r, "scope.module-call") {
 		got = append(got, c.Subject)
 	}
-	if strings.Join(got, " ") != ".:module.a .:module.b" {
+	if strings.Join(got, " ") != ".:module.b" {
 		t.Errorf("candidates %v", got)
 	}
+	head["main.tf"] += "module \"a\" {\n  source = \"./modules/alias\"\n}\n"
+	head["modules/alias"] = "->real"
+	r = runScopeConfig(t, base, head)
+	if s := statusOf(r.Manifest, "scope.module-call", "."); !strings.HasPrefix(s, "not_evaluated") || !strings.Contains(s, "modules/alias") {
+		t.Errorf("scope.module-call through a link: %s", s)
+	}
+	delete(head, "modules/alias")
+	head["main.tf"] = strings.Replace(head["main.tf"], "./modules/alias", "./modules/real", 1)
 	base["docs/SCOPE.md"] = "->../main.tf"
 	head["modules/new/main.tf"] = "resource \"aws_demo_new\" \"x\" {}\n"
 	r = runScopeConfig(t, base, head)
