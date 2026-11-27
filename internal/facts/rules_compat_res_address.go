@@ -156,8 +156,9 @@ var trailingKey = regexp.MustCompile(`\[([0-9]+|"(?:[^"\\]|\\.)*")\]$`)
 
 // addressMoves are the static moved blocks of the head of one area.
 type addressMoves struct {
-	from map[string]*Moved
-	head map[string]*addrBlock
+	from    map[string]*Moved
+	head    map[string]*addrBlock
+	headDup map[string]bool // head addresses declared more than once
 }
 
 // follow returns where a moved chain from addr ends, and the first moved
@@ -211,11 +212,12 @@ func keyFits(k string, keys []string) bool { return slices.Contains(keys, k) || 
 // a static moved block for that instance or for the whole address, whose
 // target block at the head has that key, or the same address at the head
 // with that key. A move for one instance into another area, a target the
-// head lacks and keys that are not static leave it without one.
+// head lacks or declares twice and keys that are not static leave it
+// without one.
 func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv *Moved) {
 	if to, mv := m.follow(b.addr + k); k != "" && mv != nil {
 		t, key, _ := m.split(to)
-		if t == nil {
+		if t == nil || m.headDup[t.addr] {
 			return false, mv
 		}
 		keys, kok := instanceKeys(t.body)
@@ -226,7 +228,7 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 		switch {
 		case other:
 			return true, mv // a whole address moved into another area
-		case t == nil:
+		case t == nil || m.headDup[t.addr]:
 			return false, mv
 		case key != "":
 			// To one instance: only an address with no key fits there.
@@ -261,7 +263,7 @@ func checkResourceAddressChanged(a *Area) Result {
 	const id = "compat.resource-address-changed"
 	base, baseDup := addrBlocks(a.Base)
 	head, headDup := addrBlocks(a.Head)
-	moves := addressMoves{from: map[string]*Moved{}, head: head}
+	moves := addressMoves{from: map[string]*Moved{}, head: head, headDup: headDup}
 	movedTo := map[string]bool{}
 	for i := range a.Head.Moved {
 		m := &a.Head.Moved[i]

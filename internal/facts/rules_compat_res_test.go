@@ -223,6 +223,36 @@ func TestResourceAddressCases(t *testing.T) {
 			head: "resource \"aws_a\" \"x\" {\n  count = 2\n  name  = \"c\"\n}\nresource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
 			want: []string{"main.tf:null .:aws_a.x"},
 		},
+		"moved target declared twice, the keyed block first": {
+			base: "resource \"aws_a\" \"x\" {\n  name = \"a\"\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nresource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved target declared twice, the keyed block last": {
+			base: "resource \"aws_a\" \"x\" {\n  name = \"a\"\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved target declared twice, the counted block first": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 2\n}\nresource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved target declared twice, the counted block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nresource \"aws_a\" \"y\" {\n  count = 2\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"instance moved to a target declared twice, the keyed block first": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nresource \"aws_a\" \"y\" {\n  count = 1\n}\nmoved {\n  from = aws_a.x[1]\n  to   = aws_a.y[0]\n}\n",
+			want: []string{"main.tf:10 .:aws_a.x"},
+		},
+		"instance moved to a target declared twice, the keyed block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x[1]\n  to   = aws_a.y[0]\n}\n",
+			want: []string{"main.tf:10 .:aws_a.x"},
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",
