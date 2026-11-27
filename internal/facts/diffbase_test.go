@@ -267,7 +267,7 @@ func TestBaseFromDiff(t *testing.T) {
 			name: "unified: binary, pure rename, empty new and deleted files",
 			head: map[string]string{"b.tf": v1, "empty.tf": "", "logo.png": "\x00"},
 			diff: func(*testing.T) string {
-				return "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n" +
+				return "diff --git a/logo.png b/logo.png\nindex 1111111..2222222 100644\nBinary files a/logo.png and b/logo.png differ\n" +
 					"diff --git a/a.tf b/b.tf\nsimilarity index 100%\nrename from a.tf\nrename to b.tf\n" +
 					"diff --git a/empty.tf b/empty.tf\nnew file mode 100644\nindex 0000000..e69de29\n" +
 					"diff --git a/gone.tf b/gone.tf\ndeleted file mode 100644\nindex e69de29..0000000\n"
@@ -353,6 +353,113 @@ func TestBaseFromDiff(t *testing.T) {
 		{name: "a removed file the head has", head: map[string]string{"main.tf": v1}, err: "still in the head tree",
 			diff: func(t *testing.T) string {
 				return ghList(t, ghFile{Filename: "main.tf", Status: "removed", Patch: new("@@ -1 +0,0 @@\n-a")})
+			}},
+		// Shapes GitHub never sends, each of which the rebuild would read as
+		// no change: refused.
+		{name: "an entry with no filename", head: map[string]string{"main.tf": v1}, err: "an entry with no filename",
+			diff: func(*testing.T) string { return `[{"status":"unchanged"}]` }},
+		{name: "an entry with an empty filename", head: map[string]string{"main.tf": v1}, err: "an entry with no filename",
+			diff: func(*testing.T) string { return `[{"filename":"","status":"removed"}]` }},
+		{name: "an unchanged entry with a patch", head: map[string]string{"main.tf": v2}, err: "unchanged with a patch",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "unchanged", Patch: new(edit)})
+			}},
+		{name: "an unchanged entry the head lacks", head: map[string]string{"main.tf": v1}, err: "unchanged in the diff but not in the head tree",
+			diff: func(t *testing.T) string { return ghList(t, ghFile{Filename: "gone.tf", Status: "unchanged"}) }},
+		{name: "a zero-line hunk", head: map[string]string{"main.tf": v1}, err: "hunk header of no line",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new("@@ -0,0 +0,0 @@")})
+			}},
+		{name: "a zero-line hunk in a unified diff", head: map[string]string{"main.tf": v1}, err: "hunk header of no line",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -0,0 +0,0 @@\n"
+			}},
+		{
+			name: "copied with a previous filename",
+			head: map[string]string{"a.tf": v1, "b.tf": v1},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "b.tf", PreviousFilename: "a.tf", Status: "copied"})
+			},
+			want: map[string]string{"a.tf": v1},
+		},
+		{name: "renamed with a hunk that cancels out", head: map[string]string{"b.tf": v1}, err: "patch changes nothing",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "b.tf", PreviousFilename: "a.tf", Status: "renamed", Patch: new("@@ -1 +1 @@\n-a = 1\n+a = 1")})
+			}},
+		{name: "a copy to itself", head: map[string]string{"main.tf": v1}, err: "copied to itself",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "main.tf", Status: "copied"})
+			}},
+		{name: "a unified rename to itself", head: map[string]string{"main.tf": v1}, err: `rename from "main.tf" to "main.tf"`,
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\nsimilarity index 100%\nrename from main.tf\nrename to main.tf\n"
+			}},
+		{name: "a unified copy to itself", head: map[string]string{"main.tf": v1}, err: `copy from "main.tf" to "main.tf"`,
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\nsimilarity index 100%\ncopy from main.tf\ncopy to main.tf\n"
+			}},
+		{name: "a unified section of an index line alone", head: map[string]string{"main.tf": v1}, err: "no hunk and no change",
+			diff: func(*testing.T) string { return "diff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\n" }},
+		{name: "a unified added section of side lines alone", head: map[string]string{"main.tf": v1, "x.tf": ""}, err: "with no hunk",
+			diff: func(*testing.T) string { return "--- /dev/null\n+++ b/x.tf\n" }},
+		{name: "a unified renamed section of side lines alone", head: map[string]string{"main.tf": v1}, err: "with no hunk",
+			diff: func(*testing.T) string { return "--- a/old.tf\n+++ b/main.tf\n" }},
+		{name: "a unified section of side lines alone", head: map[string]string{"main.tf": v1}, err: "with no hunk",
+			diff: func(*testing.T) string { return "--- a/main.tf\n+++ b/main.tf\n" }},
+		// Header-only sections git writes (git diff -M -C --find-copies-harder
+		// of a mode change, an empty file added and removed, a rename and a
+		// copy): accepted.
+		{
+			name: "git header-only sections",
+			head: map[string]string{"m.tf": "a\n", "n.tf": "", "r2.tf": "x\n", "c.tf": "c\n", "c2.tf": "c\n"},
+			diff: func(*testing.T) string {
+				return "diff --git a/m.tf b/m.tf\nold mode 100755\nnew mode 100644\n" +
+					"diff --git a/e.tf b/e.tf\ndeleted file mode 100644\nindex e69de29..0000000\n" +
+					"diff --git a/n.tf b/n.tf\nnew file mode 100644\nindex 0000000..e69de29\n" +
+					"diff --git a/r.tf b/r2.tf\nsimilarity index 100%\nrename from r.tf\nrename to r2.tf\n" +
+					"diff --git a/c.tf b/c2.tf\nsimilarity index 100%\ncopy from c.tf\ncopy to c2.tf\n"
+			},
+			want: map[string]string{"m.tf": "a\n", "e.tf": "", "r.tf": "x\n", "c.tf": "c\n"},
+		},
+		{name: "a context-only hunk", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new("@@ -1 +1 @@\n a = 1")})
+			}},
+		{name: "a context-only hunk in a unified diff", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -1 +1 @@\n a = 1\n"
+			}},
+		{name: "a net-zero hunk", head: map[string]string{"main.tf": v1}, err: "patch changes nothing",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new("@@ -1 +1 @@\n-a = 1\n+a = 1"), Additions: 1, Deletions: 1})
+			}},
+		{name: "a net-zero hunk in a unified diff", head: map[string]string{"main.tf": v1}, err: "patch changes nothing",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -1 +1 @@\n-a = 1\n+a = 1\n"
+			}},
+		{name: "a rename to itself", head: map[string]string{"main.tf": v1}, err: "renamed to itself",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "main.tf", Status: "renamed", Patch: new("@@ -1 +1 @@\n-a = 0\n+a = 1")})
+			}},
+		{name: "a previous filename on an unchanged entry", head: map[string]string{"main.tf": v1}, err: "a previous filename on a unchanged entry",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "evil.tf", Status: "unchanged"})
+			}},
+		{name: "a previous filename on a modified entry", head: map[string]string{"main.tf": v2}, err: "a previous filename on a modified entry",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "evil.tf", Status: "modified", Patch: new(edit)})
+			}},
+		{name: "a zero-line hunk on an added entry", head: map[string]string{"main.tf": v1}, err: "hunk header of no line",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "added", Patch: new("@@ -0,0 +0,0 @@")})
+			}},
+		{name: "a context-only hunk on an added entry", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "added", Patch: new("@@ -1 +1 @@\n a = 1")})
+			}},
+		{name: "a CRLF binary marker in a unified diff", head: map[string]string{"main.tf": v1}, err: "is not a git header line",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\nGIT binary patch\r\nliteral 0\r\n"
 			}},
 		{name: "a second JSON value", head: map[string]string{"main.tf": v1}, err: "more than one JSON value",
 			diff: func(*testing.T) string { return "[] []" }},

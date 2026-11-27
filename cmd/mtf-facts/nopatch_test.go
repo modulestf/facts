@@ -159,6 +159,31 @@ func TestNoPatchUnifiedRenameProven(t *testing.T) {
 	}
 }
 
+// TestUnifiedNoChangeRefused: unified diff sections git never writes, which
+// would read as no change, stop every command that takes --diff.
+func TestUnifiedNoChangeRefused(t *testing.T) {
+	t.Parallel()
+	for name, diff := range map[string]string{
+		"rename to itself": "diff --git a/main.tf b/main.tf\nsimilarity index 100%\nrename from main.tf\nrename to main.tf\n",
+		"copy to itself":   "diff --git a/main.tf b/main.tf\nsimilarity index 100%\ncopy from main.tf\ncopy to main.tf\n",
+		"index line alone": "diff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head, _, files := noPatchTrees(t, noPatchCase{"", "main.tf", noPatchMain})
+			p := filepath.Join(filepath.Dir(files), "change.diff")
+			if err := os.WriteFile(p, []byte(diff), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, cmd := range []string{"behaviour", "affected", "changes", "lint"} {
+				if code, out, errOut := runCLI([]string{cmd, head, "--json", "--diff", p}); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: ") {
+					t.Errorf("%s: exit %d, stdout %q, stderr %q", cmd, code, out, errOut)
+				}
+			}
+		})
+	}
+}
+
 // TestNoPatchBadEntryRefused: a count that is no number and a status that is
 // no GitHub status stop the run.
 func TestNoPatchBadEntryRefused(t *testing.T) {
@@ -174,5 +199,55 @@ func TestNoPatchBadEntryRefused(t *testing.T) {
 				t.Errorf("%s %s: exit %d, stdout %q, stderr %q", cmd, entry, code, out, errOut)
 			}
 		}
+	}
+}
+
+// TestFilesListHostileShapesRefused runs each command on a files list entry
+// GitHub never sends and the rebuild would read as no change: no filename,
+// an unchanged entry with a patch or for a path the head lacks, and a hunk
+// of no line. behaviour, affected, changes and lint exit 2; depth exits 2 on
+// an entry with no filename and is deep for the others, whose list disagrees
+// with the trees.
+func TestFilesListHostileShapesRefused(t *testing.T) {
+	t.Parallel()
+	for name, entry := range map[string]string{
+		"no filename":                  `{"status":"unchanged","additions":0,"deletions":0}`,
+		"unchanged with patch":         `{"filename":"main.tf","status":"unchanged","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"other\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"unchanged, not in head":       `{"filename":"gone.tf","status":"unchanged","additions":0,"deletions":0}`,
+		"context-only hunk":            `{"filename":"main.tf","status":"modified","patch":"@@ -1 +1 @@\n resource \"aws_s3_bucket\" \"this\" {","additions":0,"deletions":0}`,
+		"net-zero hunk":                `{"filename":"main.tf","status":"modified","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"this\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"copy to itself":               `{"filename":"main.tf","previous_filename":"main.tf","status":"copied","additions":0,"deletions":0}`,
+		"renamed, net-zero hunk":       `{"filename":"main.tf","previous_filename":"old.tf","status":"renamed","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"this\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"rename to itself":             `{"filename":"main.tf","previous_filename":"main.tf","status":"renamed","patch":"@@ -1 +1 @@\n resource \"aws_s3_bucket\" \"this\" {","additions":0,"deletions":0}`,
+		"previous filename, unchanged": `{"filename":"main.tf","previous_filename":"evil.tf","status":"unchanged","additions":0,"deletions":0}`,
+		"zero-line hunk, added":        `{"filename":"main.tf","status":"added","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,
+		"zero-line hunk":               `{"filename":"main.tf","status":"modified","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head, base, files := noPatchTrees(t, noPatchCase{entry, "main.tf", noPatchMain})
+			for _, cmd := range []string{"behaviour", "affected", "changes", "lint"} {
+				if code, out, errOut := runCLI([]string{cmd, head, "--json", "--diff", files}); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: ") {
+					t.Errorf("%s: exit %d, stdout %q, stderr %q", cmd, code, out, errOut)
+				}
+			}
+			code, dep, errOut := runCLI([]string{"depth", "--head", head, "--base", base, "--files", files})
+			if name == "no filename" {
+				if code != exitError || dep != "" {
+					t.Errorf("depth: exit %d, stdout %q, stderr %q", code, dep, errOut)
+				}
+				return
+			}
+			var d struct {
+				Depth   string
+				Reasons []string
+			}
+			if err := json.Unmarshal([]byte(dep), &d); code != exitClean || err != nil {
+				t.Fatalf("depth: exit %d, %v, stderr %q", code, err, errOut)
+			}
+			if d.Depth != "deep" || !slices.Contains(d.Reasons, "deep-files-list-mismatch") {
+				t.Errorf("depth: %s", dep)
+			}
+		})
 	}
 }

@@ -1,0 +1,94 @@
+diff --git a/bin.dat b/bin.dat
+index f8ac8d3..4e7260f 100644
+Binary files a/bin.dat and b/bin.dat differ
+diff --git a/c2.tf b/c2.tf
+new file mode 100644
+index 0000000..f2ad6c7
+--- /dev/null
++++ b/c2.tf
+@@ -0,0 +1 @@
++c
+diff --git a/e.tf b/e.tf
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/link.tf b/link.tf
+index 234c746..cb53681 120000
+--- a/link.tf
++++ b/link.tf
+@@ -1 +1 @@
+-a.tf
+\ No newline at end of file
++b.tf
+\ No newline at end of file
+diff --git a/m.tf b/m.tf
+old mode 100644
+new mode 100755
+diff --git a/main.tf b/main.tf
+index a9aeef0..fc92969 100644
+--- a/main.tf
++++ b/main.tf
+@@ -1,3 +1,3 @@
+ a = 1
+-b = 2
++b = 20
+ c = 3
+diff --git a/n.tf b/n.tf
+new file mode 100644
+index 0000000..e69de29
+diff --git a/q.tf b/q.tf
+deleted file mode 100644
+index bca70f3..0000000
+--- a/q.tf
++++ /dev/null
+@@ -1 +0,0 @@
+-q
+diff --git a/q2.tf b/q2.tf
+new file mode 100755
+index 0000000..bca70f3
+--- /dev/null
++++ b/q2.tf
+@@ -0,0 +1 @@
++q
+diff --git a/r.tf b/r.tf
+deleted file mode 100644
+index 587be6b..0000000
+--- a/r.tf
++++ /dev/null
+@@ -1 +0,0 @@
+-x
+diff --git a/r2.tf b/r2.tf
+new file mode 100644
+index 0000000..587be6b
+--- /dev/null
++++ b/r2.tf
+@@ -0,0 +1 @@
++x
+diff --git a/sub b/sub
+index 1111111..2222222 160000
+--- a/sub
++++ b/sub
+@@ -1 +1 @@
+-Subproject commit 1111111111111111111111111111111111111111
++Subproject commit 2222222222222222222222222222222222222222
+diff --git a/w.tf b/w.tf
+deleted file mode 100644
+index 768ecc8..0000000
+--- a/w.tf
++++ /dev/null
+@@ -1,5 +0,0 @@
+-w1
+-w2
+-w3
+-w4
+-w5
+diff --git a/w2.tf b/w2.tf
+new file mode 100644
+index 0000000..79170ae
+--- /dev/null
++++ b/w2.tf
+@@ -0,0 +1,5 @@
++w1
++w2
++w3
++w4
++w5x

@@ -1,6 +1,7 @@
 package depth
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/modulestf/facts/internal/facts"
 )
 
 // gate lists the release-gate fixtures of DECISIONS.md D-1, the fixtures
@@ -166,6 +169,34 @@ func TestSafePath(t *testing.T) {
 	} {
 		if got := safePath(p); got != want {
 			t.Errorf("safePath(%q) = %v, want %v", p, got, want)
+		}
+	}
+}
+
+// TestFilesListNoFilenameRefused: a files list entry with no filename or with
+// a status outside GitHub's set, which GitHub never sends, stops the run.
+func TestFilesListNoFilenameRefused(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	head, base, files := filepath.Join(dir, "head"), filepath.Join(dir, "base"), filepath.Join(dir, "files.json")
+	for _, d := range []string{head, base} {
+		if err := os.Mkdir(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, list := range []string{
+		`[{"status":"unchanged","additions":0,"deletions":0}]`,
+		`[{"filename":"","status":"modified"}]`,
+		`[{"filename":"main.tf","status":"mode-only","additions":0,"deletions":0}]`,
+		`[{"filename":"main.tf","additions":0,"deletions":0}]`,
+	} {
+		if err := os.WriteFile(files, []byte(list), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Run(Options{Head: head, Base: base, Files: files, Limits: facts.DefaultLimits})
+		var u UsageError
+		if !errors.As(err, &u) || !strings.Contains(err.Error(), "files list: ") {
+			t.Errorf("%s: error %v, want a usage error", list, err)
 		}
 	}
 }

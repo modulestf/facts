@@ -105,6 +105,12 @@ func Run(o Options) (*Report, error) {
 		return nil, UsageError{fmt.Sprintf("files list: %v", err)}
 	}
 	for _, f := range list {
+		if f.Filename == "" {
+			return nil, UsageError{"files list: an entry with no filename"}
+		}
+		if !facts.KnownFileStatus(f.Status) {
+			return nil, UsageError{fmt.Sprintf("files list: %q: unknown status %q", f.Filename, f.Status)}
+		}
 		if f.Additions != nil && *f.Additions > maxLineCount || f.Deletions != nil && *f.Deletions > maxLineCount {
 			return nil, UsageError{fmt.Sprintf("files list: %q has a line count over %d", f.Filename, maxLineCount)}
 		}
@@ -183,7 +189,7 @@ func (r *run) evaluate(head, base *facts.Tree, list []fileEntry) (*Report, error
 		}
 		counts.ChangedLines += *f.Additions + *f.Deletions
 	}
-	r.paths(head, base, changed, list)
+	r.paths(head, base, changed)
 
 	hm, bm := parseTree(head, r.o.Limits), parseTree(base, r.o.Limits)
 	bad := map[string]bool{}
@@ -366,7 +372,7 @@ func (r *run) changes(head, base *facts.Tree, list []fileEntry) []string {
 
 // paths applies the path rules: unsafe names, case-folded collisions,
 // changed links and special files, CI and CLI configuration, wrappers.
-func (r *run) paths(head, base *facts.Tree, changed []string, list []fileEntry) {
+func (r *run) paths(head, base *facts.Tree, changed []string) {
 	for _, p := range changed {
 		if !safePath(p) {
 			r.add(ReasonPathUnsafe)
@@ -389,12 +395,6 @@ func (r *run) paths(head, base *facts.Tree, changed []string, list []fileEntry) 
 			r.add(ReasonLockFile)
 		case formTest:
 			r.add(ReasonTestOrMock)
-		}
-	}
-	for _, f := range list {
-		if f.Status == "" {
-			r.add(ReasonFilesListMismatch)
-			r.note("files list entry %q has no status", f.Filename)
 		}
 	}
 	// Case-folded collisions among every path and directory of both trees.

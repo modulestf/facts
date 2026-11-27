@@ -485,17 +485,15 @@ func TestAffectedDiffGitlink(t *testing.T) {
 		dirs  []string // gitlinks at the head
 		diff  string
 	}{
-		"files list, gitlink removed":         {gitlinkBase, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub)},
-		"files list, gitlink removed, read":   {read, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub)},
-		"files list, gitlink bumped":          {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+"+sub+"1")},
-		"files list, gitlink to file":         {with(gitlinkBase, map[string]string{"docs/sub": "text\n"}), nil, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+text")},
-		"files list, file to gitlink":         {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-text\\n+"+sub)},
-		"files list, gitlink added":           {gitlinkBase, []string{"docs/sub"}, filesList("added", "docs/sub", "@@ -0,0 +1 @@\\n+"+sub)},
-		"unified, gitlink removed":            {gitlinkBase, nil, "diff --git a/docs/sub b/docs/sub\ndeleted file mode 160000\nindex " + gitSHA[:7] + "..0000000\n--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n"},
-		"unified, gitlink bumped":             {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nindex abc1234..def5678 160000\n--- a/docs/sub\n+++ b/docs/sub\n@@ -1 +1 @@\n-" + sub + "\n+" + sub + "1\n"},
-		"unified, gitlink added":              {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nnew file mode 160000\nindex 0000000..def5678\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+" + sub + "\n"},
-		"unified, mode change to a gitlink":   {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nold mode 100644\nnew mode 160000\n"},
-		"unified, mode change from a gitlink": {with(gitlinkBase, map[string]string{"docs/sub": "x\n"}), nil, "diff --git a/docs/sub b/docs/sub\nold mode 160000\nnew mode 100644\n"},
+		"files list, gitlink removed":       {gitlinkBase, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub)},
+		"files list, gitlink removed, read": {read, nil, filesList("removed", "docs/sub", "@@ -1 +0,0 @@\\n-"+sub)},
+		"files list, gitlink bumped":        {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+"+sub+"1")},
+		"files list, gitlink to file":       {with(gitlinkBase, map[string]string{"docs/sub": "text\n"}), nil, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-"+sub+"\\n+text")},
+		"files list, file to gitlink":       {gitlinkBase, []string{"docs/sub"}, filesList("modified", "docs/sub", "@@ -1 +1 @@\\n-text\\n+"+sub)},
+		"files list, gitlink added":         {gitlinkBase, []string{"docs/sub"}, filesList("added", "docs/sub", "@@ -0,0 +1 @@\\n+"+sub)},
+		"unified, gitlink removed":          {gitlinkBase, nil, "diff --git a/docs/sub b/docs/sub\ndeleted file mode 160000\nindex " + gitSHA[:7] + "..0000000\n--- a/docs/sub\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n"},
+		"unified, gitlink bumped":           {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nindex abc1234..def5678 160000\n--- a/docs/sub\n+++ b/docs/sub\n@@ -1 +1 @@\n-" + sub + "\n+" + sub + "1\n"},
+		"unified, gitlink added":            {gitlinkBase, []string{"docs/sub"}, "diff --git a/docs/sub b/docs/sub\nnew file mode 160000\nindex 0000000..def5678\n--- /dev/null\n+++ b/docs/sub\n@@ -0,0 +1 @@\n+" + sub + "\n"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -508,7 +506,7 @@ func TestAffectedDiffGitlink(t *testing.T) {
 	t.Run("a mode line of an ordinary file is no gitlink", func(t *testing.T) {
 		t.Parallel()
 		head := writeGitlinkTree(t, gitlinkBase, nil, false)
-		r := diffAffected(t, head, "diff --git a/docs/guide.md b/docs/guide.md\nold mode 100644\nnew mode 100755\n", "")
+		r := diffAffected(t, head, "diff --git a/docs/guide.md b/docs/guide.md\nold mode 100755\nnew mode 100644\n", "")
 		if r.Fallback != nil || slices.Contains(r.Changed, "docs/sub") {
 			t.Errorf("fallback %v changed %q", r.Fallback, r.Changed)
 		}
@@ -535,14 +533,12 @@ func TestParseUnifiedGitlinkMarks(t *testing.T) {
 		"new file mode":               {"diff --git a/s b/s\nnew file mode 160000\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", false, true},
 		"deleted file mode, no hunk":  {"diff --git a/s b/s\ndeleted file mode 160000\n", true, false},
 		"new file mode, no hunk":      {"diff --git a/s b/s\nnew file mode 160000\n", false, true},
-		"deleted file mode of a file": {"diff --git a/s b/s\ndeleted file mode 100644\n", false, false},
-		"new file mode of a file":     {"diff --git a/s b/s\nnew file mode 100644\n", false, false},
+		"deleted file mode of a file": {"diff --git a/s b/s\ndeleted file mode 100644\nindex e69de29..0000000\n", false, false},
+		"new file mode of a file":     {"diff --git a/s b/s\nnew file mode 100644\nindex 0000000..e69de29\n", false, false},
 		"old mode of a file":          {"diff --git a/s b/s\nold mode 100644\nnew mode 100755\n", false, false},
-		"old mode":                    {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n", true, false},
-		"new mode":                    {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n", false, true},
-		"index line":                  {"diff --git a/s b/s\nindex abc..def 160000\n", true, true},
+		"index line":                  {"diff --git a/s b/s\nindex abc1234..def5678 160000\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-x\n+y\n", true, true},
 		"hunk lines":                  {"diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+text\n", true, false},
-		"ordinary file":               {"diff --git a/s b/s\nindex abc..def 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
+		"ordinary file":               {"diff --git a/s b/s\nindex abc1234..def5678 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
