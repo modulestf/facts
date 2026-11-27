@@ -166,7 +166,7 @@ func TestChangeMapOpaqueFileLinesUnknown(t *testing.T) {
 
 func TestRebuildOpaqueHasNoPatch(t *testing.T) {
 	h := mustTree(t, writeTree(t, map[string]string{"a.zip": binaryBody(20)})).Entries["a.zip"]
-	for _, c := range []fileChange{{path: "a.zip", status: statusModeOnly}, {path: "b.zip", status: statusPureRename}, {path: "a.zip", patch: []byte("@@ -1 +1 @@\n-x\n+y\n")}} {
+	for _, c := range []fileChange{{path: "a.zip", status: "modified"}, {path: "b.zip", status: "renamed"}, {path: "a.zip", patch: []byte("@@ -1 +1 @@\n-x\n+y\n")}} {
 		e, err := rebuildContent(c.path, h, c, DefaultLimits)
 		if err != nil || e.Kind != KindNoPatch {
 			t.Errorf("%+v: got %+v, %v, want no patch", c.status, e, err)
