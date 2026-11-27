@@ -203,6 +203,86 @@ func TestResourceAddressCases(t *testing.T) {
 			base: "module \"a\" {\n  source = \"./m\"\n}\n",
 			head: "module \"a\" {\n  source   = \"./m\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = module.a\n  to   = module.a[\"k\"]\n}\n",
 		},
+		"base address declared twice, the matching block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\nresource \"aws_a\" \"x\" {\n  name = \"a\"\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"base address declared twice, the matching block first": {
+			base: "resource \"aws_a\" \"x\" {\n  name = \"a\"\n}\nresource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"head address declared twice, the matching block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  name = \"b\"\n}\nresource \"aws_a\" \"x\" {\n  count = 2\n  name  = \"c\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"head address declared twice, the matching block first": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  count = 2\n  name  = \"c\"\n}\nresource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"moved target declared twice, the keyed block first": {
+			base: "resource \"aws_a\" \"x\" {\n  name = \"a\"\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nresource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved target declared twice, the keyed block last": {
+			base: "resource \"aws_a\" \"x\" {\n  name = \"a\"\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved target declared twice, the counted block first": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 2\n}\nresource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved target declared twice, the counted block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  name = \"b\"\n}\nresource \"aws_a\" \"y\" {\n  count = 2\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"instance moved to a target declared twice, the keyed block first": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nresource \"aws_a\" \"y\" {\n  count = 1\n}\nmoved {\n  from = aws_a.x[1]\n  to   = aws_a.y[0]\n}\n",
+			want: []string{"main.tf:10 .:aws_a.x"},
+		},
+		"instance moved to a target declared twice, the keyed block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x[1]\n  to   = aws_a.y[0]\n}\n",
+			want: []string{"main.tf:10 .:aws_a.x"},
+		},
+		"moved into a module call declared twice, first order": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m1\"\n}\nmodule \"m\" {\n  source = \"./m2\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved into a module call declared twice, second order": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m2\"\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved into a module call declared twice with for_each, plain block first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m1\"\n}\nmodule \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"moved into a module call declared twice with for_each, plain block last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"moved into an instance of a module call declared twice, plain block first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m1\"\n}\nmodule \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"moved into an instance of a module call declared twice, plain block last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",
