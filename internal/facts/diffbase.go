@@ -124,19 +124,29 @@ func baseFromDiff(head *Tree, data []byte, lim Limits) (*Tree, string, error) {
 	return base, format, err
 }
 
-// ghFileEntry is the part of a files list entry the rebuild reads.
+// ghFileEntry is the part of a files list entry the rebuild reads. The
+// counts are not used, but a value that is no number is refused.
 type ghFileEntry struct {
 	Filename         string  `json:"filename"`
 	Status           string  `json:"status"`
 	PreviousFilename string  `json:"previous_filename"`
 	Patch            *string `json:"patch"`
-	Additions        int     `json:"additions"`
-	Deletions        int     `json:"deletions"`
+	Additions        *int    `json:"additions"`
+	Deletions        *int    `json:"deletions"`
 }
 
-// parseGitHubFiles reads a files list. A renamed entry with no patch and no
-// added or removed line is a pure rename when the head file is text; GitHub
-// counts a binary file 0 and 0 too, so applyChanges checks the content.
+// ghStatuses is the set of statuses GitHub gives a files list entry. Any
+// other value is refused, so an input cannot name a status of the rebuild's
+// own.
+var ghStatuses = []string{"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
+
+// parseGitHubFiles reads a files list. A blank patch is no patch: GitHub
+// gives none for a change it shows no line of. An entry other than an added
+// one with no patch is KindNoPatch at the base, whatever its counts: a list
+// shows neither side's content, so it cannot prove a rename or a mode change
+// kept the text, as a binary base with a text head counts 0 and 0 too, nor
+// that a removed file was empty, as a host may list as removed a file a
+// rename moved out of the tree. --base and a unified diff prove those.
 func parseGitHubFiles(data []byte) ([]fileChange, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	var list []ghFileEntry
@@ -148,37 +158,18 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 	}
 	out := make([]fileChange, 0, len(list))
 	for _, e := range list {
+		if !slices.Contains(ghStatuses, e.Status) {
+			return nil, fmt.Errorf("files list: %q: unknown status %q", e.Filename, e.Status)
+		}
 		c := fileChange{path: e.Filename, prev: e.PreviousFilename, status: e.Status}
-		switch {
-		case e.Patch != nil:
+		if e.Patch != nil && len(bytes.TrimSpace([]byte(*e.Patch))) > 0 {
 			c.patch = []byte(*e.Patch)
 			c.markGitlink()
-		case e.Status == "renamed" && e.Additions == 0 && e.Deletions == 0:
-			c.status = statusPureRename
-		case (e.Status == "modified" || e.Status == "changed") && e.Additions == 0 && e.Deletions == 0:
-			c.status = statusModeOnly
-		case e.Status == "removed" && e.Deletions == 0 && strings.HasSuffix(e.Filename, ".tf"):
-			c.status = statusRemovedEmpty
 		}
 		out = append(out, c)
 	}
 	return out, nil
 }
-
-// statusPureRename marks a rename the diff shows with no line. For a files
-// list it still needs a text file at head; see applyChanges.
-const statusPureRename = "pure-rename"
-
-// statusModeOnly marks a files list entry changed with no patch and no added
-// or removed line: for a text file at head only its mode can have changed.
-// A binary one may have changed content too; see rebuildEntry.
-const statusModeOnly = "mode-only"
-
-// statusRemovedEmpty marks a files list entry for a removed .tf file with no
-// patch and no removed line: the file was empty, or git saw it as binary. A
-// binary .tf file does not parse, so it holds no configuration either way,
-// unless a .gitattributes file hides the diff of a text file; see applyChanges.
-const statusRemovedEmpty = "removed-empty"
 
 func unifiedStart(t []byte) bool {
 	return bytes.HasPrefix(t, []byte("diff --git ")) || bytes.Contains(t, []byte("\n--- ")) ||
@@ -405,7 +396,7 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			// the diff shows no hunk: a rename keeps the type, and a change
 			// with no patch shows no line.
 			c.newGit = true
-			c.oldGit = c.oldGit || c.status == "renamed" || c.status == statusPureRename || c.status == "copied"
+			c.oldGit = c.oldGit || c.status == "renamed" || c.status == "copied"
 		}
 		if seenHead[c.path] {
 			// A change of type, such as a gitlink that became a link, comes as
@@ -444,12 +435,12 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		switch c.status {
 		case "added", "copied":
 			at = ""
-		case "removed", statusRemovedEmpty:
+		case "removed":
 			if head.Entries[c.path] != nil {
 				return nil, fmt.Errorf("%q is removed by the diff but still in the head tree", c.path)
 			}
-		case "modified", "changed", statusModeOnly:
-		case "renamed", statusPureRename:
+		case "modified", "changed":
+		case "renamed":
 			if c.prev == "" {
 				return nil, fmt.Errorf("%q is renamed with no previous path", c.path)
 			}
@@ -459,12 +450,10 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		default:
 			return nil, fmt.Errorf("%q: unknown status %q", c.path, c.status)
 		}
-		if c.status != "removed" && c.status != statusRemovedEmpty && head.Entries[c.path] == nil {
+		if c.status != "removed" && head.Entries[c.path] == nil {
 			return nil, fmt.Errorf("%q is in the diff but not in the head tree", c.path)
 		}
-		if c.status != "modified" && c.status != "changed" && c.status != statusModeOnly {
-			delete(entries, c.path) // added or renamed away; a rebuild below may put it back
-		}
+		delete(entries, c.path) // added, renamed away or changed; the rebuild below puts back a base entry
 		if at == "" {
 			continue
 		}
@@ -485,13 +474,6 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		}
 		entries[r.at] = e
 	}
-	if diffMayBeHidden(head.Entries, entries) {
-		for _, r := range todo {
-			if r.c.status == statusRemovedEmpty {
-				entries[r.at] = &Entry{Path: r.at, Kind: KindNoPatch}
-			}
-		}
-	}
 	for _, e := range entries {
 		total += int64(len(e.Data))
 	}
@@ -506,24 +488,6 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	maps.Copy(t.gitlinks, gitDiff)
 	t.gitlinkDiff = gitDiff
 	return t, nil
-}
-
-// diffMayBeHidden reports whether a .gitattributes file of either tree may
-// mark a text file binary or -diff, so that a removed file with no line may
-// have had content: any such file that is not a regular file, or that names
-// binary or -diff anywhere, counts.
-func diffMayBeHidden(trees ...map[string]*Entry) bool {
-	for _, t := range trees {
-		for p, e := range t {
-			if path.Base(p) != ".gitattributes" {
-				continue
-			}
-			if e.Kind != KindFile || bytes.Contains(e.Data, []byte("binary")) || bytes.Contains(e.Data, []byte("-diff")) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // safeDiffPath accepts a clean relative path with no control character.
@@ -555,8 +519,6 @@ func rebuildEntry(at string, h *Entry, c fileChange, lim Limits) (*Entry, error)
 			return nil, fmt.Errorf("mode %q", c.oldMode)
 		}
 		e.exec = m&0o111 != 0
-	case c.status == statusModeOnly:
-		e.exec = !h.exec // the content is the head's, so the mode changed
 	case h != nil:
 		e.exec = h.exec // a diff with no mode line keeps the mode
 	}
@@ -567,29 +529,12 @@ func rebuildEntry(at string, h *Entry, c fileChange, lim Limits) (*Entry, error)
 // not yet set; see rebuildEntry.
 func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, error) {
 	noPatch := &Entry{Path: at, Kind: KindNoPatch}
-	if c.status == statusModeOnly {
-		if h.Kind != KindFile || h.opaque || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
-			return noPatch, nil // a binary file shows no line, changed or not
-		}
-		e := *h
-		e.Path = at
-		return &e, nil
-	}
-	if c.status == statusPureRename {
-		if h.Kind != KindFile || h.opaque || bytes.IndexByte(h.Data[:min(len(h.Data), binaryProbe)], 0) >= 0 {
-			return noPatch, nil // a binary rename shows no line either, changed or not
-		}
-		c.patch = []byte{}
-	}
-	if c.status == statusRemovedEmpty {
-		return fileEntry(at, nil), nil // applyChanges undoes this when .gitattributes may hide a diff
-	}
 	if c.patch == nil {
 		return noPatch, nil
 	}
 	if len(bytes.TrimSpace(c.patch)) == 0 {
 		if h == nil {
-			return fileEntry(at, nil), nil // a removed empty file
+			return fileEntry(at, nil), nil // a removed empty file of a unified diff
 		}
 		e := *h // no line changed: the same entry under its base path
 		e.Path = at

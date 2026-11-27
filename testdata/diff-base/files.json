@@ -56,11 +56,22 @@
   {
     "sha": "0000000000000000000000000000000000000000",
     "filename": "modules/log/output.tf",
-    "status": "renamed",
-    "additions": 0,
+    "status": "added",
+    "additions": 4,
     "deletions": 0,
-    "changes": 0,
-    "previous_filename": "modules/log/outputs.tf"
+    "changes": 4,
+    "previous_filename": null,
+    "patch": "@@ -0,0 +1,4 @@\n+output \"id\" {\n+  description = \"ID of the log group\"\n+  value       = try(aws_demo_widget.this.id, null)\n+}"
+  },
+  {
+    "sha": "0000000000000000000000000000000000000000",
+    "filename": "modules/log/outputs.tf",
+    "status": "removed",
+    "additions": 0,
+    "deletions": 4,
+    "changes": 4,
+    "previous_filename": null,
+    "patch": "@@ -1,4 +0,0 @@\n-output \"id\" {\n-  description = \"ID of the log group\"\n-  value       = try(aws_demo_widget.this.id, null)\n-}"
   },
   {
     "sha": "0000000000000000000000000000000000000000",
