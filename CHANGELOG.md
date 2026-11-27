@@ -1,3 +1,12 @@
+# [0.22.0](https://github.com/modulestf/facts/compare/v0.21.13...v0.22.0) (2026-11-27)
+
+
+### Features
+
+* **behaviour:** Name a review tool limit as the cause of an unverified trigger ([#156](https://github.com/modulestf/facts/issues/156)) ([471f199](https://github.com/modulestf/facts/commit/471f1999d668bcf2aa742bab49f7ecc8dd53bd0c))
+
+
+
 ## [0.21.13](https://github.com/modulestf/facts/compare/v0.21.12...v0.21.13) (2026-11-27)
 
 
