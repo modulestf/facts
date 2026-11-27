@@ -61,5 +61,6 @@
     ]
   },
   "base": null,
-  "compare": null
+  "compare": null,
+  "precondition": null
 }

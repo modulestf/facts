@@ -75,6 +75,11 @@ type PolicyDocsReport struct {
 	Head          *PolicyReport `json:"head"`
 	Base          *PolicyReport `json:"base"`
 	Compare       []PolicyPair  `json:"compare"`
+	// Precondition says whether both trees pass the comparison precondition;
+	// null without a base. When it is false every pair is undecidable, and
+	// a tree whose only directories are undecidable has no pair at all: a
+	// host reads it, never an empty compare, with head and base directories.
+	Precondition *bool `json:"precondition"`
 }
 
 // PolicyReport lists the module directories of one tree and the documents
@@ -225,7 +230,8 @@ func PolicyDocs(o PolicyDocsOptions) (*PolicyDocsReport, error) {
 		return nil, err
 	}
 	r.Base = bs.report
-	r.Compare = policyCompare(hs, bs)
+	decided := hs.treeOK && bs.treeOK && hs.env == bs.env
+	r.Compare, r.Precondition = policyCompare(hs, bs, decided), &decided
 	return r, nil
 }
 
@@ -556,8 +562,7 @@ func fingerprint(src []byte, r hcl.Range, block bool) string {
 }
 
 // policyCompare pairs the documents of both trees by directory and address.
-func policyCompare(head, base *policyTree) []PolicyPair {
-	decided := head.treeOK && base.treeOK && head.env == base.env
+func policyCompare(head, base *policyTree, decided bool) []PolicyPair {
 	keys := map[[2]string]bool{}
 	for k := range head.docIndex {
 		keys[k] = true

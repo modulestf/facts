@@ -130,5 +130,6 @@
       "content": "equal",
       "uses": "differs"
     }
-  ]
+  ],
+  "precondition": true
 }

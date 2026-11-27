@@ -754,16 +754,17 @@ func (pt *policyTree) trace(di *policyDirInfo, d *policyDocInfo) ([]PolicyUse, [
 				if it.flatAt >= 0 && abs > it.flatAt {
 					abs = it.flatAt + 1
 				}
-				// The site's text and every definition it reads, but the
-				// document's own: its content is compared apart. An inline
-				// document is the text of the site it starts in.
-				exclude := di.dir + "|" + d.doc.Address
-				switch {
-				case !closedExpr(s.expr):
+				// The site's text and every definition it reads. A data
+				// source's own block is left out, as its content is compared
+				// apart; an inline document has no block of its own, so the
+				// text of every site and local on its way stays in.
+				exclude := ""
+				if d.doc.Kind == PolicyKindDataSource {
+					exclude = di.dir + "|" + d.doc.Address
+				}
+				if !closedExpr(s.expr) {
 					defs = append(defs, undecidedDef)
-				case st.node == d.key && d.doc.Kind != PolicyKindDataSource:
-					defs = append(defs, st.dir+"|"+where)
-				default:
+				} else {
 					defs = append(defs, st.dir+"|"+where+"="+pt.fingerprint(s.src, s.expr.Range(), false),
 						pt.defs(sd, s.refs, exclude))
 				}
@@ -772,9 +773,10 @@ func (pt *policyTree) trace(di *policyDirInfo, d *policyDocInfo) ([]PolicyUse, [
 					return nil, nil, reason
 				}
 				defs = append(defs, more...)
-				if use != nil && s.kind == siteGeneric {
+				if use != nil && (s.kind == siteGeneric || s.kind == siteOutput) {
 					// The whole block that uses it: its target, provider,
-					// lifecycle and gate are part of the use.
+					// lifecycle and gate are part of the use, and so is every
+					// argument of an output.
 					b := s.block
 					if !closedBody(b.block.Body) {
 						defs = append(defs, undecidedDef)
@@ -1095,10 +1097,22 @@ func (w *defsWalk) entries() []defEntry {
 func (w *defsWalk) walk(di *policyDirInfo, refs []string) {
 	todo := slices.Clone(refs)
 	for len(todo) > 0 && w.ok {
-		addr := refRoot(todo[0])
+		ref := todo[0]
+		addr := refRoot(ref)
 		todo = todo[1:]
+		if addr == "" {
+			// each and count are read through the block's gate, terraform
+			// from the shared environment; any other root, such as an
+			// iterator symbol, names no definition the key can read.
+			switch ref[:strings.IndexAny(ref+".", ".[")] {
+			case "each", "count", "terraform", "self":
+				continue
+			}
+			w.ok = false
+			return
+		}
 		key := di.dir + "|" + addr
-		if addr == "" || w.seen[key] {
+		if w.seen[key] {
 			continue
 		}
 		w.seen[key] = true
@@ -1126,7 +1140,11 @@ func (w *defsWalk) walk(di *policyDirInfo, refs []string) {
 			bs := di.byAddr[addr]
 			switch len(bs) {
 			case 0:
-				continue // an iterator symbol, or a block the configuration lacks and so does not load
+				// An iterator symbol, such as a dynamic block's, an ephemeral value,
+				// which refAddress names by its type alone, or a block the
+				// configuration lacks: nothing the key can read.
+				w.ok = false
+				return
 			case 1:
 			default:
 				w.ok = false
@@ -1185,14 +1203,50 @@ func refRoot(r string) string {
 	return refAddress(t)
 }
 
-// blockVariables are the traversals of every expression of a body.
+// blockVariables are the traversals of every expression of a body, but
+// those rooted at the iterator of an enclosing dynamic block: its value is
+// the block's own for_each, whose text and reads are in the same key.
 func blockVariables(b *hclsyntax.Body) []hcl.Traversal {
+	return scopedVariables(b, nil)
+}
+
+func scopedVariables(b *hclsyntax.Body, iters []string) []hcl.Traversal {
 	var out []hcl.Traversal
+	add := func(e hclsyntax.Expression, iters []string) {
+		for _, t := range e.Variables() {
+			if !slices.Contains(iters, t.RootName()) {
+				out = append(out, t)
+			}
+		}
+	}
 	for _, a := range b.Attributes {
-		out = append(out, a.Expr.Variables()...)
+		add(a.Expr, iters)
 	}
 	for _, nb := range b.Blocks {
-		out = append(out, blockVariables(nb.Body)...)
+		if nb.Type != "dynamic" || len(nb.Labels) != 1 {
+			out = append(out, scopedVariables(nb.Body, iters)...)
+			continue
+		}
+		name := nb.Labels[0]
+		if it, ok := nb.Body.Attributes["iterator"]; ok {
+			if name = hcl.ExprAsKeyword(it.Expr); name == "" {
+				out = append(out, hcl.Traversal{hcl.TraverseRoot{Name: "iterator"}}) // not a name: no definition, so undecided
+				continue
+			}
+		}
+		inner := append(slices.Clone(iters), name)
+		for an, a := range nb.Body.Attributes {
+			switch an {
+			case "iterator":
+			case "for_each":
+				add(a.Expr, iters)
+			default:
+				add(a.Expr, inner)
+			}
+		}
+		for _, cb := range nb.Body.Blocks {
+			out = append(out, scopedVariables(cb.Body, inner)...)
+		}
 	}
 	return out
 }

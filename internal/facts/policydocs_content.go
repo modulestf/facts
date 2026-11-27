@@ -697,6 +697,10 @@ func jsonPrincipals(n jnode) ([]PolicyPrincipal, error) {
 	}
 	var out []PolicyPrincipal
 	for _, f := range n.obj {
+		if f.key == "*" {
+			// {"*": ...} would read the same as the bare "*" above.
+			return nil, undecided(PolicyReasonUnsupportedKey, "Principal.*")
+		}
 		ids, err := jsonList(f.val, "Principal."+f.key)
 		if err != nil {
 			return nil, err

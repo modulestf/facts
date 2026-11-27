@@ -458,13 +458,16 @@ files read whole (no link, special, unreadable or oversize entry), no
 variables file of any name, no undecidable directory, every local module
 source in the tree, and the same provider and terraform blocks, with what
 they read, and lock files; otherwise presence, content and uses are all
-undecidable. Then a side
+undecidable. precondition says which; a tree whose only directories are
+undecidable has no pair, so read precondition and the directories, never an
+empty compare alone. Then a side
 is equal only when the normalized text and the text of every definition it
 reads match: locals, variables, aws_ resource and data blocks, the whole
 blocks that use the document, and every in-tree call of the directories on
 the way, up the call chain. A definition outside the closed grammar (a
 function whose result does not depend on its arguments alone, such as
-file or templatefile, a path.* reference, a module output, a resource or
+file or templatefile, a path.* reference, a module output, a name that
+is no definition, such as an iterator symbol or an ephemeral value, a resource or
 data type other than aws_, or an aws_ block with an argument that names a
 file, such as source or filename) makes that side undecidable. Values from outside
 the tree (variables a run passes, callers outside the tree, provider APIs and

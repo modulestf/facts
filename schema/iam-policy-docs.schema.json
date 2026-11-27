@@ -5,20 +5,28 @@
   "description": "The IAM policy documents of a module tree, their normalized content and the blocks that use each one, read and never evaluated. What the reader cannot decide is undecidable with a reason code, never equal or absent. base and compare are null when no base tree was given.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "head", "base", "compare"],
+  "required": ["schema_version", "head", "base", "compare", "precondition"],
   "properties": {
     "schema_version": {"const": 1},
     "head": {"$ref": "#/$defs/report"},
     "base": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/report"}]},
-    "compare": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/pair"}}]}
+    "compare": {"oneOf": [{"type": "null"}, {"type": "array", "items": {"$ref": "#/$defs/pair"}}]},
+    "precondition": {
+      "description": "Whether both trees pass the comparison precondition; null without a base. When false every pair is undecidable, and compare may be empty: read head and base directories for why.",
+      "type": ["boolean", "null"]
+    }
   },
   "allOf": [
     {
       "if": {"type": "object", "required": ["base"], "properties": {"base": {"type": "null"}}},
-      "then": {"type": "object", "properties": {"compare": {"type": "null"}}}
+      "then": {"type": "object", "properties": {"compare": {"type": "null"}, "precondition": {"type": "null"}}}
     },
     {
       "if": {"type": "object", "required": ["compare"], "properties": {"compare": {"type": "null"}}},
+      "then": {"type": "object", "properties": {"base": {"type": "null"}}}
+    },
+    {
+      "if": {"type": "object", "required": ["precondition"], "properties": {"precondition": {"type": "null"}}},
       "then": {"type": "object", "properties": {"base": {"type": "null"}}}
     }
   ],

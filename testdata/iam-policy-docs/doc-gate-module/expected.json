@@ -146,5 +146,6 @@
       "content": "equal",
       "uses": "undecidable"
     }
-  ]
+  ],
+  "precondition": true
 }
