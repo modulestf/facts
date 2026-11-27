@@ -367,6 +367,12 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		bs := bases(key)
 		if len(bs) == 0 {
 			newBlocks[key] = h
+			if malformedMove {
+				// The unreadable move may have landed here: count it all.
+				for _, e := range sharedArgs(Body{}, h, true, true) {
+					r.add(e)
+				}
+			}
 		}
 		for _, b := range bs {
 			for _, e := range sharedArgs(b, h, top, all) {
