@@ -823,7 +823,9 @@ func gitPath(p string) bool {
 // entry h (nil for a removed file).
 func rebuildEntry(at string, h *Entry, c fileChange, lim Limits) (*Entry, error) {
 	e, err := rebuildContent(at, h, c, lim)
-	if err != nil || e.Kind != KindFile {
+	// An oversize head a diff with no hunk copies keeps its hash, so it takes
+	// the base mode too, or an exec bit change alone would read as no change.
+	if err != nil || e.Kind != KindFile && e.Kind != KindOversize {
 		return e, err
 	}
 	switch {

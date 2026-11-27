@@ -310,6 +310,34 @@ func TestUnifiedGrammarAccepted(t *testing.T) {
 			t.Errorf("main.tf %+v", e)
 		}
 	})
+	t.Run("an exec bit change of an oversize head file", func(t *testing.T) {
+		t.Parallel()
+		big := strings.Repeat("a = 1\n", 500000) // 3,000,000 bytes, over the 2 MiB cap
+		head := mustTree(t, writeTree(t, map[string]string{"big.tf": big}))
+		if h := head.Entries["big.tf"]; h == nil || h.Kind != KindOversize || h.Executable() {
+			t.Fatalf("head big.tf %+v", h)
+		}
+		for name, c := range map[string]struct {
+			diff string
+			kind string
+		}{
+			"a mode pair alone":      {"diff --git a/big.tf b/big.tf\nold mode 100755\nnew mode 100644\n", KindOversize},
+			"a mode pair and a hunk": {"diff --git a/big.tf b/big.tf\nold mode 100755\nnew mode 100644\nindex 1111111..2222222\n--- a/big.tf\n+++ b/big.tf\n@@ -1 +1 @@\n-a = 0\n+a = 1\n", KindNoPatch},
+			"a hunk alone":           {"diff --git a/big.tf b/big.tf\nindex 1111111..2222222 100644\n--- a/big.tf\n+++ b/big.tf\n@@ -1 +1 @@\n-a = 0\n+a = 1\n", KindNoPatch},
+		} {
+			got, _, err := baseFromDiff(head, []byte(c.diff), DefaultLimits)
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			e := got.Entries["big.tf"]
+			if e == nil || e.Kind != c.kind || sameEntry(head.Entries["big.tf"], e) {
+				t.Errorf("%s: base big.tf %+v, want %s and changed", name, e, c.kind)
+			}
+			if c.kind == KindOversize && !e.Executable() {
+				t.Errorf("%s: base big.tf not executable", name)
+			}
+		}
+	})
 	t.Run("a mode of an oversize head file", func(t *testing.T) {
 		t.Parallel()
 		lim := DefaultLimits
