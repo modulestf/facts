@@ -3,12 +3,9 @@ package facts
 import (
 	"fmt"
 	"maps"
-	"math"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 )
 
 // compatVar parses one variable with the given type text, or none when typ
@@ -625,12 +622,12 @@ func TestMovedKey(t *testing.T) {
 	}
 }
 
-// sharedArgs reads the nested block types of a body in time linear in the
-// blocks: one resource with many distinct nested block types must not cost
-// a pass over the whole body for each type. Linear work gives a ratio of
+// sharedArgs reads the nested block types of a body with work linear in
+// the blocks: one resource with many distinct nested block types must not
+// cost a pass over the whole body for each type. The work is counted as
+// allocations, which load does not change: linear work gives a ratio of
 // about 8 between the two sizes and the limit is 16; work quadratic in the
-// types gives 64. A ratio over the limit is measured again, up to twice, so
-// one run slowed by load cannot fail the test.
+// types gives about 62.
 func TestSharedArgsManyNestedTypesAreLinear(t *testing.T) {
 	body := func(n int) Body {
 		var b Body
@@ -640,31 +637,20 @@ func TestSharedArgsManyNestedTypesAreLinear(t *testing.T) {
 		}
 		return b
 	}
-	run := func(n int) time.Duration {
+	allocs := func(n int) float64 {
 		base, head := body(n), body(n)
-		runtime.GC()
-		start := time.Now()
 		if got := len(sharedArgs(base, head, true, false)); got != n {
 			t.Fatalf("%d arguments, want %d", got, n)
 		}
-		return time.Since(start)
+		return testing.AllocsPerRun(2, func() { sharedArgs(base, head, true, false) })
 	}
 	const (
 		small    = 500
 		large    = 8 * small
-		tries    = 3
-		attempts = 3
 		maxRatio = 16 // linear is 8, quadratic 64
 	)
-	fastS, fastL := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
-	var ratio float64
-	for range attempts {
-		for range tries {
-			fastS, fastL = min(fastS, run(small)), min(fastL, run(large))
-		}
-		if ratio = float64(fastL) / float64(fastS); ratio <= maxRatio {
-			return
-		}
+	s, l := allocs(small), allocs(large)
+	if ratio := l / s; ratio > maxRatio {
+		t.Errorf("%d types made %.0f allocations, %d types %.0f: ratio %.1f, want at most %d", large, l, small, s, ratio, maxRatio)
 	}
-	t.Errorf("%d types took %v, %d types %v: ratio %.1f, want at most %d", large, fastL, small, fastS, ratio, maxRatio)
 }

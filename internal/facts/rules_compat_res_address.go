@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -166,7 +167,8 @@ type addressMoves struct {
 // reports a chain Terraform refuses or that has no one target: a step whose
 // from address more than one moved block names, or a step that leaves an
 // address in a block the head declares, an instance of it or an address
-// inside a module call the head declares.
+// inside a module call the head declares, or a chain longer than
+// maxMoveHops.
 func (m addressMoves) follow(addr string) (to string, first *Moved, broken bool) {
 	first = m.from[addr]
 	if first == nil {
@@ -184,14 +186,18 @@ func (m addressMoves) follow(addr string) (to string, first *Moved, broken bool)
 		}
 		to = next.ToAddr
 	}
+	if m.from[to] != nil {
+		broken = true // longer than the detector follows
+	}
 	return to, first, broken
 }
 
 // split returns the head block a target names and the key, or nil when the
-// target is in no block of this area. other reports a target in another
-// area: an address inside a module call, such as module.child.<type>.<name>,
-// read by its segments, so a key that holds the text module. names no call
-// and module.m[0][1], a module call with two keys, is in no area.
+// target is in no block of this area. other reports a target under a module
+// call that is no block of this area: an address inside one, such as
+// module.child.<type>.<name>, a call the head lacks, or a call with more
+// keys than one, which innerKind refuses. The first segment decides, so a
+// key that holds the text module. names no call.
 func (m addressMoves) split(target string) (b *addrBlock, key string, other bool) {
 	if b := m.head[target]; b != nil {
 		return b, "", false
@@ -201,8 +207,50 @@ func (m addressMoves) split(target string) (b *addrBlock, key string, other bool
 			return b, target[loc[0]:], false
 		}
 	}
-	call, deep := movedKey(target)
-	return nil, "", deep && blockType(call) == "module"
+	call, _ := movedKey(target)
+	return nil, "", blockType(call) == "module"
+}
+
+// innerKind is the kind of block an address under a module call names,
+// "module" or "resource", read by its segments: a module call when the
+// segment before the last is module. ok is false when a step has more than
+// one key, which names no instance. Keys are numbers or quoted strings, so
+// a bracket outside quotes always opens or closes one.
+func innerKind(addr string) (kind string, ok bool) {
+	prev := ""
+	keys := 0
+	depth, quoted := 0, false
+	var cur strings.Builder
+	for i := 0; i < len(addr); i++ {
+		c := addr[i]
+		switch {
+		case quoted:
+			switch c {
+			case '\\':
+				i++
+			case '"':
+				quoted = false
+			}
+		case c == '"':
+			quoted = true
+		case c == '[':
+			if keys++; keys > 1 {
+				return "", false
+			}
+			depth++
+		case c == ']':
+			depth--
+		case c == '.' && depth == 0:
+			prev, keys = cur.String(), 0
+			cur.Reset()
+		case depth == 0:
+			cur.WriteByte(c)
+		}
+	}
+	if prev == "module" {
+		return "module", true
+	}
+	return "resource", true
 }
 
 // otherKind reports a moved block between a resource and a module call,
@@ -238,9 +286,11 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 			return false, mv
 		case other:
 			// A whole address moved into another area, when the head
-			// declares the module call it lands in once.
+			// declares the module call it lands in once and the address
+			// there is a block of the same kind with at most one key a step.
 			call, _ := movedKey(to)
-			return m.head[call] != nil && !m.headDup[call], mv
+			inner, ok := innerKind(to)
+			return ok && (inner == "module") == (b.kind == "module") && m.head[call] != nil && !m.headDup[call], mv
 		case t == nil || m.headDup[t.addr] || otherKind(b, t):
 			return false, mv
 		case key != "":
@@ -277,15 +327,22 @@ func checkResourceAddressChanged(a *Area) Result {
 	base, baseDup := addrBlocks(a.Base)
 	head, headDup := addrBlocks(a.Head)
 	moves := addressMoves{from: map[string]*Moved{}, fromDup: map[string]bool{}, head: head, headDup: headDup}
-	movedTo := map[string]bool{}
+	movedTo, fromSeen := map[string]bool{}, map[string]bool{}
 	for i := range a.Head.Moved {
 		m := &a.Head.Moved[i]
-		if m.FromAddr == "" || m.ToAddr == "" {
+		if m.FromAddr == "" {
 			continue // an expression key maps nothing the detector can name
 		}
-		if moves.from[m.FromAddr] != nil {
-			moves.fromDup[m.FromAddr] = true // no one target, whatever the block order
-		} else {
+		// A from address named twice has no one target, whatever the block
+		// order, also when the detector cannot read one of the targets.
+		if fromSeen[m.FromAddr] {
+			moves.fromDup[m.FromAddr] = true
+		}
+		fromSeen[m.FromAddr] = true
+		if m.ToAddr == "" {
+			continue
+		}
+		if moves.from[m.FromAddr] == nil {
 			moves.from[m.FromAddr] = m
 		}
 		if t, _, _ := moves.split(m.ToAddr); t != nil {
