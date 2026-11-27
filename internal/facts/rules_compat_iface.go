@@ -342,7 +342,9 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	// block counts.
 	countAll := map[string]bool{}
 	for _, mv := range moves {
-		if mv.deep && len(bases(mv.from)) > 0 {
+		// With no base body behind the move nothing is shared, so this
+		// only matters where the from block existed at the base.
+		if mv.deep {
 			countAll[mv.to] = true
 		}
 	}
