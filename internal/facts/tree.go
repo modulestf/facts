@@ -179,6 +179,9 @@ type Tree struct {
 // commit pointer.
 func (t *Tree) IsGitlink(p string) bool { return t.gitlinks[p] }
 
+// HasGitlinks reports whether the tree holds any gitlink.
+func (t *Tree) HasGitlinks() bool { return len(t.gitlinks) > 0 }
+
 // ChangedGitlinks lists, in path order, the gitlinks of either tree. Two
 // trees read from directories cannot tell a moved commit pointer from an
 // unmoved one, so every gitlink counts as changed there. A base rebuilt from
