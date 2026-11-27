@@ -1,3 +1,12 @@
+## [0.21.10](https://github.com/modulestf/facts/compare/v0.21.9...v0.21.10) (2026-11-27)
+
+
+### Bug Fixes
+
+* Do not read an IAM path that only reaches IAM paths, or a string a function removes, as a file read ([#149](https://github.com/modulestf/facts/issues/149)) ([586693c](https://github.com/modulestf/facts/commit/586693c51832b15950034eeb8bc0d243020f45a8)), closes [#148](https://github.com/modulestf/facts/issues/148)
+
+
+
 ## [0.21.9](https://github.com/modulestf/facts/compare/v0.21.8...v0.21.9) (2026-11-27)
 
 
