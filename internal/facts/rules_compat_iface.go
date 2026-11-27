@@ -303,7 +303,10 @@ func mergeBodies(bs []Body) Body {
 // Where the pairing of nested blocks is ambiguous, every argument counts.
 func varsReadByBaseConfig(a *Area) *varReads {
 	r := newVarReads()
-	bodies := map[string]Body{}
+	// Every block of a key is kept: Terraform rejects most duplicates, but
+	// whatever the order, a head block compares with each base block of its
+	// key, and a new block or a local declared twice counts every one.
+	bodies := map[string][]Body{}
 	addr := func(mode, typ, name string) string {
 		if mode == "data" {
 			return "data." + typ + "." + name
@@ -311,16 +314,18 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		return typ + "." + name
 	}
 	for _, x := range a.Base.Resources {
-		bodies[addr(x.Mode, x.Type, x.Name)] = x.Body
+		k := addr(x.Mode, x.Type, x.Name)
+		bodies[k] = append(bodies[k], x.Body)
 	}
 	for _, m := range a.Base.ModuleCalls {
-		bodies["module."+m.Name] = m.Body
+		bodies["module."+m.Name] = append(bodies["module."+m.Name], m.Body)
 	}
 	for _, p := range a.Base.Providers {
-		bodies["provider."+p.Name+"."+p.Alias] = p.Body
+		k := "provider." + p.Name + "." + p.Alias
+		bodies[k] = append(bodies[k], p.Body)
 	}
 	for _, o := range a.Base.Outputs {
-		bodies["output."+o.Name] = o.Body
+		bodies["output."+o.Name] = append(bodies["output."+o.Name], o.Body)
 	}
 	baseOther := map[string][]Body{}
 	for _, o := range a.Base.Other {
@@ -380,9 +385,7 @@ func varsReadByBaseConfig(a *Area) *varReads {
 				continue
 			}
 			seen[k] = true
-			if b, ok := bodies[k]; ok {
-				out = append(out, b)
-			}
+			out = append(out, bodies[k]...)
 			queue = append(queue, from[k]...)
 		}
 		return out
@@ -413,11 +416,11 @@ func varsReadByBaseConfig(a *Area) *varReads {
 			}
 		}
 	}
-	newBlocks := map[string]Body{} // head blocks with no base block
+	newBlocks := map[string][]Body{} // head blocks with no base block
 	shared := func(key string, h Body, top, all bool) {
 		bs := bases(key)
 		if len(bs) == 0 {
-			newBlocks[key] = h
+			newBlocks[key] = append(newBlocks[key], h)
 			if malformedMove {
 				// The unreadable move may have landed here: count it all.
 				for _, e := range sharedArgs(Body{}, h, true, true) {
@@ -442,13 +445,14 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		shared(key, p.Body, true, true)
 		// A new provider is read by name.alias, with the alias unquoted;
 		// one with no alias is the default of every resource of its type.
-		if nb, ok := newBlocks[key]; ok {
+		if len(newBlocks[key]) > 0 {
 			if p.Alias == "" {
-				for _, e := range sharedArgs(Body{}, nb, true, true) {
+				for _, e := range sharedArgs(Body{}, p.Body, true, true) {
 					r.add(e)
 				}
 			} else {
-				newBlocks[p.Name+"."+strings.Trim(p.Alias, `"`)] = nb
+				ref := p.Name + "." + strings.Trim(p.Alias, `"`)
+				newBlocks[ref] = append(newBlocks[ref], p.Body)
 			}
 		}
 	}
@@ -464,7 +468,7 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	for _, o := range a.Head.Other {
 		k := o.Type + "." + strings.Join(o.Labels, ".")
 		if len(baseOther[k]) == 0 {
-			newBlocks[k] = o.Body // only an ephemeral block can be named by a read
+			newBlocks[k] = append(newBlocks[k], o.Body) // only an ephemeral block can be named by a read
 			continue
 		}
 		for _, e := range sharedArgs(mergeBodies(baseOther[k]), o.Body, true, len(baseOther[k]) != headOther[k]) {
@@ -482,23 +486,26 @@ func varsReadByBaseConfig(a *Area) *varReads {
 			}
 		}
 	}
-	locals := map[string]*Expr{}
+	locals := map[string][]*Expr{}
 	for i := range a.Head.Locals {
-		locals[a.Head.Locals[i].Name] = &a.Head.Locals[i].Value
+		l := &a.Head.Locals[i]
+		locals[l.Name] = append(locals[l.Name], &l.Value)
 	}
 	done := map[string]bool{}
 	for changed := true; changed; {
 		changed = false
-		for name, e := range locals {
+		for name, es := range locals {
 			if !done["local."+name] && (r.allLocals || r.locals[name]) {
 				done["local."+name], changed = true, true
-				r.add(e)
+				for _, e := range es {
+					r.add(e)
+				}
 			}
 		}
 		for key, h := range newBlocks {
 			if !done[key] && r.refs[key] {
 				done[key], changed = true, true
-				for _, e := range sharedArgs(Body{}, h, true, true) {
+				for _, e := range sharedArgs(Body{}, mergeBodies(h), true, true) {
 					r.add(e)
 				}
 			}

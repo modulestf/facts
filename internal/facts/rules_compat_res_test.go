@@ -203,6 +203,26 @@ func TestResourceAddressCases(t *testing.T) {
 			base: "module \"a\" {\n  source = \"./m\"\n}\n",
 			head: "module \"a\" {\n  source   = \"./m\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = module.a\n  to   = module.a[\"k\"]\n}\n",
 		},
+		"base address declared twice, the matching block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\nresource \"aws_a\" \"x\" {\n  name = \"a\"\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"base address declared twice, the matching block first": {
+			base: "resource \"aws_a\" \"x\" {\n  name = \"a\"\n}\nresource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"head address declared twice, the matching block last": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  name = \"b\"\n}\nresource \"aws_a\" \"x\" {\n  count = 2\n  name  = \"c\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
+		"head address declared twice, the matching block first": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 2\n}\n",
+			head: "resource \"aws_a\" \"x\" {\n  count = 2\n  name  = \"c\"\n}\nresource \"aws_a\" \"x\" {\n  name = \"b\"\n}\n",
+			want: []string{"main.tf:null .:aws_a.x"},
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",
