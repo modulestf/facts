@@ -1,3 +1,12 @@
+## [0.21.12](https://github.com/modulestf/facts/compare/v0.21.11...v0.21.12) (2026-11-27)
+
+
+### Bug Fixes
+
+* Fail closed on repeated moved sources, duplicate variables and nested blocks moved between parents ([#155](https://github.com/modulestf/facts/issues/155)) ([020c2fd](https://github.com/modulestf/facts/commit/020c2fd58605582a361d4c4d5d7a5d725c26af56)), closes [#144](https://github.com/modulestf/facts/issues/144)
+
+
+
 ## [0.21.11](https://github.com/modulestf/facts/compare/v0.21.10...v0.21.11) (2026-11-27)
 
 
