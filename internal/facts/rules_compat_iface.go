@@ -336,12 +336,22 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	malformedMove := false
 	// A moved module call pairs its arguments by name across two modules'
 	// inputs unless both calls have the same literal source and version.
+	// A label declared twice names no one module code, so it pairs with
+	// nothing whatever the block order.
+	addMod := func(ids map[string]moduleID, m ModuleCall) {
+		k := "module." + m.Name
+		if _, dup := ids[k]; dup {
+			ids[k] = moduleID{}
+			return
+		}
+		ids[k] = moduleIDOf(m)
+	}
 	baseMod, headMod := map[string]moduleID{}, map[string]moduleID{}
 	for _, m := range a.Base.ModuleCalls {
-		baseMod["module."+m.Name] = moduleIDOf(m)
+		addMod(baseMod, m)
 	}
 	for _, m := range a.Head.ModuleCalls {
-		headMod["module."+m.Name] = moduleIDOf(m)
+		addMod(headMod, m)
 	}
 	for _, m := range a.Head.Moved {
 		f, fd := movedKey(m.FromAddr)
