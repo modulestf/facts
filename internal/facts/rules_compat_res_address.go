@@ -124,16 +124,19 @@ type addrBlock struct {
 }
 
 // addrBlocks are the addressable blocks of a module by address, the first
-// block of each address. A data block has no address a moved block can name.
-func addrBlocks(m *Module) map[string]*addrBlock {
-	out := map[string]*addrBlock{}
+// block of each address, and the addresses declared more than once. A data
+// block has no address a moved block can name.
+func addrBlocks(m *Module) (out map[string]*addrBlock, dup map[string]bool) {
+	out, dup = map[string]*addrBlock{}, map[string]bool{}
 	if m == nil {
-		return out
+		return out, dup
 	}
 	add := func(b *addrBlock) {
-		if out[b.addr] == nil {
-			out[b.addr] = b
+		if out[b.addr] != nil {
+			dup[b.addr] = true
+			return
 		}
+		out[b.addr] = b
 	}
 	for _, r := range m.Resources {
 		if r.Mode == "resource" {
@@ -143,7 +146,7 @@ func addrBlocks(m *Module) map[string]*addrBlock {
 	for _, c := range m.ModuleCalls {
 		add(&addrBlock{Span: c.Span, addr: "module." + c.Name, kind: "module", body: c.Body})
 	}
-	return out
+	return out, dup
 }
 
 // maxMoveHops bounds a chain of moved blocks the detector follows.
@@ -153,8 +156,9 @@ var trailingKey = regexp.MustCompile(`\[([0-9]+|"(?:[^"\\]|\\.)*")\]$`)
 
 // addressMoves are the static moved blocks of the head of one area.
 type addressMoves struct {
-	from map[string]*Moved
-	head map[string]*addrBlock
+	from    map[string]*Moved
+	head    map[string]*addrBlock
+	headDup map[string]bool // head addresses declared more than once
 }
 
 // follow returns where a moved chain from addr ends, and the first moved
@@ -208,11 +212,12 @@ func keyFits(k string, keys []string) bool { return slices.Contains(keys, k) || 
 // a static moved block for that instance or for the whole address, whose
 // target block at the head has that key, or the same address at the head
 // with that key. A move for one instance into another area, a target the
-// head lacks and keys that are not static leave it without one.
+// head lacks or declares twice, a module call declared twice at the head
+// and keys that are not static leave it without one.
 func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv *Moved) {
 	if to, mv := m.follow(b.addr + k); k != "" && mv != nil {
 		t, key, _ := m.split(to)
-		if t == nil {
+		if t == nil || m.headDup[t.addr] {
 			return false, mv
 		}
 		keys, kok := instanceKeys(t.body)
@@ -222,8 +227,11 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 		t, key, other := m.split(to)
 		switch {
 		case other:
-			return true, mv // a whole address moved into another area
-		case t == nil:
+			// A whole address moved into another area, unless the module
+			// call it lands in is declared twice and so is no one call.
+			call, _ := movedKey(to)
+			return !m.headDup[call], mv
+		case t == nil || m.headDup[t.addr]:
 			return false, mv
 		case key != "":
 			// To one instance: only an address with no key fits there.
@@ -247,17 +255,18 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 // the base, with its instance keys, that has no place at the head; see
 // placed. Moved blocks are read from the head directly, whether the change
 // touched them or not. A removed block, a moved block with an expression
-// key and keys that are not static leave the address to the confirmer: they
-// are candidates, never clean. A resource of a submodule moved to the root
-// stays a candidate in the submodule: callers of the submodule itself still
-// lose it.
+// key, keys that are not static and an address declared twice at either
+// revision leave the address to the confirmer: they are candidates, never
+// clean. A resource of a submodule moved to the root stays a candidate in
+// the submodule: callers of the submodule itself still lose it.
 func checkResourceAddressChanged(a *Area) Result {
 	if !baseHasFiles(a) {
 		return Result{} // a module new in this change breaks no caller
 	}
 	const id = "compat.resource-address-changed"
-	base, head := addrBlocks(a.Base), addrBlocks(a.Head)
-	moves := addressMoves{from: map[string]*Moved{}, head: head}
+	base, baseDup := addrBlocks(a.Base)
+	head, headDup := addrBlocks(a.Head)
+	moves := addressMoves{from: map[string]*Moved{}, head: head, headDup: headDup}
 	movedTo := map[string]bool{}
 	for i := range a.Head.Moved {
 		m := &a.Head.Moved[i]
@@ -292,7 +301,10 @@ func checkResourceAddressChanged(a *Area) Result {
 	sort.Slice(addrs, func(i, j int) bool { return lessSpan(base[addrs[i]].Span, base[addrs[j]].Span) })
 	for _, addr := range addrs {
 		b, h := base[addr], head[addr]
-		if h != nil && modeText(repetition(b.body)) == modeText(repetition(h.body)) {
+		// An address declared twice at either revision has no one set of
+		// instances, so it is a candidate whatever the block order.
+		dup := baseDup[addr] || headDup[addr]
+		if !dup && h != nil && modeText(repetition(b.body)) == modeText(repetition(h.body)) {
 			continue // the same address and the same repetition give the same instances
 		}
 		bKeys, bOK := instanceKeys(b.body)
@@ -309,7 +321,7 @@ func checkResourceAddressChanged(a *Area) Result {
 				}
 			}
 		}
-		if lost {
+		if lost || dup {
 			res.Candidates = append(res.Candidates, addressCandidate(a, id, b, h, removedBlock[addr], lostBy, &added))
 		}
 	}
