@@ -1,3 +1,12 @@
+## [0.21.3](https://github.com/modulestf/facts/compare/v0.21.2...v0.21.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* Never read a removed file with no patch as inert ([#127](https://github.com/modulestf/facts/issues/127)) ([c995f81](https://github.com/modulestf/facts/commit/c995f81eebd6f299eb1f3e5dfd4bfc23cf5d091c)), closes [#23](https://github.com/modulestf/facts/issues/23)
+
+
+
 ## [0.21.2](https://github.com/modulestf/facts/compare/v0.21.1...v0.21.2) (2026-11-27)
 
 
