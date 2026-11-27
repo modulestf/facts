@@ -18,7 +18,15 @@ import "bytes"
 // unary run counts ! and - in expression state with only spaces and tabs
 // between them, as the lexer emits no token for those; a - inside a number
 // or a name is counted too, so the run is an upper bound.
-func scanLimits(src []byte) (depth, prefix int, ok bool) {
+//
+// tokens is an upper bound of the tokens the lexer gives, EOF included, so
+// the run's token budget can be charged without lexing the file. Each token
+// the lexer gives holds at least one byte the scanner counts on its own: a
+// run of name and number bytes counts one, and one more where a letter
+// follows a number, as in 1a; every other byte counts one, except spaces and
+// tabs, which count one a run inside a string and none outside one; a
+// comment counts two, itself and its line end.
+func scanLimits(src []byte) (depth, prefix, tokens int, ok bool) {
 	const (
 		stateExpr = iota
 		stateString
@@ -37,13 +45,20 @@ func scanLimits(src []byte) (depth, prefix int, ok bool) {
 			cur--
 		}
 	}
-	src = bytes.TrimPrefix(src, []byte("\xef\xbb\xbf"))
+	tokens = 1 // EOF
+	var w wordRun
+	if b := bytes.TrimPrefix(src, []byte("\xef\xbb\xbf")); len(b) < len(src) {
+		src, tokens = b, tokens+1
+	}
 	for i := 0; i < len(src); i++ {
 		c := src[i]
+		tokens += w.next(c, state == stateString)
 		if state == stateString {
 			switch {
 			case c == '\\':
 				i++
+				tokens++
+				w = wordRun{}
 			case c == '"':
 				closeOne()
 				state, stack = stack[len(stack)-1].state, stack[:len(stack)-1]
@@ -53,11 +68,15 @@ func scanLimits(src []byte) (depth, prefix int, ok bool) {
 				stack = append(stack, frame{stateString, braces})
 				state = stateExpr
 				i++
+				tokens++
 				if i+1 < len(src) && src[i+1] == '~' {
 					i++
+					tokens++
 				}
 			case (c == '$' || c == '%') && i+2 < len(src) && src[i+1] == c && src[i+2] == '{':
 				i += 2 // $${ and %%{ are literal text
+				tokens += 2
+				w = wordRun{}
 			}
 			continue
 		}
@@ -65,7 +84,7 @@ func scanLimits(src []byte) (depth, prefix int, ok bool) {
 			// The lexer's identifier tables take a broken UTF-8 lead byte
 			// together with the ASCII byte after it, such as \xcf[, so a
 			// bracket there is no token.
-			return 0, 0, false
+			return 0, 0, 0, false
 		}
 		switch c {
 		case '!', '-':
@@ -79,20 +98,23 @@ func scanLimits(src []byte) (depth, prefix int, ok bool) {
 		switch c {
 		case '#':
 			i = lineEnd(src, i)
+			tokens++ // the line end, which the comment token may not hold
 		case '/':
 			switch {
 			case i+1 < len(src) && src[i+1] == '/':
 				i = lineEnd(src, i)
+				tokens++
 			case i+1 < len(src) && src[i+1] == '*':
 				j := bytes.Index(src[i+2:], []byte("*/"))
 				if j < 0 {
-					return 0, 0, false
+					return 0, 0, 0, false
 				}
 				i += 2 + j + 1
+				tokens++
 			}
 		case '<':
 			if i+1 < len(src) && src[i+1] == '<' {
-				return 0, 0, false
+				return 0, 0, 0, false
 			}
 		case '"':
 			open()
@@ -119,7 +141,7 @@ func scanLimits(src []byte) (depth, prefix int, ok bool) {
 			braces--
 		}
 	}
-	return depth, prefix, true
+	return depth, prefix, tokens, true
 }
 
 // lineEnd returns the index of the newline that ends the line holding i, or
@@ -129,4 +151,36 @@ func lineEnd(src []byte, i int) int {
 		return i + j
 	}
 	return len(src) - 1
+}
+
+// wordRun is the byte class scanLimits counts tokens by: 0 for none, 'd'
+// in a number, 'w' in a name and ' ' in a run of blanks.
+type wordRun struct{ class byte }
+
+// next returns the tokens byte c adds to the upper bound: one where a run
+// of name or number bytes starts or a letter follows a number, none where
+// the run goes on, one for the first blank of a run inside a string and
+// none outside one, and one for any other byte.
+func (w *wordRun) next(c byte, inString bool) int {
+	switch {
+	case c >= '0' && c <= '9':
+		if w.class == 'd' || w.class == 'w' {
+			return 0
+		}
+		w.class = 'd'
+	case c == '_' || ('a' <= c|0x20 && c|0x20 <= 'z'):
+		if w.class == 'w' {
+			return 0
+		}
+		w.class = 'w'
+	case c == ' ' || c == '\t':
+		blank := w.class == ' '
+		w.class = ' '
+		if blank || !inString {
+			return 0
+		}
+	default:
+		w.class = 0
+	}
+	return 1
 }

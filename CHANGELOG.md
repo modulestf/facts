@@ -1,3 +1,39 @@
+## [0.20.7](https://github.com/modulestf/facts/compare/v0.20.6...v0.20.7) (2026-11-27)
+
+
+### Bug Fixes
+
+* Fail closed on module calls through links to submodule pointers ([#122](https://github.com/modulestf/facts/issues/122)) ([f38b922](https://github.com/modulestf/facts/commit/f38b9222f135c5a8f51012d2233269b7e40d7ffd)), closes [#116](https://github.com/modulestf/facts/issues/116) [#116](https://github.com/modulestf/facts/issues/116)
+
+
+
+## [0.20.6](https://github.com/modulestf/facts/compare/v0.20.5...v0.20.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* **affected:** Never read a submodule pointer change as inert ([#116](https://github.com/modulestf/facts/issues/116)) ([673c68b](https://github.com/modulestf/facts/commit/673c68b1287652b5bc3990fc5b8aecf171aac06b))
+
+
+
+## [0.20.5](https://github.com/modulestf/facts/compare/v0.20.4...v0.20.5) (2026-11-26)
+
+
+### Bug Fixes
+
+* read a committed .terraform directory as repository content ([#118](https://github.com/modulestf/facts/issues/118)) ([42098ed](https://github.com/modulestf/facts/commit/42098ed88ef15b8ff37fbdfac57bacdae0c99cfa))
+
+
+
+## [0.20.4](https://github.com/modulestf/facts/compare/v0.20.3...v0.20.4) (2026-11-26)
+
+
+### Performance Improvements
+
+* Bound the HCL tokens one run parses and lex a file once where no tokens are needed ([#117](https://github.com/modulestf/facts/issues/117)) ([4fde468](https://github.com/modulestf/facts/commit/4fde468765a23126c7398f5e5f1b995bb4baff13)), closes [terraform-aws-eks#3764](https://github.com/terraform-aws-eks/issues/3764) [terraform-aws-eks#3764](https://github.com/terraform-aws-eks/issues/3764) [terraform-aws-security-group#355](https://github.com/terraform-aws-security-group/issues/355) [terraform-aws-security-group#355](https://github.com/terraform-aws-security-group/issues/355) [security-group#355](https://github.com/security-group/issues/355) [terraform-aws-eks#3766](https://github.com/terraform-aws-eks/issues/3766) [#3764](https://github.com/modulestf/facts/issues/3764) [terraform-aws-security-group#362](https://github.com/terraform-aws-security-group/issues/362) [#355](https://github.com/modulestf/facts/issues/355)
+
+
+
 ## [0.20.3](https://github.com/modulestf/facts/compare/v0.20.2...v0.20.3) (2026-11-26)
 
 

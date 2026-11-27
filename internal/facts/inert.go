@@ -200,6 +200,9 @@ func parseTemplate(name string, src []byte, lim Limits) (expr hclsyntax.Expressi
 	if len(tokens) > lim.MaxTokens || nestingDepth(tokens) > lim.MaxDepth || prefixRun(tokens) > lim.MaxPrefixOps {
 		return nil, errors.New("over a parser limit")
 	}
+	if err := lim.chargeTokens(len(tokens)); err != nil {
+		return nil, err
+	}
 	expr, diags = hclsyntax.ParseTemplate(src, name, hcl.InitialPos)
 	if diags.HasErrors() {
 		return nil, errors.New("parse error")
@@ -469,6 +472,22 @@ func (s ReadSite) Reaches(p string, roots []string) bool {
 		}
 	}
 	return false
+}
+
+// ReachesDir reports whether the site may read p or any path below it, for a
+// p that stands for a directory whose files the tree does not hold, such as a
+// gitlink.
+func (s ReadSite) ReachesDir(p string, roots []string) bool {
+	bases := roots
+	if s.Anchor == AnchorModule {
+		bases = []string{s.Dir}
+	}
+	for _, base := range bases {
+		if strings.HasPrefix(path.Join(base, s.Text), p+"/") {
+			return true
+		}
+	}
+	return s.Reaches(p, roots)
 }
 
 // ReachedBy reports whether any of sites may read p.

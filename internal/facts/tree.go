@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -33,8 +35,16 @@ type Limits struct {
 	MaxTokens      int   // HCL tokens per file
 	MaxPrefixOps   int   // consecutive unary operators, which the parser recurses on
 	MaxAreas       int   // discovered module areas; zero means no limit
+	// MaxRunTokens bounds the HCL tokens every parse of one run reads
+	// together, base and head, each time a file is parsed; zero means no
+	// limit. Only a Limits that StartRun returned counts them.
+	MaxRunTokens int64
 	// Deadline stops a run that takes too long. Zero means no deadline.
 	Deadline time.Time
+
+	// runTokens counts the tokens the run has parsed. Every copy of the
+	// Limits StartRun returned shares it; nil counts nothing.
+	runTokens *atomic.Int64
 
 	// Test seams, unset in production. A zero cap is its default.
 	readDirHook        func(dir string, n int) // sees every ReadDir batch: the directory and the entries returned
@@ -57,6 +67,26 @@ type Limits struct {
 // schema loader's, so a deadline hit while loading schemas is this error.
 var ErrDeadline = schema.ErrDeadline
 
+// StartRun returns l with a token count of its own, which every copy of it
+// shares, so MaxRunTokens bounds all the parses of one run together.
+func (l Limits) StartRun() Limits {
+	l.runTokens = new(atomic.Int64)
+	return l
+}
+
+// chargeTokens adds n tokens to the run's count and refuses the parse with
+// a limitError once the count passes MaxRunTokens. A refused parse keeps
+// its tokens counted, so every parse after it is refused too.
+func (l Limits) chargeTokens(n int) error {
+	if l.runTokens == nil || l.MaxRunTokens <= 0 {
+		return nil
+	}
+	if total := l.runTokens.Add(int64(n)); total > l.MaxRunTokens {
+		return limitError(fmt.Sprintf("the run's token budget of %d is spent", l.MaxRunTokens))
+	}
+	return nil
+}
+
 func (l Limits) expired() error {
 	if !l.Deadline.IsZero() && time.Now().After(l.Deadline) {
 		return ErrDeadline
@@ -74,6 +104,7 @@ var DefaultLimits = Limits{
 	MaxTokens:      262144,
 	MaxPrefixOps:   64,
 	MaxAreas:       512,
+	MaxRunTokens:   8 << 20,
 }
 
 // Entry kinds.
@@ -129,11 +160,84 @@ type Tree struct {
 	Paths   []string        // sorted entry paths
 	Dirs    map[string]bool // directories, "." included
 	byDir   map[string][]*Entry
+
+	// gitlinks holds the directories that stand for a submodule's commit
+	// pointer. Git tracks no empty directory, so a materialized tree holds a
+	// gitlink as an empty directory, or one with only a .git file, and the
+	// commit it points at is nowhere in the tree. A gitlink is no entry, so
+	// no reader sees it as content; see ChangedGitlinks.
+	gitlinks map[string]bool
+	// gitlinksOfHead is set on a base rebuilt from a diff, which takes the
+	// head's gitlinks: a diff that does not list one leaves it alone. Its
+	// gitlinkDiff holds the gitlinks the diff changes, one the head holds
+	// and one it lacks, a removed one or one that became a file included.
+	gitlinksOfHead bool
+	gitlinkDiff    map[string]bool
 }
 
-// skipDir names directories that are never read: VCS metadata and local
-// Terraform working state, neither of which is module source.
-func skipDir(name string) bool { return name == ".git" || name == ".terraform" }
+// IsGitlink reports whether p is a directory that stands for a submodule's
+// commit pointer.
+func (t *Tree) IsGitlink(p string) bool { return t.gitlinks[p] }
+
+// ChangedGitlinks lists, in path order, the gitlinks of either tree. Two
+// trees read from directories cannot tell a moved commit pointer from an
+// unmoved one, so every gitlink counts as changed there. A base rebuilt from
+// a diff shares the head's gitlinks, and only those the diff names are changed.
+func ChangedGitlinks(head, base *Tree) []string {
+	if base.gitlinksOfHead {
+		return slices.Sorted(maps.Keys(base.gitlinkDiff))
+	}
+	set := map[string]bool{}
+	for _, t := range []*Tree{head, base} {
+		maps.Copy(set, t.gitlinks)
+	}
+	return slices.Sorted(maps.Keys(set))
+}
+
+// InGitlink reports whether p is a gitlink or a path below one: a place whose
+// files the tree does not hold.
+func (t *Tree) InGitlink(p string) bool {
+	for {
+		if t.gitlinks[p] {
+			return true
+		}
+		up := path.Dir(p)
+		if up == p {
+			return false
+		}
+		p = up
+	}
+}
+
+// linkStep returns the first step of p, p itself included, that is an entry
+// other than a file: a link, special or unreadable entry, which the
+// engine never follows. It returns "" when there is none.
+func (t *Tree) linkStep(p string) string {
+	for i := 0; i <= len(p); i++ {
+		if i < len(p) && p[i] != '/' {
+			continue
+		}
+		if e := t.Entries[p[:i]]; e != nil && e.Kind != KindFile && e.Kind != KindOversize && e.Kind != KindNoPatch {
+			return p[:i]
+		}
+	}
+	return ""
+}
+
+// gitlinkDir reports whether a directory with these entries stands for a
+// gitlink: it holds nothing, or only the .git file of an initialized
+// submodule, which the read skips.
+func gitlinkDir(ents []fs.DirEntry) bool {
+	return !slices.ContainsFunc(ents, func(d fs.DirEntry) bool { return d.Name() != ".git" })
+}
+
+// skipDir names directories that are never read: git metadata, which git
+// never tracks and which is no module source. A .terraform directory is read
+// like any other: Terraform loads a local module source and reuses a
+// committed modules cache from inside it, so no content of it may decide a
+// skip. A host reads a clean checkout, with no untracked terraform init
+// output in it.
+func skipDir(name string) bool { return name == ".git" }
 
 // Bounds of hashing oversize files: a file over the cap, or past the budget
 // of hashed bytes in one tree, keeps no hash and so stays changed. A test
@@ -192,7 +296,7 @@ func ReadTree(root string, lim Limits) (*Tree, error) {
 		return nil, err
 	}
 	defer r.Close()
-	w := &treeReader{root: r, lim: lim, t: &Tree{Entries: map[string]*Entry{}, Dirs: map[string]bool{".": true}}}
+	w := &treeReader{root: r, lim: lim, t: &Tree{Entries: map[string]*Entry{}, Dirs: map[string]bool{".": true}, gitlinks: map[string]bool{}}}
 	if err := w.walk("."); err != nil {
 		return nil, err
 	}
@@ -248,6 +352,9 @@ func (w *treeReader) walk(dir string) error {
 		}
 		w.t.add(&Entry{Path: dir, Kind: KindUnreadable})
 		return nil
+	}
+	if dir != "." && gitlinkDir(ents) {
+		w.t.gitlinks[dir] = true
 	}
 	for _, d := range ents {
 		if err := w.lim.expired(); err != nil {

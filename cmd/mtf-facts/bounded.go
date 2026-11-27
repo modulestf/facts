@@ -37,6 +37,8 @@ func addTimeoutFlag(cmd *cobra.Command, timeout *time.Duration) {
 
 // runBounded runs work in a worker and waits at most timeout for it. It
 // returns the exit code. A timeout that is not positive is a usage error.
+// lim gets the run's own token count, so MaxRunTokens bounds every parse of
+// the run together.
 // lim.Deadline is set as defense in depth: the timer is the mechanism, and
 // the engine's own deadline error reads as the timeout. When the timer fires
 // first, late gives the result if it is set (depth fails closed with a
@@ -49,6 +51,7 @@ func runBounded(cmd *cobra.Command, timeout time.Duration, lim *facts.Limits, wo
 		return usageError(cmd, timeoutNotPositive)
 	}
 	lim.Deadline = time.Now().Add(timeout)
+	*lim = lim.StartRun()
 	hook := testHookWork             // read here, not in the worker, which may outlive the test
 	done := make(chan workResult, 1) // buffered: a late worker never blocks
 	go func() {

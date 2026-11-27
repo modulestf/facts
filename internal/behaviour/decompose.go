@@ -117,7 +117,7 @@ func buildView(t *facts.Tree, dir string, lim facts.Limits) (v *view, why string
 		if e.Kind != facts.KindFile {
 			return nil, e.Path + " is " + facts.KindText(e.Kind)
 		}
-		body, _, err := facts.ParseBody(e.Path, e.Data, lim)
+		body, err := facts.ParseBodyOnly(e.Path, e.Data, lim)
 		if err != nil {
 			if facts.IsLimitError(err) {
 				return nil, e.Path + " is over a parser limit: " + err.Error()

@@ -44,6 +44,38 @@ type fileChange struct {
 	path, prev, status string
 	patch              []byte
 	oldMode            string
+	// oldStated and newStated are set when a mode line of a unified diff
+	// states the mode of that side; a hunk line then does not override it.
+	oldStated, newStated bool
+	// oldGit and newGit are set when the diff shows the path as a gitlink
+	// (mode 160000 or a "Subproject commit" line) at the base or at the head.
+	oldGit, newGit bool
+}
+
+// gitlinkMode is the mode of a submodule entry in a diff.
+const gitlinkMode = "160000"
+
+// subprojectLine reports a hunk body line, past its sign, that names a
+// submodule commit.
+func subprojectLine(l string) bool { return strings.HasPrefix(l, "Subproject commit ") }
+
+// markGitlink sets oldGit and newGit from the patch, for a side whose mode no
+// line states. A hunk line that removes or keeps a "Subproject commit" line
+// shows a gitlink at the base, and one that adds it a gitlink at the head. A
+// files list states no mode, so there the hunk lines alone decide.
+func (c *fileChange) markGitlink() {
+	for l := range strings.Lines(string(c.patch)) {
+		l = strings.TrimRight(l, "\n")
+		if len(l) < 2 || !subprojectLine(l[1:]) {
+			continue
+		}
+		switch l[0] {
+		case '-', ' ':
+			c.oldGit = c.oldGit || !c.oldStated
+		case '+':
+			c.newGit = c.newGit || !c.newStated
+		}
+	}
 }
 
 // ReadDiffBase rebuilds the tree a change started from out of the head tree
@@ -120,6 +152,7 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 		switch {
 		case e.Patch != nil:
 			c.patch = []byte(*e.Patch)
+			c.markGitlink()
 		case e.Status == "renamed" && e.Additions == 0 && e.Deletions == 0:
 			c.status = statusPureRename
 		case (e.Status == "modified" || e.Status == "changed") && e.Additions == 0 && e.Deletions == 0:
@@ -173,6 +206,7 @@ func parseUnified(data []byte) ([]fileChange, error) {
 		if cur.path == "" {
 			return errors.New("unified diff: a file with no path")
 		}
+		cur.markGitlink()
 		if cur.status == "" {
 			cur.status = "modified"
 			if cur.prev != "" && cur.prev != cur.path {
@@ -224,11 +258,28 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			i += n - 1
 		case strings.HasPrefix(l, "new file mode"):
 			cur.status, cur.prev = "added", ""
+			cur.newGit, cur.newStated = strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode, true
 		case strings.HasPrefix(l, "deleted file mode "):
 			cur.status, cur.prev = "removed", ""
 			cur.oldMode = strings.TrimPrefix(l, "deleted file mode ")
+			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
 		case strings.HasPrefix(l, "old mode "):
 			cur.oldMode = strings.TrimPrefix(l, "old mode ")
+			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
+		case strings.HasPrefix(l, "new mode "):
+			cur.newGit, cur.newStated = strings.TrimPrefix(l, "new mode ") == gitlinkMode, true
+		case strings.HasPrefix(l, "index "):
+			// "index <old>..<new> <mode>" gives the mode of both sides when
+			// it is the same; with no mode field the mode lines give it. It
+			// never overrides a mode line.
+			if f := strings.Fields(l); len(f) == 3 {
+				if !cur.oldStated {
+					cur.oldGit, cur.oldStated = f[2] == gitlinkMode, true
+				}
+				if !cur.newStated {
+					cur.newGit, cur.newStated = f[2] == gitlinkMode, true
+				}
+			}
 		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
 			cur.prev = l[strings.Index(l, "from ")+5:]
 			if strings.HasPrefix(l, "copy") {
@@ -332,6 +383,12 @@ func parseHunkHeader(l string) (hunk, error) {
 func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	entries := maps.Clone(head.Entries)
 	seenHead, seenBase := map[string]bool{}, map[string]bool{}
+	gitDiff := map[string]bool{} // the gitlinks the diff changes
+	// involved holds the paths of the diff that a change shows as a gitlink,
+	// at either side; wasGit those it shows as a gitlink at the base;
+	// skipRebuild those a merge of two changes of one path rebuilds no
+	// content for.
+	involved, wasGit, skipRebuild := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	type rebuild struct {
 		at string
 		c  fileChange
@@ -339,17 +396,50 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	var todo []rebuild
 	for _, c := range changes {
 		for _, p := range []string{c.path, c.prev} {
-			if p != "" && !safeDiffPath(p) {
+			if p != "" && (!safeDiffPath(p) || gitPath(p)) {
 				return nil, fmt.Errorf("unsafe path %q", p)
 			}
 		}
-		if skippedPath(c.path) || c.prev != "" && skippedPath(c.prev) {
-			continue
+		if head.IsGitlink(c.path) {
+			// The head holds a gitlink here, so the change is of one even when
+			// the diff shows no hunk: a rename keeps the type, and a change
+			// with no patch shows no line.
+			c.newGit = true
+			c.oldGit = c.oldGit || c.status == "renamed" || c.status == statusPureRename || c.status == "copied"
 		}
 		if seenHead[c.path] {
-			return nil, fmt.Errorf("%q is in the diff more than once", c.path)
+			// A change of type, such as a gitlink that became a link, comes as
+			// a removal and an addition of one path. Merge them into one
+			// change of a gitlink, whose base content is unknown unless the
+			// base held the gitlink.
+			if !involved[c.path] && !c.oldGit && !c.newGit {
+				return nil, fmt.Errorf("%q is in the diff more than once", c.path)
+			}
+			involved[c.path], wasGit[c.path] = true, wasGit[c.path] || c.oldGit
+			gitDiff[c.path], skipRebuild[c.path] = true, true
+			delete(entries, c.path)
+			if !wasGit[c.path] {
+				entries[c.path] = &Entry{Path: c.path, Kind: KindNoPatch}
+			}
+			continue
 		}
 		seenHead[c.path] = true
+		involved[c.path], wasGit[c.path] = c.oldGit || c.newGit, c.oldGit
+		if c.oldGit || c.newGit {
+			// A gitlink holds no content to reverse, and a diff shows its
+			// commit as a file of one line. The path is changed whatever
+			// else is known; what the base held there is no file when it
+			// held a gitlink, and unknown when it held a file.
+			gitDiff[c.path] = true
+			if c.prev != "" {
+				gitDiff[c.prev] = true
+			}
+			delete(entries, c.path)
+			if !c.oldGit && c.status != "added" {
+				entries[c.path] = &Entry{Path: c.path, Kind: KindNoPatch}
+			}
+			continue
+		}
 		at := c.path
 		switch c.status {
 		case "added", "copied":
@@ -386,6 +476,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	}
 	var total int64
 	for _, r := range todo {
+		if skipRebuild[r.c.path] {
+			continue
+		}
 		e, err := rebuildEntry(r.at, head.Entries[r.c.path], r.c, lim)
 		if err != nil {
 			return nil, fmt.Errorf("%q: %w", r.c.path, err)
@@ -405,7 +498,14 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	if total > lim.MaxTotalBytes {
 		return nil, fmt.Errorf("more than %d bytes", lim.MaxTotalBytes)
 	}
-	return indexTree(entries, head), nil
+	t := indexTree(entries, head)
+	t.gitlinks = maps.Clone(head.gitlinks)
+	if t.gitlinks == nil {
+		t.gitlinks = map[string]bool{}
+	}
+	maps.Copy(t.gitlinks, gitDiff)
+	t.gitlinkDiff = gitDiff
+	return t, nil
 }
 
 // diffMayBeHidden reports whether a .gitattributes file of either tree may
@@ -434,9 +534,11 @@ func safeDiffPath(p string) bool {
 	return !strings.ContainsFunc(p, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
-// skippedPath reports a path under a directory ReadTree never reads.
-func skippedPath(p string) bool {
-	return slices.ContainsFunc(strings.Split(p, "/"), skipDir)
+// gitPath reports a path with a .git element, in any letter case. Git never
+// tracks one, so a change that lists one is refused, on either side of a
+// rename; every other path of the change is the change's own.
+func gitPath(p string) bool {
+	return slices.ContainsFunc(strings.Split(p, "/"), func(e string) bool { return strings.EqualFold(e, ".git") })
 }
 
 // rebuildEntry returns the base entry at path at for one change, from the head
@@ -620,7 +722,7 @@ func splitKeep(b []byte) []string {
 // indexTree builds a Tree from entries. Its directories are those that hold
 // an entry, and those of like the head that hold nothing at all.
 func indexTree(entries map[string]*Entry, head *Tree) *Tree {
-	t := &Tree{Entries: entries, Dirs: map[string]bool{".": true}}
+	t := &Tree{Entries: entries, Dirs: map[string]bool{".": true}, gitlinks: head.gitlinks, gitlinksOfHead: true}
 	for p := range entries {
 		t.Paths = append(t.Paths, p)
 		if head.Dirs[p] {

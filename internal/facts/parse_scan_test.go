@@ -72,26 +72,32 @@ func TestScanLimitsMatchLexer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scanned := 0
+	scanned, sumBound, sumTokens := 0, 0, 0
 	for _, src := range srcs {
-		depth, prefix, ok := scanLimits([]byte(src))
+		depth, prefix, bound, ok := scanLimits([]byte(src))
 		if !ok {
 			continue
 		}
 		scanned++
 		tokens, _ := hclsyntax.LexConfig([]byte(src), "x.tf", hcl.InitialPos)
+		sumBound, sumTokens = sumBound+bound, sumTokens+len(tokens)
 		if d := nestingDepth(tokens); depth != d {
 			t.Errorf("depth %d, lexer %d: %q", depth, d, src)
 		}
 		if n := prefixRun(tokens); prefix < n {
 			t.Errorf("unary run %d under the lexer's %d: %q", prefix, n, src)
 		}
-		if len(tokens) > len(src)+1 {
-			t.Errorf("%d tokens for %d bytes: %q", len(tokens), len(src), src)
+		if len(tokens) > bound || bound > len(src)+2 {
+			t.Errorf("%d tokens, scan bound %d, %d bytes: %q", len(tokens), bound, len(src), src)
 		}
 	}
 	if scanned < len(scanCases) {
 		t.Errorf("scanned %d inputs, want at least %d", scanned, len(scanCases))
+	}
+	// The run's token budget charges a scanned file by the bound, so a loose
+	// bound spends it on files well within it.
+	if 2*sumBound > 3*sumTokens {
+		t.Errorf("scan bound %d over 1.5 times the %d tokens of the inputs", sumBound, sumTokens)
 	}
 }
 
@@ -106,7 +112,7 @@ func TestScanLimitsGivesUp(t *testing.T) {
 		"\xcf\"",
 		"a = [\xcf] [ [\n",
 	} {
-		if _, _, ok := scanLimits([]byte(src)); ok {
+		if _, _, _, ok := scanLimits([]byte(src)); ok {
 			t.Errorf("scanned %q", src)
 		}
 	}
@@ -160,14 +166,14 @@ func TestScanLimitsDifferential(t *testing.T) {
 			b.WriteString(scanFragments[r.IntN(len(scanFragments))])
 		}
 		src := []byte(b.String())
-		depth, prefix, ok := scanLimits(src)
+		depth, prefix, bound, ok := scanLimits(src)
 		if !ok {
 			continue
 		}
 		scanned++
 		tokens, _ := hclsyntax.LexConfig(src, "x.tf", hcl.InitialPos)
-		if d, n := nestingDepth(tokens), prefixRun(tokens); depth != d || prefix < n || len(tokens) > len(src)+1 {
-			t.Fatalf("%q: scan depth %d run %d, lexer depth %d run %d, %d tokens", src, depth, prefix, d, n, len(tokens))
+		if d, n := nestingDepth(tokens), prefixRun(tokens); depth != d || prefix < n || len(tokens) > bound {
+			t.Fatalf("%q: scan depth %d run %d bound %d, lexer depth %d run %d, %d tokens", src, depth, prefix, bound, d, n, len(tokens))
 		}
 	}
 	if scanned < 1000 {

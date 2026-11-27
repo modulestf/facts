@@ -388,18 +388,25 @@ func hasVariable(body *hclsyntax.Body) bool {
 // lexes it only when scanLimits cannot prove it is within them: the parser
 // lexes the file itself, so a file the scan clears is lexed once. tokens is
 // nil then. The errors are those of parseSyntax: the scan clears a file only
-// when the exact counts are within the limits too.
+// when the exact counts are within the limits too. A file the scan clears is
+// charged to the run's token budget by the scan's upper bound, one it does
+// not by the lexer's count.
 func parseBody(name string, src []byte, lim Limits) (body *hclsyntax.Body, tokens hclsyntax.Tokens, err error) {
-	depth, prefix, ok := scanLimits(src)
-	if !ok || len(src)+1 > lim.MaxTokens || depth > lim.MaxDepth || prefix > lim.MaxPrefixOps {
+	depth, prefix, bound, ok := scanLimits(src)
+	if !ok || bound > lim.MaxTokens || depth > lim.MaxDepth || prefix > lim.MaxPrefixOps {
 		return parseSyntax(name, src, lim)
+	}
+	if err := lim.chargeTokens(bound); err != nil {
+		return nil, nil, err
 	}
 	body, err = parseConfig(name, src)
 	return body, nil, err
 }
 
 // parseSyntax parses one file within the limits and returns its body and
-// tokens. A panic in the parser is recovered and reported as an error.
+// tokens. A file within the per-file limits is charged to the run's token
+// budget, and refused with a limitError once the budget is spent. A panic in
+// the parser is recovered and reported as an error.
 func parseSyntax(name string, src []byte, lim Limits) (body *hclsyntax.Body, tokens hclsyntax.Tokens, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -411,6 +418,9 @@ func parseSyntax(name string, src []byte, lim Limits) (body *hclsyntax.Body, tok
 		return nil, nil, fmt.Errorf("parse error")
 	}
 	if err := checkLimits(tokens, lim); err != nil {
+		return nil, nil, err
+	}
+	if err := lim.chargeTokens(len(tokens)); err != nil {
 		return nil, nil, err
 	}
 	body, err = parseConfig(name, src)
@@ -449,7 +459,7 @@ func ParsePartial(name string, src []byte, lim Limits) (body *hclsyntax.Body, er
 	}()
 	// scanLimits gives the nesting depth exactly, so a file over it is
 	// refused before the lexer builds a token list for it.
-	if depth, _, ok := scanLimits(src); ok && depth > lim.MaxDepth {
+	if depth, _, _, ok := scanLimits(src); ok && depth > lim.MaxDepth {
 		return nil, limitError(fmt.Sprintf("nesting depth %d over the limit %d", depth, lim.MaxDepth))
 	}
 	// A lexer error still yields the tokens the parser will see.
@@ -968,11 +978,19 @@ func exprText(src []byte, e hclsyntax.Expression) string {
 }
 
 // ParseBody lexes and parses one HCL file under the token, nesting and unary
-// operator limits, and returns its body and tokens. A panic in the parser is
-// recovered and returned as an error. IsLimitError tells a limit apart from a
-// parse error.
+// operator limits and the run's token budget, and returns its body and
+// tokens. A panic in the parser is recovered and returned as an error.
+// IsLimitError tells a limit apart from a parse error.
 func ParseBody(name string, src []byte, lim Limits) (*hclsyntax.Body, hclsyntax.Tokens, error) {
 	return parseSyntax(name, src, lim)
+}
+
+// ParseBodyOnly is ParseBody for a caller that needs no tokens: a file the
+// scan clears is lexed once, by the parser, as parseBody does. The body and
+// the error are those ParseBody gives.
+func ParseBodyOnly(name string, src []byte, lim Limits) (*hclsyntax.Body, error) {
+	body, _, err := parseBody(name, src, lim)
+	return body, err
 }
 
 // IsLimitError reports whether err is ParseBody or ParsePartial refusing a
