@@ -382,13 +382,44 @@ func TestBaseFromDiff(t *testing.T) {
 			},
 			want: map[string]string{"a.tf": v1},
 		},
-		{
-			name: "renamed with a hunk that cancels out",
-			head: map[string]string{"b.tf": v1},
+		{name: "renamed with a hunk that cancels out", head: map[string]string{"b.tf": v1}, err: "patch changes nothing",
 			diff: func(t *testing.T) string {
 				return ghList(t, ghFile{Filename: "b.tf", PreviousFilename: "a.tf", Status: "renamed", Patch: new("@@ -1 +1 @@\n-a = 1\n+a = 1")})
+			}},
+		{name: "a copy to itself", head: map[string]string{"main.tf": v1}, err: "copied to itself",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "main.tf", Status: "copied"})
+			}},
+		{name: "a unified rename to itself", head: map[string]string{"main.tf": v1}, err: "renamed or copied to itself",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\nsimilarity index 100%\nrename from main.tf\nrename to main.tf\n"
+			}},
+		{name: "a unified copy to itself", head: map[string]string{"main.tf": v1}, err: "renamed or copied to itself",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\nsimilarity index 100%\ncopy from main.tf\ncopy to main.tf\n"
+			}},
+		{name: "a unified section of an index line alone", head: map[string]string{"main.tf": v1}, err: "has no hunk and no change",
+			diff: func(*testing.T) string { return "diff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\n" }},
+		{name: "a unified added section of side lines alone", head: map[string]string{"main.tf": v1, "x.tf": ""}, err: "has no hunk and no change",
+			diff: func(*testing.T) string { return "--- /dev/null\n+++ b/x.tf\n" }},
+		{name: "a unified renamed section of side lines alone", head: map[string]string{"main.tf": v1}, err: "has no hunk and no change",
+			diff: func(*testing.T) string { return "--- a/old.tf\n+++ b/main.tf\n" }},
+		{name: "a unified section of side lines alone", head: map[string]string{"main.tf": v1}, err: "has no hunk and no change",
+			diff: func(*testing.T) string { return "--- a/main.tf\n+++ b/main.tf\n" }},
+		// Header-only sections git writes (git diff -M -C --find-copies-harder
+		// of a mode change, an empty file added and removed, a rename and a
+		// copy): accepted.
+		{
+			name: "git header-only sections",
+			head: map[string]string{"m.tf": "a\n", "n.tf": "", "r2.tf": "x\n", "c.tf": "c\n", "c2.tf": "c\n"},
+			diff: func(*testing.T) string {
+				return "diff --git a/m.tf b/m.tf\nold mode 100644\nnew mode 100755\n" +
+					"diff --git a/e.tf b/e.tf\ndeleted file mode 100644\nindex e69de29..0000000\n" +
+					"diff --git a/n.tf b/n.tf\nnew file mode 100644\nindex 0000000..e69de29\n" +
+					"diff --git a/r.tf b/r2.tf\nsimilarity index 100%\nrename from r.tf\nrename to r2.tf\n" +
+					"diff --git a/c.tf b/c2.tf\nsimilarity index 100%\ncopy from c.tf\ncopy to c2.tf\n"
 			},
-			want: map[string]string{"a.tf": v1},
+			want: map[string]string{"m.tf": "a\n", "e.tf": "", "r.tf": "x\n", "c.tf": "c\n"},
 		},
 		{name: "a context-only hunk", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
 			diff: func(t *testing.T) string {

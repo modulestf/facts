@@ -159,6 +159,31 @@ func TestNoPatchUnifiedRenameProven(t *testing.T) {
 	}
 }
 
+// TestUnifiedNoChangeRefused: unified diff sections git never writes, which
+// would read as no change, stop every command that takes --diff.
+func TestUnifiedNoChangeRefused(t *testing.T) {
+	t.Parallel()
+	for name, diff := range map[string]string{
+		"rename to itself": "diff --git a/main.tf b/main.tf\nsimilarity index 100%\nrename from main.tf\nrename to main.tf\n",
+		"copy to itself":   "diff --git a/main.tf b/main.tf\nsimilarity index 100%\ncopy from main.tf\ncopy to main.tf\n",
+		"index line alone": "diff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head, _, files := noPatchTrees(t, noPatchCase{"", "main.tf", noPatchMain})
+			p := filepath.Join(filepath.Dir(files), "change.diff")
+			if err := os.WriteFile(p, []byte(diff), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, cmd := range []string{"behaviour", "affected", "changes", "lint"} {
+				if code, out, errOut := runCLI([]string{cmd, head, "--json", "--diff", p}); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: ") {
+					t.Errorf("%s: exit %d, stdout %q, stderr %q", cmd, code, out, errOut)
+				}
+			}
+		})
+	}
+}
+
 // TestNoPatchBadEntryRefused: a count that is no number and a status that is
 // no GitHub status stop the run.
 func TestNoPatchBadEntryRefused(t *testing.T) {
@@ -191,6 +216,8 @@ func TestFilesListHostileShapesRefused(t *testing.T) {
 		"unchanged, not in head":       `{"filename":"gone.tf","status":"unchanged","additions":0,"deletions":0}`,
 		"context-only hunk":            `{"filename":"main.tf","status":"modified","patch":"@@ -1 +1 @@\n resource \"aws_s3_bucket\" \"this\" {","additions":0,"deletions":0}`,
 		"net-zero hunk":                `{"filename":"main.tf","status":"modified","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"this\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"copy to itself":               `{"filename":"main.tf","previous_filename":"main.tf","status":"copied","additions":0,"deletions":0}`,
+		"renamed, net-zero hunk":       `{"filename":"main.tf","previous_filename":"old.tf","status":"renamed","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"this\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
 		"rename to itself":             `{"filename":"main.tf","previous_filename":"main.tf","status":"renamed","patch":"@@ -1 +1 @@\n resource \"aws_s3_bucket\" \"this\" {","additions":0,"deletions":0}`,
 		"previous filename, unchanged": `{"filename":"main.tf","previous_filename":"evil.tf","status":"unchanged","additions":0,"deletions":0}`,
 		"zero-line hunk, added":        `{"filename":"main.tf","status":"added","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,

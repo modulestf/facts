@@ -540,7 +540,7 @@ func TestParseUnifiedGitlinkMarks(t *testing.T) {
 		"old mode of a file":          {"diff --git a/s b/s\nold mode 100644\nnew mode 100755\n", false, false},
 		"old mode":                    {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n", true, false},
 		"new mode":                    {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n", false, true},
-		"index line":                  {"diff --git a/s b/s\nindex abc..def 160000\n", true, true},
+		"index line":                  {"diff --git a/s b/s\nindex abc..def 160000\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-x\n+y\n", true, true},
 		"hunk lines":                  {"diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+text\n", true, false},
 		"ordinary file":               {"diff --git a/s b/s\nindex abc..def 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
 	}

@@ -167,6 +167,7 @@ func TestParseUnifiedModeLines(t *testing.T) {
 	t.Parallel()
 	sub := "Subproject commit " + gitSHA
 	hunk := "--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+" + sub + "1\n"
+	plain := "--- a/s\n+++ b/s\n@@ -1 +1 @@\n-x\n+y\n" // git writes a hunk for every gitlink change
 	cases := map[string]struct {
 		diff           string
 		path, prev     string
@@ -178,8 +179,8 @@ func TestParseUnifiedModeLines(t *testing.T) {
 			"x/b 160000", "x/a 160000", false, false},
 		"index line of a gitlink":       {"diff --git a/s b/s\nindex abc..def 160000\n" + hunk, "s", "s", true, true},
 		"index line of a file":          {"diff --git a/s b/s\nindex abc..def 100644\n" + hunk, "s", "s", false, false},
-		"index line with a longer mode": {"diff --git a/s b/s\nindex abc..def 1160000\n", "s", "s", false, false},
-		"index line with extra fields":  {"diff --git a/s b/s\nindex abc..def 160000 x\n", "s", "s", false, false},
+		"index line with a longer mode": {"diff --git a/s b/s\nindex abc..def 1160000\n" + plain, "s", "s", false, false},
+		"index line with extra fields":  {"diff --git a/s b/s\nindex abc..def 160000 x\n" + plain, "s", "s", false, false},
 		"index line with no mode":       {"diff --git a/s b/s\nindex abc..def\n" + hunk, "s", "s", true, true},
 		"new file of a file":            {"diff --git a/s b/s\nnew file mode 100644\n--- /dev/null\n+++ b/s\n@@ -0,0 +1 @@\n+" + sub + "\n", "s", "", false, false},
 		"deleted file of a file":        {"diff --git a/s b/s\ndeleted file mode 100644\n--- a/s\n+++ /dev/null\n@@ -1 +0,0 @@\n-" + sub + "\n", "s", "", false, false},

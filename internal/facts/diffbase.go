@@ -50,6 +50,10 @@ type fileChange struct {
 	// oldGit and newGit are set when the diff shows the path as a gitlink
 	// (mode 160000 or a "Subproject commit" line) at the base or at the head.
 	oldGit, newGit bool
+	// header is set when a unified diff states a change that needs no hunk:
+	// a mode line or a new or deleted file mode line. moved is set by a
+	// rename or copy line.
+	header, moved bool
 }
 
 // gitlinkMode is the mode of a submodule entry in a diff.
@@ -231,6 +235,14 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			return errors.New("unified diff: a file with no path")
 		}
 		cur.markGitlink()
+		if cur.moved && cur.prev == cur.path {
+			return fmt.Errorf("unified diff: %q is renamed or copied to itself", cur.path)
+		}
+		// A section with no hunk shows a change only by its header; git
+		// writes none that shows no change.
+		if cur.patch != nil && len(cur.patch) == 0 && !cur.header && !cur.moved {
+			return fmt.Errorf("unified diff: %q has no hunk and no change of mode, path or type", cur.path)
+		}
 		if cur.status == "" {
 			cur.status = "modified"
 			if cur.prev != "" && cur.prev != cur.path {
@@ -281,17 +293,17 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			cur.patch = append(cur.patch, strings.Join(lines[i:i+n], "\n")+"\n"...)
 			i += n - 1
 		case strings.HasPrefix(l, "new file mode"):
-			cur.status, cur.prev = "added", ""
+			cur.status, cur.prev, cur.header = "added", "", true
 			cur.newGit, cur.newStated = strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode, true
 		case strings.HasPrefix(l, "deleted file mode "):
-			cur.status, cur.prev = "removed", ""
+			cur.status, cur.prev, cur.header = "removed", "", true
 			cur.oldMode = strings.TrimPrefix(l, "deleted file mode ")
 			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
 		case strings.HasPrefix(l, "old mode "):
-			cur.oldMode = strings.TrimPrefix(l, "old mode ")
+			cur.oldMode, cur.header = strings.TrimPrefix(l, "old mode "), true
 			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
 		case strings.HasPrefix(l, "new mode "):
-			cur.newGit, cur.newStated = strings.TrimPrefix(l, "new mode ") == gitlinkMode, true
+			cur.newGit, cur.newStated, cur.header = strings.TrimPrefix(l, "new mode ") == gitlinkMode, true, true
 		case strings.HasPrefix(l, "index "):
 			// "index <old>..<new> <mode>" gives the mode of both sides when
 			// it is the same; with no mode field the mode lines give it. It
@@ -305,7 +317,7 @@ func parseUnified(data []byte) ([]fileChange, error) {
 				}
 			}
 		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
-			cur.prev = l[strings.Index(l, "from ")+5:]
+			cur.prev, cur.moved = l[strings.Index(l, "from ")+5:], true
 			if strings.HasPrefix(l, "copy") {
 				cur.status = "copied"
 			}
@@ -433,6 +445,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 				return nil, fmt.Errorf("unsafe path %q", p)
 			}
 		}
+		if (c.status == "renamed" || c.status == "copied") && c.prev == c.path {
+			return nil, fmt.Errorf("%q is %s to itself", c.path, c.status)
+		}
 		if head.IsGitlink(c.path) {
 			// The head holds a gitlink here, so the change is of one even when
 			// the diff shows no hunk: a rename keeps the type, and a change
@@ -485,9 +500,6 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 		case "renamed":
 			if c.prev == "" {
 				return nil, fmt.Errorf("%q is renamed with no previous path", c.path)
-			}
-			if c.prev == c.path {
-				return nil, fmt.Errorf("%q is renamed to itself", c.path)
 			}
 			at = c.prev
 		case "unchanged":
@@ -599,8 +611,9 @@ func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, erro
 	if err != nil {
 		return nil, err
 	}
-	if h != nil && at == h.Path && bytes.Equal(data, h.Data) {
-		// hunks whose removals and additions cancel out: git writes none
+	if h != nil && bytes.Equal(data, h.Data) {
+		// hunks whose removals and additions cancel out: git writes none,
+		// at the same path or after a rename
 		return nil, errors.New("patch changes nothing")
 	}
 	if int64(len(data)) > lim.MaxFileBytes {
