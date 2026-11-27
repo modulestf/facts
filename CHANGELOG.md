@@ -1,3 +1,12 @@
+## [0.21.11](https://github.com/modulestf/facts/compare/v0.21.10...v0.21.11) (2026-11-27)
+
+
+### Bug Fixes
+
+* Treat .tofu files as unread configuration, and bound the held literals ([#152](https://github.com/modulestf/facts/issues/152)) ([1e2e8a4](https://github.com/modulestf/facts/commit/1e2e8a493680aa557071b0e6b53910565e3947ad)), closes [#150](https://github.com/modulestf/facts/issues/150)
+
+
+
 ## [0.21.10](https://github.com/modulestf/facts/compare/v0.21.9...v0.21.10) (2026-11-27)
 
 
