@@ -1,3 +1,12 @@
+## [0.21.7](https://github.com/modulestf/facts/compare/v0.21.6...v0.21.7) (2026-11-27)
+
+
+### Bug Fixes
+
+* Read a variable's type as a type constraint in iam-policy-docs keys ([#142](https://github.com/modulestf/facts/issues/142)) ([7b8b431](https://github.com/modulestf/facts/commit/7b8b431edb6985cf1f20563958c5bd66ccf4ef81)), closes [#141](https://github.com/modulestf/facts/issues/141)
+
+
+
 ## [0.21.6](https://github.com/modulestf/facts/compare/v0.21.5...v0.21.6) (2026-11-27)
 
 
