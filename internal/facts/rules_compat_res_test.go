@@ -455,6 +455,59 @@ func TestResourceAddressCases(t *testing.T) {
 			head: "module \"m\" {\n  source = \"./m\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[1.5][2].aws_a.x\n}\n",
 			want: []string{"main.tf:4 .:aws_a.x"},
 		},
+		"moved into an instance of a module call with no count, the call first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[0].aws_a.x\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
+		"moved into an instance of a module call with no count, the call last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "moved {\n  from = aws_a.x\n  to   = module.m[0].aws_a.x\n}\nmodule \"m\" {\n  source = \"./m\"\n}\n",
+			want: []string{"main.tf:1 .:aws_a.x"},
+		},
+		"moved into a missing key of a module call, the call first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"missing\"].aws_a.x\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"moved into a missing key of a module call, the call last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "moved {\n  from = aws_a.x\n  to   = module.m[\"missing\"].aws_a.x\n}\nmodule \"m\" {\n  source = \"./m\"\n  for_each = toset([\"k\"])\n}\n",
+			want: []string{"main.tf:1 .:aws_a.x"},
+		},
+		"moved into a key of a module call": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
+		},
+		"moved into an instance of a counted module call": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 1\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[0].aws_a.x\n}\n",
+		},
+		"moved into a counted module call with no key": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 1\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"moved into an instance past the count of a module call": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 1\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[1].aws_a.x\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"moved into a key of a module call whose keys are not static": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  for_each = var.m\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"moved into a fractional key of a module call": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n  count  = 2\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[1.5].aws_a.x\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"moved into a fractional key of a module call with no count": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[1.5].aws_a.x\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",

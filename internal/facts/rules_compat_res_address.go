@@ -154,6 +154,20 @@ const maxMoveHops = 16
 
 var trailingKey = regexp.MustCompile(`\[([0-9]+|"(?:[^"\\]|\\.)*")\]$`)
 
+var leadingKey = regexp.MustCompile(`^\[([0-9]+|"(?:[^"\\]|\\.)*")\]`)
+
+// callKey is the instance key a target under a module call names for that
+// call, "" for none, as in module.m[0].aws_a.x. ok is false for a key that
+// is no whole number or quoted string.
+func callKey(target, call string) (key string, ok bool) {
+	rest := strings.TrimPrefix(target, call)
+	if !strings.HasPrefix(rest, "[") {
+		return "", true
+	}
+	key = leadingKey.FindString(rest)
+	return key, key != ""
+}
+
 // addressMoves are the static moved blocks of the head of one area.
 type addressMoves struct {
 	from    map[string]*Moved
@@ -286,11 +300,20 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 			return false, mv
 		case other:
 			// A whole address moved into another area, when the head
-			// declares the module call it lands in once and the address
-			// there is a block of the same kind with at most one key a step.
+			// declares the module call it lands in once, with the instance
+			// key the target names, and the address there is a block of the
+			// same kind with at most one key a step.
 			call, _ := movedKey(to)
 			inner, ok := innerKind(to)
-			return ok && (inner == "module") == (b.kind == "module") && m.head[call] != nil && !m.headDup[call], mv
+			c := m.head[call]
+			if !ok || (inner == "module") != (b.kind == "module") || c == nil || m.headDup[call] {
+				return false, mv
+			}
+			key, kok := callKey(to, call)
+			keys, _ := instanceKeys(c.body) // nil when not static: no key fits
+			// Terraform moves no module instance between no key and [0] on
+			// its own, so the key must be one the call has.
+			return kok && slices.Contains(keys, key), mv
 		case t == nil || m.headDup[t.addr] || otherKind(b, t):
 			return false, mv
 		case key != "":
