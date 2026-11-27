@@ -628,8 +628,12 @@ func TestCasesContextualRefs(t *testing.T) {
 	if st, why := refStates(RefDetail{Text: "each.value", Kind: "each"}, literalSet{}); st != nil || why == "" {
 		t.Errorf("each.value: %v %q", st, why)
 	}
-	if st, why := refStates(RefDetail{Text: "path.module", Kind: "path"}, literalSet{}); st != nil || why != "" {
-		t.Errorf("path.module: %v %q", st, why)
+	// The fixture builder has no stand-in for a path or terraform
+	// reference, so the trigger has no cases it would refuse.
+	for text, kind := range map[string]string{"path.module": "path", "terraform.workspace": "terraform"} {
+		if st, why := refStates(RefDetail{Text: text, Kind: kind}, literalSet{}); st != nil || !strings.HasSuffix(why, noInputStates) {
+			t.Errorf("%s: %v %q", text, st, why)
+		}
 	}
 }
 
@@ -658,7 +662,7 @@ func TestCasesResourceIDNeverNull(t *testing.T) {
 		"aws_security_group.this[*].id": "resource", "aws_security_group.this[0].id": "resource", "aws_security_group.this.id": "resource",
 		"aws_security_group.this[*].arn": "resource", "data.aws_security_group.this[*].id": "data",
 	} {
-		st, why := refStates(RefDetail{Text: text, Kind: kind}, literalSet{})
+		st, why := refStates(RefDetail{Text: text, Kind: kind, Type: new("string")}, literalSet{})
 		if why != "" {
 			t.Fatalf("%s: %s", text, why)
 		}
@@ -886,8 +890,10 @@ func TestContextualRefResourceAlias(t *testing.T) {
 	if len(d) != 1 || d[0].Kind != "resource" || str(d[0].Type) != "string" || str(d[0].Multi) != "count" {
 		t.Errorf("contextual ref details %s, want a resource with its type and count", mustJSON(t, d))
 	}
-	if len(long.Cases) == 0 || len(long.Cases) != len(short.Cases) {
-		t.Errorf("%d cases with the alias, %d without", len(long.Cases), len(short.Cases))
+	// The fixture builder stands in for the short form only, so the alias
+	// gets no cases it would refuse, and says why.
+	if len(short.Cases) == 0 || len(long.Cases) != 0 || !strings.Contains(str(long.Reason), "resource.aws_security_group.this[*].id"+noInputStates) {
+		t.Errorf("%d cases with the alias (%s), %d without", len(long.Cases), str(long.Reason), len(short.Cases))
 	}
 }
 
@@ -1032,5 +1038,44 @@ func TestTriggerCapsArePinned(t *testing.T) {
 	if MaxTriggers != 40 || MaxOffLadderTriggers != 40 {
 		t.Fatalf("caps = %d and %d, want 40 and 40 (schema/behaviour.schema.json allows 80 triggers)",
 			MaxTriggers, MaxOffLadderTriggers)
+	}
+}
+
+// TestRefStatesBuildable: a resource or data reference has states only in
+// a shape the L1 fixture builder stands in for, with a type or as an id.
+func TestRefStatesBuildable(t *testing.T) {
+	long := "aws_s3_bucket." + strings.Repeat("n", maxBuildableRefBytes) + ".id"
+	for _, c := range []struct {
+		text string
+		typ  *string
+		want bool
+	}{
+		{"aws_s3_bucket.this[*].id", nil, true},
+		{"aws_s3_bucket.this[*].arn", nil, false},
+		{"aws_s3_bucket.this[*].arn", new("string"), true},
+		{"aws_s3_bucket.this", new("string"), false},
+		{"aws_s3_bucket.this[0].tags.Name", new("string"), false},
+		{long, nil, false},
+		{long[:maxBuildableRefBytes-3] + ".id", nil, true},
+	} {
+		st, why := refStates(RefDetail{Text: c.text, Kind: "resource", Type: c.typ}, literalSet{})
+		if got := why == ""; got != c.want || got != (st != nil) || !got && !strings.HasSuffix(why, noInputStates) {
+			t.Errorf("%.60s (type %s): states %v, %q", c.text, str(c.typ), st != nil, why)
+		}
+	}
+}
+
+// TestCasesCountAndEach: count.index beside each.key gives no cases; each
+// alone has its states.
+func TestCasesCountAndEach(t *testing.T) {
+	c := &classifier{}
+	both := Trigger{ContextualRefDetails: []RefDetail{{Text: "count.index", Kind: "count"}, {Text: "each.key", Kind: "each"}}}
+	if cs, why := c.cases(both, "."); len(cs) != 0 || why != "count.index and each.key in one expression" {
+		t.Errorf("both: %d cases, %q", len(cs), why)
+	}
+	for _, d := range both.ContextualRefDetails {
+		if cs, why := c.cases(Trigger{ContextualRefDetails: []RefDetail{d}}, "."); len(cs) != 2 || why != "" {
+			t.Errorf("%s alone: %d cases, %q", d.Text, len(cs), why)
+		}
 	}
 }
