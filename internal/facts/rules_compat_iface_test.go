@@ -344,6 +344,36 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			head: map[string]string{"main.tf": r + "  dynamic \"ingress\" {\n    for_each = var.a\n    content {\n      from_port = 1\n    }\n  }\n}\n"}, found: true},
 		{name: "argument rewritten as a block", base: map[string]string{"main.tf": r + "  ingress = []\n}\n"},
 			head: map[string]string{"main.tf": r + "  ingress {\n    from_port = var.a\n  }\n}\n"}, found: true},
+		{name: "moved out of a module then renamed", base: map[string]string{"main.tf": "module \"m\" {\n  source = \"./m\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"z\" {\n  name = var.a\n}\nmoved {\n  from = module.m.aws_r.x\n  to   = aws_r.y\n}\nmoved {\n  from = aws_r.y\n  to   = aws_r.z\n}\n"}, found: true},
+		{name: "moved out of a module then renamed twice", base: map[string]string{"main.tf": "module \"m\" {\n  source = \"./m\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"w\" {\n  name = var.a\n}\nmoved {\n  from = aws_r.z\n  to   = aws_r.w\n}\nmoved {\n  from = aws_r.y\n  to   = aws_r.z\n}\nmoved {\n  from = module.m.aws_r.x\n  to   = aws_r.y\n}\n"}, found: true},
+		{name: "moved from a block the base lacks then renamed", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"z\" {\n  name = var.a\n}\nmoved {\n  from = module.n.aws_r.x\n  to   = aws_r.y\n}\nmoved {\n  from = aws_r.y\n  to   = aws_r.z\n}\n"}},
+		{name: "moved between resource types", base: map[string]string{"main.tf": "resource \"null_resource\" \"x\" {\n  triggers = {}\n}\n"},
+			head: map[string]string{"main.tf": "resource \"terraform_data\" \"x\" {\n  triggers_replace = { v = var.a }\n}\nmoved {\n  from = null_resource.x\n  to   = terraform_data.x\n}\n"}, found: true},
+		{name: "moved between resource types then renamed", base: map[string]string{"main.tf": "resource \"null_resource\" \"x\" {\n  triggers = {}\n}\n"},
+			head: map[string]string{"main.tf": "resource \"terraform_data\" \"y\" {\n  triggers_replace = { v = var.a }\n}\nmoved {\n  from = null_resource.x\n  to   = terraform_data.x\n}\nmoved {\n  from = terraform_data.x\n  to   = terraform_data.y\n}\n"}, found: true},
+		{name: "moved to an indexed address of the same type", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"y\" {\n  name = \"f\"\n  tag  = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.y[0]\n}\n"}},
+		{name: "moved with an unreadable index", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = var.a\n}\nmoved {\n  from = aws_r.x[var.k]\n  to   = aws_r.y\n}\n"}, found: true},
+		{name: "moved with a quoted address", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = var.a\n}\nmoved {\n  from = \"aws_r.x\"\n  to   = aws_r.y\n}\n"}, found: true},
+		{name: "moved with an unreadable index on a module call", base: map[string]string{"main.tf": "module \"c\" {\n  source = \"./c\"\n  name   = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"c\" {\n  source = \"./c\"\n  other  = var.a\n}\nmoved {\n  from = module.c[var.k]\n  to   = module.c\n}\n"}, found: true},
+		{name: "moved to an unreadable index", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name  = \"g\"\n  other = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.y[var.k]\n}\n"}, found: true},
+		{name: "moved to a quoted address", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name  = \"g\"\n  other = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = \"aws_r.y\"\n}\n"}, found: true},
+		{name: "moved from an unreadable index into another block", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name  = \"g\"\n  other = var.a\n}\nmoved {\n  from = aws_r.x[var.k]\n  to   = aws_r.q\n}\n"}, found: true},
+		{name: "moved from inside a module to another module call", base: map[string]string{"main.tf": "module \"a\" {\n  source = \"./a\"\n  name   = \"f\"\n}\nmodule \"b\" {\n  source = \"./b\"\n  name   = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"a\" {\n  source = \"./a\"\n  name   = \"f\"\n}\nmodule \"b\" {\n  source = \"./b\"\n  name   = \"g\"\n  other  = var.a\n}\nmoved {\n  from = module.a.aws_r.x\n  to   = module.b\n}\n"}, found: true},
+		{name: "moved from a module call to inside another module", base: map[string]string{"main.tf": "module \"a\" {\n  source = \"./a\"\n  name   = \"f\"\n}\nmodule \"b\" {\n  source = \"./b\"\n  name   = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"a\" {\n  source = \"./a\"\n  name   = \"f\"\n}\nmodule \"b\" {\n  source = \"./b\"\n  name   = \"g\"\n  other  = var.a\n}\nmoved {\n  from = module.a\n  to   = module.b.aws_r.x\n}\n"}, found: true},
+		{name: "moved between two modules", base: map[string]string{"main.tf": "module \"a\" {\n  source = \"./a\"\n  name   = \"f\"\n}\nmodule \"b\" {\n  source = \"./b\"\n  name   = \"g\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"a\" {\n  source = \"./a\"\n  name   = \"f\"\n}\nmodule \"b\" {\n  source = \"./b\"\n  name   = \"g\"\n  other  = var.a\n}\nmoved {\n  from = module.a.aws_r.x\n  to   = module.b.aws_r.x\n}\n"}, found: true},
 		{name: "unrelated resource and example only", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			head:  map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			extra: map[string]string{"examples/basic/main.tf": "resource \"aws_r\" \"e\" {\n  name = var.a\n}\n", "examples/basic/variables.tf": vars}},
@@ -468,6 +498,15 @@ func TestCompatNewVariableDefault(t *testing.T) {
 
 // movedKey names the top-level block of a moved address and whether the
 // address goes deeper.
+func TestBlockType(t *testing.T) {
+	t.Parallel()
+	for key, want := range map[string]string{"aws_r.x": "aws_r", "module.m": "module", "data.aws_r.x": "data", "": ""} {
+		if got := blockType(key); got != want {
+			t.Errorf("%q: got %q, want %q", key, got, want)
+		}
+	}
+}
+
 func TestMovedKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

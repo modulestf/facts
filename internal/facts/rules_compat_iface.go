@@ -313,11 +313,18 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		deep     bool
 	}
 	var moves []move
+	malformedMove := false
 	for _, m := range a.Head.Moved {
 		f, fd := movedKey(m.FromAddr)
 		t, td := movedKey(m.ToAddr)
+		if f == "" || t == "" {
+			// An address the engine cannot read names no block, so any
+			// block can be the one that moved: count every argument.
+			malformedMove = true
+			continue
+		}
 		from[t] = append(from[t], f)
-		moves = append(moves, move{f, t, fd || td})
+		moves = append(moves, move{f, t, fd || td || blockType(f) != blockType(t)})
 	}
 	// bases are the base bodies a head block can stand for: the one at its
 	// own address and one at each address a chain of moved blocks reaches.
@@ -337,15 +344,22 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 		return out
 	}
-	// A move across a module boundary says nothing about which argument of
-	// the block it lands in came from the base, so every argument of that
-	// block counts.
+	// A move across a module boundary or between resource types says
+	// nothing about which argument of the block it lands in came from the
+	// base, so every argument of that block counts, and so does every block
+	// a chain of moves leads on to from it.
 	countAll := map[string]bool{}
 	for _, mv := range moves {
-		// With no base body behind the move nothing is shared, so this
-		// only matters where the from block existed at the base.
 		if mv.deep {
 			countAll[mv.to] = true
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, mv := range moves {
+			if countAll[mv.from] && !countAll[mv.to] {
+				countAll[mv.to], changed = true, true
+			}
 		}
 	}
 	newBlocks := map[string]Body{} // head blocks with no base block
@@ -361,10 +375,10 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 	}
 	for _, x := range a.Head.Resources {
-		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, countAll[addr(x.Mode, x.Type, x.Name)])
+		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, malformedMove || countAll[addr(x.Mode, x.Type, x.Name)])
 	}
 	for _, m := range a.Head.ModuleCalls {
-		shared("module."+m.Name, m.Body, true, countAll["module."+m.Name])
+		shared("module."+m.Name, m.Body, true, malformedMove || countAll["module."+m.Name])
 	}
 	for _, p := range a.Head.Providers {
 		key := "provider." + p.Name + "." + p.Alias
@@ -482,6 +496,13 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 		}
 	}
 	return out
+}
+
+// blockType is the resource type of a moved key, or "module" for a module
+// call.
+func blockType(key string) string {
+	t, _, _ := strings.Cut(key, ".")
+	return t
 }
 
 // movedKey is the top-level block an address of a moved block names,
