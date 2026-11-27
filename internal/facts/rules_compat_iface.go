@@ -280,6 +280,8 @@ func mergeBodies(bs []Body) Body {
 // any address a chain of moved blocks leads back to, and compared with each.
 // A resource, data source or module call the base lacks that such an
 // argument reads counts with every argument it has, and so on from there.
+// A module call at both revisions whose source differs, or is not a literal
+// at either, counts with every argument too.
 // Where the pairing of nested blocks is ambiguous, every argument counts.
 func varsReadByBaseConfig(a *Area) *varReads {
 	r := newVarReads()
@@ -365,6 +367,14 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	for _, mv := range moves {
 		if mv.deep {
 			countAll[mv.to] = true
+		}
+	}
+	// A module call that keeps its name but whose source changes, or is not
+	// a literal, calls another module: its arguments pair by name across two
+	// modules' inputs, so every one counts, as across a move.
+	for key, src := range headSrc {
+		if b, ok := baseSrc[key]; ok && (b == "" || b != src) {
+			countAll[key] = true
 		}
 	}
 	for changed := true; changed; {
