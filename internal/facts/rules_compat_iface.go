@@ -308,10 +308,16 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		baseOther[k] = append(baseOther[k], o.Body)
 	}
 	from := map[string][]string{}
+	type move struct {
+		from, to string
+		deep     bool
+	}
+	var moves []move
 	for _, m := range a.Head.Moved {
-		to, _, _ := strings.Cut(m.ToAddr, "[")
-		f, _, _ := strings.Cut(m.FromAddr, "[")
-		from[to] = append(from[to], f)
+		f, fd := movedKey(m.FromAddr)
+		t, td := movedKey(m.ToAddr)
+		from[t] = append(from[t], f)
+		moves = append(moves, move{f, t, fd || td})
 	}
 	// bases are the base bodies a head block can stand for: the one at its
 	// own address and one at each address a chain of moved blocks reaches.
@@ -331,6 +337,15 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 		return out
 	}
+	// A move across a module boundary says nothing about which argument of
+	// the block it lands in came from the base, so every argument of that
+	// block counts.
+	countAll := map[string]bool{}
+	for _, mv := range moves {
+		if mv.deep && len(bases(mv.from)) > 0 {
+			countAll[mv.to] = true
+		}
+	}
 	newBlocks := map[string]Body{} // head blocks with no base block
 	shared := func(key string, h Body, top, all bool) {
 		bs := bases(key)
@@ -344,10 +359,10 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 	}
 	for _, x := range a.Head.Resources {
-		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, false)
+		shared(addr(x.Mode, x.Type, x.Name), x.Body, true, countAll[addr(x.Mode, x.Type, x.Name)])
 	}
 	for _, m := range a.Head.ModuleCalls {
-		shared("module."+m.Name, m.Body, true, false)
+		shared("module."+m.Name, m.Body, true, countAll["module."+m.Name])
 	}
 	for _, p := range a.Head.Providers {
 		key := "provider." + p.Name + "." + p.Alias
@@ -430,12 +445,6 @@ func varsReadByBaseConfig(a *Area) *varReads {
 // base had them or not: precondition, postcondition, assert and lifecycle.
 func sharedArgs(base, head Body, top, all bool) []*Expr {
 	var out []*Expr
-	for i := range head.Attributes {
-		h := &head.Attributes[i]
-		if all || (top && instanceArgs[h.Name]) || bodyAttr(base, h.Name) != nil {
-			out = append(out, &h.Value)
-		}
-	}
 	byType := func(b Body) map[string][]*NestedBlock {
 		m := map[string][]*NestedBlock{}
 		for i := range b.Blocks {
@@ -444,9 +453,17 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 		return m
 	}
 	bt, ht := byType(base), byType(head)
+	for i := range head.Attributes {
+		h := &head.Attributes[i]
+		// An argument that was blocks at the base is the same setting.
+		if all || (top && instanceArgs[h.Name]) || bodyAttr(base, h.Name) != nil || len(bt[h.Name]) > 0 {
+			out = append(out, &h.Value)
+		}
+	}
 	for t, hb := range ht {
 		known := len(bt[t]) > 0
-		ambiguous := all || failingBlocks[t] || (known && len(bt[t]) != len(hb))
+		// Blocks of a type the base wrote as an argument are the same setting.
+		ambiguous := all || failingBlocks[t] || bodyAttr(base, t) != nil || (known && len(bt[t]) != len(hb))
 		if !known && !ambiguous {
 			continue
 		}
@@ -463,6 +480,42 @@ func sharedArgs(base, head Body, top, all bool) []*Expr {
 		}
 	}
 	return out
+}
+
+// movedKey is the top-level block an address of a moved block names,
+// module.<name> or <type>.<name> with any index left out, and whether the
+// address goes deeper than that block, as module.m.aws_r.x does.
+func movedKey(addr string) (key string, deep bool) {
+	var segs []string
+	var cur strings.Builder
+	depth, quoted := 0, false
+	for i := 0; i < len(addr); i++ {
+		c := addr[i]
+		switch {
+		case quoted:
+			if c == '\\' {
+				i++
+			} else if c == '"' {
+				quoted = false
+			}
+		case c == '"':
+			quoted = true
+		case c == '[':
+			depth++
+		case c == ']':
+			depth--
+		case c == '.' && depth == 0:
+			segs = append(segs, cur.String())
+			cur.Reset()
+		case depth == 0:
+			cur.WriteByte(c)
+		}
+	}
+	segs = append(segs, cur.String())
+	if len(segs) < 2 {
+		return "", true
+	}
+	return segs[0] + "." + segs[1], len(segs) > 2
 }
 
 // instanceArgs are the arguments of a resource, data or module block, or an

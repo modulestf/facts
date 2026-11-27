@@ -324,6 +324,22 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			head: map[string]string{"main.tf": "provider \"aws\" {\n  alias = \"o\"\n  default_tags {\n    tags = { a = var.a }\n  }\n}\n"}, found: true},
 		{name: "existing provider unchanged", base: map[string]string{"main.tf": "provider \"aws\" {\n  region = \"eu\"\n}\n"},
 			head: map[string]string{"main.tf": "provider \"aws\" {\n  region = \"eu\"\n}\n"}},
+		{name: "moved out of a module", base: map[string]string{"main.tf": "module \"m\" {\n  source = \"./m\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"y\" {\n  name = var.a\n}\nmoved {\n  from = module.m.aws_r.x\n  to   = aws_r.y\n}\n"}, found: true},
+		{name: "moved into a module", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "module \"m\" {\n  source = \"./m\"\n  name   = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = module.m.aws_r.x\n}\n"}, found: true},
+		{name: "moved out of an indexed module", base: map[string]string{"main.tf": "module \"m\" {\n  source = \"./m\"\n  count  = 1\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"y\" {\n  name = var.a\n}\nmoved {\n  from = module.m[0].aws_r.x\n  to   = aws_r.y\n}\n"}, found: true},
+		{name: "moved out of a module the base lacks", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": r + "  name = \"f\"\n}\nresource \"aws_r\" \"y\" {\n  name = var.a\n}\nmoved {\n  from = module.n.aws_r.x\n  to   = aws_r.y\n}\n"}},
+		{name: "renamed with a moved block and a new argument", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
+			head: map[string]string{"main.tf": "resource \"aws_r\" \"y\" {\n  name = \"f\"\n  tag  = var.a\n}\nmoved {\n  from = aws_r.x\n  to   = aws_r.y\n}\n"}},
+		{name: "blocks rewritten as an argument", base: map[string]string{"main.tf": r + "  ingress {\n    from_port = 1\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  ingress = var.a\n}\n"}, found: true},
+		{name: "argument rewritten as a dynamic block", base: map[string]string{"main.tf": r + "  ingress = []\n}\n"},
+			head: map[string]string{"main.tf": r + "  dynamic \"ingress\" {\n    for_each = var.a\n    content {\n      from_port = 1\n    }\n  }\n}\n"}, found: true},
+		{name: "argument rewritten as a block", base: map[string]string{"main.tf": r + "  ingress = []\n}\n"},
+			head: map[string]string{"main.tf": r + "  ingress {\n    from_port = var.a\n  }\n}\n"}, found: true},
 		{name: "unrelated resource and example only", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			head:  map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			extra: map[string]string{"examples/basic/main.tf": "resource \"aws_r\" \"e\" {\n  name = var.a\n}\n", "examples/basic/variables.tf": vars}},
@@ -443,5 +459,33 @@ func TestCompatNewVariableDefault(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// movedKey names the top-level block of a moved address and whether the
+// address goes deeper.
+func TestMovedKey(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		addr string
+		key  string
+		deep bool
+	}{
+		{addr: "aws_r.x", key: "aws_r.x"},
+		{addr: `aws_r.x["a.b"]`, key: "aws_r.x"},
+		{addr: "aws_r.x[0]", key: "aws_r.x"},
+		{addr: "module.m", key: "module.m"},
+		{addr: "module.m[0]", key: "module.m"},
+		{addr: "module.m.aws_r.x", key: "module.m", deep: true},
+		{addr: `module.m["a.b"].aws_r.x[1]`, key: "module.m", deep: true},
+		{addr: `module.m["a\"].b"].aws_r.x`, key: "module.m", deep: true},
+		{addr: "aws_r", key: "", deep: true},
+		{addr: "", key: "", deep: true},
+	}
+	for _, tt := range tests {
+		key, deep := movedKey(tt.addr)
+		if key != tt.key || deep != tt.deep {
+			t.Errorf("%q: got %q %v, want %q %v", tt.addr, key, deep, tt.key, tt.deep)
+		}
 	}
 }
