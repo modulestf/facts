@@ -1,3 +1,12 @@
+## [0.21.4](https://github.com/modulestf/facts/compare/v0.21.3...v0.21.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* Fail closed on moved chains, cross-type and malformed moved addresses ([#128](https://github.com/modulestf/facts/issues/128)) ([af7312c](https://github.com/modulestf/facts/commit/af7312cc4685af422f5a7ebb63ed139f344e5b6c)), closes [#66](https://github.com/modulestf/facts/issues/66) [#66](https://github.com/modulestf/facts/issues/66)
+
+
+
 ## [0.21.3](https://github.com/modulestf/facts/compare/v0.21.2...v0.21.3) (2026-11-27)
 
 
