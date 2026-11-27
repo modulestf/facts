@@ -38,14 +38,14 @@ const defaultRegistryHost = "registry.terraform.io"
 // a submodule.
 func boundaryArea(a *Area) bool { return a.Kind == AreaRoot || a.Kind == AreaSubmodule }
 
-// newModuleBase reports whether the base has no boundary directory: no .tf
-// or .tf.json file at the root or under modules/. That is a new module,
+// newModuleBase reports whether the base has no boundary directory: no
+// configuration file (see configName) at the root or under modules/. That is a new module,
 // whose one decision, scope.new-module, replaces scope.provider and
 // scope.new-submodule.
 func newModuleBase(base *Tree) bool {
 	return !slices.ContainsFunc(base.Paths, func(p string) bool {
 		d := path.Dir(p)
-		return (d == "." || strings.HasPrefix(d, "modules/")) && (strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json"))
+		return (d == "." || strings.HasPrefix(d, "modules/")) && configName(p)
 	})
 }
 

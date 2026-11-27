@@ -319,9 +319,9 @@ module it touches through local module sources, transitively, the root
 module included (caller), then every other example (all), each group in
 path order. Registry and git sources are not callers of the local tree;
 a local source written with backslashes is read as one with slashes. A
-changed .tf, .tf.json, .tfvars, .tftest.hcl or lock file is a change of its
-directory; any other changed file is a change of every module whose read
-sites reach it.
+changed .tf, .tf.json, .tofu, .tofu.json, .tfvars, .tftest.hcl or lock file
+is a change of its directory; any other changed file is a change of every
+module whose read sites reach it.
 
 inert is true only when every changed path is a documentation or metadata
 path, such as a Markdown file or one under .github/, that no HCL read site

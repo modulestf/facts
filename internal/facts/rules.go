@@ -228,13 +228,13 @@ func linkBelow(t *Tree, dir string) string {
 	return ""
 }
 
-// holdsTerraform reports a directory with a .tf or .tf.json file in it or
-// in any directory below it, by name, as the parser reads it: a link
+// holdsTerraform reports a directory with a configuration file (see
+// configName) in it or in any directory below it, by name, as the parser reads it: a link
 // counts, a dot file or a dot directory does not. An example whose configurations sit in
 // subdirectories, one per region, still needs its versions.tf.
 func holdsTerraform(t *Tree, dir string) bool {
 	return slices.ContainsFunc(t.Paths, func(p string) bool {
 		name := path.Base(p)
-		return visibleBelow(p, dir) && (strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json"))
+		return visibleBelow(p, dir) && configName(name)
 	})
 }

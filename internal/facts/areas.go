@@ -84,12 +84,15 @@ func discoverable(p string) bool {
 	return p != "." && strings.SplitN(p, "/", 2)[0] != "modules" && !ignoredDir(p)
 }
 
+// configName reports a configuration file name: .tf, .tf.json, .tofu or
+// .tofu.json.
 func configName(p string) bool {
-	return strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")
+	return strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json") ||
+		strings.HasSuffix(p, ".tofu") || strings.HasSuffix(p, ".tofu.json")
 }
 
 // discoverModules returns the discovered module areas of the trees: each
-// discoverable directory that directly holds a .tf or .tf.json entry at head
+// discoverable directory that directly holds a configuration entry at head
 // or at base, a link or unreadable entry with such a name included. A
 // directory that held configuration at base and is a link at head is still an
 // area, so FindAreas reports it as not evaluated. A link with no such history
@@ -263,13 +266,13 @@ func Classify(p string) (area, kind string, ok bool) {
 // unreadArea returns the area whose rules judge p, a changed entry in a
 // boundary directory that no area reads: the root for one under tests/, and
 // modules/<m> for one more than one level under modules/<m>/. A regular file
-// counts when it is a .tf or .tf.json file. Any other entry counts whatever
+// counts when it is a configuration file (see configName). Any other entry counts whatever
 // its name, tests itself included, and so does one directly in modules/<m>
 // that is not named as configuration: a link, special or unreadable entry
 // may be a directory of configuration the engine never follows.
 func unreadArea(p string, e *Entry) (string, bool) {
 	regular := e.Kind == KindFile || e.Kind == KindOversize
-	config := strings.HasSuffix(p, ".tf") || strings.HasSuffix(p, ".tf.json")
+	config := configName(p)
 	if regular && !config {
 		return "", false
 	}

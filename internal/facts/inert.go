@@ -38,7 +38,7 @@ var docDirs = []string{"docs/", ".github/"}
 // ReadSites. Configuration, variable, test and lock files never are.
 func InertDocPath(p string) bool {
 	base := path.Base(p)
-	for _, ext := range []string{".tf", ".tf.json", ".tfvars", ".tfvars.json", ".hcl"} {
+	for _, ext := range []string{".tf", ".tf.json", ".tofu", ".tofu.json", ".tfvars", ".tfvars.json", ".hcl"} {
 		if strings.HasSuffix(base, ext) {
 			return false
 		}
@@ -107,7 +107,8 @@ const defaultMaxReadSites = 100000
 func (l Limits) readSitesCap() int { return cmp.Or(l.maxReadSites, defaultMaxReadSites) }
 
 // ReadSites lists the read sites of every *.tf file of t. complete is false
-// when a file cannot be parsed or the tree has more than its cap of sites,
+// when a file cannot be parsed, the tree holds a .tf.json, .tofu or
+// .tofu.json file, or it has more than its cap of sites,
 // so a path no site reaches may still be read. It stops with ErrDeadline
 // when lim's deadline passes.
 func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error) {
@@ -124,13 +125,13 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 		if err := lim.expired(); err != nil {
 			return nil, false, err
 		}
-		name := path.Base(p)
-		if ignoredName(name) || (!strings.HasSuffix(name, ".tf") && !strings.HasSuffix(name, ".tf.json")) {
+		if !configPath(p) {
 			continue
 		}
+		name := path.Base(p)
 		e := t.Entries[p]
-		if e.Kind != KindFile || strings.HasSuffix(name, ".tf.json") {
-			return nil, false, nil
+		if e.Kind != KindFile || !hclName(name) {
+			return nil, false, nil // a JSON or OpenTofu file is not scanned; OpenTofu reads a .tofu file in place of its .tf file
 		}
 		body, _, err := parseBody(name, e.Data, lim)
 		if err != nil {
@@ -143,18 +144,35 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 			return nil, false, nil
 		}
 	}
-	for _, h := range held {
-		steps := 0
-		blocks, ok := uses.sinks(t, h.to, map[flowNode]bool{}, &steps)
-		if !ok || slices.ContainsFunc(blocks, func(b string) bool { return refs[b] }) {
-			sites = append(sites, h.sites...)
-		}
+	if sites, complete, err = keepHeld(t, sites, held, uses, refs, lim); !complete {
+		return nil, false, err
 	}
 	sites, err = templateSites(t, sites, lim)
 	if err != nil {
 		return nil, false, err
 	}
 	return sites, len(sites) <= lim.readSitesCap(), nil
+}
+
+// keepHeld adds to sites the sites of each held IAM path literal that may be
+// read as a path: one whose value may go anywhere but the path or
+// path_prefix of aws_iam_* blocks no expression reads (see iamRef).
+// complete is false once sites pass the read-site cap. It stops with
+// ErrDeadline when lim's deadline passes.
+func keepHeld(t *Tree, sites []ReadSite, held []heldSite, uses flowUses, refs map[string]bool, lim Limits) (_ []ReadSite, complete bool, err error) {
+	for _, h := range held {
+		if err := lim.expired(); err != nil {
+			return nil, false, err
+		}
+		steps := 0
+		blocks, ok := uses.sinks(t, h.to, map[flowNode]bool{}, &steps)
+		if !ok || slices.ContainsFunc(blocks, func(b string) bool { return refs[b] }) {
+			if sites = append(sites, h.sites...); len(sites) > lim.readSitesCap() {
+				return nil, false, nil
+			}
+		}
+	}
+	return sites, true, nil
 }
 
 // templateSites adds the read sites inside the templates templatefile reads:

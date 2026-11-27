@@ -370,7 +370,7 @@ func moduleRootExamples(t *Tree, m string) (own, roots []string, err error) {
 	}
 	for d := range t.Dirs {
 		if path.Dir(d) == "examples" && !holdsTF(t, d) && slices.ContainsFunc(t.DirEntries(d), func(e *Entry) bool {
-			return strings.HasSuffix(e.Path, ".tf.json") && !ignoredName(path.Base(e.Path))
+			return configPath(e.Path)
 		}) {
 			roots = append(roots, d)
 		}

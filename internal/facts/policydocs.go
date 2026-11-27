@@ -449,10 +449,6 @@ func policyLoadDir(t *Tree, dir string, lim Limits) *policyDirInfo {
 		if ignoredName(name) {
 			continue
 		}
-		if strings.HasSuffix(name, ".tofu") || strings.HasSuffix(name, ".tofu.json") {
-			undec(ReasonUnsupportedFile, name+" is an OpenTofu file")
-			continue
-		}
 		if strings.HasSuffix(name, ".tfvars") || strings.HasSuffix(name, ".tfvars.json") {
 			di.tfvars = true
 			continue
