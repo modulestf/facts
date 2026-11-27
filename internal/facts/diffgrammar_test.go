@@ -197,6 +197,7 @@ func TestUnifiedGrammarRefused(t *testing.T) {
 		"a copy below 100% with no hunk":              {"diff --git a/o.tf b/main.tf\nsimilarity index 50%\ncopy from o.tf\ncopy to main.tf\n", "with no hunk"},
 		"a rename at 100% with differing hashes":      {"diff --git a/o.tf b/main.tf\nsimilarity index 100%\nrename from o.tf\nrename to main.tf\nindex 1111111..2222222 100644\n", "with no hunk"},
 		"a dissimilarity index with no hunk":          {g + "old mode 100755\nnew mode 100644\ndissimilarity index 60%\n", "dissimilarity index with no hunk"},
+		"a version line with no signature line":       {g + hunk + "Signed-off: x\n2.56.1\n", "not a git header line"},
 		"a signature with no version":                 {g + hunk + "-- \nhello\n", "not a git header line"},
 	} {
 		t.Run(name, func(t *testing.T) {
