@@ -261,6 +261,24 @@ func readAddr(t hcl.Traversal) string {
 
 func (r *varReads) has(name string) bool { return r.allVars || r.vars[name] }
 
+// moduleID is what decides which module code a call runs: its source and
+// its version constraint.
+type moduleID struct {
+	source, version string
+	versionSet, ok  bool
+}
+
+func moduleIDOf(m ModuleCall) moduleID {
+	return moduleID{
+		source: m.Source, version: m.Version, versionSet: m.VersionSet,
+		ok: m.Source != "" && (!m.VersionSet || m.VersionLiteral),
+	}
+}
+
+// sameModule reports whether two calls run the same module code as far as
+// the engine can tell: a source and version it can read at both, and equal.
+func sameModule(b, h moduleID) bool { return b == h && b.ok }
+
 func mergeBodies(bs []Body) Body {
 	var m Body
 	for _, b := range bs {
@@ -280,8 +298,8 @@ func mergeBodies(bs []Body) Body {
 // any address a chain of moved blocks leads back to, and compared with each.
 // A resource, data source or module call the base lacks that such an
 // argument reads counts with every argument it has, and so on from there.
-// A module call at both revisions whose source differs, or is not a literal
-// at either, counts with every argument too.
+// A module call at both revisions whose source or version differs, or is
+// not a literal at either, counts with every argument too.
 // Where the pairing of nested blocks is ambiguous, every argument counts.
 func varsReadByBaseConfig(a *Area) *varReads {
 	r := newVarReads()
@@ -317,13 +335,13 @@ func varsReadByBaseConfig(a *Area) *varReads {
 	var moves []move
 	malformedMove := false
 	// A moved module call pairs its arguments by name across two modules'
-	// inputs unless both calls have the same literal source.
-	baseSrc, headSrc := map[string]string{}, map[string]string{}
+	// inputs unless both calls have the same literal source and version.
+	baseMod, headMod := map[string]moduleID{}, map[string]moduleID{}
 	for _, m := range a.Base.ModuleCalls {
-		baseSrc["module."+m.Name] = m.Source
+		baseMod["module."+m.Name] = moduleIDOf(m)
 	}
 	for _, m := range a.Head.ModuleCalls {
-		headSrc["module."+m.Name] = m.Source
+		headMod["module."+m.Name] = moduleIDOf(m)
 	}
 	for _, m := range a.Head.Moved {
 		f, fd := movedKey(m.FromAddr)
@@ -336,7 +354,7 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 		from[t] = append(from[t], f)
 		deep := fd || td || blockType(f) != blockType(t)
-		if blockType(f) == "module" && (baseSrc[f] == "" || baseSrc[f] != headSrc[t]) {
+		if blockType(f) == "module" && !sameModule(baseMod[f], headMod[t]) {
 			deep = true
 		}
 		moves = append(moves, move{f, t, deep})
@@ -369,11 +387,11 @@ func varsReadByBaseConfig(a *Area) *varReads {
 			countAll[mv.to] = true
 		}
 	}
-	// A module call that keeps its name but whose source changes, or is not
-	// a literal, calls another module: its arguments pair by name across two
-	// modules' inputs, so every one counts, as across a move.
-	for key, src := range headSrc {
-		if b, ok := baseSrc[key]; ok && (b == "" || b != src) {
+	// A module call that keeps its name but whose source or version changes,
+	// or is not a literal, calls other module code: its arguments pair by
+	// name across two modules' inputs, so every one counts, as across a move.
+	for key, h := range headMod {
+		if b, ok := baseMod[key]; ok && !sameModule(b, h) {
 			countAll[key] = true
 		}
 	}

@@ -228,9 +228,14 @@ type ModuleCall struct {
 	Name        string
 	Source      string
 	SourceRange hcl.Range
-	Meta        []string
-	Attributes  []string
-	Body        Body
+	// Version is the literal value of version; VersionSet says the call
+	// has one and VersionLiteral that the engine could read it.
+	Version        string
+	VersionSet     bool
+	VersionLiteral bool
+	Meta           []string
+	Attributes     []string
+	Body           Body
 }
 
 var resourceMetaAttrs = map[string]bool{"count": true, "for_each": true, "depends_on": true, "provider": true}
@@ -909,6 +914,10 @@ func moduleCall(b *hclsyntax.Block, sp Span) ModuleCall {
 		if name == "source" {
 			c.SourceRange = a.Expr.Range()
 			c.Source, _ = literalString(a.Expr)
+		}
+		if name == "version" {
+			c.VersionSet = true
+			c.Version, c.VersionLiteral = literalString(a.Expr)
 		}
 	}
 	sortStrings(c.Meta, c.Attributes)
