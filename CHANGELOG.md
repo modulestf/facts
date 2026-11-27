@@ -1,3 +1,12 @@
+## [0.21.13](https://github.com/modulestf/facts/compare/v0.21.12...v0.21.13) (2026-11-27)
+
+
+### Bug Fixes
+
+* **behaviour:** Report an added example directory no configuration names as one trigger per file ([#154](https://github.com/modulestf/facts/issues/154)) ([1abd644](https://github.com/modulestf/facts/commit/1abd6448882ea637b6f1fc532125b3acb6d8d4db))
+
+
+
 ## [0.21.12](https://github.com/modulestf/facts/compare/v0.21.11...v0.21.12) (2026-11-27)
 
 
