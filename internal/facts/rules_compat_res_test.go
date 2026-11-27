@@ -283,6 +283,75 @@ func TestResourceAddressCases(t *testing.T) {
 			head: "module \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
 			want: []string{"main.tf:8 .:aws_a.x"},
 		},
+		"from named twice, the declared target first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"y\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:2 .:aws_a.x"},
+		},
+		"from named twice, the declared target last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"y\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.z\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\n",
+			want: []string{"main.tf:2 .:aws_a.x"},
+		},
+		"from named twice, both targets declared": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"y\" {}\nresource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:3 .:aws_a.x"},
+		},
+		"instance from named twice": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 1\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 1\n}\nmoved {\n  from = aws_a.x[0]\n  to   = aws_a.y[0]\n}\nmoved {\n  from = aws_a.x[0]\n  to   = aws_a.z[0]\n}\n",
+			want: []string{"main.tf:4 .:aws_a.x"},
+		},
+		"key holding module. is no other area": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "moved {\n  from = aws_a.x\n  to   = aws_a.missing[\"module.k\"]\n}\n",
+			want: []string{"main.tf:1 .:aws_a.x"},
+		},
+		"key holding module. in a declared block": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"y\" {\n  for_each = toset([\"module.k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y[\"module.k\"]\n}\n",
+		},
+		"whole move into a module call the head lacks": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "moved {\n  from = aws_a.x\n  to   = module.missing.aws_a.x\n}\n",
+			want: []string{"main.tf:1 .:aws_a.x"},
+		},
+		"instance chain through a declared instance": {
+			base: "resource \"aws_a\" \"x\" {\n  count = 1\n}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 1\n}\nresource \"aws_a\" \"z\" {\n  count = 1\n}\nmoved {\n  from = aws_a.x[0]\n  to   = aws_a.y[0]\n}\nmoved {\n  from = aws_a.y[0]\n  to   = aws_a.z[0]\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"chain through a head block moved on again": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"y\" {}\nresource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\nmoved {\n  from = aws_a.y\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:3 .:aws_a.x"},
+		},
+		"chain through an indexed intermediate the head declares": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"y\" {\n  count = 1\n}\nresource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y[0]\n}\nmoved {\n  from = aws_a.y[0]\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"chain through a module call the head declares": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nresource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\nmoved {\n  from = module.m.aws_a.x\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:5 .:aws_a.x"},
+		},
+		"chain through a module call the head declares twice": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m\"\n}\nmodule \"m\" {\n  source = \"./m\"\n}\nresource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\nmoved {\n  from = module.m.aws_a.x\n  to   = aws_a.z\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"chain step named twice": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "resource \"aws_a\" \"z\" {}\nmoved {\n  from = aws_a.x\n  to   = aws_a.y\n}\nmoved {\n  from = aws_a.y\n  to   = aws_a.z\n}\nmoved {\n  from = aws_a.y\n  to   = aws_a.w\n}\n",
+			want: []string{"main.tf:2 .:aws_a.x"},
+		},
+		"target deeper than a resource is no other area": {
+			base: "resource \"aws_a\" \"w\" {}\n",
+			head: "resource \"aws_a\" \"x\" {}\nmoved {\n  from = aws_a.w\n  to   = aws_a.x.y\n}\n",
+			want: []string{"main.tf:2 .:aws_a.w"},
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",

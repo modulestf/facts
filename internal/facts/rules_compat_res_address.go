@@ -9,7 +9,6 @@ import (
 	"slices"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
@@ -157,31 +156,42 @@ var trailingKey = regexp.MustCompile(`\[([0-9]+|"(?:[^"\\]|\\.)*")\]$`)
 // addressMoves are the static moved blocks of the head of one area.
 type addressMoves struct {
 	from    map[string]*Moved
+	fromDup map[string]bool // from addresses named by more than one moved block
 	head    map[string]*addrBlock
 	headDup map[string]bool // head addresses declared more than once
 }
 
 // follow returns where a moved chain from addr ends, and the first moved
-// block of the chain, or "" and nil when no moved block names addr.
-func (m addressMoves) follow(addr string) (string, *Moved) {
-	first := m.from[addr]
+// block of the chain, or "" and nil when no moved block names addr. broken
+// reports a chain Terraform refuses or that has no one target: a step whose
+// from address more than one moved block names, or a step that leaves an
+// address in a block the head declares, an instance of it or an address
+// inside a module call the head declares.
+func (m addressMoves) follow(addr string) (to string, first *Moved, broken bool) {
+	first = m.from[addr]
 	if first == nil {
-		return "", nil
+		return "", nil, false
 	}
-	to := first.ToAddr
+	broken = m.fromDup[addr]
+	to = first.ToAddr
 	for range maxMoveHops {
 		next := m.from[to]
-		if next == nil || m.head[to] != nil {
+		if next == nil {
 			break
+		}
+		if key, _ := movedKey(to); m.fromDup[to] || m.head[key] != nil {
+			broken = true
 		}
 		to = next.ToAddr
 	}
-	return to, first
+	return to, first, broken
 }
 
 // split returns the head block a target names and the key, or nil when the
-// target is in no block of this area. other reports a target in another
-// area: an address inside a module call, such as module.child.<type>.<name>.
+// target is in no block of this area. other reports a target under a module
+// call that is no block of this area: an address inside one, such as
+// module.child.<type>.<name>, or a call the head lacks. The first segment
+// decides, so a key that holds the text module. names no call.
 func (m addressMoves) split(target string) (b *addrBlock, key string, other bool) {
 	if b := m.head[target]; b != nil {
 		return b, "", false
@@ -191,17 +201,8 @@ func (m addressMoves) split(target string) (b *addrBlock, key string, other bool
 			return b, target[loc[0]:], false
 		}
 	}
-	return nil, "", strings.Count(target, "module.") > 0 && !moduleInstance(target)
-}
-
-// moduleInstance reports a target that is a module call of this area, or
-// one of its instances, rather than an address inside one.
-func moduleInstance(target string) bool {
-	rest := strings.TrimPrefix(target, "module.")
-	if loc := trailingKey.FindStringIndex(rest); loc != nil {
-		rest = rest[:loc[0]]
-	}
-	return !strings.ContainsAny(rest, ".[")
+	call, _ := movedKey(target)
+	return nil, "", blockType(call) == "module"
 }
 
 // keyFits reports a key that a block with the given keys has, directly or
@@ -212,25 +213,28 @@ func keyFits(k string, keys []string) bool { return slices.Contains(keys, k) || 
 // a static moved block for that instance or for the whole address, whose
 // target block at the head has that key, or the same address at the head
 // with that key. A move for one instance into another area, a target the
-// head lacks or declares twice, a module call declared twice at the head
-// and keys that are not static leave it without one.
+// head lacks or declares twice, a module call the head lacks or declares
+// twice, a broken chain (see follow) and keys that are not static leave it
+// without one.
 func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv *Moved) {
-	if to, mv := m.follow(b.addr + k); k != "" && mv != nil {
+	if to, mv, broken := m.follow(b.addr + k); k != "" && mv != nil {
 		t, key, _ := m.split(to)
-		if t == nil || m.headDup[t.addr] {
+		if broken || t == nil || m.headDup[t.addr] {
 			return false, mv
 		}
 		keys, kok := instanceKeys(t.body)
 		return kok && keyFits(key, keys), mv
 	}
-	if to, mv := m.follow(b.addr); mv != nil {
+	if to, mv, broken := m.follow(b.addr); mv != nil {
 		t, key, other := m.split(to)
 		switch {
+		case broken:
+			return false, mv
 		case other:
-			// A whole address moved into another area, unless the module
-			// call it lands in is declared twice and so is no one call.
+			// A whole address moved into another area, when the head
+			// declares the module call it lands in once.
 			call, _ := movedKey(to)
-			return !m.headDup[call], mv
+			return m.head[call] != nil && !m.headDup[call], mv
 		case t == nil || m.headDup[t.addr]:
 			return false, mv
 		case key != "":
@@ -266,14 +270,16 @@ func checkResourceAddressChanged(a *Area) Result {
 	const id = "compat.resource-address-changed"
 	base, baseDup := addrBlocks(a.Base)
 	head, headDup := addrBlocks(a.Head)
-	moves := addressMoves{from: map[string]*Moved{}, head: head, headDup: headDup}
+	moves := addressMoves{from: map[string]*Moved{}, fromDup: map[string]bool{}, head: head, headDup: headDup}
 	movedTo := map[string]bool{}
 	for i := range a.Head.Moved {
 		m := &a.Head.Moved[i]
 		if m.FromAddr == "" || m.ToAddr == "" {
 			continue // an expression key maps nothing the detector can name
 		}
-		if moves.from[m.FromAddr] == nil {
+		if moves.from[m.FromAddr] != nil {
+			moves.fromDup[m.FromAddr] = true // no one target, whatever the block order
+		} else {
 			moves.from[m.FromAddr] = m
 		}
 		if t, _, _ := moves.split(m.ToAddr); t != nil {
