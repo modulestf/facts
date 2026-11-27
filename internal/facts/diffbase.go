@@ -140,6 +140,9 @@ type ghFileEntry struct {
 // own.
 var ghStatuses = []string{"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
 
+// KnownFileStatus reports a status GitHub gives a files list entry.
+func KnownFileStatus(s string) bool { return slices.Contains(ghStatuses, s) }
+
 // parseGitHubFiles reads a files list. A blank patch is no patch: GitHub
 // gives none for a change it shows no line of. An entry other than an added
 // one with no patch is KindNoPatch at the base, whatever its counts: a list
@@ -147,8 +150,10 @@ var ghStatuses = []string{"added", "removed", "modified", "renamed", "copied", "
 // kept the text, as a binary base with a text head counts 0 and 0 too, nor
 // that a removed file was empty, as a host may list as removed a file a
 // rename moved out of the tree. --base and a unified diff prove those. An
-// entry with no filename and an unchanged entry with a patch are refused:
-// GitHub sends neither, and the rebuild would read either as no change.
+// entry with no filename, an unchanged entry with a patch, a previous
+// filename on an entry that is no rename or copy, and a patch that is not
+// whole hunks each changing a line are refused: GitHub sends none of them,
+// and the rebuild would read each as no change.
 func parseGitHubFiles(data []byte) ([]fileChange, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	var list []ghFileEntry
@@ -166,10 +171,16 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 		if !slices.Contains(ghStatuses, e.Status) {
 			return nil, fmt.Errorf("files list: %q: unknown status %q", e.Filename, e.Status)
 		}
+		if e.PreviousFilename != "" && e.Status != "renamed" && e.Status != "copied" {
+			return nil, fmt.Errorf("files list: %q: a previous filename on a %s entry", e.Filename, e.Status)
+		}
 		c := fileChange{path: e.Filename, prev: e.PreviousFilename, status: e.Status}
 		if e.Patch != nil && len(bytes.TrimSpace([]byte(*e.Patch))) > 0 {
 			if e.Status == "unchanged" {
 				return nil, fmt.Errorf("files list: %q: unchanged with a patch", e.Filename)
+			}
+			if err := checkHunks(*e.Patch); err != nil {
+				return nil, fmt.Errorf("files list: %q: %w", e.Filename, err)
 			}
 			c.patch = []byte(*e.Patch)
 			c.markGitlink()
@@ -177,6 +188,20 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 		out = append(out, c)
 	}
 	return out, nil
+}
+
+// checkHunks checks a patch is whole hunks, whatever the status, so a patch
+// the rebuild does not reverse, as of an added file, is held to it too.
+func checkHunks(patch string) error {
+	ls := strings.Split(strings.TrimSuffix(patch, "\n"), "\n")
+	for i := 0; i < len(ls); {
+		n, err := hunkLines(ls[i:])
+		if err != nil {
+			return fmt.Errorf("hunk: %w", err)
+		}
+		i += n
+	}
+	return nil
 }
 
 func unifiedStart(t []byte) bool {
@@ -286,7 +311,7 @@ func parseUnified(data []byte) ([]fileChange, error) {
 			}
 		case strings.HasPrefix(l, "rename to "), strings.HasPrefix(l, "copy to "):
 			cur.path = l[strings.Index(l, "to ")+3:]
-		case strings.HasPrefix(l, "Binary files "), l == "GIT binary patch":
+		case strings.HasPrefix(l, "Binary files "), strings.TrimSuffix(l, "\r") == "GIT binary patch":
 			cur.patch = nil
 		}
 	}
@@ -328,7 +353,7 @@ func hunkLines(ls []string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	oldLeft, newLeft, n := h.oldCount, h.newCount, 1
+	oldLeft, newLeft, n, edits := h.oldCount, h.newCount, 1, 0
 	for (oldLeft > 0 || newLeft > 0 || n < len(ls) && strings.HasPrefix(ls[n], `\`)) && n < len(ls) {
 		switch l := ls[n]; {
 		case strings.HasPrefix(l, `\`):
@@ -337,8 +362,10 @@ func hunkLines(ls []string) (int, error) {
 			newLeft--
 		case strings.HasPrefix(l, "-"):
 			oldLeft--
+			edits++
 		case strings.HasPrefix(l, "+"):
 			newLeft--
+			edits++
 		default:
 			return 0, fmt.Errorf("hunk line %q", l)
 		}
@@ -346,6 +373,9 @@ func hunkLines(ls []string) (int, error) {
 	}
 	if oldLeft != 0 || newLeft != 0 {
 		return 0, errors.New("hunk shorter than its header says")
+	}
+	if edits == 0 {
+		return 0, errors.New("hunk of context alone") // git writes none; it changes nothing
 	}
 	return n, nil
 }
@@ -456,6 +486,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			if c.prev == "" {
 				return nil, fmt.Errorf("%q is renamed with no previous path", c.path)
 			}
+			if c.prev == c.path {
+				return nil, fmt.Errorf("%q is renamed to itself", c.path)
+			}
 			at = c.prev
 		case "unchanged":
 			if head.Entries[c.path] == nil {
@@ -565,6 +598,10 @@ func rebuildContent(at string, h *Entry, c fileChange, lim Limits) (*Entry, erro
 	data, err := reverseHunks(cur, c.patch)
 	if err != nil {
 		return nil, err
+	}
+	if h != nil && at == h.Path && bytes.Equal(data, h.Data) {
+		// hunks whose removals and additions cancel out: git writes none
+		return nil, errors.New("patch changes nothing")
 	}
 	if int64(len(data)) > lim.MaxFileBytes {
 		return &Entry{Path: at, Kind: KindOversize}, nil

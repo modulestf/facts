@@ -186,10 +186,15 @@ func TestNoPatchBadEntryRefused(t *testing.T) {
 func TestFilesListHostileShapesRefused(t *testing.T) {
 	t.Parallel()
 	for name, entry := range map[string]string{
-		"no filename":            `{"status":"unchanged","additions":0,"deletions":0}`,
-		"unchanged with patch":   `{"filename":"main.tf","status":"unchanged","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"other\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
-		"unchanged, not in head": `{"filename":"gone.tf","status":"unchanged","additions":0,"deletions":0}`,
-		"zero-line hunk":         `{"filename":"main.tf","status":"modified","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,
+		"no filename":                  `{"status":"unchanged","additions":0,"deletions":0}`,
+		"unchanged with patch":         `{"filename":"main.tf","status":"unchanged","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"other\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"unchanged, not in head":       `{"filename":"gone.tf","status":"unchanged","additions":0,"deletions":0}`,
+		"context-only hunk":            `{"filename":"main.tf","status":"modified","patch":"@@ -1 +1 @@\n resource \"aws_s3_bucket\" \"this\" {","additions":0,"deletions":0}`,
+		"net-zero hunk":                `{"filename":"main.tf","status":"modified","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"this\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"rename to itself":             `{"filename":"main.tf","previous_filename":"main.tf","status":"renamed","patch":"@@ -1 +1 @@\n resource \"aws_s3_bucket\" \"this\" {","additions":0,"deletions":0}`,
+		"previous filename, unchanged": `{"filename":"main.tf","previous_filename":"evil.tf","status":"unchanged","additions":0,"deletions":0}`,
+		"zero-line hunk, added":        `{"filename":"main.tf","status":"added","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,
+		"zero-line hunk":               `{"filename":"main.tf","status":"modified","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

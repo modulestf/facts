@@ -374,6 +374,62 @@ func TestBaseFromDiff(t *testing.T) {
 			diff: func(*testing.T) string {
 				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -0,0 +0,0 @@\n"
 			}},
+		{
+			name: "copied with a previous filename",
+			head: map[string]string{"a.tf": v1, "b.tf": v1},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "b.tf", PreviousFilename: "a.tf", Status: "copied"})
+			},
+			want: map[string]string{"a.tf": v1},
+		},
+		{
+			name: "renamed with a hunk that cancels out",
+			head: map[string]string{"b.tf": v1},
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "b.tf", PreviousFilename: "a.tf", Status: "renamed", Patch: new("@@ -1 +1 @@\n-a = 1\n+a = 1")})
+			},
+			want: map[string]string{"a.tf": v1},
+		},
+		{name: "a context-only hunk", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new("@@ -1 +1 @@\n a = 1")})
+			}},
+		{name: "a context-only hunk in a unified diff", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -1 +1 @@\n a = 1\n"
+			}},
+		{name: "a net-zero hunk", head: map[string]string{"main.tf": v1}, err: "patch changes nothing",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new("@@ -1 +1 @@\n-a = 1\n+a = 1"), Additions: 1, Deletions: 1})
+			}},
+		{name: "a net-zero hunk in a unified diff", head: map[string]string{"main.tf": v1}, err: "patch changes nothing",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -1 +1 @@\n-a = 1\n+a = 1\n"
+			}},
+		{name: "a rename to itself", head: map[string]string{"main.tf": v1}, err: "renamed to itself",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "main.tf", Status: "renamed", Patch: new("@@ -1 +1 @@\n-a = 0\n+a = 1")})
+			}},
+		{name: "a previous filename on an unchanged entry", head: map[string]string{"main.tf": v1}, err: "a previous filename on a unchanged entry",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "evil.tf", Status: "unchanged"})
+			}},
+		{name: "a previous filename on a modified entry", head: map[string]string{"main.tf": v2}, err: "a previous filename on a modified entry",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", PreviousFilename: "evil.tf", Status: "modified", Patch: new(edit)})
+			}},
+		{name: "a zero-line hunk on an added entry", head: map[string]string{"main.tf": v1}, err: "hunk header of no line",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "added", Patch: new("@@ -0,0 +0,0 @@")})
+			}},
+		{name: "a context-only hunk on an added entry", head: map[string]string{"main.tf": v1}, err: "hunk of context alone",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "added", Patch: new("@@ -1 +1 @@\n a = 1")})
+			}},
+		{name: "a CRLF binary marker in a unified diff", head: map[string]string{"main.tf": v1},
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\nindex 1111111..2222222 100644\nGIT binary patch\r\nliteral 0\r\n"
+			}, want: map[string]string{"main.tf": noPatch}},
 		{name: "a second JSON value", head: map[string]string{"main.tf": v1}, err: "more than one JSON value",
 			diff: func(*testing.T) string { return "[] []" }},
 		{name: "neither format", head: map[string]string{"main.tf": v1}, err: "neither",

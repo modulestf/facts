@@ -173,8 +173,8 @@ func TestSafePath(t *testing.T) {
 	}
 }
 
-// TestFilesListNoFilenameRefused: a files list entry with no filename, which
-// GitHub never sends, stops the run instead of naming the empty path.
+// TestFilesListNoFilenameRefused: a files list entry with no filename or with
+// a status outside GitHub's set, which GitHub never sends, stops the run.
 func TestFilesListNoFilenameRefused(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -184,13 +184,18 @@ func TestFilesListNoFilenameRefused(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, list := range []string{`[{"status":"unchanged","additions":0,"deletions":0}]`, `[{"filename":"","status":"modified"}]`} {
+	for _, list := range []string{
+		`[{"status":"unchanged","additions":0,"deletions":0}]`,
+		`[{"filename":"","status":"modified"}]`,
+		`[{"filename":"main.tf","status":"mode-only","additions":0,"deletions":0}]`,
+		`[{"filename":"main.tf","additions":0,"deletions":0}]`,
+	} {
 		if err := os.WriteFile(files, []byte(list), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		_, err := Run(Options{Head: head, Base: base, Files: files, Limits: facts.DefaultLimits})
 		var u UsageError
-		if !errors.As(err, &u) || !strings.Contains(err.Error(), "no filename") {
+		if !errors.As(err, &u) || !strings.Contains(err.Error(), "files list: ") {
 			t.Errorf("%s: error %v, want a usage error", list, err)
 		}
 	}
