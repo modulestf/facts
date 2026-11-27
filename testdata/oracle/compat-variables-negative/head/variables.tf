@@ -72,3 +72,9 @@ variable "new_input" {
   type        = string
   default     = null
 }
+
+variable "widget_names" {
+  description = "Names of the widgets the change can add"
+  type        = list(string)
+  default     = []
+}
