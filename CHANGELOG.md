@@ -1,3 +1,12 @@
+# [0.21.0](https://github.com/modulestf/facts/compare/v0.20.7...v0.21.0) (2026-11-27)
+
+
+### Features
+
+* Report IAM policy documents and the resources that use them ([#54](https://github.com/modulestf/facts/issues/54)) ([8080007](https://github.com/modulestf/facts/commit/8080007346333fb93b9ca8575a6dbf3f31b69f80)), closes [#117](https://github.com/modulestf/facts/issues/117) [#118](https://github.com/modulestf/facts/issues/118)
+
+
+
 ## [0.20.7](https://github.com/modulestf/facts/compare/v0.20.6...v0.20.7) (2026-11-27)
 
 
