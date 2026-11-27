@@ -63,9 +63,9 @@ func InertDocPath(p string) bool {
 // argument of a file function, an attribute a resource, data source or
 // provisioner reads a file or runs a program from, or any other string that
 // is a path, anchored at path.module, path.root or path.cwd, or a plain
-// literal other than an IAM path of "/" alone (see iamPathRoot). Text is
-// the static part of the path after its anchor; Exact is set when the path
-// has no dynamic part.
+// literal other than an IAM path that goes only to IAM path arguments (see
+// iamPathText). Text is the static part of the path after its anchor; Exact
+// is set when the path has no dynamic part.
 type ReadSite struct {
 	File   string // tree path of the .tf file
 	Line   int
@@ -113,6 +113,13 @@ func (l Limits) readSitesCap() int { return cmp.Or(l.maxReadSites, defaultMaxRea
 func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error) {
 	var held []heldSite
 	refs := map[string]bool{}
+	uses := flowUses{}
+	overrides := map[string]bool{}
+	for _, p := range t.Paths {
+		if isOverride(path.Base(p)) {
+			overrides[path.Dir(p)] = true
+		}
+	}
 	for _, p := range t.Paths {
 		if err := lim.expired(); err != nil {
 			return nil, false, err
@@ -129,15 +136,17 @@ func ReadSites(t *Tree, lim Limits) (sites []ReadSite, complete bool, err error)
 		if err != nil {
 			return nil, false, nil
 		}
-		s := siteScan{dir: path.Dir(p), file: p, refs: refs}
-		s.body(body, "", "", "")
+		s := siteScan{dir: path.Dir(p), file: p, refs: refs, uses: uses, overrides: overrides[path.Dir(p)]}
+		s.body(body, "", "", "", false)
 		held = append(held, s.held...)
 		if sites = append(sites, s.sites...); len(sites) > lim.readSitesCap() {
 			return nil, false, nil
 		}
 	}
 	for _, h := range held {
-		if refs[h.block] {
+		steps := 0
+		blocks, ok := uses.sinks(t, h.to, map[flowNode]bool{}, &steps)
+		if !ok || slices.ContainsFunc(blocks, func(b string) bool { return refs[b] }) {
 			sites = append(sites, h.sites...)
 		}
 	}
@@ -236,20 +245,53 @@ func holdsTF(t *Tree, d string) bool {
 type siteScan struct {
 	dir, file string
 	sites     []ReadSite
-	held      []heldSite      // the sites of IAM paths, kept only if refs names their block
+	held      []heldSite      // the sites of IAM path literals, kept only if they may be read as a path
 	refs      map[string]bool // the aws_iam_* blocks some expression reads whole or by path; see iamRef
+	uses      flowUses        // where each variable and local of the tree goes; see flowHolder
+	overrides bool            // the directory holds an override file, which may change a module's source
 }
 
-// heldSite holds the read sites of the IAM path "/" of one aws_iam_* block,
-// its address the key of refs.
+// isOverride reports an override file name, whose blocks Terraform merges
+// into the blocks of the same name in the other files of its directory.
+func isOverride(name string) bool {
+	return name == "override.tf" || strings.HasSuffix(name, "_override.tf")
+}
+
+// heldSite holds the read sites of one IAM path literal (see iamPathText)
+// that is the whole value of an argument; to says where that value goes.
 type heldSite struct {
-	block string
+	to    flowHolder
 	sites []ReadSite
 }
 
+// flowNode is a variable or local of the module in dir; kind is "var" or
+// "local".
+type flowNode struct{ kind, dir, name string }
+
+// flowHolder is what the whole value of an argument goes to: the path or
+// path_prefix of the aws_iam_* block named block, the variable or local
+// node, or, when opaque, anything, as when the value is joined, passed to a
+// function or to a module whose code the tree does not hold. call marks a
+// module argument: node is then the variable of the called module, which
+// counts only when the tree holds that module's configuration.
+type flowHolder struct {
+	block  string
+	node   flowNode
+	call   bool
+	opaque bool
+}
+
+// flowUses lists, for each variable and local, where its references go.
+type flowUses map[flowNode][]flowHolder
+
+// maxFlowSteps bounds the holders sinks visits for one literal; past it the
+// literal stays a read site.
+const maxFlowSteps = 256
+
 // body scans a body; kind is the type of the block that holds it, label its
-// first label, the resource or provisioner type, and name its second.
-func (s *siteScan) body(b *hclsyntax.Body, kind, label, name string) {
+// first label, the resource or provisioner type, and name its second. top is
+// set for the body of a block at the top level of a file.
+func (s *siteScan) body(b *hclsyntax.Body, kind, label, name string, top bool) {
 	for attr, a := range b.Attributes {
 		if kind == "module" && (attr == "source" || attr == "version") {
 			continue // a local source is an edge of the call graph, not a file read
@@ -261,17 +303,15 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label, name string) {
 				s.add(attr, a.Expr, true)
 			}
 		}
-		if !iamPathRoot(kind, label, attr, a.Expr) {
+		to := s.holder(b, kind, label, name, attr, top)
+		s.flow(a.Expr, to)
+		if !iamPathText(a.Expr) {
 			s.expr(a.Expr)
 			continue
 		}
 		h := siteScan{dir: s.dir, file: s.file, refs: map[string]bool{}}
 		h.expr(a.Expr)
-		block := label + "." + name
-		if kind == "data" {
-			block = "data." + block
-		}
-		s.held = append(s.held, heldSite{block: block, sites: h.sites})
+		s.held = append(s.held, heldSite{to: to, sites: h.sites})
 	}
 	for _, blk := range b.Blocks {
 		label, name := "", ""
@@ -281,32 +321,126 @@ func (s *siteScan) body(b *hclsyntax.Body, kind, label, name string) {
 		if len(blk.Labels) > 1 {
 			name = blk.Labels[1]
 		}
-		s.body(blk.Body, blk.Type, label, name)
+		s.body(blk.Body, blk.Type, label, name, kind == "")
 	}
 }
 
-// iamPathRoot reports whether name is the path or path_prefix argument of an
-// aws_iam_* resource or data block and its whole value is the string "/".
-// That is an IAM path, not a file path: joined to the root module it would
-// name the whole tree. A "/" anywhere else stays a read site, a variable
-// default, module argument, local or output included, since other code may
-// join it to path.module. So does this one when an expression of the tree
-// reads its block whole or by that argument (see iamRef): the IAM path may
-// then be joined to path.module the same way.
-func iamPathRoot(kind, label, name string, e hclsyntax.Expression) bool {
-	if kind != "resource" && kind != "data" || !strings.HasPrefix(label, "aws_iam_") || name != "path" && name != "path_prefix" {
+// holder returns where the whole value of argument attr of a block goes: the
+// IAM path of an aws_iam_* resource or data block, a local, a variable's
+// default, or the variable of a module whose source is a local path inside
+// the tree. Anything else is opaque, an output value and a meta-argument
+// included.
+func (s *siteScan) holder(b *hclsyntax.Body, kind, label, name, attr string, top bool) flowHolder {
+	switch {
+	case !top:
+	case (kind == "resource" || kind == "data") && strings.HasPrefix(label, "aws_iam_") && (attr == "path" || attr == "path_prefix"):
+		block := label + "." + name
+		if kind == "data" {
+			block = "data." + block
+		}
+		return flowHolder{block: block}
+	case kind == "locals":
+		return flowHolder{node: flowNode{"local", s.dir, attr}}
+	case kind == "variable" && attr == "default":
+		return flowHolder{node: flowNode{"var", s.dir, label}}
+	case kind == "module" && !moduleMeta[attr] && !s.overrides:
+		if dir, ok := s.localSource(b); ok {
+			return flowHolder{node: flowNode{"var", dir, attr}, call: true}
+		}
+	}
+	return flowHolder{opaque: true}
+}
+
+// localSource returns the directory a module block's source names, when it
+// is a literal local path. One outside the tree holds no configuration of it,
+// which sinks checks.
+func (s *siteScan) localSource(b *hclsyntax.Body) (string, bool) {
+	a, ok := b.Attributes["source"]
+	if !ok {
+		return "", false
+	}
+	_, text, exact := staticPath(a.Expr)
+	if !exact || !strings.HasPrefix(text, "./") && !strings.HasPrefix(text, "../") {
+		return "", false
+	}
+	return path.Join(s.dir, text), true
+}
+
+// moduleMeta are the meta-arguments of a module block, which no variable of
+// the called module receives.
+var moduleMeta = map[string]bool{"count": true, "for_each": true, "providers": true, "depends_on": true}
+
+// flow records in uses where each reference in e goes: to to when e is that
+// reference alone, as in path = var.p, and anywhere when e does more with it.
+// Only the uses of variables and locals are ever looked up; a step that is no
+// attribute name, as in var["p"], keys no variable.
+func (s *siteScan) flow(e hclsyntax.Expression, to flowHolder) {
+	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics { // the walker returns no diagnostics
+		x, ok := n.(*hclsyntax.ScopeTraversalExpr)
+		if !ok || len(x.Traversal) < 2 {
+			return nil
+		}
+		a, _ := x.Traversal[1].(hcl.TraverseAttr)
+		h := to
+		if hclsyntax.Expression(x) != e || len(x.Traversal) != 2 {
+			h = flowHolder{opaque: true}
+		}
+		node := flowNode{x.Traversal.RootName(), s.dir, a.Name}
+		s.uses[node] = append(s.uses[node], h)
+		return nil
+	})
+}
+
+// sinks returns the aws_iam_* blocks whose IAM path a value that goes to h
+// ends in, and false when it may also go anywhere else: an opaque holder,
+// a module the tree does not hold, or more than steps holders. A value that
+// a variable or local nobody reads holds goes nowhere.
+func (u flowUses) sinks(t *Tree, h flowHolder, seen map[flowNode]bool, steps *int) ([]string, bool) {
+	if *steps++; *steps > maxFlowSteps || h.opaque || h.call && !holdsTF(t, h.node.dir) {
+		return nil, false
+	}
+	if h.block != "" {
+		return []string{h.block}, true
+	}
+	if seen[h.node] {
+		return nil, true
+	}
+	seen[h.node] = true
+	var blocks []string
+	for _, next := range u[h.node] {
+		b, ok := u.sinks(t, next, seen, steps)
+		if !ok {
+			return nil, false
+		}
+		blocks = append(blocks, b...)
+	}
+	return blocks, true
+}
+
+// iamPathText reports whether e is a plain string that is an IAM path: "/"
+// alone, or text of printable ASCII between a leading and a trailing "/", as
+// in "/service-role/". Such a literal is no read site when it goes only to
+// the IAM path of aws_iam_* blocks no expression reads by path (see sinks
+// and iamRef): joined to the root module, "/" would name the whole tree. Any
+// other literal, and one that may also go anywhere else, a module argument
+// whose module the tree does not hold, a join separator or a variable
+// default joined to path.module included, stays a read site.
+func iamPathText(e hclsyntax.Expression) bool {
+	anchor, text, exact := staticPath(e)
+	if anchor != AnchorRoot || !exact || len(text) > maxIAMPath || !strings.HasPrefix(text, "/") || !strings.HasSuffix(text, "/") {
 		return false
 	}
-	anchor, text, exact := staticPath(e)
-	return anchor == AnchorRoot && exact && text == "/"
+	return !strings.ContainsFunc(text, func(r rune) bool { return r < 0x21 || r > 0x7e })
 }
 
+// maxIAMPath is the length limit of an IAM path.
+const maxIAMPath = 512
+
 // iamRef returns the address of the aws_iam_* resource or data block that t
-// names, as heldSite keys it, and whether t reads the block whole or its
-// path or path_prefix. Index and splat steps after the address stay on the
-// block, so aws_iam_role.r["k"].path and resource.aws_iam_role.r.path read
-// it; an attribute other than path
-// or path_prefix does not. A reference the traversal does not finish, as in
+// names, as refs and flowHolder key it, and whether t reads the block whole
+// or its path or path_prefix. Index and splat steps after the address stay
+// on the block, so aws_iam_role.r["k"].path and resource.aws_iam_role.r.path
+// read it; an attribute other than path or path_prefix does not. A reference the traversal does not finish, as in
 // aws_iam_role.r[*].path or aws_iam_role.r[each.key].arn, names the block
 // whole, so it counts.
 func iamRef(t hcl.Traversal) (string, bool) {
@@ -355,6 +489,7 @@ func (s *siteScan) funcs(e hclsyntax.Expression) {
 // records in refs the aws_iam_* blocks it reads.
 func (s *siteScan) expr(e hclsyntax.Expression) {
 	parts := map[hclsyntax.Node]bool{}                                 // literal parts of a template, judged with it
+	gone := map[hclsyntax.Node]bool{}                                  // arguments whose text the call's result never holds
 	_ = hclsyntax.VisitAll(e, func(n hclsyntax.Node) hcl.Diagnostics { // the walker returns no diagnostics
 		switch x := n.(type) {
 		case *hclsyntax.ScopeTraversalExpr:
@@ -365,13 +500,20 @@ func (s *siteScan) expr(e hclsyntax.Expression) {
 			if readFuncs[x.Name] && len(x.Args) > 0 {
 				s.add(x.Name, x.Args[0], true)
 			}
+			if i, ok := goneArg[x.Name]; ok && i < len(x.Args) {
+				gone[x.Args[i]] = true
+			}
 		case *hclsyntax.TemplateExpr:
 			for _, p := range x.Parts {
 				parts[p] = true
 			}
-			s.add("path", x, false)
+			if !gone[x] {
+				s.add("path", x, false)
+			}
 		case *hclsyntax.TemplateWrapExpr:
-			s.add("path", x, false)
+			if !gone[x] {
+				s.add("path", x, false)
+			}
 		case *hclsyntax.LiteralValueExpr:
 			if !parts[x] {
 				s.add("path", x, false)
@@ -379,6 +521,17 @@ func (s *siteScan) expr(e hclsyntax.Expression) {
 		}
 		return nil
 	})
+}
+
+// goneArg is, by built-in function, the index of the argument whose text
+// the result never holds: what replace replaces, the separator split splits
+// on, the characters or affix a trim removes, and what startswith, endswith
+// and strcontains look for. A string there is no path, as the "/" of
+// replace(var.name, "/", "-"); the other arguments stay judged, and a read
+// function inside any argument stays a read site.
+var goneArg = map[string]int{
+	"replace": 1, "split": 0, "trim": 1, "trimprefix": 1, "trimsuffix": 1,
+	"startswith": 1, "endswith": 1, "strcontains": 1,
 }
 
 // add records e as a read site. A read site, from a read function or
