@@ -495,9 +495,10 @@ func movedKey(addr string) (key string, deep bool) {
 		c := addr[i]
 		switch {
 		case quoted:
-			if c == '\\' {
+			switch c {
+			case '\\':
 				i++
-			} else if c == '"' {
+			case '"':
 				quoted = false
 			}
 		case c == '"':
