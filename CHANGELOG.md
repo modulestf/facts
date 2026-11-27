@@ -1,3 +1,12 @@
+## [0.21.9](https://github.com/modulestf/facts/compare/v0.21.8...v0.21.9) (2026-11-27)
+
+
+### Bug Fixes
+
+* Refuse files-list shapes GitHub never sends ([#134](https://github.com/modulestf/facts/issues/134)) ([88a5f5e](https://github.com/modulestf/facts/commit/88a5f5e5060d77d4a65ea80657f9aea88573b46d)), closes [#130](https://github.com/modulestf/facts/issues/130)
+
+
+
 ## [0.21.8](https://github.com/modulestf/facts/compare/v0.21.7...v0.21.8) (2026-11-27)
 
 
