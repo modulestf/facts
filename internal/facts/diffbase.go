@@ -146,7 +146,9 @@ var ghStatuses = []string{"added", "removed", "modified", "renamed", "copied", "
 // shows neither side's content, so it cannot prove a rename or a mode change
 // kept the text, as a binary base with a text head counts 0 and 0 too, nor
 // that a removed file was empty, as a host may list as removed a file a
-// rename moved out of the tree. --base and a unified diff prove those.
+// rename moved out of the tree. --base and a unified diff prove those. An
+// entry with no filename and an unchanged entry with a patch are refused:
+// GitHub sends neither, and the rebuild would read either as no change.
 func parseGitHubFiles(data []byte) ([]fileChange, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	var list []ghFileEntry
@@ -158,11 +160,17 @@ func parseGitHubFiles(data []byte) ([]fileChange, error) {
 	}
 	out := make([]fileChange, 0, len(list))
 	for _, e := range list {
+		if e.Filename == "" {
+			return nil, errors.New("files list: an entry with no filename")
+		}
 		if !slices.Contains(ghStatuses, e.Status) {
 			return nil, fmt.Errorf("files list: %q: unknown status %q", e.Filename, e.Status)
 		}
 		c := fileChange{path: e.Filename, prev: e.PreviousFilename, status: e.Status}
 		if e.Patch != nil && len(bytes.TrimSpace([]byte(*e.Patch))) > 0 {
+			if e.Status == "unchanged" {
+				return nil, fmt.Errorf("files list: %q: unchanged with a patch", e.Filename)
+			}
 			c.patch = []byte(*e.Patch)
 			c.markGitlink()
 		}
@@ -365,6 +373,10 @@ func parseHunkHeader(l string) (hunk, error) {
 	if h.oldStart < 0 || h.oldCount < 0 || h.newStart < 0 || h.newCount < 0 {
 		return hunk{}, fmt.Errorf("hunk header out of range: %q", l)
 	}
+	if h.oldCount == 0 && h.newCount == 0 {
+		// git never writes a hunk of no line, and reversing one changes nothing
+		return hunk{}, fmt.Errorf("hunk header of no line: %q", l)
+	}
 	return h, nil
 }
 
@@ -446,6 +458,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 			}
 			at = c.prev
 		case "unchanged":
+			if head.Entries[c.path] == nil {
+				return nil, fmt.Errorf("%q is unchanged in the diff but not in the head tree", c.path)
+			}
 			continue
 		default:
 			return nil, fmt.Errorf("%q: unknown status %q", c.path, c.status)

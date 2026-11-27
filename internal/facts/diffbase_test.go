@@ -354,6 +354,26 @@ func TestBaseFromDiff(t *testing.T) {
 			diff: func(t *testing.T) string {
 				return ghList(t, ghFile{Filename: "main.tf", Status: "removed", Patch: new("@@ -1 +0,0 @@\n-a")})
 			}},
+		// Shapes GitHub never sends, each of which the rebuild would read as
+		// no change: refused.
+		{name: "an entry with no filename", head: map[string]string{"main.tf": v1}, err: "an entry with no filename",
+			diff: func(*testing.T) string { return `[{"status":"unchanged"}]` }},
+		{name: "an entry with an empty filename", head: map[string]string{"main.tf": v1}, err: "an entry with no filename",
+			diff: func(*testing.T) string { return `[{"filename":"","status":"removed"}]` }},
+		{name: "an unchanged entry with a patch", head: map[string]string{"main.tf": v2}, err: "unchanged with a patch",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "unchanged", Patch: new(edit)})
+			}},
+		{name: "an unchanged entry the head lacks", head: map[string]string{"main.tf": v1}, err: "unchanged in the diff but not in the head tree",
+			diff: func(t *testing.T) string { return ghList(t, ghFile{Filename: "gone.tf", Status: "unchanged"}) }},
+		{name: "a zero-line hunk", head: map[string]string{"main.tf": v1}, err: "hunk header of no line",
+			diff: func(t *testing.T) string {
+				return ghList(t, ghFile{Filename: "main.tf", Status: "modified", Patch: new("@@ -0,0 +0,0 @@")})
+			}},
+		{name: "a zero-line hunk in a unified diff", head: map[string]string{"main.tf": v1}, err: "hunk header of no line",
+			diff: func(*testing.T) string {
+				return "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ -0,0 +0,0 @@\n"
+			}},
 		{name: "a second JSON value", head: map[string]string{"main.tf": v1}, err: "more than one JSON value",
 			diff: func(*testing.T) string { return "[] []" }},
 		{name: "neither format", head: map[string]string{"main.tf": v1}, err: "neither",

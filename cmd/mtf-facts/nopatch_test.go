@@ -176,3 +176,46 @@ func TestNoPatchBadEntryRefused(t *testing.T) {
 		}
 	}
 }
+
+// TestFilesListHostileShapesRefused runs each command on a files list entry
+// GitHub never sends and the rebuild would read as no change: no filename,
+// an unchanged entry with a patch or for a path the head lacks, and a hunk
+// of no line. behaviour, affected, changes and lint exit 2; depth exits 2 on
+// an entry with no filename and is deep for the others, whose list disagrees
+// with the trees.
+func TestFilesListHostileShapesRefused(t *testing.T) {
+	t.Parallel()
+	for name, entry := range map[string]string{
+		"no filename":            `{"status":"unchanged","additions":0,"deletions":0}`,
+		"unchanged with patch":   `{"filename":"main.tf","status":"unchanged","patch":"@@ -1 +1 @@\n-resource \"aws_s3_bucket\" \"other\" {\n+resource \"aws_s3_bucket\" \"this\" {","additions":1,"deletions":1}`,
+		"unchanged, not in head": `{"filename":"gone.tf","status":"unchanged","additions":0,"deletions":0}`,
+		"zero-line hunk":         `{"filename":"main.tf","status":"modified","patch":"@@ -0,0 +0,0 @@","additions":0,"deletions":0}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			head, base, files := noPatchTrees(t, noPatchCase{entry, "main.tf", noPatchMain})
+			for _, cmd := range []string{"behaviour", "affected", "changes", "lint"} {
+				if code, out, errOut := runCLI([]string{cmd, head, "--json", "--diff", files}); code != exitError || out != "" || !strings.HasPrefix(errOut, "mtf-facts: ") {
+					t.Errorf("%s: exit %d, stdout %q, stderr %q", cmd, code, out, errOut)
+				}
+			}
+			code, dep, errOut := runCLI([]string{"depth", "--head", head, "--base", base, "--files", files})
+			if name == "no filename" {
+				if code != exitError || dep != "" {
+					t.Errorf("depth: exit %d, stdout %q, stderr %q", code, dep, errOut)
+				}
+				return
+			}
+			var d struct {
+				Depth   string
+				Reasons []string
+			}
+			if err := json.Unmarshal([]byte(dep), &d); code != exitClean || err != nil {
+				t.Fatalf("depth: exit %d, %v, stderr %q", code, err, errOut)
+			}
+			if d.Depth != "deep" || !slices.Contains(d.Reasons, "deep-files-list-mismatch") {
+				t.Errorf("depth: %s", dep)
+			}
+		})
+	}
+}

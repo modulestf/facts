@@ -105,6 +105,9 @@ func Run(o Options) (*Report, error) {
 		return nil, UsageError{fmt.Sprintf("files list: %v", err)}
 	}
 	for _, f := range list {
+		if f.Filename == "" {
+			return nil, UsageError{"files list: an entry with no filename"}
+		}
 		if f.Additions != nil && *f.Additions > maxLineCount || f.Deletions != nil && *f.Deletions > maxLineCount {
 			return nil, UsageError{fmt.Sprintf("files list: %q has a line count over %d", f.Filename, maxLineCount)}
 		}
