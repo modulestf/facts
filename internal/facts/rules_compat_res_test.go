@@ -253,6 +253,36 @@ func TestResourceAddressCases(t *testing.T) {
 			head: "resource \"aws_a\" \"x\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  count = 1\n}\nresource \"aws_a\" \"y\" {\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x[1]\n  to   = aws_a.y[0]\n}\n",
 			want: []string{"main.tf:10 .:aws_a.x"},
 		},
+		"moved into a module call declared twice, first order": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m1\"\n}\nmodule \"m\" {\n  source = \"./m2\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved into a module call declared twice, second order": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m2\"\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:7 .:aws_a.x"},
+		},
+		"moved into a module call declared twice with for_each, plain block first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m1\"\n}\nmodule \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"moved into a module call declared twice with for_each, plain block last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m.aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"moved into an instance of a module call declared twice, plain block first": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source = \"./m1\"\n}\nmodule \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
+		"moved into an instance of a module call declared twice, plain block last": {
+			base: "resource \"aws_a\" \"x\" {}\n",
+			head: "module \"m\" {\n  source   = \"./m2\"\n  for_each = toset([\"k\"])\n}\nmodule \"m\" {\n  source = \"./m1\"\n}\nmoved {\n  from = aws_a.x\n  to   = module.m[\"k\"].aws_a.x\n}\n",
+			want: []string{"main.tf:8 .:aws_a.x"},
+		},
 		"data block never counts": {
 			base: "data \"aws_a\" \"x\" {}\nresource \"aws_b\" \"x\" {}\n",
 			head: "resource \"aws_b\" \"x\" {}\n",

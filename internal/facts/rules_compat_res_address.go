@@ -212,8 +212,8 @@ func keyFits(k string, keys []string) bool { return slices.Contains(keys, k) || 
 // a static moved block for that instance or for the whole address, whose
 // target block at the head has that key, or the same address at the head
 // with that key. A move for one instance into another area, a target the
-// head lacks or declares twice and keys that are not static leave it
-// without one.
+// head lacks or declares twice, a module call declared twice at the head
+// and keys that are not static leave it without one.
 func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv *Moved) {
 	if to, mv := m.follow(b.addr + k); k != "" && mv != nil {
 		t, key, _ := m.split(to)
@@ -227,7 +227,10 @@ func (m addressMoves) placed(b *addrBlock, k string, bKeysOK bool) (ok bool, mv 
 		t, key, other := m.split(to)
 		switch {
 		case other:
-			return true, mv // a whole address moved into another area
+			// A whole address moved into another area, unless the module
+			// call it lands in is declared twice and so is no one call.
+			call, _ := movedKey(to)
+			return !m.headDup[call], mv
 		case t == nil || m.headDup[t.addr]:
 			return false, mv
 		case key != "":
