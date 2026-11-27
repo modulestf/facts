@@ -65,6 +65,13 @@ resource "aws_iam_policy" "p" {
 			t.Errorf("uses = %s, want differs", got)
 		}
 	})
+	t.Run("a type argument of another block is an expression", func(t *testing.T) {
+		m := tree("string", "aws_ssm_parameter.s.name")
+		m["s.tf"] = "resource \"aws_ssm_parameter\" \"s\" {\n  name = \"s\"\n  type = list(string)\n}\n"
+		if got := uses(t, m, m); got != "undecidable" {
+			t.Errorf("uses = %s, want undecidable", got)
+		}
+	})
 	t.Run("another argument of the variable stays in the grammar", func(t *testing.T) {
 		typ := "list(string)\n  default = [file(\"x\")]"
 		if got := uses(t, tree(typ, read), tree(typ, read)); got != "undecidable" {
