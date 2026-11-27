@@ -1,3 +1,12 @@
+## [0.22.2](https://github.com/modulestf/facts/compare/v0.22.1...v0.22.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **behaviour:** Give no L1 cases for a reference the fixture builder cannot stand in for ([#164](https://github.com/modulestf/facts/issues/164)) ([947b9cd](https://github.com/modulestf/facts/commit/947b9cd895025094f732810c5c65b338e23034a6))
+
+
+
 ## [0.22.1](https://github.com/modulestf/facts/compare/v0.22.0...v0.22.1) (2026-11-27)
 
 
