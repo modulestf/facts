@@ -297,23 +297,38 @@ const emptyBlob = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
 func zeroHash(h string) bool  { return strings.Trim(h, "0") == "" }
 func emptyHash(h string) bool { return strings.HasPrefix(emptyBlob, h) }
 
-// bodyless checks a section with no hunk and no binary marker. git writes
-// one for a change of mode or path alone, and for an empty file added or
-// removed; with an index line whose hashes differ, any other section hides
-// a change of content, and the base would take the head's. A link
-// removed always has a hunk: its target.
-func bodyless(hdr string, c fileChange, oldHash, newHash string) error {
-	if c.status == "removed" && c.oldMode == "120000" {
-		return fmt.Errorf("%q: mode %s removed with no hunk", hdr, c.oldMode)
-	}
-	if oldHash == newHash {
+// bodyless checks a section with no hunk and no binary marker against the
+// ones git writes: a mode pair alone, a rename or copy at 100%, and an
+// empty regular file added or removed, whose index line pairs the empty
+// blob with all zeros. Any other would hide a change of content: the base
+// would take the head's, or an empty file. A link or gitlink added or
+// removed has a hunk, but a gitlink removal with none is read as one.
+// h holds the index hashes, nil with no index line; pct is the similarity.
+func bodyless(hdr string, c fileChange, h []string, pct int, dissim bool) error {
+	same := h == nil || h[0] == h[1]
+	switch {
+	case dissim:
+		return fmt.Errorf("%q: dissimilarity index with no hunk", hdr)
+	case c.status == "renamed" || c.status == "copied":
+		if pct == 100 && same {
+			return nil
+		}
+	case c.status == "added" && !regularMode(c.newMode), c.status == "removed" && c.oldMode == gitlinkMode:
 		return nil
+	case c.status == "added":
+		if h != nil && zeroHash(h[0]) && emptyHash(h[1]) {
+			return nil
+		}
+	case c.status == "removed":
+		if regularMode(c.oldMode) && h != nil && emptyHash(h[0]) && zeroHash(h[1]) {
+			return nil
+		}
+	default: // a mode pair
+		if same {
+			return nil
+		}
 	}
-	if (c.status == "added" && zeroHash(oldHash) && emptyHash(newHash)) ||
-		(c.status == "removed" && emptyHash(oldHash) && zeroHash(newHash)) {
-		return nil
-	}
-	return fmt.Errorf("%q: index %s..%s with no hunk", hdr, oldHash, newHash)
+	return fmt.Errorf("%q: a section git does not write with no hunk (index %v, similarity %d%%)", hdr, h, pct)
 }
 
 func gitMode(s string) (string, error) {
@@ -332,8 +347,8 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 		return fileChange{}, 0, err
 	}
 	c := fileChange{path: p, prev: p, patch: []byte{}}
-	rank, shown, similarity, moved, body := 0, false, false, false, false
-	var oldHash, newHash string
+	rank, shown, similarity, moved, body, dissim, pct := 0, false, false, false, false, false, 0
+	var hashes []string
 	step := func(r int) error {
 		if r <= rank {
 			return fmt.Errorf("%q: line %d is out of git's header order", hdr, i+1)
@@ -389,10 +404,11 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 			if err = step(rankSimilarity); err != nil {
 				return c, 0, err
 			}
-			if n, _ := strconv.Atoi(similarityLine.FindStringSubmatch(l)[1]); n > 100 {
+			if pct, _ = strconv.Atoi(similarityLine.FindStringSubmatch(l)[1]); pct > 100 {
 				return c, 0, fmt.Errorf("%q: similarity over 100%%", hdr)
 			}
 			similarity = strings.HasPrefix(l, "similarity")
+			dissim = !similarity
 			if !similarity && c.status != "" {
 				return c, 0, fmt.Errorf("%q: dissimilarity of an added or removed file", hdr)
 			}
@@ -419,7 +435,7 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 			if m == nil {
 				return c, 0, fmt.Errorf("%q: index line %q", hdr, l)
 			}
-			oldHash, newHash = m[1], m[2]
+			hashes = m[1:3]
 			if m[3] != "" {
 				// The mode of both sides, which git writes only when it is
 				// the same: never beside a mode line.
@@ -490,7 +506,7 @@ func gitSection(ls []string, i int) (fileChange, int, error) {
 		return c, 0, fmt.Errorf("%q: no hunk and no change of mode, path or type", hdr)
 	}
 	if !body {
-		if err := bodyless(hdr, c, oldHash, newHash); err != nil {
+		if err := bodyless(hdr, c, hashes, pct, dissim); err != nil {
 			return c, 0, err
 		}
 	}
