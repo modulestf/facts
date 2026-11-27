@@ -1,3 +1,12 @@
+## [0.22.1](https://github.com/modulestf/facts/compare/v0.22.0...v0.22.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* Check a module call's instance key when an address moves into it ([#159](https://github.com/modulestf/facts/issues/159)) ([975a560](https://github.com/modulestf/facts/commit/975a560c9e21b9f079272fffb58928450162e812)), closes [#157](https://github.com/modulestf/facts/issues/157)
+
+
+
 # [0.22.0](https://github.com/modulestf/facts/compare/v0.21.13...v0.22.0) (2026-11-27)
 
 
