@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      },
+      {
+        "dir": "modules/docs",
+        "undecidable": null
+      },
+      {
+        "dir": "modules/role",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.root",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": "modules/role",
+            "address": "aws_iam_role_policy.this",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "module.role",
+                "role": "module_input"
+              },
+              {
+                "dir": "modules/role",
+                "node": "var.policy",
+                "role": "variable"
+              }
+            ],
+            "gates": [
+              {
+                "dir": ".",
+                "address": "module.role",
+                "meta": "count",
+                "text": "var.enabled ? 1 : 0"
+              }
+            ],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.remote",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          19,
+          24
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:ListBucket"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": null,
+        "uses_undecidable": {
+          "code": "external_module",
+          "detail": "module.remote.policy"
+        }
+      },
+      {
+        "dir": ".",
+        "address": "aws_iam_role_policy.from_child.policy",
+        "kind": "expression",
+        "file": "main.tf",
+        "lines": [
+          27,
+          27
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "unresolved_expression",
+          "detail": "policy"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_role_policy.from_child",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": "modules/docs",
+        "address": "data.aws_iam_policy_document.child",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          11
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Deny",
+              "actions": [
+                "iam:*"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": [
+                {
+                  "type": "AWS",
+                  "identifiers": [
+                    "*"
+                  ]
+                }
+              ],
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_role_policy.from_child",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": "modules/docs",
+                "node": "output.json",
+                "role": "output"
+              },
+              {
+                "dir": ".",
+                "node": "module.docs.json",
+                "role": "module_output"
+              }
+            ],
+            "gates": [],
+            "instances": "always"
+          },
+          {
+            "dir": "modules/docs",
+            "address": "output.json",
+            "argument": "value",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": "modules/role",
+        "address": "aws_iam_role_policy.this.policy",
+        "kind": "expression",
+        "file": "main.tf",
+        "lines": [
+          4,
+          4
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "unresolved_expression",
+          "detail": "policy"
+        },
+        "uses": [
+          {
+            "dir": "modules/role",
+            "address": "aws_iam_role_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "conditional"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": null,
+  "compare": null,
+  "precondition": null
+}

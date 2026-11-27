@@ -413,4 +413,69 @@ Exit codes:
 	fixtureBuildAttributeUsage        = "`attribute` the expression sets: count or for_each at L2, the attribute under test at L3"
 	fixtureBuildResourceUsage         = "resource `type` under test, at L3"
 	fixtureBuildResourceTemplateUsage = "resource template `file`, at L3"
+	policyDocsShort                   = "Report the IAM policy documents of a module tree and what uses them"
+	policyDocsLong                    = `Report the IAM policy documents a module tree defines and exactly which
+blocks use each one, for a host that compares a document with a copy kept
+elsewhere. Every directory of the tree that holds configuration is read.
+Nothing is evaluated: what the reader cannot decide is undecidable with a
+reason code, never equal or absent.
+
+A document is a data "aws_iam_policy_document" block, a jsonencode() call of
+an object with a Statement key, a string or heredoc that holds a JSON
+policy, or a policy argument whose value no document explains: policy, a
+name ending in _policy or policy_document, or access_policies of a
+resource, data source, provider or module call, and the content of an
+aws_organizations_policy. Any other argument that holds a policy is found
+only when it reads a document.
+Its content is normalized: lists sorted, an interpolation kept as a
+template of literal parts and references, a data source's missing effect
+read as Allow. A dynamic block, a merging document, a value that is not a
+literal list and anything else the reader has no model of makes the
+content undecidable.
+
+A use is the block and argument that read the document, with every hop on
+the way: locals, concat, flatten, compact and tolist, a [*] splat or a
+literal instance key on the document, source_policy_documents,
+override_policy_documents, source_json and override_json of a merging
+document, and the inputs and outputs of module calls with a local source in
+the tree. uses lists the blocks that read the document directly: a block
+that carries the value on, such as terraform_data, ends a trace. An output
+is a use, since callers outside the tree read it, and its in-tree callers
+are traced on. Any other
+function, a conditional, a for expression, an index into a value, a module
+outside the tree, a dynamic block, a directory on the way that is
+undecidable, an output while any directory is undecidable (a caller there
+is unseen), or a document that is a variable default makes the whole use
+list undecidable. A node reached on paths with other gates is a use on
+each path. instances reads the gates on the path only, not the gates of
+the calls of the module. Files Terraform ignores
+are ignored; a JSON, override or OpenTofu file or a parse error makes its
+directory undecidable.
+
+With --base, compare pairs the documents of both trees by directory and
+address. A comparison is decided only when both trees hold only regular
+files read whole (no link, special, unreadable or oversize entry), no
+variables file of any name, no undecidable directory, every local module
+source in the tree, and the same provider and terraform blocks, with what
+they read, and lock files; otherwise presence, content and uses are all
+undecidable. precondition says which; a tree whose only directories are
+undecidable has no pair, so read precondition and the directories, never an
+empty compare alone. Then a side
+is equal only when the normalized text and the text of every definition it
+reads match: locals, variables, aws_ resource and data blocks, the whole
+blocks that use the document, and every in-tree call of the directories on
+the way, up the call chain. A definition outside the closed grammar (a
+function whose result does not depend on its arguments alone, such as
+file or templatefile, a path.* reference, a module output, a name that
+is no definition, such as an iterator symbol or an ephemeral value, a resource or
+data type other than aws_, or an aws_ block with an argument that names a
+file, such as source or filename) makes that side undecidable. Values from outside
+the tree (variables a run passes, callers outside the tree, provider APIs and
+state) are taken as the same for both trees.
+
+Exit codes:
+  0  the report was written
+  2  an error: bad input, a limit or the timeout; stdout is empty`
+	policyDocsExample   = `  mtf-facts iam-policy-docs path/to/module --base path/to/base-tree > policies.json`
+	policyDocsBaseUsage = "the `tree` the change started from, to compare with"
 )

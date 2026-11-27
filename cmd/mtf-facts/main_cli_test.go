@@ -439,6 +439,7 @@ Review pipeline (run by hosts):
   plan-gates        Run the plan pass gates over .tf files before Terraform runs
   behaviour         Classify a change into triggers and the verification levels each needs
   claims-eval       Validate review claims and evaluate them and the triggers against a ladder record
+  iam-policy-docs   Report the IAM policy documents of a module tree and what uses them
   profile-check     Check a module profile and print its options, gates and downgrade rules
   profile-snapshot  Copy a module profile directory into a private temporary directory
 

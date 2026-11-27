@@ -1,0 +1,3 @@
+module "gone" {
+  source = "./missing"
+}

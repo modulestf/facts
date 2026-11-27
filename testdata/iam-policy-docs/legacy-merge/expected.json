@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "head": {
+    "directories": [
+      {
+        "dir": ".",
+        "undecidable": null
+      }
+    ],
+    "documents": [
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.d",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          1,
+          6
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": {
+          "version": "2012-10-17",
+          "id": null,
+          "statements": [
+            {
+              "sid": null,
+              "effect": "Allow",
+              "actions": [
+                "s3:GetObject"
+              ],
+              "not_actions": null,
+              "resources": [
+                "*"
+              ],
+              "not_resources": null,
+              "principals": null,
+              "not_principals": null,
+              "conditions": null
+            }
+          ]
+        },
+        "content_undecidable": null,
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [
+              {
+                "dir": ".",
+                "node": "data.aws_iam_policy_document.merged",
+                "role": "source"
+              }
+            ],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      },
+      {
+        "dir": ".",
+        "address": "data.aws_iam_policy_document.merged",
+        "kind": "data_source",
+        "file": "main.tf",
+        "lines": [
+          7,
+          9
+        ],
+        "gate": null,
+        "instances": "always",
+        "content": null,
+        "content_undecidable": {
+          "code": "merge",
+          "detail": "source_json"
+        },
+        "uses": [
+          {
+            "dir": ".",
+            "address": "aws_iam_policy.this",
+            "argument": "policy",
+            "via": [],
+            "gates": [],
+            "instances": "always"
+          }
+        ],
+        "uses_undecidable": null
+      }
+    ]
+  },
+  "base": null,
+  "compare": null,
+  "precondition": null
+}
