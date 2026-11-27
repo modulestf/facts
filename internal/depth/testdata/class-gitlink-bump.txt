@@ -1,0 +1,16 @@
+kind: other
+depth: deep
+reason: deep-non-terraform-change
+reason-not: deep-files-list-mismatch
+-- base/vendor/sub [gitlink] --
+aaaa
+-- head/vendor/sub [gitlink] --
+bbbb
+-- base/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}
+-- head/main.tf --
+resource "aws_sqs_queue" "this" {
+  name = "q"
+}

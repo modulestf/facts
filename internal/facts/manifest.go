@@ -178,6 +178,7 @@ func Evaluate(areas []*Area, rules []Rule, ch *ChangeMap) ([]ManifestEntry, []Fi
 	}
 	for _, a := range areas {
 		a.peers = peers
+		a.markUnreadCalls()
 	}
 	manifest, findings, candidates := []ManifestEntry{}, []Finding{}, []Candidate{}
 	for _, r := range rules {
@@ -408,6 +409,8 @@ func gate(r Rule, a *Area) (reason, code string) {
 		return a.Issue, a.issueCode
 	case r.NeedsBase && a.Base == nil:
 		return "no base revision to compare with", ReasonNoBase
+	case r.Class == ClassConfig && a.callsUnread != "":
+		return a.callsUnread, ReasonUnsupportedFile
 	case r.ReadsUnreadConfig && len(a.unreadConfig) > 0:
 		what := ": test helper configuration the engine does not read"
 		if a.Kind == AreaSubmodule {

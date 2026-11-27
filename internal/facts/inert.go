@@ -474,6 +474,22 @@ func (s ReadSite) Reaches(p string, roots []string) bool {
 	return false
 }
 
+// ReachesDir reports whether the site may read p or any path below it, for a
+// p that stands for a directory whose files the tree does not hold, such as a
+// gitlink.
+func (s ReadSite) ReachesDir(p string, roots []string) bool {
+	bases := roots
+	if s.Anchor == AnchorModule {
+		bases = []string{s.Dir}
+	}
+	for _, base := range bases {
+		if strings.HasPrefix(path.Join(base, s.Text), p+"/") {
+			return true
+		}
+	}
+	return s.Reaches(p, roots)
+}
+
 // ReachedBy reports whether any of sites may read p.
 func ReachedBy(p string, sites []ReadSite, roots []string) bool {
 	for _, s := range sites {

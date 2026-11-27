@@ -80,6 +80,9 @@ func (c *classifier) run() (*Report, error) {
 	tfDirs := map[string]bool{}
 	for _, ch := range changes {
 		switch {
+		case c.head.IsGitlink(ch.path) || c.base.IsGitlink(ch.path):
+			specs = append(specs, spec{file: ch.path, cat: CatUnclassified, kind: ch.kind,
+				reason: "a submodule commit pointer: the trees hold no content for it"})
 		case ch.kind == KindMode:
 			specs = append(specs, spec{file: ch.path, cat: CatUnclassified, kind: KindMode,
 				reason: "a mode-only change; the content is the same"})
@@ -279,6 +282,12 @@ func diffEntries(head, base *facts.Tree) []change {
 		gone = slices.Delete(gone, i, i+1)
 	}
 	out = append(out, gone...)
+	// A gitlink holds no content to compare: it is a modified entry whatever
+	// was at its path before.
+	for _, g := range facts.ChangedGitlinks(head, base) {
+		out = slices.DeleteFunc(out, func(c change) bool { return c.path == g })
+		out = append(out, change{path: g, kind: KindModified})
+	}
 	slices.SortFunc(out, func(x, y change) int { return strings.Compare(x.path, y.path) })
 	return out
 }
