@@ -184,13 +184,23 @@ func isConfigName(p string) bool {
 // decompose returns the triggers of one module directory, or one trigger
 // per changed .tf file of it when it cannot be decomposed.
 func (c *classifier) decompose(dir string, changes []change) []spec {
-	bv, bwhy := buildView(c.base, dir, c.lim)
-	hv, hwhy := buildView(c.head, dir, c.lim)
+	bv, bwhy, blim := buildView(c.base, dir, c.lim)
+	hv, hwhy, hlim := buildView(c.head, dir, c.lim)
 	if why := cmp.Or(hwhy, bwhy); why != "" {
+		// A token only when each revision that refused did so for the
+		// same review tool limit alone.
+		var limits []string
+		if bwhy != "" {
+			limits = append(limits, blim)
+		}
+		if hwhy != "" {
+			limits = append(limits, hlim)
+		}
+		limit := oneLimit(limits)
 		var out []spec
 		for _, ch := range changes {
 			if ch.kind != KindMode && isConfigName(ch.path) && (path.Dir(ch.path) == dir || ch.prev != "" && path.Dir(ch.prev) == dir) {
-				out = append(out, spec{file: ch.path, cat: CatUnclassified, kind: ch.kind, reason: why})
+				out = append(out, spec{file: ch.path, cat: CatUnclassified, kind: ch.kind, reason: why, limit: limit})
 			}
 		}
 		return out
@@ -412,12 +422,10 @@ func (c *classifier) trigger(s spec) Trigger {
 		t.Attribute = &attr
 	}
 	reason := s.reason
+	t.Limit = s.limit
 	var okB, okH bool
 	t.BaseExpr, okB = capped(s.b)
 	t.HeadExpr, okH = capped(s.h)
-	if (!okB || !okH) && reason == "" {
-		reason = fmt.Sprintf("an expression is over %d bytes and is left out", maxExprBytes)
-	}
 	rb, rh := s.b, s.h
 	if s.typeExpr {
 		rb, rh = nil, nil
@@ -450,10 +458,18 @@ func (c *classifier) trigger(s spec) Trigger {
 	case !s.noLevels:
 		t.Levels = append(t.Levels, levelsOf[s.cat]...)
 	}
+	// Only the L1 sweep reads the expression text, so only an L1 trigger
+	// says it was left out.
 	if slices.Contains(t.Levels, LevelL1) {
+		if !okB || !okH {
+			reason = cmp.Or(reason, fmt.Sprintf("an expression is over %d bytes and is left out", maxExprBytes))
+		}
 		var why string
 		if t.Cases, why = c.cases(t, path.Dir(s.file), s.b, s.h); why != "" {
 			reason = strings.TrimPrefix(reason+"; "+why, "; ")
+			if strings.HasSuffix(why, noInputStates) {
+				t.Limit = LimitNoInputStates
+			}
 		}
 	}
 	if reason != "" {
