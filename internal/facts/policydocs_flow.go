@@ -973,6 +973,11 @@ func closedBody(b *hclsyntax.Body) bool {
 		if !closedBody(nb.Body) {
 			return false
 		}
+		// A dynamic block's iterator must be a bare name, as Terraform
+		// requires; any other form leaves its references unscoped.
+		if it, ok := nb.Body.Attributes["iterator"]; ok && nb.Type == "dynamic" && hcl.ExprAsKeyword(it.Expr) == "" {
+			return false
+		}
 	}
 	return true
 }
@@ -1230,11 +1235,9 @@ func scopedVariables(b *hclsyntax.Body, iters []string) []hcl.Traversal {
 		name := nb.Labels[0]
 		if it, ok := nb.Body.Attributes["iterator"]; ok {
 			if name = hcl.ExprAsKeyword(it.Expr); name == "" {
-				// Not a name, which Terraform rejects. A reference of two
-				// names that no block defines: refAddress keeps it, and the
-				// definition walk refuses it, so every key reading the
-				// block is undecided.
-				out = append(out, hcl.Traversal{hcl.TraverseRoot{Name: "iterator"}, hcl.TraverseAttr{Name: "quoted"}})
+				// Not a name, which Terraform rejects and closedBody
+				// refuses: read the whole block unscoped, for_each included.
+				out = append(out, scopedVariables(nb.Body, iters)...)
 				continue
 			}
 		}
