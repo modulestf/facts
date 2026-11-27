@@ -1230,7 +1230,11 @@ func scopedVariables(b *hclsyntax.Body, iters []string) []hcl.Traversal {
 		name := nb.Labels[0]
 		if it, ok := nb.Body.Attributes["iterator"]; ok {
 			if name = hcl.ExprAsKeyword(it.Expr); name == "" {
-				out = append(out, hcl.Traversal{hcl.TraverseRoot{Name: "iterator"}}) // not a name: no definition, so undecided
+				// Not a name, which Terraform rejects. A reference of two
+				// names that no block defines: refAddress keeps it, and the
+				// definition walk refuses it, so every key reading the
+				// block is undecided.
+				out = append(out, hcl.Traversal{hcl.TraverseRoot{Name: "iterator"}, hcl.TraverseAttr{Name: "quoted"}})
 				continue
 			}
 		}
