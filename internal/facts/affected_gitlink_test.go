@@ -508,7 +508,7 @@ func TestAffectedDiffGitlink(t *testing.T) {
 	t.Run("a mode line of an ordinary file is no gitlink", func(t *testing.T) {
 		t.Parallel()
 		head := writeGitlinkTree(t, gitlinkBase, nil, false)
-		r := diffAffected(t, head, "diff --git a/docs/guide.md b/docs/guide.md\nold mode 100644\nnew mode 100755\n", "")
+		r := diffAffected(t, head, "diff --git a/docs/guide.md b/docs/guide.md\nold mode 100755\nnew mode 100644\n", "")
 		if r.Fallback != nil || slices.Contains(r.Changed, "docs/sub") {
 			t.Errorf("fallback %v changed %q", r.Fallback, r.Changed)
 		}
@@ -540,9 +540,9 @@ func TestParseUnifiedGitlinkMarks(t *testing.T) {
 		"old mode of a file":          {"diff --git a/s b/s\nold mode 100644\nnew mode 100755\n", false, false},
 		"old mode":                    {"diff --git a/s b/s\nold mode 160000\nnew mode 100644\n", true, false},
 		"new mode":                    {"diff --git a/s b/s\nold mode 100644\nnew mode 160000\n", false, true},
-		"index line":                  {"diff --git a/s b/s\nindex abc..def 160000\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-x\n+y\n", true, true},
+		"index line":                  {"diff --git a/s b/s\nindex abc1234..def5678 160000\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-x\n+y\n", true, true},
 		"hunk lines":                  {"diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-" + sub + "\n+text\n", true, false},
-		"ordinary file":               {"diff --git a/s b/s\nindex abc..def 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
+		"ordinary file":               {"diff --git a/s b/s\nindex abc1234..def5678 100644\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-Subproject\n+text\n", false, false},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

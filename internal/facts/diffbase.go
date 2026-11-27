@@ -50,10 +50,10 @@ type fileChange struct {
 	// oldGit and newGit are set when the diff shows the path as a gitlink
 	// (mode 160000 or a "Subproject commit" line) at the base or at the head.
 	oldGit, newGit bool
-	// header is set when a unified diff states a change that needs no hunk:
-	// a mode line or a new or deleted file mode line. moved is set by a
-	// rename or copy line.
-	header, moved bool
+	// newMode is the head mode a unified diff gives in a "new mode", "new
+	// file mode" or "index" line, or "" when it gives none. It must be the
+	// mode of the head entry.
+	newMode string
 }
 
 // gitlinkMode is the mode of a submodule entry in a diff.
@@ -215,122 +215,294 @@ func unifiedStart(t []byte) bool {
 
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
 
-// parseUnified splits a unified diff into files. A file starts at a
-// "diff --git" line, or at a "---" line outside a file's hunks; lines before
-// the first file are a preamble and skipped. A file with no hunk and no binary
-// marker shows no line: its content did not change, or it is empty.
+// parseUnified splits a unified diff into files. Lines before the first file
+// are a preamble and skipped, as the message of a patch mail. A file is a
+// section git writes, read as an allowlist: a "diff --git" line and its
+// extended header lines in git's order, then hunks or a binary marker; or,
+// in a diff with no "diff --git" line, a ---/+++ pair and its hunks. A line,
+// an order or a combination outside that grammar refuses the whole input, as
+// does a section that shows no change and non-blank input with no section.
 func parseUnified(data []byte) ([]fileChange, error) {
 	lines := strings.Split(string(data), "\n")
-	var (
-		out   []fileChange
-		cur   *fileChange
-		sides bool // cur has had its ---/+++ pair
-	)
-	flush := func() error {
-		sides = false
-		if cur == nil {
-			return nil
-		}
-		if cur.path == "" {
-			return errors.New("unified diff: a file with no path")
-		}
-		cur.markGitlink()
-		if cur.moved && cur.prev == cur.path {
-			return fmt.Errorf("unified diff: %q is renamed or copied to itself", cur.path)
-		}
-		// A section with no hunk shows a change only by its header; git
-		// writes none that shows no change.
-		if cur.patch != nil && len(cur.patch) == 0 && !cur.header && !cur.moved {
-			return fmt.Errorf("unified diff: %q has no hunk and no change of mode, path or type", cur.path)
-		}
-		if cur.status == "" {
-			cur.status = "modified"
-			if cur.prev != "" && cur.prev != cur.path {
-				cur.status = "renamed"
-			}
-		}
-		out = append(out, *cur)
-		cur = nil
-		return nil
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
 	}
-	for i := 0; i < len(lines); i++ {
-		l := lines[i]
+	i := 0
+	for i < len(lines) && !gitStart(lines[i]) && !sidesAt(lines, i) {
+		i++ // preamble
+	}
+	var out []fileChange
+	git := i < len(lines) && gitStart(lines[i])
+	for i < len(lines) {
+		var (
+			c   fileChange
+			err error
+		)
 		switch {
-		case strings.HasPrefix(l, "diff --git "):
-			if err := flush(); err != nil {
-				return nil, err
-			}
-			p, err := gitHeaderPath(strings.TrimPrefix(l, "diff --git "))
-			if err != nil {
-				return nil, err
-			}
-			cur = &fileChange{path: p, prev: p, patch: []byte{}}
-		case strings.HasPrefix(l, "--- ") && i+1 < len(lines) && strings.HasPrefix(lines[i+1], "+++ "):
-			if cur == nil || sides {
-				if err := flush(); err != nil {
-					return nil, err
-				}
-				cur = &fileChange{patch: []byte{}}
-			}
-			sides = true
-			oldP, newP := sidePath(l[4:], "a/"), sidePath(lines[i+1][4:], "b/")
-			i++
-			switch {
-			case oldP == "/dev/null":
-				cur.status, cur.path, cur.prev = "added", newP, ""
-			case newP == "/dev/null":
-				cur.status, cur.path, cur.prev = "removed", oldP, ""
-			default:
-				cur.path, cur.prev = newP, oldP
-			}
-		case cur == nil:
-			// preamble
-		case strings.HasPrefix(l, "@@"):
-			n, err := hunkLines(lines[i:])
-			if err != nil {
-				return nil, fmt.Errorf("unified diff: %q: %w", cur.path, err)
-			}
-			cur.patch = append(cur.patch, strings.Join(lines[i:i+n], "\n")+"\n"...)
-			i += n - 1
-		case strings.HasPrefix(l, "new file mode"):
-			cur.status, cur.prev, cur.header = "added", "", true
-			cur.newGit, cur.newStated = strings.TrimSpace(strings.TrimPrefix(l, "new file mode")) == gitlinkMode, true
-		case strings.HasPrefix(l, "deleted file mode "):
-			cur.status, cur.prev, cur.header = "removed", "", true
-			cur.oldMode = strings.TrimPrefix(l, "deleted file mode ")
-			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
-		case strings.HasPrefix(l, "old mode "):
-			cur.oldMode, cur.header = strings.TrimPrefix(l, "old mode "), true
-			cur.oldGit, cur.oldStated = cur.oldMode == gitlinkMode, true
-		case strings.HasPrefix(l, "new mode "):
-			cur.newGit, cur.newStated, cur.header = strings.TrimPrefix(l, "new mode ") == gitlinkMode, true, true
-		case strings.HasPrefix(l, "index "):
-			// "index <old>..<new> <mode>" gives the mode of both sides when
-			// it is the same; with no mode field the mode lines give it. It
-			// never overrides a mode line.
-			if f := strings.Fields(l); len(f) == 3 {
-				if !cur.oldStated {
-					cur.oldGit, cur.oldStated = f[2] == gitlinkMode, true
-				}
-				if !cur.newStated {
-					cur.newGit, cur.newStated = f[2] == gitlinkMode, true
-				}
-			}
-		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
-			cur.prev, cur.moved = l[strings.Index(l, "from ")+5:], true
-			if strings.HasPrefix(l, "copy") {
-				cur.status = "copied"
-			}
-		case strings.HasPrefix(l, "rename to "), strings.HasPrefix(l, "copy to "):
-			cur.path = l[strings.Index(l, "to ")+3:]
-		case strings.HasPrefix(l, "Binary files "), strings.TrimSuffix(l, "\r") == "GIT binary patch":
-			cur.patch = nil
+		case git: // a git section ends at the next "diff --git" line or the end
+			c, i, err = gitSection(lines, i)
+		case sidesAt(lines, i):
+			c, i, err = plainSection(lines, i)
+		default:
+			return nil, fmt.Errorf("unified diff: line %d is not part of a file section", i+1)
 		}
+		if err != nil {
+			return nil, fmt.Errorf("unified diff: %w", err)
+		}
+		c.markGitlink()
+		out = append(out, c)
 	}
-	if err := flush(); err != nil {
-		return nil, err
+	if len(out) == 0 && len(bytes.TrimSpace(data)) > 0 {
+		return nil, errors.New("unified diff: no file section")
 	}
 	return out, nil
+}
+
+func gitStart(l string) bool { return strings.HasPrefix(l, "diff --git ") }
+
+// sidesAt reports a ---/+++ pair at line i.
+func sidesAt(ls []string, i int) bool {
+	return strings.HasPrefix(ls[i], "--- ") && i+1 < len(ls) && strings.HasPrefix(ls[i+1], "+++ ")
+}
+
+// The ranks of git's extended header lines, in the order git writes them.
+const (
+	rankMode = iota + 1 // old mode and new mode, new file mode, deleted file mode
+	rankSimilarity
+	rankMove // rename or copy from and to
+	rankIndex
+	rankBody // ---/+++ and hunks, Binary files, GIT binary patch
+)
+
+var (
+	indexLine      = regexp.MustCompile(`^index [0-9a-f]{4,64}\.\.[0-9a-f]{4,64}(?: ([0-7]{6}))?$`)
+	similarityLine = regexp.MustCompile(`^(?:dis)?similarity index (\d{1,3})%$`)
+	binaryLine     = regexp.MustCompile("^(?:(?:literal|delta) [0-9]+|[A-Za-z][0-9A-Za-z!#$%&()*+;<=>?@^_`{|}~-]+)?$")
+)
+
+// gitModes are the modes git writes for a path: a file, an executable, a
+// link and a gitlink.
+var gitModes = []string{"100644", "100755", "120000", gitlinkMode}
+
+func gitMode(s string) (string, error) {
+	if !slices.Contains(gitModes, s) {
+		return "", fmt.Errorf("mode %q", s)
+	}
+	return s, nil
+}
+
+// gitSection reads the file section that starts at line i, a "diff --git"
+// line, and returns it and the line after it.
+func gitSection(ls []string, i int) (fileChange, int, error) {
+	hdr := strings.TrimPrefix(ls[i], "diff --git ")
+	p, err := gitHeaderPath(hdr)
+	if err != nil {
+		return fileChange{}, 0, err
+	}
+	c := fileChange{path: p, prev: p, patch: []byte{}}
+	rank, shown, similarity, moved := 0, false, false, false
+	step := func(r int) error {
+		if r <= rank {
+			return fmt.Errorf("%q: line %d is out of git's header order", hdr, i+1)
+		}
+		rank = r
+		return nil
+	}
+	for i++; i < len(ls) && !gitStart(ls[i]); i++ {
+		l := ls[i]
+		var err error
+		switch {
+		case strings.HasPrefix(l, "old mode "):
+			if err = step(rankMode); err != nil {
+				return c, 0, err
+			}
+			if i+1 >= len(ls) || !strings.HasPrefix(ls[i+1], "new mode ") {
+				return c, 0, fmt.Errorf("%q: old mode with no new mode", hdr)
+			}
+			if c.oldMode, err = gitMode(strings.TrimPrefix(l, "old mode ")); err != nil {
+				return c, 0, err
+			}
+			if c.newMode, err = gitMode(strings.TrimPrefix(ls[i+1], "new mode ")); err != nil {
+				return c, 0, err
+			}
+			if c.oldMode == c.newMode {
+				return c, 0, fmt.Errorf("%q: old and new mode are the same", hdr)
+			}
+			c.oldGit, c.newGit, c.oldStated, c.newStated = c.oldMode == gitlinkMode, c.newMode == gitlinkMode, true, true
+			shown = true
+			i++
+		case strings.HasPrefix(l, "new file mode "):
+			if err = step(rankMode); err != nil {
+				return c, 0, err
+			}
+			if c.newMode, err = gitMode(strings.TrimPrefix(l, "new file mode ")); err != nil {
+				return c, 0, err
+			}
+			c.status, c.prev, c.newGit, c.newStated, shown = "added", "", c.newMode == gitlinkMode, true, true
+		case strings.HasPrefix(l, "deleted file mode "):
+			if err = step(rankMode); err != nil {
+				return c, 0, err
+			}
+			if c.oldMode, err = gitMode(strings.TrimPrefix(l, "deleted file mode ")); err != nil {
+				return c, 0, err
+			}
+			c.status, c.oldGit, c.oldStated, shown = "removed", c.oldMode == gitlinkMode, true, true
+		case similarityLine.MatchString(l):
+			if err = step(rankSimilarity); err != nil {
+				return c, 0, err
+			}
+			if n, _ := strconv.Atoi(similarityLine.FindStringSubmatch(l)[1]); n > 100 {
+				return c, 0, fmt.Errorf("%q: similarity over 100%%", hdr)
+			}
+			similarity = strings.HasPrefix(l, "similarity")
+			if !similarity && c.status != "" {
+				return c, 0, fmt.Errorf("%q: dissimilarity of an added or removed file", hdr)
+			}
+		case strings.HasPrefix(l, "rename from "), strings.HasPrefix(l, "copy from "):
+			if err = step(rankMove); err != nil {
+				return c, 0, err
+			}
+			kind, _, _ := strings.Cut(l, " ")
+			from := strings.TrimPrefix(l, kind+" from ")
+			if !similarity || c.status != "" || i+1 >= len(ls) || !strings.HasPrefix(ls[i+1], kind+" to ") {
+				return c, 0, fmt.Errorf("%q: %s from with no similarity index or no %s to", hdr, kind, kind)
+			}
+			to := strings.TrimPrefix(ls[i+1], kind+" to ")
+			if from == "" || to == "" || from == to || hdr != "a/"+from+" b/"+to {
+				return c, 0, fmt.Errorf("%q: %s from %q to %q", hdr, kind, from, to)
+			}
+			c.prev, c.path, c.status, moved, shown = from, to, map[string]string{"rename": "renamed", "copy": "copied"}[kind], true, true
+			i++
+		case strings.HasPrefix(l, "index "):
+			if err = step(rankIndex); err != nil {
+				return c, 0, err
+			}
+			m := indexLine.FindStringSubmatch(l)
+			if m == nil {
+				return c, 0, fmt.Errorf("%q: index line %q", hdr, l)
+			}
+			if m[1] != "" {
+				// The mode of both sides, which git writes only when it is
+				// the same: never beside a mode line.
+				if c.oldStated || c.newStated {
+					return c, 0, fmt.Errorf("%q: index line with a mode beside a mode line", hdr)
+				}
+				if c.newMode, err = gitMode(m[1]); err != nil {
+					return c, 0, err
+				}
+				c.oldGit, c.newGit, c.oldStated, c.newStated = c.newMode == gitlinkMode, c.newMode == gitlinkMode, true, true
+			}
+		case sidesAt(ls, i):
+			if err = step(rankBody); err != nil {
+				return c, 0, err
+			}
+			oldP, newP := "a/"+c.prev, "b/"+c.path
+			if c.status == "added" {
+				oldP = "/dev/null"
+			}
+			if c.status == "removed" {
+				newP = "/dev/null"
+			}
+			if sidePath(l[4:], "") != oldP || sidePath(ls[i+1][4:], "") != newP {
+				return c, 0, fmt.Errorf("%q: ---/+++ lines name other paths", hdr)
+			}
+			end, err := hunks(ls, i+2, &c)
+			if err != nil {
+				return c, 0, fmt.Errorf("%q: %w", c.path, err)
+			}
+			i, shown = end-1, true
+		case strings.HasPrefix(l, "Binary files "):
+			if err = step(rankBody); err != nil {
+				return c, 0, err
+			}
+			oldP, newP := "a/"+c.prev, "b/"+c.path
+			if c.status == "added" {
+				oldP = "/dev/null"
+			}
+			if c.status == "removed" {
+				newP = "/dev/null"
+			}
+			if l != "Binary files "+oldP+" and "+newP+" differ" {
+				return c, 0, fmt.Errorf("%q: binary marker %q", hdr, l)
+			}
+			c.patch, shown = nil, true
+		case l == "GIT binary patch":
+			if err = step(rankBody); err != nil {
+				return c, 0, err
+			}
+			for i+1 < len(ls) && !gitStart(ls[i+1]) {
+				if !binaryLine.MatchString(ls[i+1]) {
+					return c, 0, fmt.Errorf("%q: binary patch line %d", hdr, i+2)
+				}
+				i++
+			}
+			c.patch, shown = nil, true
+		default:
+			return c, 0, fmt.Errorf("%q: line %d is not a git header line", hdr, i+1)
+		}
+	}
+	if c.path == "" {
+		return c, 0, fmt.Errorf("%q: no path", hdr)
+	}
+	if similarity && !moved {
+		return c, 0, fmt.Errorf("%q: similarity index with no rename or copy", hdr)
+	}
+	if !shown {
+		return c, 0, fmt.Errorf("%q: no hunk and no change of mode, path or type", hdr)
+	}
+	switch c.status {
+	case "":
+		c.status = "modified"
+	case "removed":
+		c.prev = ""
+	}
+	return c, i, nil
+}
+
+// plainSection reads the ---/+++ section at line i of a diff with no
+// "diff --git" line, and returns it and the line after it.
+func plainSection(ls []string, i int) (fileChange, int, error) {
+	c := fileChange{patch: []byte{}}
+	oldP, newP := sidePath(ls[i][4:], "a/"), sidePath(ls[i+1][4:], "b/")
+	switch {
+	case oldP == "/dev/null" && newP == "/dev/null":
+		return c, 0, errors.New("a file with no path")
+	case oldP == "/dev/null":
+		c.status, c.path = "added", newP
+	case newP == "/dev/null":
+		c.status, c.path = "removed", oldP
+	default:
+		c.status, c.path, c.prev = "modified", newP, oldP
+		if oldP != newP {
+			c.status = "renamed"
+		}
+	}
+	if c.path == "" {
+		return c, 0, errors.New("a file with no path")
+	}
+	end, err := hunks(ls, i+2, &c)
+	if err != nil {
+		return c, 0, fmt.Errorf("%q: %w", c.path, err)
+	}
+	return c, end, nil
+}
+
+// hunks appends to c.patch the hunks that start at line i, at least one,
+// and returns the line after them.
+func hunks(ls []string, i int, c *fileChange) (int, error) {
+	start := i
+	for i < len(ls) && strings.HasPrefix(ls[i], "@@") {
+		n, err := hunkLines(ls[i:])
+		if err != nil {
+			return 0, err
+		}
+		c.patch = append(c.patch, strings.Join(ls[i:i+n], "\n")+"\n"...)
+		i += n
+	}
+	if i == start {
+		return 0, errors.New("---/+++ lines with no hunk")
+	}
+	return i, nil
 }
 
 // gitHeaderPath reads the path of a "diff --git a/<p> b/<p>" line, the form
@@ -445,6 +617,9 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 				return nil, fmt.Errorf("unsafe path %q", p)
 			}
 		}
+		if c.newMode != "" && !headHasMode(head, c.path, c.newMode) {
+			return nil, fmt.Errorf("%q: the diff gives mode %s, which is not the head entry's", c.path, c.newMode)
+		}
 		if (c.status == "renamed" || c.status == "copied") && c.prev == c.path {
 			return nil, fmt.Errorf("%q is %s to itself", c.path, c.status)
 		}
@@ -548,6 +723,25 @@ func applyChanges(head *Tree, changes []fileChange, lim Limits) (*Tree, error) {
 	maps.Copy(t.gitlinks, gitDiff)
 	t.gitlinkDiff = gitDiff
 	return t, nil
+}
+
+// headHasMode reports whether the head entry at p has the git mode mode, its
+// kind and exec bit both. A gitlink mode needs no entry at p.
+func headHasMode(head *Tree, p, mode string) bool {
+	if mode == gitlinkMode {
+		// A gitlink is no entry, and a checkout that did not fetch the
+		// submodule holds nothing there either.
+		return head.Entries[p] == nil
+	}
+	e := head.Entries[p]
+	switch {
+	case e == nil:
+		return false
+	case mode == "120000":
+		return e.Kind == KindSymlink
+	default:
+		return (e.Kind == KindFile || e.Kind == KindOversize) && e.exec == (mode == "100755")
+	}
 }
 
 // safeDiffPath accepts a clean relative path with no control character.
