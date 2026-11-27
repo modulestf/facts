@@ -106,6 +106,10 @@ func (c *classifier) run() (*Report, error) {
 		}
 	}
 	for _, dir := range slices.Sorted(maps.Keys(tfDirs)) {
+		if c.newExample(dir, changes) {
+			specs = append(specs, newExampleSpecs(dir, changes)...)
+			continue
+		}
 		specs = append(specs, c.decompose(dir, changes)...)
 	}
 	specs = append(specs, readTF(changes, specs, sc)...)
