@@ -1,6 +1,8 @@
 package facts
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -476,10 +478,10 @@ func varsReadByBaseConfig(a *Area) *varReads {
 		}
 	}
 	baseVars := variablesByName(a.Base)
-	for _, v := range firstVariables(a.Head) {
+	for i := range a.Head.Variables {
 		// A validation can fail a plan, so every one of an existing variable
-		// counts, an added one too.
-		if baseVars[v.Name] != nil {
+		// counts, an added one too, in every declaration of its name.
+		if v := &a.Head.Variables[i]; baseVars[v.Name] != nil {
 			for _, val := range v.Validations {
 				r.add(val.Condition)
 				r.add(val.ErrorMessage)
@@ -524,41 +526,93 @@ func varsReadByBaseConfig(a *Area) *varReads {
 // blocks that can fail a plan or hold a replacement trigger, whether the
 // base had them or not: precondition, postcondition, assert and lifecycle.
 func sharedArgs(base, head Body, top, all bool) []*Expr {
+	return sharedArgsOf([]Body{base}, []Body{head}, top, all)
+}
+
+// sharedArgsOf is sharedArgs over the bodies of every block of one type at
+// each revision. A nested type counts every argument when the number of its
+// blocks per parent block differs between the revisions, as a sorted list,
+// so blocks moved from one parent to another never pair by their union, and
+// when one head block has another number of them than all base blocks.
+func sharedArgsOf(bases, heads []Body, top, all bool) []*Expr {
 	var out []*Expr
-	byType := func(b Body) map[string][]*NestedBlock {
-		m := map[string][]*NestedBlock{}
-		for i := range b.Blocks {
-			m[b.Blocks[i].Type] = append(m[b.Blocks[i].Type], &b.Blocks[i])
-		}
-		return m
-	}
-	bt, ht := byType(base), byType(head)
-	for i := range head.Attributes {
-		h := &head.Attributes[i]
-		// An argument that was blocks at the base is the same setting.
-		if all || (top && instanceArgs[h.Name]) || bodyAttr(base, h.Name) != nil || len(bt[h.Name]) > 0 {
-			out = append(out, &h.Value)
+	base := mergeBodies(bases)
+	bt := nestedByType(base)
+	for _, hd := range heads {
+		for i := range hd.Attributes {
+			h := &hd.Attributes[i]
+			// An argument that was blocks at the base is the same setting.
+			if all || (top && instanceArgs[h.Name]) || bodyAttr(base, h.Name) != nil || len(bt[h.Name]) > 0 {
+				out = append(out, &h.Value)
+			}
 		}
 	}
-	for t, hb := range ht {
+	ht := nestedByType(mergeBodies(heads))
+	bc, hc := countsByType(bases), countsByType(heads)
+	for _, t := range slices.Sorted(maps.Keys(ht)) {
+		hb := ht[t]
 		known := len(bt[t]) > 0
 		// Blocks of a type the base wrote as an argument are the same setting.
-		ambiguous := all || failingBlocks[t] || bodyAttr(base, t) != nil || (known && len(bt[t]) != len(hb))
+		ambiguous := all || failingBlocks[t] || bodyAttr(base, t) != nil ||
+			(known && (oneDiffers(hc[t], len(bt[t])) || !sameProfile(bc[t], hc[t], len(bases), len(heads))))
 		if !known && !ambiguous {
 			continue
 		}
-		var bodies []Body
+		var bb, hbb []Body
 		for _, b := range bt[t] {
-			bodies = append(bodies, b.Body)
+			bb = append(bb, b.Body)
 		}
-		bb := mergeBodies(bodies)
 		for _, h := range hb {
 			if h.ForEach != nil {
 				out = append(out, h.ForEach)
 			}
-			out = append(out, sharedArgs(bb, h.Body, false, ambiguous)...)
+			hbb = append(hbb, h.Body)
+		}
+		out = append(out, sharedArgsOf(bb, hbb, false, ambiguous)...)
+	}
+	return out
+}
+
+// nestedByType are the nested blocks of a body by type.
+func nestedByType(b Body) map[string][]*NestedBlock {
+	m := map[string][]*NestedBlock{}
+	for i := range b.Blocks {
+		m[b.Blocks[i].Type] = append(m[b.Blocks[i].Type], &b.Blocks[i])
+	}
+	return m
+}
+
+// countsByType is, for each nested block type, the number of its blocks in
+// each body that has one, read in one pass over the bodies.
+func countsByType(bodies []Body) map[string][]int {
+	out := map[string][]int{}
+	for _, b := range bodies {
+		n := map[string]int{}
+		for i := range b.Blocks {
+			n[b.Blocks[i].Type]++
+		}
+		for t, c := range n {
+			out[t] = append(out[t], c)
 		}
 	}
+	return out
+}
+
+// oneDiffers reports a body that has blocks of a type, but not want of them.
+func oneDiffers(counts []int, want int) bool {
+	return slices.ContainsFunc(counts, func(c int) bool { return c != want })
+}
+
+// sameProfile reports whether two sets of bodies hold the same numbers of
+// blocks per body, in any order, the bodies with none counting 0. Sets of
+// another size differ.
+func sameProfile(x, y []int, xBodies, yBodies int) bool {
+	return slices.Equal(countProfile(x, xBodies), countProfile(y, yBodies))
+}
+
+func countProfile(counts []int, bodies int) []int {
+	out := append(make([]int, bodies-len(counts)), counts...)
+	slices.Sort(out)
 	return out
 }
 

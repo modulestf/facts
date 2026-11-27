@@ -230,6 +230,20 @@ func TestCompatNewVariableDefaultFailClosed(t *testing.T) {
 			head: map[string]string{"main.tf": r + "  t {\n    w = \"g\"\n  }\n  t {\n    v = var.a\n  }\n}\n"}, found: true},
 		{name: "nested blocks swapped", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = \"f\"\n    }\n    u {\n      w = \"g\"\n    }\n  }\n}\n"},
 			head: map[string]string{"main.tf": r + "  t {\n    u {\n      w = \"g\"\n    }\n    u {\n      v = var.a\n    }\n  }\n}\n"}, found: true},
+		{name: "nested blocks moved between parents, the full parent first", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n  }\n  t {\n    u {\n      v = 2\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n" + "  t {}\n" + "}\n"}, found: true},
+		{name: "nested blocks moved between parents, the full parent last", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n  }\n  t {\n    u {\n      v = 2\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {}\n" + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n" + "}\n"}, found: true},
+		{name: "nested blocks doubled in each parent", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n  }\n  t {\n    u {\n      v = 2\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n  t {\n    u {\n      v = 2\n    }\n    u {\n      v = 3\n    }\n  }\n}\n"}, found: true},
+		{name: "parents of nested blocks swapped", base: map[string]string{"main.tf": r + "  t {}\n  t {\n    u {\n      v = 1\n    }\n    u {\n      v = 2\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = 1\n    }\n    u {\n      w = var.a\n    }\n  }\n  t {}\n}\n"}},
+		{name: "one nested block in each of two parents", base: map[string]string{"main.tf": r + "  t {\n    u {\n      v = \"f\"\n    }\n  }\n  t {\n    u {\n      v = \"g\"\n    }\n  }\n}\n"},
+			head: map[string]string{"main.tf": r + "  t {\n    u {\n      v = \"f\"\n    }\n  }\n  t {\n    u {\n      w = var.a\n    }\n  }\n}\n"}, found: true},
+		{name: "variable declared twice, the validation last", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {}\nvariable \"c\" {\n  validation {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\n"}, found: true},
+		{name: "variable declared twice, the validation first", base: map[string]string{"main.tf": "\n", "variables.tf": "variable \"c\" {}\n"},
+			head: map[string]string{"main.tf": "\n", "variables.tf": vars + "variable \"c\" {\n  validation {\n    condition     = var.a != \"\"\n    error_message = \"e\"\n  }\n}\nvariable \"c\" {}\n"}, found: true},
 		{name: "new lifecycle precondition", base: map[string]string{"main.tf": r + "  name = \"f\"\n}\n"},
 			head: map[string]string{"main.tf": r + "  name = \"f\"\n  lifecycle {\n    precondition {\n      condition     = var.a != \"\"\n      error_message = \"e\"\n    }\n  }\n}\n"}, found: true},
 		{name: "new precondition in an existing lifecycle", base: map[string]string{"main.tf": r + "  lifecycle {\n    prevent_destroy = true\n  }\n}\n"},
@@ -605,5 +619,38 @@ func TestMovedKey(t *testing.T) {
 		if key != tt.key || deep != tt.deep {
 			t.Errorf("%q: got %q %v, want %q %v", tt.addr, key, deep, tt.key, tt.deep)
 		}
+	}
+}
+
+// sharedArgs reads the nested block types of a body with work linear in
+// the blocks: one resource with many distinct nested block types must not
+// cost a pass over the whole body for each type. The work is counted as
+// allocations, which load does not change: linear work gives a ratio of
+// about 8 between the two sizes and the limit is 16; work quadratic in the
+// types gives about 62.
+func TestSharedArgsManyNestedTypesAreLinear(t *testing.T) {
+	body := func(n int) Body {
+		var b Body
+		for i := range n {
+			b.Blocks = append(b.Blocks, NestedBlock{Type: fmt.Sprintf("t%d", i),
+				Body: Body{Attributes: []Attribute{{Name: "v"}}}})
+		}
+		return b
+	}
+	allocs := func(n int) float64 {
+		base, head := body(n), body(n)
+		if got := len(sharedArgs(base, head, true, false)); got != n {
+			t.Fatalf("%d arguments, want %d", got, n)
+		}
+		return testing.AllocsPerRun(2, func() { sharedArgs(base, head, true, false) })
+	}
+	const (
+		small    = 500
+		large    = 8 * small
+		maxRatio = 16 // linear is 8, quadratic 64
+	)
+	s, l := allocs(small), allocs(large)
+	if ratio := l / s; ratio > maxRatio {
+		t.Errorf("%d types made %.0f allocations, %d types %.0f: ratio %.1f, want at most %d", large, l, small, s, ratio, maxRatio)
 	}
 }
