@@ -279,7 +279,7 @@ func dirLoaded(p string, entries ...*Entry) bool {
 	if name == ".terraform.lock.hcl" {
 		return true
 	}
-	for _, ext := range []string{".tf", ".tf.json", ".tfvars", ".tfvars.json", ".tftest.hcl"} {
+	for _, ext := range []string{".tf", ".tf.json", ".tofu", ".tofu.json", ".tfvars", ".tfvars.json", ".tftest.hcl"} {
 		if strings.HasSuffix(name, ext) {
 			return true
 		}
@@ -303,12 +303,12 @@ func gitlinksRead(t *Tree, sites []ReadSite, roots []string) []string {
 	return out
 }
 
-// configDirs is the set of directories that hold a .tf or .tf.json file.
+// configDirs is the set of directories that hold a configuration file; see
+// configPath.
 func configDirs(t *Tree) map[string]bool {
 	out := map[string]bool{}
 	for _, p := range t.Paths {
-		name := path.Base(p)
-		if !ignoredName(name) && (strings.HasSuffix(name, ".tf") || strings.HasSuffix(name, ".tf.json")) {
+		if configPath(p) {
 			out[path.Dir(p)] = true
 		}
 	}

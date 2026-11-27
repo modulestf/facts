@@ -94,6 +94,9 @@ func (c *classifier) run() (*Report, error) {
 		case strings.HasSuffix(ch.path, ".tf.json"):
 			specs = append(specs, spec{file: ch.path, cat: CatUnclassified, kind: ch.kind,
 				reason: "a JSON configuration file is not decomposed"})
+		case strings.HasSuffix(ch.path, ".tofu") || strings.HasSuffix(ch.path, ".tofu.json"):
+			specs = append(specs, spec{file: ch.path, cat: CatUnclassified, kind: ch.kind,
+				reason: "an OpenTofu configuration file is not decomposed"})
 		default:
 			if s, ok := c.fileChange(ch, sc); ok {
 				specs = append(specs, s)
@@ -124,7 +127,7 @@ func (c *classifier) fileChange(ch change, sc *scan) (spec, bool) {
 	case !docKind(ch.h) || !docKind(ch.b):
 		s.reason = "a documentation path that is not a regular file"
 	case !sc.complete:
-		s.reason = "the read-site scan is incomplete: a .tf file does not parse or is JSON, or the tree has too many read sites"
+		s.reason = "the read-site scan is incomplete: a .tf file does not parse, a configuration file is JSON or OpenTofu, or the tree has too many read sites"
 	default:
 		site, reached := sc.reachedBy(ch.path)
 		if !reached && ch.prev != "" {

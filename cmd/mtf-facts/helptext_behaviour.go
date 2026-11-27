@@ -15,10 +15,10 @@ list or a unified diff the base tree is rebuilt from; the report is the same
 for every diff context size.
 
 Every changed tree entry is listed. A documentation or metadata path is inert
-when no read site in either revision's configuration can reach it and every
-.tf file parsed. Read sites are as affected lists them, so any string that is
-a path is one, except an IAM path that goes only to the path of aws_iam_*
-blocks no expression reads by path and a string a function only looks for or
+when no read site in either revision's configuration can reach it, every
+.tf file parsed and no .tf.json, .tofu or .tofu.json file is present. Read sites are as affected lists them, so any string that is
+a path is one, except an IAM path that goes only to the path or path_prefix
+of aws_iam_* blocks no expression reads by path or path_prefix, and a string a function only looks for or
 removes, such as the "/" of replace(var.name, "/", "-"). A .tf file is inert
 when its change is only comments, layout or blocks moved between files of one
 directory. Every other change is

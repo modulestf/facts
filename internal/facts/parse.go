@@ -248,6 +248,8 @@ func unsupportedName(name string) string {
 	switch {
 	case strings.HasSuffix(name, ".tf.json"):
 		return name + " is a JSON configuration file"
+	case strings.HasSuffix(name, ".tofu") || strings.HasSuffix(name, ".tofu.json"):
+		return name + " is an OpenTofu file"
 	case name == "override.tf" || strings.HasSuffix(name, "_override.tf"):
 		return name + " is an override file"
 	}
