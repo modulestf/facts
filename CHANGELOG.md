@@ -1,3 +1,12 @@
+# [0.23.0](https://github.com/modulestf/facts/compare/v0.22.2...v0.23.0) (2026-11-27)
+
+
+### Features
+
+* **behaviour:** Report the count or for_each of an added resource as its gate ([#163](https://github.com/modulestf/facts/issues/163)) ([ebb27c2](https://github.com/modulestf/facts/commit/ebb27c20aa46a0b180f847a7038c67c38978a4e0)), closes [modulestf/modulestf#291](https://github.com/modulestf/modulestf/issues/291)
+
+
+
 ## [0.22.2](https://github.com/modulestf/facts/compare/v0.22.1...v0.22.2) (2026-11-27)
 
 
